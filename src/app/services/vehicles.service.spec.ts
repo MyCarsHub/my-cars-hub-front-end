@@ -81,6 +81,18 @@ describe('VehiclesService — contrato de fio da listagem (FIX-0263/0264)', () =
     expect(service.items()[0].sold).toBe(true);
   });
 
+  it('`getOne` só pede a foto quando o chamador pede: sem a opção, nenhum parâmetro', () => {
+    service.getOne('veh-1').subscribe();
+    const bare = httpMock.expectOne((r) => r.method === 'GET' && r.url === `${BASE}/veh-1`);
+    expect(bare.request.params.has('includePhoto')).toBe(false);
+    bare.flush({});
+
+    service.getOne('veh-1', { includePhoto: true }).subscribe();
+    const asked = httpMock.expectOne((r) => r.method === 'GET' && r.url === `${BASE}/veh-1`);
+    expect(asked.request.params.get('includePhoto')).toBe('true');
+    asked.flush({});
+  });
+
   it('não manda o parâmetro `sold` por padrão e manda `sold=true` no modo Vendidos', () => {
     service.list().subscribe();
     const plain = httpMock.expectOne((r) => r.method === 'GET' && r.url === BASE);

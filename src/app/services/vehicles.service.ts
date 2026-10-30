@@ -130,8 +130,10 @@ export class VehiclesService {
     );
   }
 
-  getOne(id: string): Observable<Vehicle> {
-    return this.http.get<Vehicle>(`${BASE}/${id}`);
+  /** `includePhoto` é opt-in, como na lista: quem omite não paga a ida ao storage. */
+  getOne(id: string, options: { includePhoto?: boolean } = {}): Observable<Vehicle> {
+    const params = options.includePhoto ? { includePhoto: 'true' } : undefined;
+    return this.http.get<Vehicle>(`${BASE}/${id}`, { params });
   }
 
   /**

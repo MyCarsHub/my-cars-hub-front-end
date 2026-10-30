@@ -49,7 +49,7 @@ export class VehicleDocumentsCard {
 
   readonly vehicleId = input.required<string>();
 
-  /** Repassa a lista do card compartilhado; o detalhe tira dela a foto. */
+  /** Repassa a lista do card compartilhado; o detalhe vê nela que o anexo PHOTO mudou. */
   readonly documentsChange = output<DocumentLike[]>();
 
   /** A foto tem teto próprio (`MAX_PHOTO_BYTES`): a frase geral não pode prometer mais. */
@@ -76,8 +76,8 @@ export class VehicleDocumentsCard {
       required: false,
     },
     {
-      // V115 — OPCIONAL. Vira a miniatura do card na lista de veículos; sem
-      // ela, a lista usa a frente da última vistoria aprovada. Só imagem: o
+      // V115 — OPCIONAL. Vira a foto da lista e do detalhe do veículo; sem ela,
+      // os dois usam a frente da última vistoria aprovada. Só imagem: o
       // servidor recusa PDF neste tipo, e a mensagem cai no banner do card.
       // É o ÚNICO tipo comprimido: a miniatura baixa este arquivo inteiro a
       // cada carga da lista, e foto de carro não precisa de legibilidade.

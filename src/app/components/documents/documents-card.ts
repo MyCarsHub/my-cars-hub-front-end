@@ -166,8 +166,8 @@ export class DocumentsCard implements OnInit, OnDestroy {
 
   /**
    * A lista como o card a conhece: depois de carregar, enviar ou remover. Quem
-   * mostra algo derivado dela (a foto no detalhe do veículo) acompanha por aqui,
-   * sem um segundo GET e sem ficar para trás quando o usuário mexe no slot.
+   * depende dela (a foto no detalhe do veículo) acompanha por aqui, sem um segundo
+   * GET de documentos e sem ficar para trás quando o usuário mexe no slot.
    */
   readonly documentsChange = output<DocumentLike[]>();
 

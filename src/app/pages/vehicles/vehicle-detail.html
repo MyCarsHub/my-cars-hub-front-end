@@ -39,7 +39,9 @@
         @if (showPhoto()) {
           <app-vehicle-detail-photo
             [vehicleId]="v.id"
-            [photo]="photoDocument()!"
+            [url]="photo()!.url"
+            [source]="photo()!.source"
+            [fileName]="photoFileName()"
             [plate]="formatPlate(v.plate)"
             (failed)="onPhotoFailed()"
           />

@@ -9,6 +9,7 @@ import {
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
+import { Subscription } from 'rxjs';
 import { BackLink } from '../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
@@ -25,7 +26,7 @@ import {
 import { ApiErrorService } from '../../services/api-error.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
-import { IpvaStatus, Vehicle, VehicleType } from '../../types/vehicle.types';
+import { IpvaStatus, Vehicle, VehiclePhotoSource, VehicleType } from '../../types/vehicle.types';
 import { vehicleStatusMeta } from '../../utils/status-maps';
 import { formatSaleDate, saleReleasesSlotNote, soldLockReason as soldLockReasonFor } from './vehicle-sale-copy';
 
@@ -82,14 +83,20 @@ export class VehicleDetail implements OnInit {
   protected readonly vehicleId = computed(() => this.vehicle()?.id ?? '');
 
   /**
-   * O anexo PHOTO, lido da lista que o card de documentos já carrega e mantém:
-   * enviar ou remover a foto ali atualiza o quadro do cabeçalho sem outro GET.
+   * A foto do cabeçalho, a mesma da lista: quem decide é o backend (o anexo PHOTO,
+   * senão a frente da última vistoria aprovada). Signal próprio, e não lido de
+   * `vehicle()`, porque venda e status respondem o veículo SEM foto: copiar essa
+   * resposta para `vehicle` não pode apagar o quadro.
    */
-  protected readonly photoDocument = signal<DocumentLike | null>(null);
+  protected readonly photo = signal<{ url: string; source: VehiclePhotoSource } | null>(null);
   private readonly photoFailed = signal(false);
-  protected readonly showPhoto = computed(
-    () => this.photoDocument() !== null && !this.photoFailed(),
-  );
+  protected readonly showPhoto = computed(() => this.photo() !== null && !this.photoFailed());
+
+  /** Nome do anexo PHOTO, para o visualizador. A foto em si não sai daqui. */
+  protected readonly photoFileName = signal<string | null>(null);
+  /** O anexo PHOTO conhecido; `undefined` até a primeira lista do card. */
+  private photoDocumentId: string | null | undefined = undefined;
+  private photoRefresh: Subscription | null = null;
 
   protected readonly typeInfo = computed(() => {
     const t = this.vehicle()?.type;
@@ -226,9 +233,10 @@ export class VehicleDetail implements OnInit {
   private load(id: string): void {
     this.loading.set(true);
     this.error.set(null);
-    this.vehiclesService.getOne(id).subscribe({
+    this.vehiclesService.getOne(id, { includePhoto: true }).subscribe({
       next: (v) => {
         this.vehicle.set(v);
+        this.showPhotoOf(v);
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
@@ -238,12 +246,41 @@ export class VehicleDetail implements OnInit {
     });
   }
 
-  /** A lista vem do servidor com o mais recente primeiro, como na edição do veículo. */
+  /**
+   * A lista vem do servidor com o mais recente primeiro, como na edição do veículo.
+   * Ela não escolhe a foto: só avisa que o anexo mudou no slot. Aí o backend é
+   * perguntado de novo, porque remover o anexo pode revelar a frente da vistoria.
+   * A primeira lista não pergunta nada: o GET do veículo acabou de responder.
+   */
   protected onDocumentsChange(documents: DocumentLike[]): void {
-    const photo = documents.find((d) => d.kind === 'PHOTO') ?? null;
-    if (photo?.id === this.photoDocument()?.id) return;
+    const document = documents.find((d) => d.kind === 'PHOTO') ?? null;
+    const previousId = this.photoDocumentId;
+    this.photoDocumentId = document?.id ?? null;
+    this.photoFileName.set(document?.fileName ?? null);
+    if (previousId === undefined || previousId === this.photoDocumentId) return;
+    this.refreshPhoto();
+  }
+
+  private refreshPhoto(): void {
+    const v = this.vehicle();
+    if (!v) return;
+    this.photoRefresh?.unsubscribe();
+    this.photoRefresh = this.vehiclesService.getOne(v.id, { includePhoto: true }).subscribe({
+      next: (fresh) => this.showPhotoOf(fresh),
+      error: (err: HttpErrorResponse) => {
+        // O card de documentos, logo abaixo, é quem fala de falha de anexo. O
+        // quadro não fica mostrando um arquivo que pode já ter sido removido.
+        this.apiErrors.claim(err);
+        this.showPhotoOf(null);
+      },
+    });
+  }
+
+  private showPhotoOf(vehicle: Vehicle | null): void {
+    const url = vehicle?.photoUrl;
+    const source = vehicle?.photoSource;
     this.photoFailed.set(false);
-    this.photoDocument.set(photo);
+    this.photo.set(url && source ? { url, source } : null);
   }
 
   protected onPhotoFailed(): void {

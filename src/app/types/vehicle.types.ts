@@ -151,6 +151,15 @@ export interface Vehicle {
    * somente-leitura: o veículo vendido sai da operação por inteiro.
    */
   sale: VehicleSale | null;
+  /**
+   * URL ASSINADA da foto, pela mesma regra da lista: o anexo PHOTO, senão a
+   * frente da última vistoria aprovada. Só vem em `getOne(id, { includePhoto: true })`.
+   * Quem omite recebe `null`, e as respostas de venda e de status também: aqui
+   * `null` NÃO quer dizer que o veículo não tem foto.
+   */
+  photoUrl?: string | null;
+  /** De onde a foto veio. `null` quando não há URL. */
+  photoSource?: VehiclePhotoSource | null;
   createdDate: string;
   modifyDate: string | null;
 }
