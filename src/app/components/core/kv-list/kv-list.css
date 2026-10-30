@@ -1,0 +1,22 @@
+/* Dados só de leitura, separados por espaço: nada de linha entre eles. */
+[appKvList] { margin: 0; padding: 6px 0; }
+[appKvList] > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 9px 16px;
+  min-height: 40px;
+  font-size: 14.5px;
+}
+[appKvList].kv-list-inset > div { padding-left: 62px; }
+[appKvList].kv-list-flush > div { padding-left: 0; padding-right: 0; }
+[appKvList] dt { color: var(--color-fg-muted); flex: none; }
+[appKvList] dd {
+  margin: 0;
+  color: var(--color-fg);
+  font-weight: 600;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

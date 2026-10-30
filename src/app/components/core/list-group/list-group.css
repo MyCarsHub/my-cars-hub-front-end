@@ -1,0 +1,55 @@
+/*
+ * Linhas agrupadas (Ajustes do iOS). Escopo pelo atributo, então nada aqui alcança
+ * elemento fora de uma linha. Sem separador entre linhas, por decisão do dono: quem
+ * separa é o espaço, a coluna do ícone, a do texto e os valores à direita.
+ */
+[appListRow] {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 10px 16px;
+  position: relative;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+a[appListRow], button[appListRow] { cursor: pointer; transition: background-color 0.15s; }
+a[appListRow]:not([aria-disabled='true']):hover,
+button[appListRow]:hover:not(:disabled) { background: color-mix(in srgb, var(--color-fg) 3%, transparent); }
+a[appListRow]:not([aria-disabled='true']):active,
+button[appListRow]:active:not(:disabled) { background: color-mix(in srgb, var(--color-fg) 6%, transparent); }
+a[appListRow]:focus-visible, button[appListRow]:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: -2px; }
+button[appListRow]:disabled, a[appListRow][aria-disabled='true'] { cursor: default; }
+[appListRow].list-row-inset { padding-left: 62px; }
+
+[appListRow] .tile {
+  width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; flex: none;
+  background: var(--color-surface-sunken); color: var(--color-fg);
+}
+[appListRow] .tile svg { width: 18px; height: 18px; }
+[appListRow] .tile.tint { background: var(--list-tint, #FFF0EA); color: var(--list-tint-fg, var(--color-primary-500)); }
+[appListRow] .tile.hot { background: var(--color-primary-500); color: #fff; }
+[appListRow] .tile.alert { background: rgba(225, 29, 72, 0.12); color: var(--list-danger, #B91C1C); }
+.dark [appListRow] {
+  --list-tint: rgba(246, 59, 4, 0.15);
+  --list-tint-fg: var(--color-primary-400);
+  --list-danger: #F87171;
+  --list-link: var(--color-primary-300);
+}
+
+[appListRow] .t { flex: 1; min-width: 0; }
+[appListRow] .t b { display: block; font-weight: 600; color: var(--color-fg); font-size: 15.5px; }
+[appListRow] .t small { display: block; color: var(--color-fg-muted); font-size: 13.5px; margin-top: 1px; }
+/* Pendência: título e chip na mesma linha, detalhe embaixo. */
+[appListRow] .t .l1 { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 8px; }
+[appListRow] .v { color: var(--color-fg-muted); font-size: 15px; text-align: right; flex: none; }
+[appListRow] .v.add { color: var(--list-link, var(--color-primary-700)); font-weight: 600; font-size: 14px; }
+[appListRow] .v.alert { color: var(--list-danger, #B91C1C); font-weight: 600; font-size: 14px; }
+[appListRow] .chev { width: 8px; height: 14px; color: var(--color-fg-faint); flex: none; }
+
+[appListRow].list-row-danger .t b { color: var(--list-danger, #B91C1C); }
+[appListRow].list-row-locked .t b, [appListRow].list-row-locked .tile { opacity: 0.55; }
+[appListRow].list-row-locked.list-row-danger .t b { color: var(--color-fg); }

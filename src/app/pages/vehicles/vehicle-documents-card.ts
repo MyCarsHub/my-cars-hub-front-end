@@ -35,7 +35,8 @@ import { VEHICLE_DOCUMENT_KIND_META, VehicleDocumentKind } from '../../types/veh
   imports: [DocumentsCard],
   template: `
     <app-documents-card
-      title="Documentos anexados"
+      [title]="variant() === 'rows' ? 'Documentos' : 'Documentos anexados'"
+      [variant]="variant()"
       [slotDefs]="slotDefs"
       [ops]="ops"
       [description]="description"
@@ -48,6 +49,7 @@ export class VehicleDocumentsCard {
   private readonly compression = inject(ImageCompressionService);
 
   readonly vehicleId = input.required<string>();
+  readonly variant = input<'card' | 'rows'>('card');
 
   /** Repassa a lista do card compartilhado; o detalhe vê nela que o anexo PHOTO mudou. */
   readonly documentsChange = output<DocumentLike[]>();

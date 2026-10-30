@@ -15,6 +15,10 @@ import {
 import { EMPTY, Observable, Subscription, from, of, switchMap } from 'rxjs';
 import { PageCard } from '../core/page-card/page-card';
 import { ConfirmDialog } from '../core/confirm-dialog/confirm-dialog';
+import { BottomSheet } from '../core/bottom-sheet/bottom-sheet';
+import { KvList } from '../core/kv-list/kv-list';
+import { ListChevron, ListGroup, ListRow } from '../core/list-group/list-group';
+import { StatusChip } from '../core/status-chip/status-chip';
 import { AlertBanner } from '../alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
@@ -137,7 +141,17 @@ export interface DocumentSlot {
   selector: 'app-documents-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [PageCard, ConfirmDialog, AlertBanner],
+  imports: [
+    PageCard,
+    ConfirmDialog,
+    AlertBanner,
+    BottomSheet,
+    KvList,
+    ListGroup,
+    ListRow,
+    ListChevron,
+    StatusChip,
+  ],
   templateUrl: './documents-card.html',
 })
 export class DocumentsCard implements OnInit, OnDestroy {
@@ -153,6 +167,11 @@ export class DocumentsCard implements OnInit, OnDestroy {
   readonly title = input('Documentos');
   /** Teto POR TIPO. 1 = regra canônica; N continua possível (incidentes). */
   readonly maxPerKind = input(1);
+  /**
+   * `card` é o cartão com slots. `rows` é a mesma regra em linhas agrupadas, para quem
+   * mora numa coluna de grupos: sem descrição nem contador, que ali seriam ruído.
+   */
+  readonly variant = input<'card' | 'rows'>('card');
 
   /**
    * SUBSTANTIVO da entidade nas mensagens do card (toasts, erros, diálogo,
@@ -183,6 +202,8 @@ export class DocumentsCard implements OnInit, OnDestroy {
   protected readonly loading = signal(false);
   protected readonly deleting = signal<DocumentLike | null>(null);
   protected readonly deletingBusy = signal(false);
+  /** Arquivo aberto na folha de `rows`, com Abrir e Remover. */
+  protected readonly fileSheet = signal<{ label: string; doc: DocumentLike } | null>(null);
   /** Falha de negócio (inclusive o teto de 20 anexos): banner inline, nunca toast. */
   protected readonly error = signal<string | null>(null);
 
@@ -503,9 +524,37 @@ export class DocumentsCard implements OnInit, OnDestroy {
    * Com `maxPerKind` 1 o preenchido diz "Anexado"; o plural só existe para
    * dado legado que o servidor ainda guarda (N por tipo).
    */
+  /** Falta de verdade: só um essencial vazio se parece com um erro. */
+  protected isMissing(slot: DocumentSlot): boolean {
+    return slot.state === 'empty' && slot.required;
+  }
+
+  /** Opcional vazio: nada está errado, é só um convite. */
+  protected isCalm(slot: DocumentSlot): boolean {
+    return slot.state === 'empty' && !slot.required;
+  }
+
+  protected openFileSheet(slot: DocumentSlot, doc: DocumentLike): void {
+    this.fileSheet.set({ label: slot.label, doc });
+  }
+
+  protected closeFileSheet(): void {
+    this.fileSheet.set(null);
+  }
+
+  /** A folha sai primeiro: a confirmação não pode abrir por trás dela. */
+  protected removeFromSheet(doc: DocumentLike): void {
+    this.closeFileSheet();
+    this.askDelete(doc);
+  }
+
+  protected fileRowAriaLabel(slot: DocumentSlot, doc: DocumentLike): string {
+    return `${slot.label}, ${doc.fileName}: ver opções`;
+  }
+
   protected slotCountLabel(slot: DocumentSlot): string {
     const n = slot.files.length;
-    if (n === 0) return slot.required ? 'Falta anexar' : 'Nenhum arquivo';
+    if (n === 0) return slot.required ? 'Falta anexar' : 'Adicionar';
     if (n === 1) return this.maxPerKind() === 1 ? 'Anexado' : '1 arquivo';
     return `${n} arquivos`;
   }
