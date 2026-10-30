@@ -22,14 +22,14 @@ import { InsurancePolicyDocument } from '../../types/insurance.types';
 
 /**
  * Teto de upload do cliente, alinhado ao do servidor
- * (`InsurancePolicyDocumentService.MAX_PDF_BYTES` = 20MB, e ao
+ * (`InsurancePolicyDocumentService.MAX_PDF_BYTES` = 10MB, e ao
  * `spring.servlet.multipart.max-file-size`). Um teto menor aqui barraria no
  * navegador um PDF que o servidor aceitaria, citando um limite que não existe.
  */
 const MAX_POLICY_BYTES = 20 * 1024 * 1024;
 
 /** Rótulo do teto usado nas mensagens — um só lugar para não divergir de novo. */
-const MAX_POLICY_LABEL = '20MB';
+const MAX_POLICY_LABEL = '10MB';
 
 /**
  * Apólice em PDF de um seguro: anexar, abrir (via signed URL) e remover.

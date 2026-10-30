@@ -37,7 +37,7 @@ import {
       [slotDefs]="slotDefs"
       [ops]="ops"
       [maxPerKind]="maxPerKind"
-      description="Fotos do dano, boletim de ocorrência, orçamento de reparo. Aceitos PDF, JPG, PNG, WebP e HEIC/HEIF, até 20MB por arquivo."
+      description="Fotos do dano, boletim de ocorrência, orçamento de reparo. Aceitos PDF, JPG, PNG, WebP e HEIC/HEIF, até 10MB por arquivo."
     />
   `,
 })

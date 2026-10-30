@@ -736,7 +736,7 @@ export class MaintenanceForm implements OnInit {
     const faltando = this.pendingDocs().length;
     const detalhe =
       err.status === 413
-        ? 'O arquivo passou do limite de 20MB.'
+        ? 'O arquivo passou do limite de 10MB.'
         : (this.apiErrors.messageFor(err, 'Não foi possível enviar o documento.') ??
           'Não foi possível enviar o documento.');
     const plural = faltando === 1 ? 'arquivo continua' : 'arquivos continuam';

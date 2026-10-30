@@ -102,7 +102,7 @@ export class PendingDocumentsBlock {
     }
     if (file.size > MAX_DOCUMENT_BYTES) {
       this.fileRejected.emit(
-        `O arquivo tem ${formatDocumentSize(file.size)} e o limite é 20MB. ` +
+        `O arquivo tem ${formatDocumentSize(file.size)} e o limite é 10MB. ` +
           'Fotografe o documento com menos resolução e escolha de novo.',
       );
       return;

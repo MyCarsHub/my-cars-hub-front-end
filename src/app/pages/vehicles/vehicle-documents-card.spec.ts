@@ -255,7 +255,7 @@ describe('VehicleDocumentsCard', () => {
     const texto = (host().textContent ?? '').replace(/\s+/g, ' ');
     expect(texto).toContain(
       'Toque em um tipo para anexar os documentos do veículo. ' +
-        'São aceitos PDF, JPG ou PNG até 20MB cada; a foto do veículo, até 10MB.',
+        'São aceitos PDF, JPG ou PNG até 10MB cada.',
     );
     expect(texto).toContain('Sempre o mais recente; anexar de novo substitui.');
     expect(texto).not.toContain('anos diferentes convivem');
@@ -359,13 +359,13 @@ describe('VehicleDocumentsCard', () => {
     expect(host().textContent).toContain('PDF, JPG, PNG, WebP, HEIC/HEIF');
   });
 
-  it('recusa arquivo acima de 20MB sem chamar a API', async () => {
+  it('recusa arquivo acima de 10MB sem chamar a API', async () => {
     await setup();
 
     attach('CRLV', photo('enorme.jpg', 21 * 1024 * 1024, 'image/jpeg'));
 
     expect(uploadDocument).not.toHaveBeenCalled();
-    expect(host().textContent).toContain('20MB');
+    expect(host().textContent).toContain('10MB');
   });
 
   /**
@@ -423,12 +423,13 @@ describe('VehicleDocumentsCard', () => {
       expect(slotText('PHOTO')).not.toContain('Enviando');
     });
 
-    it('um CRLV de 11MB continua aceito: o teto de 10MB é só da foto', async () => {
+    it('um CRLV de 11MB é recusado: o teto de 10MB vale para todo documento', async () => {
       await setup();
 
       await attachAndSettle('CRLV', photo('crlv.pdf', 11 * MB));
 
-      expect(uploadDocument).toHaveBeenCalledTimes(1);
+      expect(uploadDocument).not.toHaveBeenCalled();
+      expect(state().error()).toContain('o limite é 10MB');
     });
 
     it('«Cancelar envio» durante a compressão não sobe nada ao terminar', async () => {
@@ -548,7 +549,7 @@ describe('VehicleDocumentsCard', () => {
 
     attach('CRLV', photo());
 
-    expect(host().textContent).toContain('20MB');
+    expect(host().textContent).toContain('10MB');
     expect(slotText('CRLV')).not.toContain('Enviando o documento…');
   });
 

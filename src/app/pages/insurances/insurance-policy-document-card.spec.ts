@@ -166,19 +166,19 @@ describe('InsurancePolicyDocumentCard', () => {
     expect(api().error()).toContain('PDF');
   });
 
-  it('recusa arquivo acima de 20MB sem chamar a API', async () => {
+  it('recusa arquivo acima de 10MB sem chamar a API', async () => {
     await setup(null);
 
     api().onFileSelected(fileEvent(pdf('grande.pdf', 21 * 1024 * 1024)));
     fixture.detectChanges();
 
     expect(uploadPolicyDocument).not.toHaveBeenCalled();
-    expect(api().error()).toContain('20MB');
+    expect(api().error()).toContain('10MB');
   });
 
   /**
    * O teto do cliente espelha o do servidor
-   * (`InsurancePolicyDocumentService.MAX_PDF_BYTES` = 20MB). Antes o cliente
+   * (`InsurancePolicyDocumentService.MAX_PDF_BYTES` = 10MB). Antes o cliente
    * parava em 10MB e barrava no navegador um PDF de 12MB que o servidor
    * aceitaria — citando um limite que não era o real.
    */
@@ -201,7 +201,7 @@ describe('InsurancePolicyDocumentCard', () => {
     api().onFileSelected(fileEvent(pdf()));
     fixture.detectChanges();
 
-    expect(api().error()).toContain('20MB');
+    expect(api().error()).toContain('10MB');
     expect(api().uploading()).toBe(false);
   });
 

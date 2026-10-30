@@ -55,7 +55,7 @@ export class VehicleDocumentsCard {
   /** A foto tem teto próprio (`MAX_PHOTO_BYTES`): a frase geral não pode prometer mais. */
   protected readonly description =
     'Toque em um tipo para anexar os documentos do veículo. São aceitos PDF, JPG ou PNG até ' +
-    `${MAX_DOCUMENT_LABEL} cada; a foto do veículo, até ${MAX_PHOTO_LABEL}.`;
+    `${MAX_DOCUMENT_LABEL} cada.`;
 
   /**
    * Três tipos, SEM PORTÃO — a lista é constante (array simples, não computed:

@@ -15,12 +15,12 @@
  */
 
 /**
- * Teto do cliente, alinhado ao `MAX_BYTES` dos `*DocumentService` do backend.
+ * Teto do cliente: o `file_size_limit` do bucket, o menor limite do caminho.
  * A guarda existe para falhar ANTES de gastar a franquia de dados de quem está
  * fotografando o documento pelo celular.
  */
-export const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
-export const MAX_DOCUMENT_LABEL = '20MB';
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+export const MAX_DOCUMENT_LABEL = '10MB';
 
 /** Allowlist espelhada do backend — o que não está aqui seria recusado lá. */
 export const ALLOWED_DOCUMENT_MIME_TYPES = [

@@ -593,7 +593,7 @@ describe('RentalContractCard — upload UX', () => {
     return fixture;
   }
 
-  it('rejeita PDF acima de 20MB inline e NÃO dispara nenhuma chamada HTTP', () => {
+  it('rejeita PDF acima de 10MB inline e NÃO dispara nenhuma chamada HTTP', () => {
     const fixture = makeFixture();
     const cmp = fixture.componentInstance as any;
 
@@ -602,8 +602,8 @@ describe('RentalContractCard — upload UX', () => {
 
     expect(rentalService.uploadContractWithProgress).not.toHaveBeenCalled();
     expect(cmp.uploading()).toBe(false);
-    expect(cmp.error()).toContain('20MB');
-    expect(fixture.nativeElement.querySelector('app-alert-banner')?.textContent).toContain('20MB');
+    expect(cmp.error()).toContain('10MB');
+    expect(fixture.nativeElement.querySelector('app-alert-banner')?.textContent).toContain('10MB');
   });
 
   it('rejeita arquivo não-PDF inline e NÃO dispara nenhuma chamada HTTP', () => {
@@ -789,7 +789,7 @@ describe('RentalContractCard — upload UX', () => {
     cmp.onFileSelected(fileEvent(makeFile('contrato.pdf', 'application/pdf', 1024)));
     fixture.detectChanges();
 
-    expect(cmp.error()).toContain('20MB');
+    expect(cmp.error()).toContain('10MB');
     expect(cmp.uploading()).toBe(false);
     expect(notifications.push).not.toHaveBeenCalledWith('error', expect.anything());
   });

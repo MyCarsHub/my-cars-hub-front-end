@@ -41,9 +41,9 @@ interface SignatureBadge {
   chip: string;
 }
 
-/** Teto de upload do cliente; casa com o limite do backend (20MB). */
+/** Teto de upload do cliente; casa com o limite do backend (10MB). */
 const MAX_CONTRACT_BYTES = 20 * 1024 * 1024;
-const MAX_CONTRACT_LABEL = '20MB';
+const MAX_CONTRACT_LABEL = '10MB';
 
 const PDF_MIME = 'application/pdf';
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
