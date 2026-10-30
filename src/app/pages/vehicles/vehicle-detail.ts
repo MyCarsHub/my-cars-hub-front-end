@@ -16,6 +16,8 @@ import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dial
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { VehicleDocumentsCard } from './vehicle-documents-card';
+import { VehicleDetailPhoto } from './components/vehicle-detail-photo/vehicle-detail-photo';
+import { DocumentLike } from '../../components/documents/documents-card';
 import {
   SellVehicleDialog,
   SellVehicleFormValue,
@@ -51,6 +53,7 @@ const IPVA_STATUS_LABEL: Record<IpvaStatus, { label: string; chip: string }> = {
     DetailActions,
     AlertBanner,
     VehicleDocumentsCard,
+    VehicleDetailPhoto,
     SellVehicleDialog,
   ],
   templateUrl: './vehicle-detail.html',
@@ -77,6 +80,16 @@ export class VehicleDetail implements OnInit {
   protected readonly deleting = signal(false);
 
   protected readonly vehicleId = computed(() => this.vehicle()?.id ?? '');
+
+  /**
+   * O anexo PHOTO, lido da lista que o card de documentos já carrega e mantém:
+   * enviar ou remover a foto ali atualiza o quadro do cabeçalho sem outro GET.
+   */
+  protected readonly photoDocument = signal<DocumentLike | null>(null);
+  private readonly photoFailed = signal(false);
+  protected readonly showPhoto = computed(
+    () => this.photoDocument() !== null && !this.photoFailed(),
+  );
 
   protected readonly typeInfo = computed(() => {
     const t = this.vehicle()?.type;
@@ -223,6 +236,18 @@ export class VehicleDetail implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  /** A lista vem do servidor com o mais recente primeiro, como na edição do veículo. */
+  protected onDocumentsChange(documents: DocumentLike[]): void {
+    const photo = documents.find((d) => d.kind === 'PHOTO') ?? null;
+    if (photo?.id === this.photoDocument()?.id) return;
+    this.photoFailed.set(false);
+    this.photoDocument.set(photo);
+  }
+
+  protected onPhotoFailed(): void {
+    this.photoFailed.set(true);
   }
 
   protected askDelete(): void {

@@ -15,11 +15,12 @@
  */
 
 /**
- * Teto do cliente, alinhado ao `MAX_BYTES` dos `*DocumentService` do backend.
+ * Teto do cliente: o `file_size_limit` do bucket, o menor limite do caminho.
  * A guarda existe para falhar ANTES de gastar a franquia de dados de quem está
  * fotografando o documento pelo celular.
  */
-export const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+export const MAX_DOCUMENT_LABEL = '10MB';
 
 /** Allowlist espelhada do backend — o que não está aqui seria recusado lá. */
 export const ALLOWED_DOCUMENT_MIME_TYPES = [
@@ -60,13 +61,20 @@ export function isAllowedDocumentFile(file: File): boolean {
 }
 
 /**
- * Foto do veículo (kind PHOTO, V115): sai da MESMA allowlist e do MESMO teto
- * dos documentos, estreitada ao que o servidor aceita para PHOTO e a `<img>`
- * desenha — JPG, PNG e WebP. PDF e HEIC/HEIF são recusados lá
- * (`MSG_PHOTO_NOT_IMAGE`); recusar aqui antes poupa a franquia de dados de quem
- * escolheu o arquivo no celular e, na TROCA, evita apagar a foto atual para só
- * então descobrir que a nova não serve.
+ * Foto do veículo (kind PHOTO, V115): sai da MESMA allowlist dos documentos,
+ * estreitada ao que o servidor aceita para PHOTO e a `<img>` desenha — JPG, PNG
+ * e WebP. PDF e HEIC/HEIF são recusados lá (`MSG_PHOTO_NOT_IMAGE`); recusar aqui
+ * antes poupa a franquia de dados de quem escolheu o arquivo no celular e, na
+ * TROCA, evita apagar a foto atual para só então descobrir que a nova não serve.
+ *
+ * O TETO é outro: `MAX_PHOTO_BYTES` espelha o `file_size_limit` do bucket
+ * `rental-docs`, que é o limite que de fato derruba o envio (o arquivo passaria
+ * pelo backend e cairia no storage como 500). Vale para o arquivo JÁ comprimido:
+ * foto de câmera acima do teto entra, reduz e sobe.
  */
+export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+export const MAX_PHOTO_LABEL = '10MB';
+
 export const PHOTO_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 export const PHOTO_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
 export const PHOTO_ACCEPT = [

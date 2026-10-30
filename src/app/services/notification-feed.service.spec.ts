@@ -1,10 +1,26 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import {
+  HttpClient,
+  HttpErrorResponse,
+  HttpParams,
+  provideHttpClient,
+  withInterceptors,
+} from '@angular/common/http';
+import {
+  HttpTestingController,
+  TestRequest,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
 import { PLATFORM_ID } from '@angular/core';
+import { Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApiErrorService } from './api-error.service';
+import { errorInterceptor } from './error.interceptor';
+import { ImpersonationService } from './impersonation.service';
 import { NotificationFeedService } from './notification-feed.service';
+import { NotificationService } from './notification.service';
 import { SessionService } from './session.service';
 import type { NotificationItem } from '../types/notification-feed.types';
 
@@ -494,5 +510,109 @@ describe('NotificationFeedService', () => {
       vi.advanceTimersByTime(60_000);
       expect(service.unreadCount()).toBe(5);
     });
+  });
+});
+
+/**
+ * O poll passando pelo `errorInterceptor` REAL. Ninguém pediu esta chamada: ela
+ * roda sozinha e no instante em que o Android devolve a página depois da galeria.
+ * Falha de rede ali não pode acusar o usuário de um erro. Com HTTP mockado este
+ * arquivo não veria o toast, porque ele nasce no interceptor, antes do `error` de
+ * quem assina. Por isso este bloco tem HTTP e interceptor de verdade.
+ */
+describe('NotificationFeedService — o poll diante do errorInterceptor', () => {
+  let notifyError: ReturnType<typeof vi.fn>;
+  let notifyWarning: ReturnType<typeof vi.fn>;
+  let sessionClear: ReturnType<typeof vi.fn>;
+  let routerNavigate: ReturnType<typeof vi.fn>;
+  let scheduleSafetyNet: ReturnType<typeof vi.fn>;
+  let http: HttpTestingController;
+  let service: NotificationFeedService;
+
+  const unreadRequest = (): TestRequest =>
+    http.expectOne((req) => req.url.endsWith('/unread-count'));
+
+  const networkFailure = (req: TestRequest): void => req.error(new ProgressEvent('error'));
+
+  beforeEach(() => {
+    notifyError = vi.fn();
+    notifyWarning = vi.fn();
+    sessionClear = vi.fn();
+    routerNavigate = vi.fn();
+    scheduleSafetyNet = vi.fn();
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        {
+          provide: SessionService,
+          useValue: { getToken: () => 'token', getItem: () => null, clear: sessionClear },
+        },
+        { provide: Router, useValue: { navigate: routerNavigate } },
+        { provide: ApiErrorService, useValue: { scheduleSafetyNet, claim: vi.fn() } },
+        { provide: ImpersonationService, useValue: { active: () => false, expire: vi.fn() } },
+        {
+          provide: NotificationService,
+          useValue: { error: notifyError, warning: notifyWarning, info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    service = TestBed.inject(NotificationFeedService);
+  });
+
+  afterEach(() => {
+    service.stopPolling();
+    http.verify();
+  });
+
+  it('status 0 no tick de abertura não vira toast', () => {
+    service.startPolling();
+
+    networkFailure(unreadRequest());
+
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(notifyWarning).not.toHaveBeenCalled();
+  });
+
+  it('status 0 ao voltar da galeria (a aba fica visível de novo) não vira toast', () => {
+    service.startPolling();
+    unreadRequest().flush({ count: 2 });
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    networkFailure(unreadRequest());
+
+    expect(notifyError).not.toHaveBeenCalled();
+    // E o contador que já estava na tela continua lá até o próximo tick.
+    expect(service.unreadCount()).toBe(2);
+  });
+
+  it.each([403, 503])('status %s no poll também não vira toast', (status) => {
+    service.startPolling();
+
+    unreadRequest().flush({}, { status, statusText: 'x' });
+
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(notifyWarning).not.toHaveBeenCalled();
+    expect(scheduleSafetyNet).not.toHaveBeenCalled();
+  });
+
+  it('401 no poll continua derrubando a sessão vencida', () => {
+    service.startPolling();
+
+    unreadRequest().flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    expect(sessionClear).toHaveBeenCalledTimes(1);
+    expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
+  });
+
+  it('status 0 numa ação do usuário (abrir o feed) CONTINUA avisando', () => {
+    service.list().subscribe({ error: () => undefined });
+
+    networkFailure(http.expectOne((req) => req.url.endsWith('/notifications')));
+
+    expect(notifyError).toHaveBeenCalledWith('Sem conexão com o servidor.');
   });
 });

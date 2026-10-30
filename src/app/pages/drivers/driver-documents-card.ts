@@ -26,7 +26,7 @@ import { DRIVER_DOCUMENT_KIND_META, DriverDocumentKind } from '../../types/drive
     <app-documents-card
       [slotDefs]="slotDefs()"
       [ops]="ops"
-      description="Toque em um tipo para anexar os documentos do motorista. São aceitos PDF, JPG ou PNG até 20MB cada."
+      description="Toque em um tipo para anexar os documentos do motorista. São aceitos PDF, JPG ou PNG até 10MB cada."
     />
   `,
 })

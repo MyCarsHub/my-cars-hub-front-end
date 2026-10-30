@@ -33,7 +33,7 @@ import {
       title="Documentos anexados"
       [slotDefs]="slotDefs"
       [ops]="ops"
-      description="Toque em um tipo para anexar os documentos da manutenção. São aceitos PDF, JPG ou PNG até 20MB cada."
+      description="Toque em um tipo para anexar os documentos da manutenção. São aceitos PDF, JPG ou PNG até 10MB cada."
     />
   `,
 })

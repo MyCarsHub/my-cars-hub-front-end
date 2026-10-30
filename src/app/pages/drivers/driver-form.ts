@@ -826,7 +826,7 @@ export class DriverForm implements OnInit {
     const head = 'O motorista foi salvo, mas nem todos os documentos foram enviados.';
     const detail =
       err.status === 413
-        ? 'O arquivo passou do limite de 20MB. Reduza a qualidade e envie de novo.'
+        ? 'O arquivo passou do limite de 10MB. Reduza a qualidade e envie de novo.'
         : this.apiErrors.messageFor(err, CHILD_RETRY_HINT);
     const tail =
       remaining === 1

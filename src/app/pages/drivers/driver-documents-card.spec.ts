@@ -257,7 +257,7 @@ describe('DriverDocumentsCard', () => {
 
     expect(cardText()).toContain(
       'Toque em um tipo para anexar os documentos do motorista. ' +
-        'São aceitos PDF, JPG ou PNG até 20MB cada.',
+        'São aceitos PDF, JPG ou PNG até 10MB cada.',
     );
   });
 
@@ -391,13 +391,13 @@ describe('DriverDocumentsCard', () => {
     expect(host().textContent).toContain('PDF, JPG, PNG, WebP, HEIC/HEIF');
   });
 
-  it('recusa arquivo acima de 20MB sem chamar a API', async () => {
+  it('recusa arquivo acima de 10MB sem chamar a API', async () => {
     await setup(false);
 
     attach('CNH', photo('enorme.jpg', 21 * 1024 * 1024));
 
     expect(uploadDocument).not.toHaveBeenCalled();
-    expect(host().textContent).toContain('20MB');
+    expect(host().textContent).toContain('10MB');
   });
 
   /** Alguns Android entregam `type` vazio para HEIC — o nome salva o envio. */
@@ -490,7 +490,7 @@ describe('DriverDocumentsCard', () => {
 
     attach('CNH', photo());
 
-    expect(host().textContent).toContain('20MB');
+    expect(host().textContent).toContain('10MB');
     expect(slotText('CNH')).not.toContain('Enviando o documento…');
   });
 

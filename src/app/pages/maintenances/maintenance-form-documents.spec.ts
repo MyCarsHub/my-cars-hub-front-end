@@ -309,13 +309,13 @@ describe('MaintenanceForm — anexos no cadastro', () => {
     expect(component.error()).toContain('Formato não suportado');
   });
 
-  it('recusa arquivo acima de 20MB sem colocar na fila', () => {
+  it('recusa arquivo acima de 10MB sem colocar na fila', () => {
     configure(null);
 
     stage('NOTA_FISCAL', pdf('nota.pdf', 21 * 1024 * 1024));
 
     expect(component.pendingDocs()).toHaveLength(0);
-    expect(component.error()).toContain('o limite é 20MB');
+    expect(component.error()).toContain('o limite é 10MB');
   });
 
   /**

@@ -12,6 +12,7 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { flatErrorMessage, parseApiError } from '../../services/api-error';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
+import { ImageCompressionService } from '../../services/image-compression.service';
 import { NotificationService } from '../../services/notification.service';
 import type { VehicleDocument } from '../../types/vehicle.types';
 
@@ -29,7 +30,8 @@ import type { VehicleDocument } from '../../types/vehicle.types';
  * 1. NÃO existe barra de progresso — o app usa `withFetch()`, que nunca emite
  *    `UploadProgress`, então qualquer barra seria animação desconectada do
  *    envio real. O estado é indeterminado e "Cancelar envio" ABORTA de verdade.
- * 2. NÃO existe compressão — comprimir um CRLV o deixa ilegível.
+ * 2. NÃO existe compressão de documento — comprimir um CRLV o deixa ilegível.
+ *    Só o slot da foto comprime, e isso é opt-in do slot.
  * 3. UM arquivo por tipo (FIX-0232, padrão canônico via o card compartilhado):
  *    o slot preenchido não abre o seletor — o segundo gesto é remover, nunca
  *    acrescentar. CRLVs legados de anos anteriores continuam visíveis e
@@ -65,6 +67,7 @@ describe('VehicleDocumentsCard', () => {
   let successToast: ReturnType<typeof vi.fn>;
   let infoToast: ReturnType<typeof vi.fn>;
   let errorToast: ReturnType<typeof vi.fn>;
+  let compress: ReturnType<typeof vi.fn>;
   let fixture: ComponentFixture<VehicleDocumentsCard>;
 
   /** Leitura de estado só para asserção — a AÇÃO nunca passa por aqui. */
@@ -170,11 +173,13 @@ describe('VehicleDocumentsCard', () => {
     successToast = vi.fn();
     infoToast = vi.fn();
     errorToast = vi.fn();
+    compress = vi.fn((file: File) => Promise.resolve(file));
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
         provideNoopAnimations(),
+        { provide: ImageCompressionService, useValue: { compress } },
         {
           provide: VehiclesService,
           useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
@@ -250,7 +255,7 @@ describe('VehicleDocumentsCard', () => {
     const texto = (host().textContent ?? '').replace(/\s+/g, ' ');
     expect(texto).toContain(
       'Toque em um tipo para anexar os documentos do veículo. ' +
-        'São aceitos PDF, JPG ou PNG até 20MB cada.',
+        'São aceitos PDF, JPG ou PNG até 10MB cada.',
     );
     expect(texto).toContain('Sempre o mais recente; anexar de novo substitui.');
     expect(texto).not.toContain('anos diferentes convivem');
@@ -354,13 +359,107 @@ describe('VehicleDocumentsCard', () => {
     expect(host().textContent).toContain('PDF, JPG, PNG, WebP, HEIC/HEIF');
   });
 
-  it('recusa arquivo acima de 20MB sem chamar a API', async () => {
+  it('recusa arquivo acima de 10MB sem chamar a API', async () => {
     await setup();
 
     attach('CRLV', photo('enorme.jpg', 21 * 1024 * 1024, 'image/jpeg'));
 
     expect(uploadDocument).not.toHaveBeenCalled();
-    expect(host().textContent).toContain('20MB');
+    expect(host().textContent).toContain('10MB');
+  });
+
+  /**
+   * A compressão é opt-in por tipo. O teste do CRLV é a metade que importa:
+   * comprimir documento o deixa ilegível.
+   */
+  describe('compressão: só o slot da foto', () => {
+    const MB = 1024 * 1024;
+
+    async function attachAndSettle(kind: string, file: File): Promise<void> {
+      attach(kind, file);
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('a foto sobe comprimida e o aviso de foto promete o limite real', async () => {
+      const light = photo('leve.jpg', 300 * 1024, 'image/jpeg');
+      compress.mockResolvedValue(light);
+      await setup();
+
+      expect(slotText('PHOTO')).toContain('até 10MB');
+      await attachAndSettle('PHOTO', photo('camera.jpg', 6 * MB, 'image/jpeg'));
+
+      expect(compress).toHaveBeenCalledTimes(1);
+      expect(uploadDocument).toHaveBeenCalledWith(VEHICLE_ID, 'PHOTO', light);
+    });
+
+    it.each(['CRLV', 'OTHER'])('%s NUNCA passa pela compressão', async (kind) => {
+      await setup();
+      const original = photo('documento.jpg', 6 * MB, 'image/jpeg');
+
+      await attachAndSettle(kind, original);
+
+      expect(compress).not.toHaveBeenCalled();
+      expect(uploadDocument).toHaveBeenCalledWith(VEHICLE_ID, kind, original);
+    });
+
+    it('foto acima do teto que a compressão resolve é aceita', async () => {
+      compress.mockResolvedValue(photo('leve.jpg', MB, 'image/jpeg'));
+      await setup();
+
+      await attachAndSettle('PHOTO', photo('camera.jpg', 18 * MB, 'image/jpeg'));
+
+      expect(uploadDocument).toHaveBeenCalledTimes(1);
+      expect(state().error()).toBeNull();
+    });
+
+    it('foto que continua acima do teto é recusada com 10MB, sem chamar a API', async () => {
+      await setup();
+
+      await attachAndSettle('PHOTO', photo('nao-reduz.png', 11 * MB, 'image/png'));
+
+      expect(uploadDocument).not.toHaveBeenCalled();
+      expect(state().error()).toContain('o limite é 10MB');
+      expect(slotText('PHOTO')).not.toContain('Enviando');
+    });
+
+    it('um CRLV de 11MB é recusado: o teto de 10MB vale para todo documento', async () => {
+      await setup();
+
+      await attachAndSettle('CRLV', photo('crlv.pdf', 11 * MB));
+
+      expect(uploadDocument).not.toHaveBeenCalled();
+      expect(state().error()).toContain('o limite é 10MB');
+    });
+
+    it('«Cancelar envio» durante a compressão não sobe nada ao terminar', async () => {
+      let finish: (file: File) => void = () => undefined;
+      compress.mockReturnValue(new Promise<File>((resolve) => (finish = resolve)));
+      await setup();
+
+      attach('PHOTO', photo('camera.jpg', 6 * MB, 'image/jpeg'));
+      const cancelar = Array.from(slotEl('PHOTO').querySelectorAll('button')).find((b) =>
+        (b.textContent ?? '').includes('Cancelar envio'),
+      );
+      cancelar?.click();
+      fixture.detectChanges();
+      finish(photo('leve.jpg', MB, 'image/jpeg'));
+      await fixture.whenStable();
+
+      expect(uploadDocument).not.toHaveBeenCalled();
+      expect(slotText('PHOTO')).not.toContain('Enviando');
+    });
+
+    it('o 413 da foto fala do teto da foto', async () => {
+      uploadDocument.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 413, statusText: 'Payload Too Large' })),
+      );
+      await setup();
+
+      await attachAndSettle('PHOTO', photo('foto.jpg', MB, 'image/jpeg'));
+
+      expect(state().error()).toContain('limite de 10MB');
+    });
   });
 
   /** Alguns Android entregam `type` vazio para HEIC — o nome salva o envio. */
@@ -450,7 +549,7 @@ describe('VehicleDocumentsCard', () => {
 
     attach('CRLV', photo());
 
-    expect(host().textContent).toContain('20MB');
+    expect(host().textContent).toContain('10MB');
     expect(slotText('CRLV')).not.toContain('Enviando o documento…');
   });
 

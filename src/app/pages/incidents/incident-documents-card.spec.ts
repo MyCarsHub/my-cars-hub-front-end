@@ -214,13 +214,13 @@ describe('IncidentDocumentsCard', () => {
     expect(state().error()).toContain('PDF, JPG, PNG, WebP, HEIC/HEIF');
   });
 
-  it('recusa arquivo acima de 20MB sem chamar a API', async () => {
+  it('recusa arquivo acima de 10MB sem chamar a API', async () => {
     await setup();
 
     attach('DAMAGE_PHOTO', photo('enorme.jpg', 21 * 1024 * 1024));
 
     expect(uploadDocument).not.toHaveBeenCalled();
-    expect(state().error()).toContain('20MB');
+    expect(state().error()).toContain('10MB');
   });
 
   /** Alguns Android entregam `type` vazio para HEIC — o nome salva o envio. */
@@ -277,7 +277,7 @@ describe('IncidentDocumentsCard', () => {
 
     attach('DAMAGE_PHOTO', photo());
 
-    expect(state().error()).toContain('20MB');
+    expect(state().error()).toContain('10MB');
   });
 
   it('abre o anexo no visualizador do app, sem aba nova', async () => {
