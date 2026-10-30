@@ -12,7 +12,8 @@ import { MaintenancesList } from '../../maintenances/maintenances-list';
   template: `
     <div class="mb-3">
       <a
-        [routerLink]="['/veiculos', vehicleId(), 'gerencia']"
+        [routerLink]="['/veiculos', vehicleId()]"
+        [queryParams]="{ aba: 'gerencia' }"
         class="inline-flex items-center gap-1 text-sm text-fg-subtle hover:text-fg-body font-medium"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"

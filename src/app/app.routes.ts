@@ -1,4 +1,4 @@
-import { Routes } from '@angular/router';
+import { RedirectFunction, Router, Routes } from '@angular/router';
 import { authGuard } from './services/auth-guard';
 import { roleGuard } from './services/role.guard';
 import { adminGuard } from './services/admin.guard';
@@ -19,6 +19,12 @@ import {
 import { inviteOnboardingGuard } from './pages/invite-onboarding/invite-onboarding.guard';
 import { CompanySettings } from './pages/company-settings/company-settings';
 import { TenantSwitchPivot } from './components/core/tenant-switch-pivot/tenant-switch-pivot';
+
+/** O caminho antigo da gerência abre o segmento Gerência da página única do veículo. */
+export const vehicleGerenciaRedirect: RedirectFunction = ({ params, queryParams }) =>
+  inject(Router).createUrlTree(['/veiculos', params['id']], {
+    queryParams: { ...queryParams, aba: 'gerencia' },
+  });
 
 export const routes: Routes = [
     {
@@ -303,12 +309,11 @@ export const routes: Routes = [
                                 data: { pageTitle: 'Detalhes do veículo' },
                             },
                             {
+                                // A gerência virou um segmento da página do veículo. Links e e-mails antigos
+                                // continuam valendo. `full`: sem ele, este prefixo engoliria os quatro caminhos abaixo.
                                 path: ':id/gerencia',
-                                loadComponent: () =>
-                                    import(
-                                        './pages/vehicles/vehicle-gerencia/vehicle-gerencia-hub'
-                                    ).then((m) => m.VehicleGerenciaHub),
-                                data: { pageTitle: 'Gerência do veículo' },
+                                pathMatch: 'full',
+                                redirectTo: vehicleGerenciaRedirect,
                             },
                             {
                                 path: ':id/gerencia/multas',

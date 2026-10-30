@@ -215,7 +215,7 @@ describe('VehicleDocumentsCard', () => {
   it('mostra exatamente os slots de CRLV, Outro e Foto do veículo, sem seletor de tipo', async () => {
     await setup();
 
-    expect(slotKinds()).toEqual(['CRLV', 'OTHER', 'PHOTO']);
+    expect(slotKinds()).toEqual(['CRLV', 'PHOTO', 'OTHER']);
     expect(host().querySelector('select')).toBeNull();
     expect(host().textContent).not.toContain('Anexar documento');
   });
@@ -263,15 +263,16 @@ describe('VehicleDocumentsCard', () => {
     expect(texto).toContain('Documentos anexados');
   });
 
-  /** FIX-0236 herdado: sem arquivo = vermelho, com arquivo = verde. */
-  it('pinta o CRLV vazio de vermelho e, anexado, de verde', async () => {
+  /** Anexado = verde. O opcional vazio é neutro: não falta nada. */
+  it('pinta o CRLV anexado de verde e deixa o opcional neutro', async () => {
     listDocuments.mockReturnValue(of([savedDocument]));
     await setup();
 
     expect(slotEl('CRLV').getAttribute('data-state')).toBe('filled');
     expect(slotEl('CRLV').classList.contains('bg-success-50')).toBe(true);
     expect(slotEl('OTHER').getAttribute('data-state')).toBe('empty');
-    expect(slotEl('OTHER').classList.contains('bg-rose-50')).toBe(true);
+    expect(slotEl('OTHER').classList.contains('bg-rose-50')).toBe(false);
+    expect(slotEl('OTHER').classList.contains('border-dashed')).toBe(false);
   });
 
   /**
@@ -770,7 +771,7 @@ describe('VehicleDocumentsCard', () => {
 
     await setup();
 
-    expect(slotKinds()).toEqual(['CRLV', 'OTHER', 'PHOTO']);
+    expect(slotKinds()).toEqual(['CRLV', 'PHOTO', 'OTHER']);
     expect(slotFileRows('CRLV')).toHaveLength(0);
     expect(state().documents()).toEqual([]);
   });
@@ -789,7 +790,7 @@ describe('VehicleDocumentsCard', () => {
 
     expect(state().documents()).toEqual([]);
     expect(host().textContent).toContain('Não foi possível carregar os documentos.');
-    expect(slotKinds()).toEqual(['CRLV', 'OTHER', 'PHOTO']);
+    expect(slotKinds()).toEqual(['CRLV', 'PHOTO', 'OTHER']);
   });
 
   /**

@@ -464,8 +464,8 @@ export interface LicensingBadge {
  *   - ≤ 30 days  → amber "Vence em Nd"
  *   - otherwise  → emerald "Em dia até dd/MM/yyyy"
  *
- * Rule extracted from the three inline implementations that existed in
- * `vehicles-list`, `vehicle-gerencia-hub`, and `maintenance-detail`.
+ * Rule extracted from the inline implementations that existed in
+ * `vehicles-list` and `maintenance-detail`.
  */
 export function licensingBadge(iso: string | null | undefined): LicensingBadge {
   if (!iso) {

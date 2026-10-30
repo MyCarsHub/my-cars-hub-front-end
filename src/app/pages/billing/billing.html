@@ -43,7 +43,7 @@
             Assinatura
           }
         </span>
-        <span class="chip" [class]="heroChip().cls" data-testid="billing-chip"><i aria-hidden="true"></i>{{ heroChip().label }}</span>
+        <app-status-chip [tone]="heroChip().cls | billingChipTone" data-testid="billing-chip">{{ heroChip().label }}</app-status-chip>
       </div>
 
       @switch (state()) {
@@ -154,7 +154,7 @@
                 <span class="tile hv-tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h10"/></svg></span>
                 {{ planName() ? 'Plano ' + planName() : 'Assinatura' }}
               </span>
-              <span class="chip v" [attr.data-c]="h.chip.cls" data-testid="billing-chip"><i aria-hidden="true"></i>{{ h.chip.label }}</span>
+              <app-status-chip [tone]="h.chip.cls | billingChipTone" data-testid="billing-chip">{{ h.chip.label }}</app-status-chip>
             </div>
             @if (h.amount; as a) {
               <div class="amount"><span class="big">R$ {{ a.reais }}<small>,{{ a.cents }}</small></span><span class="per">{{ h.per }}</span></div>
@@ -262,9 +262,8 @@
 
   <!-- ====================================================== grupos -->
   <ng-template #payment>
-    <h2 class="group-h">Pagamento</h2>
-    <div class="group">
-      <button type="button" class="row" [disabled]="!has('UPDATE_CARD') || cardBusy()" (click)="openCardUpdate()" data-testid="row-card">
+    <app-list-group heading="Pagamento">
+      <button type="button" appListRow class="row" [disabled]="!has('UPDATE_CARD') || cardBusy()" (click)="openCardUpdate()" data-testid="row-card">
         @if (card(); as c) {
           <span class="cardbrand tint" aria-hidden="true">{{ c.short }}</span>
           <span class="t"><b>{{ c.label }}</b>
@@ -280,13 +279,12 @@
           <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
         }
       </button>
-    </div>
+    </app-list-group>
   </ng-template>
 
   <ng-template #planGroup>
-    <h2 class="group-h">Plano</h2>
-    <div class="group">
-      <button type="button" class="row top" (click)="openPlans()" data-testid="row-plan">
+    <app-list-group heading="Plano">
+      <button type="button" appListRow class="row top" (click)="openPlans()" data-testid="row-plan">
         <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h10"/></svg></span>
         <span class="t"><b>{{ planName() || 'Sem plano' }}@if (planName()) {<span class="mini-pill v">Seu plano</span>}</b>
           @if (usage(); as u) {
@@ -298,21 +296,21 @@
         <span class="v">Mudar</span>
         <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
       </button>
-      <button type="button" class="row" (click)="openPlans()" data-testid="row-cycle">
+      <button type="button" appListRow class="row" (click)="openPlans()" data-testid="row-cycle">
         <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
         <span class="t"><b>Cobrança</b></span>
         <span class="v">{{ cycleLabel() }}</span>
         <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
       </button>
-    </div>
+    </app-list-group>
   </ng-template>
 
   <ng-template #invoiceRows let-list>
     @for (inv of list; track inv.ref) {
-      <button type="button" class="row" (click)="openInvoice(inv)" [attr.aria-label]="'Fatura de ' + invoiceDate(inv) + ', ' + invoiceAmount(inv) + ', ' + invoiceStatus(inv)">
+      <button type="button" appListRow class="row" (click)="openInvoice(inv)" [attr.aria-label]="'Fatura de ' + invoiceDate(inv) + ', ' + invoiceAmount(inv) + ', ' + invoiceStatus(inv)">
         <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
         <span class="t"><b>{{ invoiceDate(inv) }}</b>
-          @if (inv.status === 'OPEN') { <span class="inv-chip"><span class="chip v sm" data-c="o"><i aria-hidden="true"></i>Em aberto</span></span> }
+          @if (inv.status === 'OPEN') { <span class="inv-chip"><app-status-chip tone="orange" size="sm">Em aberto</app-status-chip></span> }
           @else { <small>{{ invoiceStatus(inv) }}</small> }
         </span>
         <span class="v inv-amt">{{ invoiceAmount(inv) }}</span>
@@ -322,13 +320,10 @@
   </ng-template>
 
   <ng-template #invoicesGroup>
-    <div class="gh-row">
-      <h2 class="group-h">Faturas</h2>
+    <app-list-group heading="Faturas" data-testid="invoices">
       @if (invoices().length > recentInvoices().length) {
-        <button type="button" class="link gh-link" (click)="viewAllInvoices()" data-testid="invoices-all">Ver todas</button>
+        <button groupNote type="button" class="link gh-link" (click)="viewAllInvoices()" data-testid="invoices-all">Ver todas</button>
       }
-    </div>
-    <div class="group" data-testid="invoices">
       @if (recentInvoices().length) {
         <!-- Desktop: tabela. Celular: lista. As duas existem; o CSS mostra uma. -->
         <table class="tbl" data-testid="invoices-table">
@@ -342,7 +337,7 @@
                 <td><b>{{ invoiceDate(inv) }}</b></td>
                 <td>{{ invoiceDescription() }}</td>
                 <td>{{ invoiceMethod(inv) }}</td>
-                <td><span class="chip v sm" [attr.data-c]="invoiceChip(inv).cls"><i aria-hidden="true"></i>{{ invoiceChip(inv).label }}</span></td>
+                <td><app-status-chip size="sm" [tone]="invoiceChip(inv).cls | billingChipTone">{{ invoiceChip(inv).label }}</app-status-chip></td>
                 <td class="r mono">{{ invoiceAmount(inv) }}</td>
                 <td class="r">
                   @if (canPayRow(inv)) {
@@ -361,29 +356,28 @@
           <ng-container *ngTemplateOutlet="invoiceRows; context: { $implicit: recentInvoices() }" />
         </div>
       } @else {
-        <div class="row noicon"><span class="t"><small>{{ summaryLoaded() ? 'Nenhuma fatura ainda.' : 'Carregando faturas…' }}</small></span></div>
+        <div appListRow class="row"><span class="t"><small>{{ summaryLoaded() ? 'Nenhuma fatura ainda.' : 'Carregando faturas…' }}</small></span></div>
       }
-    </div>
+    </app-list-group>
   </ng-template>
 
   <ng-template #account>
-    <h2 class="group-h">Conta</h2>
-    <div class="group">
-      <a class="row" routerLink="/configuracoes">
+    <app-list-group heading="Conta">
+      <a appListRow class="row" routerLink="/configuracoes">
         <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
         <span class="t"><b>Dados de cobrança</b><small>Razão social, CNPJ e e-mail</small></span>
         <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
       </a>
       @if (canReactivate() && canManage()) {
-        <button type="button" class="row noicon" [disabled]="accountActionBusy()" (click)="reactivate()" data-testid="row-reactivate">
+        <button type="button" appListRow inset class="row" [disabled]="accountActionBusy()" (click)="reactivate()" data-testid="row-reactivate">
           <span class="t"><b class="link">Reativar assinatura</b></span>
         </button>
       } @else if (canCancel()) {
-        <button type="button" class="row noicon danger" [disabled]="accountActionBusy()" (click)="openCancel()" data-testid="row-cancel">
+        <button type="button" appListRow inset danger class="row" [disabled]="accountActionBusy()" (click)="openCancel()" data-testid="row-cancel">
           <span class="t"><b>Cancelar assinatura</b></span>
         </button>
       }
-    </div>
+    </app-list-group>
     @if (accountActionError(); as accErr) {
       <app-alert-banner variant="error" [message]="accErr" class="block mt-3" />
     }
@@ -416,14 +410,13 @@
       <div class="a-hero"><ng-container *ngTemplateOutlet="heroTpl" /></div>
       @if (state() === 'TRIALING') {
         <div class="a-side">
-          <h2 class="group-h first">Seu teste</h2>
-          <div class="group">
-            <div class="row">
+          <app-list-group heading="Seu teste" flushTop>
+            <div appListRow class="row">
               <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2v-4l-2-5H5L3 13v4h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></span>
               <span class="t"><b>Limite no teste</b></span>
               <span class="v">{{ trialVehicleLimit() }} veículos</span>
             </div>
-          </div>
+          </app-list-group>
         </div>
       }
       <div class="a-pick" id="planos">
@@ -451,13 +444,13 @@
     @case ('choose') {
       <!-- "Pagar R$ …" com Pix ligado: uma escolha curta, cada linha já age. -->
       <app-bottom-sheet [title]="payTitle()" [subtitle]="paySubtitle()" (closed)="closeSheet()">
-        <div class="group flat" data-testid="pay-choice">
-          <button type="button" class="row" (click)="openPix()" data-testid="choose-pix">
+        <app-list-group flat data-testid="pay-choice">
+          <button type="button" appListRow class="row" (click)="openPix()" data-testid="choose-pix">
             <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg></span>
             <span class="t"><b>Pix</b><small>Confirma na hora</small></span>
             <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
           </button>
-          <button type="button" class="row" (click)="payByCard()" data-testid="choose-card">
+          <button type="button" appListRow class="row" (click)="payByCard()" data-testid="choose-card">
             @if (card(); as c) {
               <span class="cardbrand" aria-hidden="true">{{ c.short }}</span>
             } @else {
@@ -466,22 +459,26 @@
             <span class="t"><b>Cartão</b><small>Na página segura da Stripe</small></span>
             <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
           </button>
-        </div>
+        </app-list-group>
       </app-bottom-sheet>
     }
     @case ('pay') {
       <app-bottom-sheet [title]="payTitle()" [subtitle]="paySubtitle()" [busy]="cardBusy()" (closed)="closeSheet()">
         @if (pixAvailable()) {
-          <div class="seg" role="tablist" aria-label="Forma de pagamento">
-            <button type="button" role="tab" aria-selected="false" (click)="openPix()" data-testid="pay-tab-pix">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg>
-              Pix
-            </button>
-            <button type="button" role="tab" aria-selected="true" class="on">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-              Cartão
-            </button>
-          </div>
+          <ng-template #payTabIcon let-tab>
+            @if (tab === 'pix') {
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg>
+            } @else {
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+            }
+          </ng-template>
+          <app-segmented-tabs
+            ariaLabel="Forma de pagamento"
+            value="card"
+            [options]="[{ value: 'pix', label: 'Pix', testId: 'pay-tab-pix' }, { value: 'card', label: 'Cartão' }]"
+            [iconTemplate]="payTabIcon"
+            (selected)="openPix()"
+          />
         }
         <div role="radiogroup" aria-label="Como pagar com cartão" style="margin-top: 6px">
           @if (canPayInvoice()) {
@@ -524,16 +521,16 @@
     }
     @case ('cancel') {
       <app-bottom-sheet title="Cancelar assinatura" subtitle="Os dados da sua conta continuam salvos." [busy]="accountActionBusy()" (closed)="closeSheet()">
-        <div class="group flat">
-          <div class="row">
+        <app-list-group flat>
+          <div appListRow class="row">
             <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
             <span class="t"><b>Acesso até {{ periodEndLabel() }}</b><small>Sem novas cobranças depois disso</small></span>
           </div>
-          <div class="row">
+          <div appListRow class="row">
             <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
             <span class="t"><b>Conta guardada</b><small>Reative quando quiser</small></span>
           </div>
-        </div>
+        </app-list-group>
         <div sheetFooter class="stack">
           <button type="button" class="btn primary block" (click)="closeSheet()">Manter assinatura</button>
           <button type="button" class="btn tonal block danger-text" [disabled]="accountActionBusy()" (click)="onCancelConfirmed()" data-testid="cancel-confirm">
@@ -550,7 +547,7 @@
             <p class="paid-title" aria-hidden="true">Pagamento confirmado</p>
             <p class="paid-sub">Plano {{ r.planName }} em dia até {{ r.until }}.</p>
           </div>
-          <dl class="kv">
+          <dl appKvList flush class="kv">
             <div><dt>Valor</dt><dd class="mono">{{ r.amount }}</dd></div>
             <div><dt>Forma</dt><dd>{{ r.method }}</dd></div>
             <div><dt>Data</dt><dd>{{ r.at }}</dd></div>
@@ -731,9 +728,9 @@
     }
     @case ('invoices') {
       <app-bottom-sheet title="Faturas" [subtitle]="'Últimas ' + invoices().length" size="lg" (closed)="closeSheet()">
-        <div class="group flat">
+        <app-list-group flat>
           <ng-container *ngTemplateOutlet="invoiceRows; context: { $implicit: invoices() }" />
-        </div>
+        </app-list-group>
       </app-bottom-sheet>
     }
   }

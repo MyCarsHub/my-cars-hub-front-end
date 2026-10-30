@@ -428,7 +428,8 @@
                     <app-actions-menu label="Ações do veículo" [menuWidth]="208">
                       <a
                         role="menuitem"
-                        [routerLink]="['/veiculos', vehicle.id, 'gerencia']"
+                        [routerLink]="['/veiculos', vehicle.id]"
+                        [queryParams]="{ aba: 'gerencia' }"
                         class="flex items-center gap-2 px-3 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]">
                         Gerenciar
                       </a>

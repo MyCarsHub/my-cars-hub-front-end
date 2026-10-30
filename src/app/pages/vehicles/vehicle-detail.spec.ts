@@ -1,8 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of, throwError } from 'rxjs';
+import { EMPTY, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { VehicleDetail } from './vehicle-detail';
@@ -10,6 +10,7 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { flatErrorMessage, parseApiError } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { RentalService } from '../rentals/rental.service';
 import type { Vehicle, VehicleSale } from '../../types/vehicle.types';
 
 /**
@@ -136,7 +137,20 @@ describe('VehicleDetail — venda (FEAT-0072)', () => {
       providers: [
         provideRouter([]),
         provideNoopAnimations(),
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID } } } },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { paramMap: { get: () => VEHICLE_ID } },
+            queryParamMap: of(convertToParamMap({})),
+          },
+        },
+        {
+          provide: RentalService,
+          useValue: {
+            list: vi.fn(() => of({ content: [], page: 0, size: 1, total: 0 })),
+            getById: vi.fn(),
+          },
+        },
         {
           provide: VehiclesService,
           useValue: {
@@ -146,6 +160,9 @@ describe('VehicleDetail — venda (FEAT-0072)', () => {
             updateStatus,
             remove: vi.fn(),
             listDocuments: vi.fn(() => of([])),
+            getGerenciaSummary: vi.fn(() => EMPTY),
+            getPendencias: vi.fn(() => of([])),
+            listRentals: vi.fn(() => of({ content: [], page: 0, size: 1, total: 0 })),
           },
         },
         {

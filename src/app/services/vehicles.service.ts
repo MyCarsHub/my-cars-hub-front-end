@@ -5,6 +5,8 @@ import { environment } from '../../environments/environment';
 import { OWNED_HTTP_ERRORS } from './http-errors.context';
 import { PagedResponse } from '../types/paged.types';
 import { GerenciaSummary } from '../types/gerencia-summary.types';
+import { RentalListItemDto, RentalStatus } from '../types/rental.types';
+import { VehiclePendencia } from '../types/vehicle-pendencia.types';
 import {
   CreateFinancingRequest,
   CreateVehicleRequest,
@@ -130,8 +132,10 @@ export class VehiclesService {
     );
   }
 
-  getOne(id: string): Observable<Vehicle> {
-    return this.http.get<Vehicle>(`${BASE}/${id}`);
+  /** `includePhoto` é opt-in, como na lista: quem omite não paga a ida ao storage. */
+  getOne(id: string, options: { includePhoto?: boolean } = {}): Observable<Vehicle> {
+    const params = options.includePhoto ? { includePhoto: 'true' } : undefined;
+    return this.http.get<Vehicle>(`${BASE}/${id}`, { params });
   }
 
   /**
@@ -228,9 +232,43 @@ export class VehiclesService {
     );
   }
 
-  /** Aggregated vehicle summary for the "Gerência do veículo" hub. */
+  /**
+   * Aggregated vehicle summary for the Gerência tab of the vehicle page.
+   *
+   * `OWNED_HTTP_ERRORS` nesta e nas duas leituras abaixo: a página mostra a falha no lugar
+   * do dado, com "Tentar novamente". O toast seria a mesma notícia dada duas vezes.
+   */
   getGerenciaSummary(vehicleId: string): Observable<GerenciaSummary> {
-    return this.http.get<GerenciaSummary>(`${BASE}/${vehicleId}/gerencia/summary`);
+    return this.http.get<GerenciaSummary>(`${BASE}/${vehicleId}/gerencia/summary`, {
+      context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+    });
+  }
+
+  /**
+   * Os aluguéis de um carro, só para leitura. Não passa por `RentalService.list()`:
+   * aquele escreve na lista compartilhada que a tela de Aluguéis desenha, e esta
+   * resposta chegando atrasada trocaria a tabela de lá pelas linhas de um carro só.
+   */
+  listRentals(
+    vehicleId: string,
+    status: RentalStatus,
+    size: number,
+  ): Observable<PagedResponse<RentalListItemDto>> {
+    const params = new HttpParams()
+      .set('vehicleId', vehicleId)
+      .set('status', status)
+      .set('size', String(size));
+    return this.http.get<PagedResponse<RentalListItemDto>>(`${environment.apiUrl}/rentals`, {
+      params,
+      context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+    });
+  }
+
+  /** O que falta resolver neste veículo, já na ordem de urgência. Lista vazia = nada. */
+  getPendencias(vehicleId: string): Observable<VehiclePendencia[]> {
+    return this.http.get<VehiclePendencia[]>(`${BASE}/${vehicleId}/gerencia/pendencias`, {
+      context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+    });
   }
 
   listFinancings(vehicleId: string): Observable<Financing[]> {

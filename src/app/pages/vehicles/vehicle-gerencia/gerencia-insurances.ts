@@ -14,7 +14,8 @@ import { InsurancesList } from '../../insurances/insurances-list';
   template: `
     <div class="mb-3">
       <a
-        [routerLink]="['/veiculos', vehicleId(), 'gerencia']"
+        [routerLink]="['/veiculos', vehicleId()]"
+        [queryParams]="{ aba: 'gerencia' }"
         class="inline-flex items-center gap-1 text-sm text-fg-subtle hover:text-fg-body font-medium"
       >
         <svg

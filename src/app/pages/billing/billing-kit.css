@@ -43,41 +43,15 @@
 /* ---------- cards & grouped lists (iOS Settings) ---------- */
 .card { background: var(--color-surface); border-radius: 16px; border: 1px solid var(--b-edge); box-shadow: var(--b-shadow); }
 .group-h { font-size: 13px; font-weight: 600; color: var(--b-muted); padding: 22px 6px 8px; margin: 0; }
-.group { background: var(--color-surface); border-radius: 16px; overflow: hidden; border: 1px solid var(--b-edge); box-shadow: var(--b-shadow); }
-.row {
-  display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 10px 16px; position: relative;
-  width: 100%; text-align: left; color: inherit; background: transparent; font: inherit;
-}
-button.row, a.row { cursor: pointer; transition: background-color 0.15s; }
-button.row:hover:not(:disabled), a.row:hover { background: color-mix(in srgb, var(--color-fg) 3%, transparent); }
-button.row:focus-visible, a.row:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: -2px; }
-button.row:disabled { cursor: default; }
-.row + .row::before { content: ""; position: absolute; top: 0; left: 62px; right: 0; height: 1px; background: var(--b-edge); }
-.row.noicon + .row.noicon::before { left: 16px; }
 .tile { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; flex: none; background: var(--b-tile); color: var(--color-fg); }
 .tile svg { width: 18px; height: 18px; }
 .tile.tint { background: var(--b-primary-low); color: var(--color-primary-500); }
 .cardbrand { width: 32px; height: 32px; border-radius: 8px; background: var(--b-tile); color: var(--color-fg); font: 700 9.5px/32px var(--font-body); text-align: center; letter-spacing: 0.04em; flex: none; text-transform: uppercase; overflow: hidden; }
 .cardbrand.tint { background: var(--b-primary-low); color: var(--b-primary-text); }
-.row .t { flex: 1; min-width: 0; }
-.row .t b { display: block; font-weight: 600; color: var(--color-fg); font-size: 15.5px; }
-.row .t small { display: block; color: var(--b-muted); font-size: 13.5px; margin-top: 1px; }
-.row .v { color: var(--b-muted); font-size: 15px; text-align: right; flex: none; }
 .chev { width: 8px; height: 14px; color: var(--b-faint); flex: none; }
-.row.danger .t b { color: var(--b-danger); }
 .row .t b.link { color: var(--b-primary-text); }
 .inv-amt { font-family: var(--font-mono); font-size: 14px; color: var(--color-fg); font-weight: 500; }
 .mini-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; background: var(--color-primary-500); color: #fff; font-size: 11.5px; font-weight: 600; margin-left: 8px; vertical-align: 2px; }
-
-/* ---------- chips ---------- */
-.chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; transition: background-color 0.3s, color 0.3s; }
-.chip i { width: 6px; height: 6px; border-radius: 9px; background: currentColor; }
-.chip.ok { background: var(--b-ok-bg); color: var(--b-ok); }
-.chip.warn { background: var(--b-warn-bg); color: var(--b-warn); }
-.chip.neutral { background: var(--color-surface-sunken); color: var(--b-muted); }
-.chip.brand { background: var(--b-primary-low); color: var(--b-primary-text); }
-.chip.danger { background: rgba(225, 29, 72, 0.12); color: var(--b-danger); }
-.chip.sm { height: 22px; font-size: 12px; }
 
 /* ---------- buttons ---------- */
 .btn {
@@ -113,7 +87,7 @@ button.row:disabled { cursor: default; }
 .meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--b-muted); font-size: 14.5px; margin-top: 12px; }
 .meta span { display: inline-flex; align-items: center; gap: 6px; }
 .meta svg { width: 16px; height: 16px; }
-.usage { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--b-edge); }
+.usage { margin-top: 28px; }
 .usage .u-h { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
 .usage .u-h b { color: var(--color-fg); font-weight: 600; }
 .usage .u-h span { color: var(--b-muted); }
@@ -149,12 +123,6 @@ button.row:disabled { cursor: default; }
 @keyframes b-fade { from { opacity: 0; transform: translateY(6px); } }
 
 /* ---------- sheets content ---------- */
-.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--color-surface-sunken); border-radius: 12px; padding: 3px; }
-.seg button { min-height: 42px; border-radius: 9px; font-weight: 600; color: var(--b-muted); font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: none; cursor: pointer; }
-.seg button svg { width: 16px; height: 16px; }
-.seg button.on { background: var(--color-surface); color: var(--color-fg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
-.seg button:disabled { cursor: default; }
-.seg .tag { font-size: 11.5px; font-weight: 600; color: var(--b-muted); background: var(--b-tile); padding: 2px 7px; border-radius: 99px; }
 .opt { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--b-edge); margin-top: 10px; background: var(--color-surface); width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit; transition: border-color 0.15s, box-shadow 0.15s; }
 .opt.on { border-color: var(--color-primary-500); box-shadow: 0 0 0 1px var(--color-primary-500); }
 .opt:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
@@ -164,11 +132,7 @@ button.row:disabled { cursor: default; }
 .opt .t { flex: 1; min-width: 0; }
 .opt .t b { display: block; color: var(--color-fg); font-size: 16px; font-weight: 600; }
 .opt .t small { display: block; color: var(--b-muted); font-size: 13.5px; }
-.kv { margin-top: 16px; border: 1px solid var(--b-edge); border-radius: 12px; }
-.kv > div { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; font-size: 14.5px; }
-.kv > div + div { border-top: 1px solid var(--b-edge); }
-.kv dt { color: var(--b-muted); }
-.kv dd { color: var(--color-fg); font-weight: 600; margin: 0; }
+.kv { margin-top: 10px; }
 .note { text-align: center; font-size: 13.5px; color: var(--b-muted); margin-top: 10px; }
 .check { width: 56px; height: 56px; border-radius: 99px; background: var(--b-ok-bg); display: grid; place-items: center; animation: b-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .check svg { width: 28px; height: 28px; color: var(--b-ok); }
@@ -189,7 +153,7 @@ button.row:disabled { cursor: default; }
 .cyc button.on.y .off { color: #fff; background: rgba(0, 0, 0, 0.22); }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn, .chip, .st, .opt, .cyc button { transition: none; }
+  .btn, .st, .opt, .cyc button { transition: none; }
   .bar.drain > i, .fade-in, .check, .pulse { animation: none; }
   .btn:active:not(:disabled) { transform: none; }
 }

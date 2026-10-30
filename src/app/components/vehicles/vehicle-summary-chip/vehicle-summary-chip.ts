@@ -61,6 +61,7 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
     } @else {
       <a
         [routerLink]="routerTarget()"
+        [queryParams]="routerQuery()"
         class="flex items-center gap-3 rounded-xl border border-edge bg-surface px-3 py-2.5 hover:border-primary-300 dark:hover:border-primary-500/40 transition-colors"
       >
         <span
@@ -109,7 +110,7 @@ export class VehicleSummaryChip {
   /**
    * Where clicking the chip navigates.
    * - `detail` → `/veiculos/:id` (default)
-   * - `gerencia` → `/veiculos/:id/gerencia`
+   * - `gerencia` → `/veiculos/:id?aba=gerencia`
    * - `none` renders a non-interactive chip (useful on the hub itself)
    */
   linkTo = input<VehicleSummaryChipLinkTo>('detail');
@@ -120,12 +121,11 @@ export class VehicleSummaryChip {
     return p || '—';
   });
 
-  protected readonly routerTarget = computed(() => {
-    const id = this.vehicle().id;
-    return this.linkTo() === 'gerencia'
-      ? ['/veiculos', id, 'gerencia']
-      : ['/veiculos', id];
-  });
+  protected readonly routerTarget = computed(() => ['/veiculos', this.vehicle().id]);
+
+  protected readonly routerQuery = computed(() =>
+    this.linkTo() === 'gerencia' ? { aba: 'gerencia' } : null,
+  );
 
   protected typeChip(): { label: string; klass: string } | null {
     const t = this.vehicle().type;

@@ -30,7 +30,8 @@
                 @if (f.vehicleYearModel) { <span class="text-fg-faint">· {{ f.vehicleYearModel }}</span> }
               </p>
               <a
-                [routerLink]="['/veiculos', f.vehicleId, 'gerencia']"
+                [routerLink]="['/veiculos', f.vehicleId]"
+                [queryParams]="{ aba: 'gerencia' }"
                 class="inline-block mt-1 text-xs font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400"
               >
                 Ver veículo →
