@@ -182,3 +182,44 @@ export interface BillingInvoice {
   pdfUrl: string | null;
   hostedUrl: string | null;
 }
+
+/**
+ * `POST /billing/open-invoice/pix` — the Pix of the subscription's OPEN invoice.
+ * Re-opening while the code is alive returns the same code (idempotent). Errors:
+ * 409 no open invoice, 403 read-only/non-owner, 429 too many codes, 404 Pix off.
+ */
+export interface SubscriptionPix {
+  attemptId: string;
+  status: 'PENDING';
+  /** The EMV "copia e cola" string. */
+  payload: string;
+  /** PNG of the QR code, base64 without the `data:` prefix. `null` when the server could not fetch it. */
+  qrCodeBase64: string | null;
+  /** ISO instant (with `Z`) when the code stops being accepted. */
+  expiresAt: string;
+  amountCents: number;
+  /** Stripe's own instructions page — the fallback when there is no QR image. */
+  hostedInstructionsUrl: string | null;
+}
+
+export type SubscriptionPixStatusCode =
+  | 'PENDING'
+  | 'SUCCEEDED'
+  | 'SETTLED'
+  | 'EXPIRED'
+  | 'CANCELED'
+  | 'REFUNDING'
+  | 'REFUNDED';
+
+/**
+ * `GET /billing/open-invoice/pix/{attemptId}` — reads our database; the server
+ * re-checks Stripe itself (throttled), so asking again IS the "Já paguei".
+ */
+export interface SubscriptionPixStatus {
+  attemptId: string;
+  status: SubscriptionPixStatusCode;
+  expiresAt: string;
+  amountCents: number;
+  /** The paid invoice already restored access (the `invoice.paid` funnel ran). */
+  accessReleased: boolean;
+}

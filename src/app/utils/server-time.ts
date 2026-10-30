@@ -40,6 +40,11 @@ export function formatFullDate(date: Date | null): string {
   return date ? DATE.format(date) : '—';
 }
 
+/** "21:34" no fuso do negócio. */
+export function formatTime(date: Date | null): string {
+  return date ? TIME.format(date) : '—';
+}
+
 /** "31/10, 21:34" no fuso do negócio. */
 export function formatDayMonthTime(date: Date | null): string {
   return date ? `${DAY_MONTH.format(date)}, ${TIME.format(date)}` : '—';

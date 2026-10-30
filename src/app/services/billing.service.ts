@@ -10,6 +10,8 @@ import {
   GatewayOverride,
   PlanResponse,
   SubscriptionChangeResponse,
+  SubscriptionPix,
+  SubscriptionPixStatus,
   SubscriptionResponse,
 } from '../types/billing.types';
 import { BillingAccessService } from './billing-access.service';
@@ -173,6 +175,21 @@ export class BillingService {
     return this.http
       .post<{ outcome: string }>(`${API_BASE}/card-updated`, {})
       .pipe(map((res) => res.outcome));
+  }
+
+  /**
+   * "Pagar com Pix": o Pix da fatura em aberto. A fatura vem da assinatura do
+   * token no servidor — nunca do cliente. Reabrir com o código vivo devolve o mesmo.
+   */
+  createInvoicePix(): Observable<SubscriptionPix> {
+    return this.http.post<SubscriptionPix>(`${API_BASE}/open-invoice/pix`, {});
+  }
+
+  /** Estado do Pix — só o nosso banco; o servidor reconfere a Stripe quando precisa. */
+  invoicePixStatus(attemptId: string): Observable<SubscriptionPixStatus> {
+    return this.http.get<SubscriptionPixStatus>(
+      `${API_BASE}/open-invoice/pix/${encodeURIComponent(attemptId)}`,
+    );
   }
 
   startCheckout(planCode: string, gatewayOverride?: GatewayOverride): Observable<CheckoutResponse> {
