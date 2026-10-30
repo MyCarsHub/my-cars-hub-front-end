@@ -22,6 +22,22 @@
     }
   </span>
 
+  <div
+    pageActions
+    data-page-actions="desktop"
+    class="hidden lg:flex shrink-0 items-center gap-3 lg:-mr-[var(--page-header-end,0px)]"
+  >
+    @if (vehicle(); as v) {
+      <app-detail-actions
+        [editRouterLink]="['/veiculos', v.id, 'editar']"
+        [editDisabled]="sold()"
+        [deleteDisabled]="deleteDisabledReason() !== null"
+        [deleteDisabledReason]="deleteDisabledReason()"
+        (delete)="askDelete()"
+      />
+    }
+  </div>
+
   @if (loading()) {
     <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
       Carregando…
@@ -66,6 +82,17 @@
       aria-labelledby="vehicle-tab-veiculo"
       [hidden]="tab() !== 'veiculo'"
     >
+      @if (pendenciasError()) {
+        <!-- A falha aparece na aba de abertura: sem isto ela seria igual a zero pendências. -->
+        <div class="mb-4" data-pendencias-failed>
+          <app-alert-banner variant="error">
+            Não foi possível ler as pendências deste carro.
+            <button type="button" (click)="retryPendencias()" class="ml-2 underline font-semibold min-h-11 cursor-pointer">
+              Tentar novamente
+            </button>
+          </app-alert-banner>
+        </div>
+      }
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-x-4 lg:gap-x-6 items-start">
         <div class="order-1 sm:col-span-2 lg:col-span-8 lg:self-stretch mb-4 lg:mb-1.5 flex flex-col gap-4 min-w-0">
           @if (sale(); as saleInfo) {
@@ -209,17 +236,14 @@
           </div>
           <div class="order-6 min-w-0 enter-up" style="--stagger-i: 4">
             <app-vehicle-actions-group
-              [vehicleId]="v.id"
               [status]="v.status"
               [sold]="sold()"
               [lockReason]="soldLockReason()"
-              [deleteLock]="deleteDisabledReason()"
               [busy]="transitioning()"
               [undoing]="undoingSale()"
               (transition)="transitionStatus($event)"
               (sell)="askSell()"
               (undoSale)="askUndoSale()"
-              (remove)="askDelete()"
             />
           </div>
         </div>
@@ -276,11 +300,22 @@
         <div class="lg:col-span-12 xl:col-span-4 min-w-0 enter-up" style="--stagger-i: 2">
           <app-vehicle-history-group
             [vehicleId]="v.id"
-            [financed]="summary()?.finance?.financed ?? false"
+            [financed]="summary()?.finance?.financed ?? null"
           />
         </div>
       </div>
     </section>
+
+    <!-- Fora dos painéis: Editar e Excluir ficam nas duas abas. -->
+    <div class="lg:hidden mt-6" data-page-actions="mobile">
+      <app-detail-actions
+        [editRouterLink]="['/veiculos', v.id, 'editar']"
+        [editDisabled]="sold()"
+        [deleteDisabled]="deleteDisabledReason() !== null"
+        [deleteDisabledReason]="deleteDisabledReason()"
+        (delete)="askDelete()"
+      />
+    </div>
   }
 </app-default-page-layout>
 

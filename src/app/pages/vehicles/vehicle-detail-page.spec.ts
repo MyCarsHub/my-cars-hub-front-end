@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+import { BehaviorSubject, NEVER, Observable, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { VehicleDetail } from './vehicle-detail';
@@ -62,6 +62,7 @@ describe('VehicleDetail, página única', () => {
     resultCents: -1_459_000,
     resultReceivedCents: -1_979_000,
     financingDataIncomplete: false,
+    financingPayoffUnknown: false,
     financed: true,
     downPaymentCents: 2_000_000,
     purchasePriceMissing: false,
@@ -119,15 +120,18 @@ describe('VehicleDetail, página única', () => {
     summary?: Observable<GerenciaSummary>;
     pendencias?: Observable<VehiclePendencia[]>;
     active?: RentalListItemDto | null;
+    reserved?: Partial<RentalListItemDto>[];
     charges?: RentalChargeDto[];
     completed?: Partial<RentalListItemDto>[];
     rentalFails?: boolean;
+    detailFails?: boolean;
     aba?: string;
   }
 
   let fixture: ComponentFixture<VehicleDetail>;
   let query: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let list: ReturnType<typeof vi.fn>;
+  let sharedList: ReturnType<typeof vi.fn>;
   let getById: ReturnType<typeof vi.fn>;
   let getPendencias: ReturnType<typeof vi.fn>;
   let getGerenciaSummary: ReturnType<typeof vi.fn>;
@@ -152,9 +156,11 @@ describe('VehicleDetail, página única', () => {
       summary = of(summaryOf()),
       pendencias = of([]),
       active = null,
+      reserved = [],
       charges = [],
       completed = [],
       rentalFails = false,
+      detailFails = false,
       aba,
     } = options;
 
@@ -162,12 +168,22 @@ describe('VehicleDetail, página única', () => {
     getGerenciaSummary = vi.fn(() => summary);
     getPendencias = vi.fn(() => pendencias);
     claim = vi.fn();
-    list = vi.fn((filters: { status: string }) => {
+    list = vi.fn((_id: string, status: string) => {
       if (rentalFails) return throwError(() => new HttpErrorResponse({ status: 500 }));
-      const content = filters.status === 'ACTIVE' ? (active ? [active] : []) : completed;
+      const byStatus: Record<string, Partial<RentalListItemDto>[]> = {
+        ACTIVE: active ? [active] : [],
+        RESERVED: reserved,
+        COMPLETED: completed,
+      };
+      const content = byStatus[status] ?? [];
       return of({ content, page: 0, size: 1, total: content.length });
     });
-    getById = vi.fn(() => of({ periodRate: 65_000, charges }));
+    sharedList = vi.fn();
+    getById = vi.fn(() =>
+      detailFails
+        ? throwError(() => new HttpErrorResponse({ status: 500 }))
+        : of({ periodRate: 65_000, charges }),
+    );
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -187,10 +203,11 @@ describe('VehicleDetail, página única', () => {
             getOne: vi.fn(() => of(vehicle)),
             getGerenciaSummary,
             getPendencias,
+            listRentals: list,
             listDocuments: vi.fn(() => of([])),
           },
         },
-        { provide: RentalService, useValue: { list, getById } },
+        { provide: RentalService, useValue: { list: sharedList, getById } },
         {
           provide: NotificationService,
           useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
@@ -428,6 +445,115 @@ describe('VehicleDetail, página única', () => {
     expect(host().querySelector('[data-sale-line]')).toBeNull();
   });
 
+  it('Recebido sem Contratado: nunca "Nenhum contrato", e sem anel', async () => {
+    await setup({
+      aba: 'gerencia',
+      summary: of(summaryOf({ totalRentalRevenueCents: 0, totalRentalReceivedCents: 130_000 })),
+    });
+    const hero = host().querySelector('[data-money-hero]');
+    expect(text(hero)).not.toContain('Nenhum contrato');
+    expect(text(hero)).toContain('O recebido inclui aluguéis encerrados antes do fim.');
+    expect(hero?.querySelector('app-painted-ring')).toBeNull();
+  });
+
+  it('Recebido acima de Contratado: sem anel e nenhum percentual acima de 100 nele', async () => {
+    await setup({
+      aba: 'gerencia',
+      summary: of(summaryOf({ totalRentalRevenueCents: 100_000, totalRentalReceivedCents: 130_000 })),
+    });
+    const hero = host().querySelector('[data-money-hero]');
+    expect(hero?.querySelector('app-painted-ring')).toBeNull();
+    expect(text(hero)).toContain('O recebido inclui aluguéis encerrados antes do fim.');
+    expect(text(hero)).not.toContain('130%');
+  });
+
+  it('nada contratado e nada recebido continua "Nenhum contrato"', async () => {
+    await setup({
+      aba: 'gerencia',
+      summary: of(summaryOf({ totalRentalRevenueCents: 0, totalRentalReceivedCents: 0 })),
+    });
+    expect(text(host().querySelector('[data-money-hero]'))).toContain('Nenhum contrato');
+  });
+
+  it('backend sem os campos novos não imprime NaN', async () => {
+    const old = { resultReceivedCents: undefined, downPaymentCents: undefined };
+    await setup({
+      aba: 'gerencia',
+      summary: of(summaryOf(old as unknown as Partial<GerenciaFinanceChunk>)),
+    });
+    expect(host().querySelector('[data-money-hero]')?.textContent).not.toContain('NaN');
+    expect(text(host().querySelector('[data-column="Contratado"]'))).toContain('−R$ 14.590,00');
+    expect(text(host().querySelector('[data-column="Recebido"]'))).not.toContain('resultado');
+  });
+
+  it('venda sem Resultado na tela não fala de Resultado', async () => {
+    await setup({
+      aba: 'gerencia',
+      summary: of(
+        summaryOf({
+          saleValueCents: 4_500_000,
+          saleDate: '2026-08-20',
+          financingDataIncomplete: true,
+          totalInvestedCents: null,
+          resultCents: null,
+          resultReceivedCents: null,
+        }),
+      ),
+    });
+    expect(text(host().querySelector('[data-sale-line]'))).toBe(
+      'Vendido por R$ 45.000,00 em 20/08/2026.',
+    );
+  });
+
+  it('quitação sem valor: vazio próprio, sem vermelho e sem prometer edição', async () => {
+    await setup({
+      aba: 'gerencia',
+      summary: of(
+        summaryOf({
+          financingPayoffUnknown: true,
+          totalInvestedCents: null,
+          resultCents: null,
+          resultReceivedCents: 900_000 as unknown as null,
+        }),
+      ),
+    });
+    const hero = host().querySelector('[data-money-hero]');
+
+    expect(text(hero)).toContain('Falta o valor da quitação');
+    expect(text(hero)).toContain('não foi registrado');
+    expect(text(hero)).toContain('não dá para calcular o Investido');
+    expect(text(hero)).not.toContain('Editar');
+    expect(text(hero)).not.toContain('Informar');
+    expect(hero?.getAttribute('data-tone')).toBe('orange');
+    expect(hero?.querySelector('[data-track]')).toBeNull();
+    expect(hero?.querySelector('dl')).toBeNull();
+    expect(hero?.innerHTML).not.toContain('rose');
+    const action = hero?.querySelector('[data-money-empty-action]');
+    expect(text(action)).toBe('Ver financiamento');
+    expect(action?.getAttribute('href')).toBe('/veiculos/veh-1/gerencia/financiamentos');
+  });
+
+  it('quitação sem valor e financiamento incompleto juntos: a quitação fala primeiro', async () => {
+    await setup({
+      aba: 'gerencia',
+      summary: of(
+        summaryOf({
+          financingPayoffUnknown: true,
+          financingDataIncomplete: true,
+          downPaymentCents: null,
+          totalInvestedCents: null,
+          resultCents: null,
+          resultReceivedCents: null,
+        }),
+      ),
+    });
+    const hero = text(host().querySelector('[data-money-hero]'));
+    expect(hero).toContain('Quitação sem valor');
+    expect(hero).toContain('Falta o valor da quitação');
+    expect(hero).not.toContain('Falta a entrada');
+    expect(hero).not.toContain('Financiamento incompleto');
+  });
+
   it('não desenha cartão pintado com degradê', async () => {
     await setup({ aba: 'gerencia', active: activeRental });
     for (const card of Array.from(host().querySelectorAll('app-painted-card'))) {
@@ -547,7 +673,7 @@ describe('VehicleDetail, página única', () => {
     expect(text(host().querySelector('[data-pendencias-empty]'))).toContain('Nada a resolver');
   });
 
-  it('Histórico mostra Financiamento só em carro financiado e aponta para as páginas', async () => {
+  it('Histórico aponta para as páginas, e carro à vista mantém o caminho do financiamento', async () => {
     await setup({ aba: 'gerencia', summary: of(summaryOf({ financed: false })) });
     const hrefs = () =>
       Array.from(host().querySelectorAll('app-vehicle-history-group a')).map((a) =>
@@ -558,10 +684,29 @@ describe('VehicleDetail, página única', () => {
       '/veiculos/veh-1/gerencia/manutencoes',
       '/veiculos/veh-1/gerencia/multas',
       '/veiculos/veh-1/gerencia/seguros',
+      '/veiculos/veh-1/gerencia/financiamentos',
     ]);
+    expect(text(host().querySelector('app-vehicle-history-group'))).toContain(
+      'Cadastrar financiamento',
+    );
 
     await setup({ aba: 'gerencia' });
     expect(hrefs()).toContain('/veiculos/veh-1/gerencia/financiamentos');
+    expect(text(host().querySelector('app-vehicle-history-group'))).toContain('Contrato e parcelas');
+  });
+
+  it('o link do financiamento não some enquanto o resumo carrega ou falha', async () => {
+    const link = () =>
+      host().querySelector('app-vehicle-history-group a[href$="/gerencia/financiamentos"]');
+
+    await setup({ aba: 'gerencia', summary: NEVER });
+    expect(link()).not.toBeNull();
+
+    await setup({
+      aba: 'gerencia',
+      summary: throwError(() => new HttpErrorResponse({ status: 500 })),
+    });
+    expect(link()).not.toBeNull();
   });
 
   // -------------------------------------------------------------- hero do carro
@@ -617,6 +762,132 @@ describe('VehicleDetail, página única', () => {
     );
   });
 
+  it('cobrança FAILED não é "em dia": cartão laranja com frase própria', async () => {
+    await setup({
+      active: activeRental,
+      charges: [
+        charge({ id: 'c-1', status: 'FAILED', dueDate: '2026-11-14' }),
+        charge({ id: 'c-2', dueDate: '2026-11-21' }),
+      ],
+    });
+    const hero = host().querySelector('[data-rental-hero]');
+    expect(hero?.getAttribute('data-tone')).toBe('orange');
+    expect(text(host().querySelector('[data-hero-line]'))).toBe(
+      'Cobrança com falha na emissão: 14/11, R$ 650,00.',
+    );
+  });
+
+  it('cobrança DISPUTED não é "em dia": cartão laranja com frase própria', async () => {
+    await setup({
+      active: activeRental,
+      charges: [
+        charge({ id: 'c-1', status: 'DISPUTED', dueDate: '2026-11-14' }),
+        charge({ id: 'c-2', dueDate: '2026-11-21' }),
+      ],
+    });
+    const hero = host().querySelector('[data-rental-hero]');
+    expect(hero?.getAttribute('data-tone')).toBe('orange');
+    expect(text(host().querySelector('[data-hero-line]'))).toBe(
+      'Cobrança contestada: 14/11, R$ 650,00.',
+    );
+  });
+
+  it('atenção sem data continua atenção, sem inventar dia', async () => {
+    await setup({
+      active: activeRental,
+      charges: [charge({ status: 'FAILED', dueDate: null })],
+    });
+    expect(text(host().querySelector('[data-hero-line]'))).toBe('Há cobrança com falha na emissão.');
+  });
+
+  it('sem nenhuma cobrança não há evidência para dizer "em dia"', async () => {
+    await setup({ active: activeRental, charges: [] });
+    const hero = host().querySelector('[data-rental-hero]');
+    expect(text(host().querySelector('[data-hero-line]'))).toBe(
+      'Nenhuma cobrança registrada neste aluguel.',
+    );
+    expect(hero?.getAttribute('data-tone')).toBe('orange');
+  });
+
+  it('cobrança aberta sem vencimento não vira "em dia"', async () => {
+    await setup({ active: activeRental, charges: [charge({ dueDate: null })] });
+    const hero = host().querySelector('[data-rental-hero]');
+    expect(text(host().querySelector('[data-hero-line]'))).toBe(
+      'Cobrança em aberto sem vencimento, R$ 650,00.',
+    );
+    expect(hero?.getAttribute('data-tone')).toBe('orange');
+  });
+
+  it('tudo pago é evidência: verde, "Cobranças em dia."', async () => {
+    await setup({ active: activeRental, charges: [charge({ status: 'PAID' })] });
+    const hero = host().querySelector('[data-rental-hero]');
+    expect(text(host().querySelector('[data-hero-line]'))).toBe('Cobranças em dia.');
+    expect(hero?.getAttribute('data-tone')).toBe('green');
+  });
+
+  it('leitura de cobranças que falha pinta o cartão de laranja', async () => {
+    await setup({ active: activeRental, detailFails: true });
+    const hero = host().querySelector('[data-rental-hero]');
+    expect(hero?.getAttribute('data-tone')).toBe('orange');
+    expect(text(host().querySelector('[data-hero-line]'))).toBe(
+      'Não foi possível ler as cobranças agora.',
+    );
+    expect(claim).toHaveBeenCalled();
+  });
+
+  it('reservado diz que está reservado, para quem e desde quando', async () => {
+    await setup({
+      vehicle: { ...baseVehicle, status: 'AVAILABLE' },
+      reserved: [
+        { ...activeRental, id: 'r-8', driverName: 'Bia Lima', startDate: '2099-03-01', endDate: '2099-04-01', status: 'RESERVED' },
+        { ...activeRental, id: 'r-9', driverName: 'Ana Reis', startDate: '2099-02-01', endDate: '2099-02-20', status: 'RESERVED' },
+      ],
+    });
+    const hero = host().querySelector('[data-rental-hero]');
+
+    expect(text(hero)).toContain('Reservado');
+    expect(text(hero)).toContain('Ana Reis');
+    expect(text(hero)).toContain('A partir de 01/02/2099');
+    expect(text(hero)).not.toContain('Pronto para');
+    expect(text(hero)).not.toContain('Novo aluguel');
+    expect(hero?.getAttribute('data-tone')).toBe('orange');
+    const link = hero?.querySelector('a');
+    expect(text(link ?? null)).toBe('Ver reserva');
+    expect(link?.getAttribute('href')).toBe('/alugueis/r-9');
+  });
+
+  it('carro na oficina com reserva mantém o estado e avisa da reserva', async () => {
+    await setup({
+      vehicle: { ...baseVehicle, status: 'MAINTENANCE' },
+      reserved: [{ ...activeRental, driverName: 'Ana Reis', startDate: '2099-02-01', status: 'RESERVED' }],
+    });
+    const hero = host().querySelector('[data-rental-hero]');
+    expect(text(hero)).toContain('Em manutenção');
+    expect(text(hero)).toContain('Reservado para Ana Reis a partir de 01/02/2099.');
+  });
+
+  it('vendido e reservado mostra as duas coisas', async () => {
+    const sale = { id: 's', buyerName: 'M', saleDate: '2026-08-20', saleValueCents: 1, createdDate: '2026-08-20' };
+    await setup({
+      vehicle: { ...baseVehicle, status: 'AVAILABLE', sale },
+      reserved: [{ ...activeRental, driverName: 'Ana Reis', startDate: '2099-02-01', status: 'RESERVED' }],
+    });
+    expect(host().querySelector('[data-sold-banner]')).not.toBeNull();
+    expect(text(host().querySelector('[data-rental-hero]'))).toContain('Ana Reis');
+  });
+
+  it('status Alugado sem aluguel ativo diz o que foi lido, não uma falha', async () => {
+    await setup({ vehicle: { ...baseVehicle, status: 'RENTED' } });
+    const line = text(host().querySelector('[data-hero-line]'));
+    expect(line).toBe('Nenhum aluguel ativo encontrado para este carro.');
+  });
+
+  it('disponível sem conseguir ler os aluguéis não promete nada', async () => {
+    await setup({ vehicle: { ...baseVehicle, status: 'AVAILABLE' }, rentalFails: true });
+    const line = text(host().querySelector('[data-hero-line]'));
+    expect(line).toBe('Não foi possível ler os aluguéis agora.');
+  });
+
   it('o detalhe do aluguel só é pedido quando existe aluguel ativo', async () => {
     await setup({ vehicle: { ...baseVehicle, status: 'AVAILABLE' } });
     expect(getById).not.toHaveBeenCalled();
@@ -670,6 +941,68 @@ describe('VehicleDetail, página única', () => {
     expect(text(host().querySelector('[data-licensing-row] app-status-chip'))).toBe('Em 6 dias');
   });
 
+  describe('com as pendências sem resposta', () => {
+    const failed = () => throwError(() => new HttpErrorResponse({ status: 500 }));
+
+    it('a aba Veículo avisa da falha, e tentar de novo relê', async () => {
+      await setup({ pendencias: failed() });
+      const banner = () => panel('veiculo').querySelector('[data-pendencias-failed]');
+
+      expect(text(banner())).toContain('Não foi possível ler as pendências');
+
+      getPendencias.mockReturnValue(of([pendencia()]));
+      banner()?.querySelector('button')?.click();
+      fixture.detectChanges();
+
+      expect(banner()).toBeNull();
+      expect(badge()?.textContent).toBe('1');
+    });
+
+    it('licenciamento vencido não parece calmo', async () => {
+      await setup({
+        pendencias: failed(),
+        vehicle: { ...baseVehicle, licensingExpiration: '2020-03-01' },
+      });
+      const chip = host().querySelector('[data-licensing-row] app-status-chip');
+      expect(text(chip)).toContain('Vencido');
+      expect(chip?.className).toContain('bg-primary-50');
+    });
+
+    it('IPVA vencido guardado como PENDING não lê "Pendente"', async () => {
+      await setup({
+        pendencias: failed(),
+        vehicle: { ...baseVehicle, ipvaDueDate: '2020-03-01', ipvaStatus: 'PENDING' },
+      });
+      const chip = host().querySelector('[data-ipva-row] app-status-chip');
+      expect(text(chip)).toContain('Vencido');
+      expect(chip?.className).toContain('bg-primary-50');
+    });
+
+    it('licenciamento futuro segue sem chip', async () => {
+      await setup({
+        pendencias: failed(),
+        vehicle: { ...baseVehicle, licensingExpiration: '2099-03-01' },
+      });
+      expect(host().querySelector('[data-licensing-row] app-status-chip')).toBeNull();
+    });
+  });
+
+  it('carro vendido, fora da lista por regra, mantém o aviso de IPVA vencido', async () => {
+    const sale = { id: 's', buyerName: 'M', saleDate: '2026-08-20', saleValueCents: 1, createdDate: '2026-08-20' };
+    await setup({
+      vehicle: { ...baseVehicle, sale, status: 'INACTIVE', ipvaExpired: true, ipvaDueDate: '2020-03-01' },
+      pendencias: of([]),
+    });
+    expect(text(host().querySelector('[data-ipva-row] app-status-chip'))).toContain('Vencido');
+  });
+
+  it('IPVA pago nunca lê vencido, nem com a data no passado', async () => {
+    await setup({
+      vehicle: { ...baseVehicle, ipvaStatus: 'PAID', ipvaExpired: true, ipvaDueDate: '2020-03-01' },
+    });
+    expect(text(host().querySelector('[data-ipva-row] app-status-chip'))).toBe('Pago');
+  });
+
   it('IPVA pago sem pendência mostra o status cadastrado', async () => {
     await setup({ vehicle: { ...baseVehicle, ipvaStatus: 'PAID' } });
     expect(text(host().querySelector('[data-ipva-row] app-status-chip'))).toBe('Pago');
@@ -693,9 +1026,91 @@ describe('VehicleDetail, página única', () => {
       expect(b?.disabled).toBe(true);
       expect(text(b ?? null)).toContain('Encerre o aluguel para alterar');
     }
-    const excluir = buttons.find((x) => text(x).startsWith('Excluir veículo'));
-    expect(excluir?.disabled).toBe(true);
-    expect(text(excluir ?? null)).toContain('Finalize o aluguel para excluir');
+  });
+
+  describe('Editar e Excluir, onde estavam na página antiga', () => {
+    const desktop = () => host().querySelector<HTMLElement>('[data-page-actions="desktop"]')!;
+    const mobile = () => host().querySelector<HTMLElement>('[data-page-actions="mobile"]')!;
+    const excluir = (root: HTMLElement) =>
+      root.querySelector<HTMLButtonElement>('button[aria-label="Excluir"]')!;
+    const editar = (root: HTMLElement) => root.querySelector<HTMLAnchorElement>('app-detail-actions a')!;
+
+    it('desktop: no cabeçalho da página, escondido no celular', async () => {
+      await setup();
+      const block = desktop();
+      expect(block.closest('header')).not.toBeNull();
+      expect(block.className).toContain('hidden');
+      expect(block.className).toContain('lg:flex');
+      expect(block.className).toContain('shrink-0');
+      // A folga que o shell reserva para o sino não empurra os botões da margem.
+      expect(block.className).toContain('--page-header-end');
+      expect(block.querySelector('app-detail-actions')).not.toBeNull();
+    });
+
+    it('celular: no fim da página, escondido no desktop', async () => {
+      await setup();
+      const block = mobile();
+      expect(block.className).toContain('lg:hidden');
+      expect(block.className).toContain('mt-6');
+      expect(block.querySelector('app-detail-actions')).not.toBeNull();
+      const panels = host().querySelectorAll('[role="tabpanel"]');
+      const last = panels[panels.length - 1];
+      expect(last.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('ficam fora dos painéis, nas duas abas', async () => {
+      await setup({ aba: 'gerencia' });
+      expect(desktop().closest('[role="tabpanel"]')).toBeNull();
+      expect(mobile().closest('[role="tabpanel"]')).toBeNull();
+      expect(panel('veiculo').hidden).toBe(true);
+      expect(mobile().closest('[hidden]')).toBeNull();
+    });
+
+    it('Editar leva ao formulário, nas duas posições', async () => {
+      await setup();
+      expect(editar(desktop()).getAttribute('href')).toBe('/veiculos/veh-1/editar');
+      expect(editar(mobile()).getAttribute('href')).toBe('/veiculos/veh-1/editar');
+    });
+
+    it('as linhas de Editar e Excluir saíram de Ações; as outras ficam', async () => {
+      await setup({ vehicle: { ...baseVehicle, status: 'AVAILABLE' } });
+      const group = text(host().querySelector('app-vehicle-actions-group'));
+      expect(group).not.toContain('Editar');
+      expect(group).not.toContain('Excluir');
+      expect(group).toContain('Marcar em manutenção');
+      expect(group).toContain('Marcar inativo');
+      expect(group).toContain('Vender');
+
+      await setup({ vehicle: { ...baseVehicle, status: 'INACTIVE' } });
+      expect(text(host().querySelector('app-vehicle-actions-group'))).toContain('Marcar disponível');
+    });
+
+    it('alugado: Excluir travado com o motivo no title, Editar livre', async () => {
+      await setup({ active: activeRental });
+      for (const block of [desktop(), mobile()]) {
+        expect(excluir(block).disabled).toBe(true);
+        expect(excluir(block).getAttribute('title')).toContain('Finalize o aluguel para excluir');
+        expect(editar(block).getAttribute('aria-disabled')).toBeNull();
+      }
+    });
+
+    it('vendido: os dois travados, com o motivo no title de Excluir', async () => {
+      const sale = { id: 's', buyerName: 'M', saleDate: '2026-08-20', saleValueCents: 1, createdDate: '2026-08-20' };
+      await setup({ vehicle: { ...baseVehicle, status: 'INACTIVE', sale } });
+      for (const block of [desktop(), mobile()]) {
+        expect(excluir(block).disabled).toBe(true);
+        expect(excluir(block).getAttribute('title')).toContain('Veículo vendido em 20/08/2026');
+        expect(editar(block).getAttribute('aria-disabled')).toBe('true');
+      }
+    });
+
+    it('disponível: Excluir responde e abre a confirmação', async () => {
+      await setup({ vehicle: { ...baseVehicle, status: 'AVAILABLE' } });
+      expect(excluir(desktop()).disabled).toBe(false);
+      excluir(mobile()).click();
+      fixture.detectChanges();
+      expect(text()).toContain('Tem certeza que deseja excluir');
+    });
   });
 
   it('vendido: a frase longa fica no title e a linha mostra só o caminho', async () => {
@@ -760,10 +1175,44 @@ describe('VehicleDetail, página única', () => {
     expect(Object.keys(TestBed.inject(RentalService))).toEqual(['list', 'getById']);
   });
 
-  it('pede o ativo com size 1 e os concluídos com size 100', async () => {
+  it('não escreve na lista compartilhada de aluguéis', async () => {
     await setup({ vehicle: { ...baseVehicle, status: 'AVAILABLE' } });
-    expect(list).toHaveBeenCalledWith({ vehicleId: VEHICLE_ID, status: 'ACTIVE', size: 1 });
-    expect(list).toHaveBeenCalledWith({ vehicleId: VEHICLE_ID, status: 'COMPLETED', size: 100 });
+    expect(sharedList).not.toHaveBeenCalled();
+  });
+
+  it('pede o ativo com size 1, e reservas e concluídos com size 100', async () => {
+    await setup({ vehicle: { ...baseVehicle, status: 'AVAILABLE' } });
+    expect(list).toHaveBeenCalledWith(VEHICLE_ID, 'ACTIVE', 1);
+    expect(list).toHaveBeenCalledWith(VEHICLE_ID, 'RESERVED', 100);
+    expect(list).toHaveBeenCalledWith(VEHICLE_ID, 'COMPLETED', 100);
+  });
+
+  it('sair da página cancela a leitura de aluguel em voo', async () => {
+    let unsubscribed = 0;
+    await setup();
+    list.mockImplementation(
+      () => new Observable(() => () => (unsubscribed += 1)),
+    );
+    fixture.destroy();
+    fixture = TestBed.createComponent(VehicleDetail);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(unsubscribed).toBe(0);
+
+    fixture.destroy();
+
+    expect(unsubscribed).toBe(1);
+  });
+
+  it('um 200 malformado nas pendências é falha, não "Nada a resolver"', async () => {
+    await setup({
+      aba: 'gerencia',
+      pendencias: of({ erro: true } as unknown as VehiclePendencia[]),
+    });
+    expect(host().querySelector('[data-pendencias-empty]')).toBeNull();
+    expect(text(host().querySelector('[data-pendencias-error]'))).toContain(
+      'Não foi possível carregar as pendências.',
+    );
   });
 
   it('aluguel que falha não derruba a página nem ganha toast', async () => {

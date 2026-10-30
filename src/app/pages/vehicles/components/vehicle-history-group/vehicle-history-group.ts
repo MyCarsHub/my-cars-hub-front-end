@@ -31,7 +31,8 @@ interface HistoryRow {
 })
 export class VehicleHistoryGroup {
   readonly vehicleId = input.required<string>();
-  readonly financed = input(false);
+  /** `null` enquanto o resumo não respondeu: o caminho continua lá. */
+  readonly financed = input<boolean | null>(null);
 
   protected readonly rows = computed<HistoryRow[]>(() => {
     const id = this.vehicleId();
@@ -59,17 +60,14 @@ export class VehicleHistoryGroup {
         link: under('seguros'),
         query: null,
       },
-      ...(this.financed()
-        ? [
-            {
-              title: 'Financiamento',
-              hint: 'Contrato e parcelas',
-              icon: 'money' as const,
-              link: under('financiamentos'),
-              query: null,
-            },
-          ]
-        : []),
+      // Carro à vista também: é por aqui que um financiamento novo é cadastrado.
+      {
+        title: 'Financiamento',
+        hint: this.financed() === false ? 'Cadastrar financiamento' : 'Contrato e parcelas',
+        icon: 'money',
+        link: under('financiamentos'),
+        query: null,
+      },
     ];
   });
 }

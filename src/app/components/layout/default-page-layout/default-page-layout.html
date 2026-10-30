@@ -44,6 +44,8 @@
                 {{ description }}
             </p>
         </div>
+        <!-- Slot opcional à direita do título (ex.: Editar e Excluir). Vazio não ocupa nada. -->
+        <ng-content select="[pageActions]"></ng-content>
     </header>
     <div class="w-full">
         <!-- Cobrança da assinatura recusada: aviso com prazo, abaixo do título de toda página (mockup 03). -->

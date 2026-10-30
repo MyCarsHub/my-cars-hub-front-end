@@ -2,6 +2,7 @@ import { StatusChipTone } from '../../components/core/status-chip/status-chip';
 import { PaintedStat, PaintedTone } from '../../components/core/painted-card/painted-card';
 import { GerenciaFinanceChunk } from '../../types/gerencia-summary.types';
 import {
+  ChargeStatus,
   RentalChargeDto,
   RentalBillingFrequency,
   RentalListItemDto,
@@ -10,12 +11,17 @@ import {
 } from '../../types/rental.types';
 import { VehiclePendencia, VehiclePendenciaType } from '../../types/vehicle-pendencia.types';
 import { VehicleStatus } from '../../types/vehicle.types';
+import { isOpenChargeStatus } from '../../utils/rental-charges';
 import { VehicleIconName } from './components/vehicle-icon/vehicle-icon';
 
 /*
  * A página só LÊ. Tudo aqui é conta de exibição sobre o que o backend respondeu:
  * urgência vem de `urgency`, Investido vem de `totalInvestedCents`, e nenhum dos dois é
  * recalculado neste arquivo.
+ *
+ * Uma exceção, de propósito: `expiredChip` lê a data do próprio carro. Sem ela, uma
+ * leitura de pendências que falhou, ou um carro vendido fora da lista por regra, faria
+ * um documento vencido parecer calmo.
  */
 
 const ISO_DAY = 'T00:00:00';
@@ -154,6 +160,15 @@ export function pendenciaRoute(p: VehiclePendencia): string[] {
   }
 }
 
+/** A data já passou: vale para pendência que não veio, por falha ou por regra. */
+export function expiredChip(
+  iso: string,
+  now: Date = new Date(),
+): { label: string; tone: StatusChipTone } | null {
+  const days = daysFromToday(iso, now);
+  return days < 0 ? { tone: 'orange', label: `Vencido há ${plural(-days, 'dia', 'dias')}` } : null;
+}
+
 export function overdueLabel(items: readonly VehiclePendencia[]): string | null {
   const late = items.filter((p) => p.urgency === 'OVERDUE').length;
   if (late === 0) return null;
@@ -168,20 +183,58 @@ export function nextCharge(charges: readonly RentalChargeDto[]): RentalChargeDto
   const open = charges
     .filter(
       (c): c is RentalChargeDto & { dueDate: string } =>
-        c.dueDate !== null &&
-        RENT_KINDS.has(c.kind) &&
-        (c.status === 'PENDING' || c.status === 'PAST_DUE'),
+        c.dueDate !== null && RENT_KINDS.has(c.kind) && isOpenChargeStatus(c.status),
     )
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   return open[0] ?? null;
 }
 
-/** A atrasada mais antiga, de qualquer tipo: caução e multa de atraso também contam. */
-export function oldestLateCharge(charges: readonly RentalChargeDto[]): RentalChargeDto | null {
-  const late = charges
-    .filter((c) => c.status === 'PAST_DUE')
-    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
-  return late[0] ?? null;
+/** O que pede atenção, nesta ordem: falha primeiro, porque ninguém está cobrando. */
+const ATTENTION: readonly { status: ChargeStatus; dated: string; undated: string }[] = [
+  {
+    status: 'FAILED',
+    dated: 'Cobrança com falha na emissão: ',
+    undated: 'Há cobrança com falha na emissão.',
+  },
+  { status: 'DISPUTED', dated: 'Cobrança contestada: ', undated: 'Há cobrança contestada.' },
+  { status: 'PAST_DUE', dated: 'Cobrança atrasada desde ', undated: 'Há cobrança atrasada.' },
+];
+
+function chargeWhen(dueDate: string, charge: RentalChargeDto): string {
+  return `${dayMonth(dueDate)}, ${brl(charge.amount)}`;
+}
+
+/**
+ * Verde e "em dia" andam juntos, e só com evidência: as cobranças foram lidas, existe ao
+ * menos uma e nenhuma está em estado ruim. Qualquer outra coisa é laranja com a frase do
+ * que foi visto. Abertas usam `isOpenChargeStatus`, a mesma regra do detalhe do aluguel.
+ */
+function chargeHealth(detail: RentalResponseDto | null): { ok: boolean; line: string } {
+  if (!detail) return { ok: false, line: 'Não foi possível ler as cobranças agora.' };
+  const charges = detail.charges ?? [];
+  if (charges.length === 0) {
+    return { ok: false, line: 'Nenhuma cobrança registrada neste aluguel.' };
+  }
+  for (const rule of ATTENTION) {
+    const [oldest] = charges
+      .filter((c) => c.status === rule.status)
+      .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
+    if (oldest) {
+      const line = oldest.dueDate
+        ? `${rule.dated}${chargeWhen(oldest.dueDate, oldest)}.`
+        : rule.undated;
+      return { ok: false, line };
+    }
+  }
+  const next = nextCharge(charges);
+  if (next?.dueDate) {
+    return { ok: true, line: `Cobranças em dia. Próxima em ${chargeWhen(next.dueDate, next)}.` };
+  }
+  const undated = charges.find((c) => isOpenChargeStatus(c.status) && !c.dueDate);
+  if (undated) {
+    return { ok: false, line: `Cobrança em aberto sem vencimento, ${brl(undated.amount)}.` };
+  }
+  return { ok: true, line: 'Cobranças em dia.' };
 }
 
 const PER_PERIOD: Record<RentalBillingFrequency, string> = {
@@ -198,7 +251,6 @@ export interface RentedHero {
   readonly rentalId: string;
   readonly driver: string;
   readonly line: string;
-  readonly late: boolean;
   readonly ring: { percent: number; days: number; unit: string; aria: string };
   readonly stats: readonly PaintedStat[];
 }
@@ -208,19 +260,17 @@ export function rentedHero(
   detail: RentalResponseDto | null,
   now: Date = new Date(),
 ): RentedHero {
-  const charges = detail?.charges ?? [];
-  const late = oldestLateCharge(charges);
+  const health = chargeHealth(detail);
   const total = daysFromToday(rental.endDate, new Date(rental.startDate + ISO_DAY));
   const days = Math.max(0, daysFromToday(rental.endDate, now));
   const unit = days === 1 ? 'dia' : 'dias';
 
   return {
     kind: 'rented',
-    tone: late ? 'orange' : 'green',
+    tone: health.ok ? 'green' : 'orange',
     rentalId: rental.id,
     driver: rental.driverName ?? 'Motorista',
-    late: late !== null,
-    line: rentedLine(detail, late, nextCharge(charges)),
+    line: health.line,
     ring: {
       percent: total > 0 ? (days / total) * 100 : 0,
       days,
@@ -239,26 +289,6 @@ export function rentedHero(
   };
 }
 
-function rentedLine(
-  detail: RentalResponseDto | null,
-  late: RentalChargeDto | null,
-  next: RentalChargeDto | null,
-): string {
-  if (!detail) return 'Não foi possível ler as cobranças agora.';
-  if (late) {
-    return late.dueDate
-      ? `Cobrança atrasada desde ${chargeWhen(late.dueDate, late)}.`
-      : 'Há cobrança atrasada.';
-  }
-  return next?.dueDate
-    ? `Cobranças em dia. Próxima em ${chargeWhen(next.dueDate, next)}.`
-    : 'Cobranças em dia.';
-}
-
-function chargeWhen(dueDate: string, charge: RentalChargeDto): string {
-  return `${dayMonth(dueDate)}, ${brl(charge.amount)}`;
-}
-
 /** O carro parado: pátio, oficina ou inativo. Sempre laranja, nunca cinza. */
 export interface IdleHero {
   readonly kind: 'idle';
@@ -275,21 +305,45 @@ export interface IdleHero {
 
 export type VehicleHero = RentedHero | IdleHero;
 
+/** O que as leituras de aluguel disseram sobre um carro sem aluguel ativo. */
+export interface IdleRentals {
+  readonly vehicleId: string;
+  /** `null`: nenhum concluído. `undefined`: a leitura não respondeu. */
+  readonly lastEnd: string | null | undefined;
+  readonly reserved: RentalListItemDto | null;
+  readonly failed: boolean;
+}
+
+function reservedHero(rental: RentalListItemDto): IdleHero {
+  return {
+    kind: 'idle',
+    label: 'Reservado',
+    big: rental.driverName ?? 'Motorista',
+    line: `A partir de ${fullDate(rental.startDate)}, até ${fullDate(rental.endDate)}.`,
+    action: { label: 'Ver reserva', icon: 'key', link: ['/alugueis', rental.id], query: null },
+  };
+}
+
+function reservedNote(rental: RentalListItemDto | null): string {
+  if (!rental) return '';
+  const who = rental.driverName ?? 'um motorista';
+  return ` Reservado para ${who} a partir de ${fullDate(rental.startDate)}.`;
+}
+
 export function idleHero(
-  vehicleId: string,
   status: VehicleStatus,
-  /** `undefined` quando a leitura falhou: não dá para dizer "nunca foi alugado". */
-  lastRentalEnd: string | null | undefined,
+  rentals: IdleRentals,
   now: Date = new Date(),
 ): IdleHero {
-  const rentals = { vehicleId };
+  const { vehicleId, lastEnd, reserved, failed } = rentals;
+  const ofThisCar = { vehicleId };
   switch (status) {
     case 'MAINTENANCE':
       return {
         kind: 'idle',
         label: 'Em manutenção',
         big: 'Na oficina',
-        line: 'Fora da frota de aluguel até você marcar disponível.',
+        line: `Fora da frota de aluguel até você marcar disponível.${reservedNote(reserved)}`,
         action: {
           label: 'Ver manutenções',
           icon: 'maintenance',
@@ -302,31 +356,35 @@ export function idleHero(
         kind: 'idle',
         label: 'Inativo',
         big: 'Fora de operação',
-        line: 'Para voltar a alugar, marque como disponível em Ações.',
+        line: `Para voltar a alugar, marque como disponível em Ações.${reservedNote(reserved)}`,
         action: null,
       };
     case 'RENTED':
+      if (reserved) return reservedHero(reserved);
       return {
         kind: 'idle',
         label: 'Alugado',
-        big: 'Aluguel em curso',
-        line: 'Não foi possível ler o aluguel agora.',
-        action: { label: 'Ver aluguéis', icon: 'key', link: ['/alugueis'], query: rentals },
+        big: failed ? 'Aluguel em curso' : 'Sem aluguel ativo',
+        line: failed
+          ? 'Não foi possível ler o aluguel agora.'
+          : 'Nenhum aluguel ativo encontrado para este carro.',
+        action: { label: 'Ver aluguéis', icon: 'key', link: ['/alugueis'], query: ofThisCar },
       };
     case 'AVAILABLE': {
+      if (reserved) return reservedHero(reserved);
       const action = {
         label: 'Novo aluguel',
         icon: 'plus' as const,
         link: ['/alugueis', 'novo'],
-        query: rentals,
+        query: ofThisCar,
       };
-      if (lastRentalEnd) {
-        const days = Math.max(0, -daysFromToday(lastRentalEnd, now));
+      if (lastEnd) {
+        const days = Math.max(0, -daysFromToday(lastEnd, now));
         return {
           kind: 'idle',
           label: 'No pátio',
           big: plural(days, 'dia', 'dias'),
-          line: `Sem alugar desde ${dayMonth(lastRentalEnd)}, quando terminou o último aluguel.`,
+          line: `Sem alugar desde ${dayMonth(lastEnd)}, quando terminou o último aluguel.`,
           action,
         };
       }
@@ -334,14 +392,21 @@ export function idleHero(
         kind: 'idle',
         label: 'No pátio',
         big: 'Disponível',
-        line:
-          lastRentalEnd === null
-            ? 'Este carro ainda não tem aluguel concluído.'
-            : 'Pronto para o próximo aluguel.',
+        line: failed
+          ? 'Não foi possível ler os aluguéis agora.'
+          : 'Este carro ainda não tem aluguel concluído.',
         action,
       };
     }
   }
+}
+
+/** A reserva que vem primeiro: a lista vem por criação, não pela data do aluguel. */
+export function earliestStart(rentals: readonly RentalListItemDto[]): RentalListItemDto | null {
+  return rentals.reduce<RentalListItemDto | null>(
+    (first, r) => (first === null || r.startDate < first.startDate ? r : first),
+    null,
+  );
 }
 
 /** O fim mais recente: a lista vem por criação, e um aluguel lançado tarde a embaralha. */
@@ -380,7 +445,7 @@ export interface MoneyHero {
 }
 
 function composition(f: GerenciaFinanceChunk): readonly PaintedStat[] {
-  const money = (cents: number | null) => (cents === null ? '—' : brl(cents));
+  const money = (cents: number | null | undefined) => (cents == null ? '—' : brl(cents));
   const parts: PaintedStat[] = f.financed
     ? [
         { label: 'entrada', value: money(f.downPaymentCents) },
@@ -398,82 +463,102 @@ function column(
   label: MoneyColumn['label'],
   amount: number,
   caption: string,
-  invested: number | null,
-  result: number | null,
+  invested: number | null | undefined,
+  /* `==` de propósito: backend sem o campo manda `undefined`, e aí sairia "R$ NaN". */
+  result: number | null | undefined,
 ): MoneyColumn {
-  const known = invested !== null && invested > 0;
+  const known = invested != null && invested > 0;
   const percent = known ? Math.round((amount / invested) * 100) : null;
   return {
     label,
     amount: splitBrl(amount),
     caption: percent === null ? caption : `${percent}% do investido`,
     percent,
-    result: result === null ? null : signedBrl(result),
+    result: result == null ? null : signedBrl(result),
   };
 }
 
-/** Os dois vazios saem das flags do backend, nunca de `purchaseCostCents` ou `resultCents`. */
+function moneyLine(contracted: number, received: number): string {
+  // Contratado ignora aluguel cancelado e Recebido não: quem terminou antes do fim
+  // deixa dinheiro recebido sem contrato ao lado.
+  if (received > contracted) return 'O recebido inclui aluguéis encerrados antes do fim.';
+  if (contracted === 0) return 'Nenhum contrato neste carro ainda.';
+  const toReceive = contracted - received;
+  return toReceive > 0
+    ? `${brl(toReceive)} do contratado ainda não entrou.`
+    : 'Todo o contratado já entrou.';
+}
+
+function saleLine(f: GerenciaFinanceChunk, resultsShown: boolean): string | null {
+  if (f.saleValueCents == null) return null;
+  const when = f.saleDate ? ` em ${fullDate(f.saleDate)}` : '';
+  return resultsShown
+    ? `Resultado inclui a venda de ${brl(f.saleValueCents)}${when}.`
+    : `Vendido por ${brl(f.saleValueCents)}${when}.`;
+}
+
+function moneyEmpty(f: GerenciaFinanceChunk): MoneyHero['empty'] {
+  if (f.purchasePriceMissing) {
+    return {
+      title: 'Falta o valor de compra',
+      line: 'Com ele aparece o resultado deste carro.',
+      action: 'Informar valor de compra',
+      target: 'edit',
+    };
+  }
+  if (f.financingPayoffUnknown) {
+    return {
+      title: 'Falta o valor da quitação',
+      line: 'O valor pago na quitação não foi registrado, então não dá para calcular o Investido.',
+      action: 'Ver financiamento',
+      target: 'financing',
+    };
+  }
+  if (f.financingDataIncomplete) {
+    const noEntrada = f.downPaymentCents == null;
+    return {
+      title: noEntrada ? 'Falta a entrada do financiamento' : 'Faltam as parcelas do financiamento',
+      line: `Sem ${noEntrada ? 'ela' : 'elas'} não dá para calcular o Investido deste carro.`,
+      action: 'Ver financiamento',
+      target: 'financing',
+    };
+  }
+  return null;
+}
+
+/** Os vazios saem das flags do backend, nunca de `purchaseCostCents` ou `resultCents`. */
 export function moneyHero(f: GerenciaFinanceChunk): MoneyHero {
   const contracted = f.totalRentalRevenueCents;
   const received = f.totalRentalReceivedCents;
-  const toReceive = Math.max(0, contracted - received);
-  const noPrice = f.purchasePriceMissing;
-  const incomplete = f.financingDataIncomplete;
-  const paidOff = !noPrice && !incomplete && (f.resultReceivedCents ?? 0) > 0;
-  const share = contracted > 0 ? Math.round((received / contracted) * 100) : null;
+  const empty = moneyEmpty(f);
+  const paidOff = !empty && (f.resultReceivedCents ?? 0) > 0;
+  const share =
+    contracted > 0 && received <= contracted ? Math.round((received / contracted) * 100) : null;
+  const invested = empty ? null : f.totalInvestedCents;
+  const resultsShown = !empty && f.resultCents != null;
 
   return {
     tone: paidOff ? 'green' : 'orange',
-    title: noPrice
+    title: f.purchasePriceMissing
       ? 'Sem valor de compra'
-      : incomplete
-        ? 'Financiamento incompleto'
-        : paidOff
-          ? 'Já se pagou'
-          : 'Ainda não se pagou',
-    line:
-      contracted === 0
-        ? 'Nenhum contrato neste carro ainda.'
-        : toReceive > 0
-          ? `${brl(toReceive)} do contratado ainda não entrou.`
-          : 'Todo o contratado já entrou.',
-    sale:
-      f.saleValueCents === null
-        ? null
-        : `Resultado inclui a venda de ${brl(f.saleValueCents)}` +
-          (f.saleDate ? ` em ${fullDate(f.saleDate)}.` : '.'),
+      : f.financingPayoffUnknown
+        ? 'Quitação sem valor'
+        : f.financingDataIncomplete
+          ? 'Financiamento incompleto'
+          : paidOff
+            ? 'Já se pagou'
+            : 'Ainda não se pagou',
+    line: moneyLine(contracted, received),
+    sale: saleLine(f, resultsShown),
     ring:
       share === null
         ? null
         : { percent: share, value: `${share}%`, aria: `${share}% do contratado recebido` },
     columns: [
-      column(
-        'Recebido',
-        received,
-        'Cobranças pagas',
-        f.totalInvestedCents,
-        f.resultReceivedCents,
-      ),
-      column('Contratado', contracted, 'Soma dos contratos', f.totalInvestedCents, f.resultCents),
+      column('Recebido', received, 'Cobranças pagas', invested, empty ? null : f.resultReceivedCents),
+      column('Contratado', contracted, 'Soma dos contratos', invested, empty ? null : f.resultCents),
     ],
-    stats: noPrice || incomplete ? null : composition(f),
-    empty: noPrice
-      ? {
-          title: 'Falta o valor de compra',
-          line: 'Com ele aparece o resultado deste carro.',
-          action: 'Informar valor de compra',
-          target: 'edit',
-        }
-      : incomplete
-        ? {
-            title:
-              f.downPaymentCents === null
-                ? 'Falta a entrada do financiamento'
-                : 'Faltam as parcelas do financiamento',
-            line: `Sem ${f.downPaymentCents === null ? 'ela' : 'elas'} não dá para calcular o Investido deste carro.`,
-            action: 'Ver financiamento',
-            target: 'financing',
-          }
-        : null,
+    stats: empty ? null : composition(f),
+    empty,
   };
 }

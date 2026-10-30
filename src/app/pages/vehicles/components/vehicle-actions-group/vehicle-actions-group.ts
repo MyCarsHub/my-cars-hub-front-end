@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { ListChevron, ListGroup, ListRow } from '../../../../components/core/list-group/list-group';
 import { VehicleStatus } from '../../../../types/vehicle.types';
 import { VehicleIcon } from '../vehicle-icon/vehicle-icon';
@@ -13,29 +12,17 @@ export const RENTED_LOCK_REASON = 'Encerre o aluguel para alterar';
 export const SOLD_LOCK_HINT = 'Desfaça a venda para alterar';
 
 /**
- * As ações do carro. Ação travada continua visível, cinza e com o motivo embaixo: esconder
+ * As ações de operação do carro; Editar e Excluir ficam em `app-detail-actions`, no topo
+ * da página. Ação travada continua visível, cinza e com o motivo embaixo: esconder
  * faria o operador procurar um bug onde existe uma regra. Quem chama a API é a página.
  */
 @Component({
   selector: 'app-vehicle-actions-group',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
-  imports: [RouterLink, ListGroup, ListRow, ListChevron, VehicleIcon],
+  imports: [ListGroup, ListRow, ListChevron, VehicleIcon],
   template: `
     <app-list-group heading="Ações">
-      @if (lockReason(); as reason) {
-        <a appListRow locked aria-disabled="true" [attr.title]="reason">
-          <span class="tile" aria-hidden="true"><app-vehicle-icon name="pen" /></span>
-          <span class="t"><b>Editar</b><small>{{ soldHint }}</small></span>
-        </a>
-      } @else {
-        <a appListRow [routerLink]="['/veiculos', vehicleId(), 'editar']">
-          <span class="tile" aria-hidden="true"><app-vehicle-icon name="pen" /></span>
-          <span class="t"><b>Editar</b></span>
-          <app-list-chevron />
-        </a>
-      }
-
       @if (canGoAvailable()) {
         <button
           type="button"
@@ -102,38 +89,20 @@ export const SOLD_LOCK_HINT = 'Desfaça a venda para alterar';
         </button>
       }
 
-      <button
-        type="button"
-        appListRow
-        inset
-        danger
-        [locked]="!!deleteLock()"
-        [disabled]="!!deleteLock()"
-        [attr.title]="deleteLock()"
-        (click)="remove.emit()"
-      >
-        <span class="t">
-          <b>Excluir veículo</b>
-          @if (deleteHint(); as hint) { <small>{{ hint }}</small> }
-        </span>
-      </button>
     </app-list-group>
   `,
 })
 export class VehicleActionsGroup {
-  readonly vehicleId = input.required<string>();
   readonly status = input.required<VehicleStatus>();
   readonly sold = input(false);
   /** Motivo único do veículo vendido; nulo fora dele. */
   readonly lockReason = input<string | null>(null);
-  readonly deleteLock = input<string | null>(null);
   readonly busy = input(false);
   readonly undoing = input(false);
 
   readonly transition = output<VehicleStatusTarget>();
   readonly sell = output<void>();
   readonly undoSale = output<void>();
-  readonly remove = output<void>();
 
   protected readonly soldHint = SOLD_LOCK_HINT;
 
@@ -148,9 +117,5 @@ export class VehicleActionsGroup {
 
   protected readonly statusHint = computed(() =>
     this.lockReason() ? SOLD_LOCK_HINT : this.statusLock(),
-  );
-
-  protected readonly deleteHint = computed(() =>
-    this.lockReason() ? SOLD_LOCK_HINT : this.deleteLock(),
   );
 }

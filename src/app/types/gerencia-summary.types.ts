@@ -30,6 +30,8 @@ export interface GerenciaFinanceChunk {
    * The page shows its own empty state instead of a wrong number.
    */
   financingDataIncomplete: boolean;
+  /** Paid off early with no amount recorded: Investido and both results are null. */
+  financingPayoffUnknown: boolean;
   /** The car has a financing, active or paid off. */
   financed: boolean;
   /** "Entrada". Null when not financed or when the financing has none. */

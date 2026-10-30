@@ -10,12 +10,13 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Subscription } from 'rxjs';
+import { Observable, Subscription, forkJoin } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { KvList } from '../../components/core/kv-list/kv-list';
 import { ListGroup, ListRow } from '../../components/core/list-group/list-group';
+import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { PaintedCard } from '../../components/core/painted-card/painted-card';
 import {
   SegmentedTabs,
@@ -48,6 +49,8 @@ import {
   VehicleHero,
   brl,
   dayMonth,
+  earliestStart,
+  expiredChip,
   idleHero,
   latestEnd,
   pendenciaChip,
@@ -64,6 +67,11 @@ const IPVA_STATUS_CHIP: Record<IpvaStatus, { label: string; tone: StatusChipTone
   OVERDUE: { label: 'Vencido', tone: 'orange' },
 };
 
+const IPVA_EXPIRED_CHIP: { label: string; tone: StatusChipTone } = {
+  label: 'Vencido',
+  tone: 'orange',
+};
+
 export type VehicleTab = 'veiculo' | 'gerencia';
 
 /** O segmento vem de `?aba=gerencia`: é para lá que o caminho antigo redireciona. */
@@ -78,6 +86,7 @@ function tabFromQuery(value: string | null): VehicleTab {
     RouterLink,
     DefaultPageLayout,
     ConfirmDialog,
+    DetailActions,
     AlertBanner,
     KvList,
     ListGroup,
@@ -132,8 +141,10 @@ export class VehicleDetail implements OnInit {
 
   private readonly activeRental = signal<RentalListItemDto | null>(null);
   private readonly rentalDetail = signal<RentalResponseDto | null>(null);
+  private readonly reservedRental = signal<RentalListItemDto | null>(null);
   /** `null`: nenhum concluído. `undefined`: não deu para saber. */
   private readonly lastRentalEnd = signal<string | null | undefined>(undefined);
+  private readonly rentalFailed = signal(false);
   protected readonly rentalLoading = signal(true);
 
   protected readonly pageTitle = computed(() => {
@@ -166,9 +177,15 @@ export class VehicleDetail implements OnInit {
     if (!v) return null;
     const rental = this.activeRental();
     if (rental) return rentedHero(rental, this.rentalDetail());
+    const reserved = this.reservedRental();
     // Vendido e sem aluguel: o bloco da venda já diz tudo.
-    if (v.sale) return null;
-    return idleHero(v.id, v.status, this.lastRentalEnd());
+    if (v.sale && !reserved) return null;
+    return idleHero(v.sale ? 'AVAILABLE' : v.status, {
+      vehicleId: v.id,
+      lastEnd: this.lastRentalEnd(),
+      reserved,
+      failed: this.rentalFailed(),
+    });
   });
 
   /**
@@ -246,7 +263,7 @@ export class VehicleDetail implements OnInit {
     if (soldReason) return soldReason;
     const s = this.vehicle()?.status;
     if (s === 'RENTED') {
-      return 'Finalize o aluguel para excluir';
+      return 'Veículo está alugado. Finalize o aluguel para excluir.';
     }
     return null;
   });
@@ -258,7 +275,9 @@ export class VehicleDetail implements OnInit {
 
   protected readonly licensingChip = computed(() => {
     const p = this.pendenciaOf('LICENSING');
-    return p ? pendenciaChip(p) : null;
+    if (p) return pendenciaChip(p);
+    const expiry = this.vehicle()?.licensingExpiration;
+    return expiry ? expiredChip(expiry) : null;
   });
 
   protected readonly hasIpva = computed(() => {
@@ -282,8 +301,12 @@ export class VehicleDetail implements OnInit {
   protected readonly ipvaChip = computed(() => {
     const p = this.pendenciaOf('IPVA');
     if (p) return pendenciaChip(p);
-    const status = this.vehicle()?.ipvaStatus;
-    return status ? IPVA_STATUS_CHIP[status] : null;
+    const v = this.vehicle();
+    if (v?.ipvaStatus === 'PAID') return IPVA_STATUS_CHIP.PAID;
+    const expired = v?.ipvaDueDate ? expiredChip(v.ipvaDueDate) : null;
+    if (expired) return expired;
+    if (v?.ipvaExpired) return IPVA_EXPIRED_CHIP;
+    return v?.ipvaStatus ? IPVA_STATUS_CHIP[v.ipvaStatus] : null;
   });
 
   protected formatKm(km: number | null | undefined): string {
@@ -337,7 +360,12 @@ export class VehicleDetail implements OnInit {
     this.pendenciasError.set(null);
     this.vehiclesService.getPendencias(id).subscribe({
       next: (items) => {
-        this.pendencias.set(Array.isArray(items) ? items : []);
+        // Um 200 que não é lista é falha: virar lista vazia diria "Nada a resolver".
+        if (!Array.isArray(items)) {
+          this.pendenciasError.set('Não foi possível carregar as pendências.');
+          return;
+        }
+        this.pendencias.set(items);
         this.pendenciasLoaded.set(true);
       },
       error: (err: HttpErrorResponse) => {
@@ -348,22 +376,22 @@ export class VehicleDetail implements OnInit {
     });
   }
 
-  /** Só GET: aluguel ativo, o detalhe dele, ou o último concluído para o carro parado. */
+  /** Só GET: o aluguel ativo e o detalhe dele, ou reserva e último concluído do carro parado. */
   private loadRental(id: string): void {
     this.rentalLoading.set(true);
-    this.rentalService.list({ vehicleId: id, status: 'ACTIVE', size: 1 }).subscribe({
+    this.rentalRead(this.vehiclesService.listRentals(id, 'ACTIVE', 1)).subscribe({
       next: (res) => {
         const active = res.content?.[0] ?? null;
         this.activeRental.set(active);
         if (active) this.loadRentalDetail(active.id);
-        else this.loadLastRentalEnd(id);
+        else this.loadIdleRentals(id);
       },
       error: (err: HttpErrorResponse) => this.onRentalFailed(err),
     });
   }
 
   private loadRentalDetail(rentalId: string): void {
-    this.rentalService.getById(rentalId).subscribe({
+    this.rentalRead(this.rentalService.getById(rentalId)).subscribe({
       next: (detail) => {
         this.rentalDetail.set(detail);
         this.rentalLoading.set(false);
@@ -372,19 +400,31 @@ export class VehicleDetail implements OnInit {
     });
   }
 
-  private loadLastRentalEnd(vehicleId: string): void {
-    this.rentalService.list({ vehicleId, status: 'COMPLETED', size: 100 }).subscribe({
-      next: (res) => {
-        this.lastRentalEnd.set(latestEnd(res.content ?? []));
+  private loadIdleRentals(vehicleId: string): void {
+    this.rentalRead(
+      forkJoin({
+        reserved: this.vehiclesService.listRentals(vehicleId, 'RESERVED', 100),
+        completed: this.vehiclesService.listRentals(vehicleId, 'COMPLETED', 100),
+      }),
+    ).subscribe({
+      next: ({ reserved, completed }) => {
+        this.reservedRental.set(earliestStart(reserved.content ?? []));
+        this.lastRentalEnd.set(latestEnd(completed.content ?? []));
         this.rentalLoading.set(false);
       },
       error: (err: HttpErrorResponse) => this.onRentalFailed(err),
     });
   }
 
+  /** Sair da página cancela a leitura: resposta atrasada não cai em tela nenhuma. */
+  private rentalRead<T>(read: Observable<T>): Observable<T> {
+    return read.pipe(takeUntilDestroyed(this.destroyRef));
+  }
+
   /** O hero diz que não leu; o aluguel em si não mudou, então nada de banner vermelho. */
   private onRentalFailed(err: HttpErrorResponse): void {
     this.apiErrors.claim(err);
+    this.rentalFailed.set(true);
     this.rentalLoading.set(false);
   }
 

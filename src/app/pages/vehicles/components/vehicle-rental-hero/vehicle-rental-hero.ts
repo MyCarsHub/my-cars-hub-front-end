@@ -46,7 +46,8 @@ import { VehicleIcon } from '../vehicle-icon/vehicle-icon';
           <span class="text-xs uppercase tracking-wide text-white/80">{{ h.label }}</span>
           <span
             data-hero-big
-            class="text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight tabular-nums"
+            class="text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight tabular-nums
+                   [overflow-wrap:anywhere]"
           >{{ h.big }}</span>
           <span data-hero-line class="text-xs text-white/85 leading-snug">{{ h.line }}</span>
         </div>

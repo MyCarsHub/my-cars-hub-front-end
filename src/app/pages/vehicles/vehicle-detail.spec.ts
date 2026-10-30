@@ -162,6 +162,7 @@ describe('VehicleDetail — venda (FEAT-0072)', () => {
             listDocuments: vi.fn(() => of([])),
             getGerenciaSummary: vi.fn(() => EMPTY),
             getPendencias: vi.fn(() => of([])),
+            listRentals: vi.fn(() => of({ content: [], page: 0, size: 1, total: 0 })),
           },
         },
         {
@@ -328,9 +329,9 @@ describe('VehicleDetail — venda (FEAT-0072)', () => {
     expect(disponivel.disabled).toBe(true);
     expect(disponivel.getAttribute('title')).toContain('Veículo vendido em 20/08/2026');
 
-    const excluir = requireButton('Excluir veículo');
-    expect(excluir.disabled).toBe(true);
-    expect(excluir.getAttribute('title')).toContain('Veículo vendido em 20/08/2026');
+    const excluir = host().querySelector<HTMLButtonElement>('button[aria-label="Excluir"]');
+    expect(excluir?.disabled).toBe(true);
+    expect(excluir?.getAttribute('title')).toContain('Veículo vendido em 20/08/2026');
 
     // Editar continua visível, mas inerte e anunciado como tal.
     const editar = host().querySelector('a[aria-disabled="true"]');

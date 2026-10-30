@@ -115,6 +115,7 @@ describe('VehicleDetail — foto do veículo', () => {
             deleteDocument,
             getGerenciaSummary: vi.fn(() => EMPTY),
             getPendencias: vi.fn(() => of([])),
+            listRentals: vi.fn(() => of({ content: [], page: 0, size: 1, total: 0 })),
           },
         },
         { provide: DocumentPreviewService, useValue: { open: previewOpen } },
