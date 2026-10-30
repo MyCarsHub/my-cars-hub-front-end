@@ -1750,6 +1750,7 @@ describe('Billing', () => {
     pixAvailable(): boolean;
     openPix(): void;
     closePix(): void;
+    closeSheet(): void;
     createPix(): void;
     copyPix(): Promise<void>;
     checkPixNow(): void;
@@ -1793,25 +1794,166 @@ describe('Billing', () => {
     return api;
   };
 
-  it('read-only (support session): no cancel, no pay, and the page says why', () => {
-    summarySignal.set(pixSummary({ canManage: false, actions: [] }));
-    subscriptionSignal.set(sub({ status: 'PAST_DUE', planCode: 'STARTER_MONTHLY_STRIPE', planName: 'STARTER' }));
+  const OPEN_INVOICE = {
+    ref: 'in_3',
+    number: 'A-3',
+    createdAt: serverTime(-86_400_000),
+    amountCents: 7990,
+    status: 'OPEN' as const,
+    cardBrand: null,
+    cardLast4: null,
+    pdfUrl: null,
+    hostedUrl: 'https://invoice.stripe.com/i/3',
+  };
+
+  /** Renderiza a página v2 com o resumo atual e devolve o componente e o DOM. */
+  const renderV2 = (status: SubscriptionResponse['status'] = 'PAST_DUE') => {
+    subscriptionSignal.set(sub({ status, planCode: 'STARTER_MONTHLY_STRIPE', planName: 'STARTER' }));
     const fixture = TestBed.createComponent(Billing);
-    const c = fixture.componentInstance as unknown as V2Probe;
+    const c = fixture.componentInstance as unknown as V2Probe & {
+      payNow(): void;
+      payByCard(): void;
+    };
     c.ngOnInit();
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
+    const q = (id: string) => el.querySelector<HTMLButtonElement>(`[data-testid=${id}]`);
+    return { fixture, c, el, q };
+  };
+
+  it('read-only (support session): the SAME two buttons, disabled, and one line saying why', () => {
+    summarySignal.set(pixSummary({ canManage: false, actions: [] }));
+    const { c, el, q } = renderV2();
 
     expect(c.canManage()).toBe(false);
     expect(c.canCancel()).toBe(false);
     expect(c.pixAvailable()).toBe(false);
-    expect(el.querySelector('[data-testid=row-cancel]')).toBeNull();
-    expect(el.querySelector('[data-testid=hero-pix]')).toBeNull();
-    expect(el.querySelector('[data-testid=hero-pay]')).toBeNull();
-    expect(el.querySelector('[data-testid=inv-pay]')).toBeNull();
-    expect(el.querySelector('[data-testid=billing-readonly]')?.textContent).toContain(
-      'Você está vendo como suporte — pagamento só pelo dono.',
-    );
+    expect(q('row-cancel')).toBeNull();
+    expect(q('inv-pay')).toBeNull();
+    expect(q('hero-pix')).toBeNull();
+    expect(q('hero-pay')?.textContent?.trim()).toBe('Pagar R$ 79,90');
+    expect(q('hero-pay')?.disabled).toBe(true);
+    expect(q('hero-card')?.textContent?.trim()).toBe('Trocar cartão');
+    expect(q('hero-card')?.disabled).toBe(true);
+    expect(q('billing-readonly')?.textContent?.trim()).toBe('Só o dono da empresa pode pagar.');
+    expect(el.textContent).not.toContain('Você está vendo como suporte');
+
+    // Mesmo chamado à força, nada abre.
+    c.payNow();
+    expect(c.sheet()).toBeNull();
+    expect(externalNav.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('read-only: an open invoice row has no "Pagar", even if the server lists the actions', () => {
+    summarySignal.set(pixSummary({ canManage: false, invoices: [OPEN_INVOICE] }));
+    const { el, q } = renderV2();
+
+    expect(el.querySelector('[data-testid=invoices-table]')?.textContent).toContain('Em aberto');
+    expect(q('inv-pay')).toBeNull();
+    expect(q('hero-pay')?.disabled).toBe(true);
+    expect(q('hero-card')?.disabled).toBe(true);
+  });
+
+  it('read-only on a blocked account shows the same disabled pair', () => {
+    summarySignal.set(pastDueSummary({ state: 'BLOCKED', graceEndsAt: serverTime(-3_600_000), canManage: false, actions: [] }));
+    const { q } = renderV2('PAST_DUE');
+
+    expect(q('hero-pay')?.disabled).toBe(true);
+    expect(q('hero-card')?.disabled).toBe(true);
+    expect(q('billing-readonly')).not.toBeNull();
+  });
+
+  it('atrasada without Pix: ONE "Pagar R$ 79,90" goes straight to the Stripe hosted invoice', () => {
+    summarySignal.set(pastDueSummary());
+    const { c, el, q } = renderV2();
+
+    expect(q('hero-pay')?.textContent?.trim()).toBe('Pagar R$ 79,90');
+    expect(q('hero-pay')?.classList.contains('primary')).toBe(true);
+    expect(q('hero-card')?.textContent?.trim()).toBe('Trocar cartão');
+    expect(q('hero-card')?.classList.contains('tonal')).toBe(true);
+    expect(q('hero-pix')).toBeNull();
+    expect(el.querySelector('[data-testid=billing-hero]')?.textContent).not.toContain('Pix confirma na hora');
+    expect(q('billing-readonly')).toBeNull();
+
+    q('hero-pay')!.click();
+    expect(externalNav.openExternal).toHaveBeenCalledWith('https://invoice.stripe.com/i/1');
+    expect(billing.startCheckout).not.toHaveBeenCalled();
+    expect(c.sheet()).toBeNull();
+  });
+
+  it('"Trocar cartão" on the hero opens the billing portal', () => {
+    summarySignal.set(pastDueSummary());
+    const { q } = renderV2();
+    q('hero-card')!.click();
+    expect(billing.cardUpdateUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('atrasada with Pix: "Pagar" opens a short Pix/cartão choice; each option acts at once', () => {
+    summarySignal.set(pixSummary());
+    const api = withPixApi();
+    const { c, fixture, q } = renderV2();
+
+    q('hero-pay')!.click();
+    fixture.detectChanges();
+    expect(c.sheet()).toBe('choose');
+    const choice = document.querySelector('[data-testid=pay-choice]');
+    expect(choice?.textContent).toContain('Confirma na hora');
+    expect(choice?.textContent).toContain('Cartão');
+
+    (document.querySelector('[data-testid=choose-pix]') as HTMLButtonElement).click();
+    expect(c.sheet()).toBe('pix');
+    expect(api.createInvoicePix).toHaveBeenCalledTimes(1);
+    c.closePix();
+
+    c.payNow();
+    c.payByCard();
+    expect(externalNav.openExternal).toHaveBeenCalledWith('https://invoice.stripe.com/i/1');
+    expect(c.sheet()).toBeNull();
+  });
+
+  it('bloqueada as owner: the same "Pagar" + "Trocar cartão" pair', () => {
+    summarySignal.set(pastDueSummary({ state: 'BLOCKED', graceEndsAt: serverTime(-3_600_000) }));
+    const { q } = renderV2('PAST_DUE');
+
+    expect(q('hero-pay')?.textContent?.trim()).toBe('Pagar R$ 79,90');
+    expect(q('hero-pay')?.disabled).toBe(false);
+    expect(q('hero-card')?.disabled).toBe(false);
+  });
+
+  it('payment group: no Pix row, with or without Pix; paying lives in the "Pagar" buttons', () => {
+    summarySignal.set(pastDueSummary({ invoices: [OPEN_INVOICE] }));
+    let r = renderV2();
+    expect(r.q('row-pix')).toBeNull();
+    expect(r.q('row-pix-off')).toBeNull();
+    expect(r.el.textContent).not.toContain('Em breve');
+    expect(r.q('inv-pay')?.textContent?.trim()).toBe('Pagar');
+    expect(r.q('row-card')?.textContent).toContain('Trocar');
+    r.fixture.destroy();
+
+    summarySignal.set(pixSummary());
+    r = renderV2();
+    expect(r.q('row-pix')).toBeNull();
+    expect(r.q('row-pix-off')).toBeNull();
+    expect(r.q('hero-pay')).not.toBeNull();
+    expect(r.el.textContent).not.toContain('Em breve');
+  });
+
+  it('the open invoice "Pagar" does exactly what the hero "Pagar" does', () => {
+    summarySignal.set(pixSummary({ invoices: [OPEN_INVOICE] }));
+    withPixApi();
+    const { c, fixture, q } = renderV2();
+
+    q('inv-pay')!.click();
+    fixture.detectChanges();
+    expect(c.sheet()).toBe('choose');
+    c.closeSheet();
+    fixture.destroy();
+
+    summarySignal.set(pastDueSummary({ invoices: [OPEN_INVOICE] }));
+    const noPix = renderV2();
+    noPix.q('inv-pay')!.click();
+    expect(noPix.c.sheet()).toBeNull();
+    expect(externalNav.openExternal).toHaveBeenCalledWith('https://invoice.stripe.com/i/1');
   });
 
   it('cancel follows canManage, not only the subscription status', () => {
