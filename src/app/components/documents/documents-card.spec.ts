@@ -55,6 +55,7 @@ describe('DocumentsCard — parametrização (FIX-0231)', () => {
     defs: DocumentSlotDef[];
     docs?: DocumentLike[];
     maxPerKind?: number;
+    variant?: 'card' | 'rows';
   }): Promise<void> {
     list = vi.fn(() => of(opts.docs ?? []));
     upload = vi.fn((kind: string) => of(doc('novo', kind, 'novo.pdf')));
@@ -86,6 +87,7 @@ describe('DocumentsCard — parametrização (FIX-0231)', () => {
     if (opts.maxPerKind !== undefined) {
       fixture.componentRef.setInput('maxPerKind', opts.maxPerKind);
     }
+    if (opts.variant) fixture.componentRef.setInput('variant', opts.variant);
     await fixture.whenStable();
     fixture.detectChanges();
   }
@@ -162,15 +164,16 @@ describe('DocumentsCard — parametrização (FIX-0231)', () => {
   });
 
   /**
-   * FIX-0236 (decisão do usuário): tipo SEM documento lê VERMELHO — essencial
-   * e opcional por igual —, COM documento lê VERDE (parcial do modo N
-   * incluso), e o portão fechado segue neutro apagado. As classes saem dos
-   * tokens danger/success existentes.
+   * Decisão do dono (2026-10-30, substitui a FIX-0236): só o essencial SEM
+   * documento lê VERMELHO. Opcional vazio é neutro, porque nada está errado.
+   * COM documento lê VERDE (parcial do modo N incluso) e o portão fechado segue
+   * neutro apagado.
    */
-  it('pinta vazio de vermelho, preenchido de verde e mantém o portão neutro', async () => {
+  it('pinta essencial vazio de vermelho, preenchido de verde e opcional de neutro', async () => {
     await setup({
       defs: [
         NOTA,
+        { kind: 'CONTRATO', label: 'Contrato', hint: 'Assinado.', required: true },
         { kind: 'RECIBO', label: 'Recibo', hint: 'Comprovante.', required: false },
         {
           kind: 'EXTRA',
@@ -188,12 +191,21 @@ describe('DocumentsCard — parametrização (FIX-0231)', () => {
     expect(filled?.classList.contains('bg-success-50')).toBe(true);
     expect(filled?.classList.contains('border-success-100')).toBe(true);
 
-    // Opcional vazio também é vermelho — a regra é estrita, sem exceção.
-    const empty = host().querySelector('[data-kind="RECIBO"]');
-    expect(empty?.getAttribute('data-state')).toBe('empty');
-    expect(empty?.classList.contains('bg-rose-50')).toBe(true);
-    expect(empty?.classList.contains('border-rose-500')).toBe(true);
-    expect(empty?.classList.contains('border-dashed')).toBe(true);
+    const missing = host().querySelector('[data-kind="CONTRATO"]');
+    expect(missing?.getAttribute('data-state')).toBe('empty');
+    expect(missing?.classList.contains('bg-rose-50')).toBe(true);
+    expect(missing?.classList.contains('border-rose-500')).toBe(true);
+    expect(missing?.classList.contains('border-dashed')).toBe(true);
+    expect(missing?.textContent).toContain('Falta anexar');
+
+    const optional = host().querySelector('[data-kind="RECIBO"]');
+    expect(optional?.getAttribute('data-state')).toBe('empty');
+    expect(optional?.classList.contains('bg-rose-50')).toBe(false);
+    expect(optional?.classList.contains('border-rose-500')).toBe(false);
+    expect(optional?.classList.contains('border-dashed')).toBe(false);
+    expect(optional?.classList.contains('bg-surface')).toBe(true);
+    expect(optional?.querySelector('.text-rose-600')).toBeNull();
+    expect(optional?.textContent).toContain('Adicionar');
 
     const gated = host().querySelector('[data-kind="EXTRA"]');
     expect(gated?.getAttribute('data-state')).toBe('gated');
@@ -251,6 +263,73 @@ describe('DocumentsCard — parametrização (FIX-0231)', () => {
     expect(signedUrl).toHaveBeenCalledWith(expect.objectContaining({ id: 'd1' }));
     expect(url).toBe('https://signed');
     windowOpen.mockRestore();
+  });
+
+  describe('em linhas', () => {
+    const OPCIONAL = { kind: 'RECIBO', label: 'Recibo', hint: 'Comprovante.', required: false };
+
+    it('opcional vazio é neutro: "Opcional", "Adicionar", sem vermelho e sem tracejado', async () => {
+      await setup({ defs: [OPCIONAL], variant: 'rows' });
+
+      const slot = host().querySelector('[data-kind="RECIBO"]');
+      expect(slot?.textContent).toContain('Opcional');
+      expect(slot?.textContent).toContain('Adicionar');
+      expect(slot?.textContent).not.toContain('Comprovante.');
+      expect(slot?.querySelector('.tile.alert')).toBeNull();
+      expect(slot?.querySelector('.v.add')).not.toBeNull();
+      expect(host().innerHTML).not.toContain('border-dashed');
+    });
+
+    it('só o essencial vazio se parece com um erro', async () => {
+      await setup({ defs: [NOTA], variant: 'rows' });
+
+      const slot = host().querySelector('[data-kind="NOTA"]');
+      expect(slot?.querySelector('.tile.alert')).not.toBeNull();
+      expect(slot?.querySelector('.v.alert')).not.toBeNull();
+    });
+
+    it('tocar no slot vazio abre o seletor de arquivos', async () => {
+      await setup({ defs: [OPCIONAL], variant: 'rows' });
+      const picker = host().querySelector<HTMLInputElement>('input[type="file"]')!;
+      const click = vi.spyOn(picker, 'click').mockImplementation(() => undefined);
+
+      host().querySelector<HTMLButtonElement>('[data-kind="RECIBO"] > button')!.click();
+
+      expect(click).toHaveBeenCalledTimes(1);
+    });
+
+    it('arquivo anexado mostra o nome e o chip, sem bolinha', async () => {
+      await setup({ defs: [NOTA], docs: [doc('d1', 'NOTA', 'nota.pdf')], variant: 'rows' });
+
+      const row = host().querySelector('[data-kind="NOTA"] [data-file-row]');
+      expect(row?.textContent).toContain('nota.pdf');
+      const chip = row?.querySelector('app-status-chip');
+      expect(chip?.textContent).toBe('Anexado');
+      expect(chip?.children).toHaveLength(0);
+    });
+
+    it('a linha abre a folha, e abrir e remover continuam alcançáveis', async () => {
+      await setup({ defs: [NOTA], docs: [doc('d1', 'NOTA', 'nota.pdf')], variant: 'rows' });
+
+      host().querySelector<HTMLButtonElement>('[data-file-row]')!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const abrir = host().querySelector<HTMLButtonElement>('[aria-label="Abrir documento nota.pdf"]');
+      const remover = host().querySelector<HTMLButtonElement>(
+        '[aria-label="Remover documento nota.pdf"]',
+      );
+      expect(abrir).not.toBeNull();
+      expect(remover).not.toBeNull();
+
+      remover!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // A folha sai antes: a confirmação não abre por trás dela.
+      expect(host().querySelector('app-bottom-sheet')).toBeNull();
+      expect(host().querySelector('app-confirm-dialog')?.textContent).toContain('apagado');
+    });
   });
 
   beforeEach(() => {

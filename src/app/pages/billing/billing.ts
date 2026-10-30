@@ -19,6 +19,11 @@ import { DefaultPageLayout } from '../../components/layout/default-page-layout/d
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { BottomSheet } from '../../components/core/bottom-sheet/bottom-sheet';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ListGroup, ListRow } from '../../components/core/list-group/list-group';
+import { KvList } from '../../components/core/kv-list/kv-list';
+import { StatusChip } from '../../components/core/status-chip/status-chip';
+import { SegmentedTabs } from '../../components/core/segmented-tabs/segmented-tabs';
+import { BillingChipTonePipe } from './billing-chip-tone.pipe';
 import { ApiErrorService } from '../../services/api-error.service';
 import { PLAN_CAPACITY, PlanTier } from '../../utils/plan-limits';
 import { PLAN_TIER_ORDER, planTierOf } from '../../utils/plan-features';
@@ -239,7 +244,21 @@ function formatPlanPrice(value: number, forceCents = false): string {
 
 @Component({
   selector: 'app-billing',
-  imports: [CommonModule, RouterLink, DefaultPageLayout, ConfirmDialog, BottomSheet, AlertBanner, PlanGrid],
+  imports: [
+    CommonModule,
+    RouterLink,
+    DefaultPageLayout,
+    ConfirmDialog,
+    BottomSheet,
+    AlertBanner,
+    PlanGrid,
+    ListGroup,
+    ListRow,
+    KvList,
+    StatusChip,
+    SegmentedTabs,
+    BillingChipTonePipe,
+  ],
   templateUrl: './billing.html',
   styleUrls: ['./billing-kit.css', './billing.css', './billing-pix.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -10,6 +10,7 @@ import { VehiclesService } from './vehicles.service';
 import { OWNED_HTTP_ERRORS } from './http-errors.context';
 import { environment } from '../../environments/environment';
 import type { VehicleListItem } from '../types/vehicle.types';
+import type { VehiclePendencia } from '../types/vehicle-pendencia.types';
 
 /**
  * Contrato de FIO da LISTAGEM (FIX-0263/0264): cada item de
@@ -50,6 +51,46 @@ describe('VehiclesService — contrato de fio da listagem (FIX-0263/0264)', () =
     httpMock.verify();
   });
 
+  it('getPendencias lê a lista do veículo com um GET, sem parâmetros', () => {
+    let received: VehiclePendencia[] = [];
+    service.getPendencias('veh-1').subscribe((res) => (received = res));
+
+    const req = httpMock.expectOne(`${BASE}/veh-1/gerencia/pendencias`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.keys()).toEqual([]);
+    req.flush([{ type: 'FINE', id: 'f-1', urgency: 'OVERDUE' }]);
+
+    expect(received.map((p) => p.id)).toEqual(['f-1']);
+  });
+
+  it('as leituras da página do carro são da tela: falha vira aviso nela, sem toast por cima', () => {
+    service.getPendencias('veh-1').subscribe();
+    service.getGerenciaSummary('veh-1').subscribe();
+    service.listRentals('veh-1', 'ACTIVE', 1).subscribe();
+
+    const pendencias = httpMock.expectOne(`${BASE}/veh-1/gerencia/pendencias`);
+    const summary = httpMock.expectOne(`${BASE}/veh-1/gerencia/summary`);
+    const rentals = httpMock.expectOne((r) => r.url === `${environment.apiUrl}/rentals`);
+
+    expect(pendencias.request.context.get(OWNED_HTTP_ERRORS)).toBe(true);
+    expect(summary.request.context.get(OWNED_HTTP_ERRORS)).toBe(true);
+    expect(rentals.request.context.get(OWNED_HTTP_ERRORS)).toBe(true);
+    pendencias.flush([]);
+    summary.flush({});
+    rentals.flush({ content: [] });
+  });
+
+  it('listRentals lê os aluguéis do carro com um GET e os três filtros', () => {
+    service.listRentals('veh-1', 'RESERVED', 100).subscribe();
+
+    const req = httpMock.expectOne((r) => r.url === `${environment.apiUrl}/rentals`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('vehicleId')).toBe('veh-1');
+    expect(req.request.params.get('status')).toBe('RESERVED');
+    expect(req.request.params.get('size')).toBe('100');
+    req.flush({ content: [], page: 0, size: 100, total: 0 });
+  });
+
   it('expõe `sold` do item da listagem como boolean, pinando as chaves do wire', () => {
     let received: VehicleListItem[] = [];
     service.list().subscribe((res) => (received = res.content));
@@ -79,6 +120,18 @@ describe('VehiclesService — contrato de fio da listagem (FIX-0263/0264)', () =
     expect(received[0].sold).toBe(true);
     expect(received[1].sold).toBe(false);
     expect(service.items()[0].sold).toBe(true);
+  });
+
+  it('`getOne` só pede a foto quando o chamador pede: sem a opção, nenhum parâmetro', () => {
+    service.getOne('veh-1').subscribe();
+    const bare = httpMock.expectOne((r) => r.method === 'GET' && r.url === `${BASE}/veh-1`);
+    expect(bare.request.params.has('includePhoto')).toBe(false);
+    bare.flush({});
+
+    service.getOne('veh-1', { includePhoto: true }).subscribe();
+    const asked = httpMock.expectOne((r) => r.method === 'GET' && r.url === `${BASE}/veh-1`);
+    expect(asked.request.params.get('includePhoto')).toBe('true');
+    asked.flush({});
   });
 
   it('não manda o parâmetro `sold` por padrão e manda `sold=true` no modo Vendidos', () => {

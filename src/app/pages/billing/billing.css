@@ -33,7 +33,6 @@
   .layout .a-hero { grid-column: 1; grid-row: 1; }
   .layout.trial .a-side { grid-column: 2; grid-row: 1; }
   .layout.trial .a-pick { grid-column: 1 / -1; grid-row: 2; }
-  .group-h.first { padding-top: 0; }
   .pick-h { text-align: center; }
 }
 
@@ -73,13 +72,6 @@
 .hv .eyebrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .hv .plan { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--color-fg-muted); white-space: nowrap; }
 .hv-tile { display: none; width: 32px; height: 32px; border-radius: 10px; }
-.chip.v i { width: 7px; height: 7px; }
-.chip.v[data-c='g'] { background: var(--v-g-bg); color: var(--v-g-text); }
-.chip.v[data-c='g'] i { background: var(--color-success-500); }
-.chip.v[data-c='o'] { background: var(--v-o-bg); color: var(--v-o-text); }
-.chip.v[data-c='o'] i { background: var(--color-primary-500); }
-.chip.v[data-c='n'] { background: var(--color-surface-sunken); color: var(--color-fg-muted); }
-.chip.v[data-c='w'] { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .amount { margin-top: 14px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; }
 .amount .big { font-family: var(--font-display); font-weight: 700; font-size: 40px; letter-spacing: -0.03em; color: var(--color-fg-strong); line-height: 1; }
 .amount .big small { font-size: 0.5em; letter-spacing: -0.01em; }
@@ -133,14 +125,13 @@
 .hv[data-tone='blk'] .btn:focus-visible, .hv[data-tone='paid'] .btn:focus-visible { outline-color: #fff; }
 
 /* linha do tempo */
-.tl { position: relative; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--color-edge-soft, var(--b-edge)); }
+.tl { position: relative; margin-top: 28px; }
 .tl ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); position: relative; }
-.tl .track { position: absolute; left: calc(100% / 6); right: calc(100% / 6); top: 24px; height: 4px; border-radius: 99px; background: var(--v-track); overflow: hidden; }
+.tl .track { position: absolute; left: calc(100% / 6); right: calc(100% / 6); top: 6px; height: 4px; border-radius: 99px; background: var(--v-track); overflow: hidden; }
 .tl .track i { display: block; height: 100%; border-radius: 99px; transform-origin: left center; animation: v-track 600ms ease-out both; }
 @keyframes v-track { from { transform: scaleX(0); } }
 .hv[data-tone='ok'] .tl .track i { background: var(--color-success-500); }
 .hv[data-tone='owe'] .tl .track i { background: var(--brand-gradient); }
-.hv[data-tone='blk'] .tl, .hv[data-tone='paid'] .tl { border-top-color: rgba(255, 255, 255, 0.18); }
 .hv[data-tone='blk'] .tl .track, .hv[data-tone='paid'] .tl .track { background: rgba(255, 255, 255, 0.22); }
 .hv[data-tone='blk'] .tl .track i, .hv[data-tone='paid'] .tl .track i { background: #fff; }
 .tl li { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; padding: 0 4px; }
@@ -180,7 +171,6 @@
 .mini-pill.v { background: var(--v-o-bg); color: var(--v-o-text); height: 20px; font-size: 11px; font-weight: 700; }
 .meter { display: block; margin-top: 8px; height: 6px; max-width: 200px; border-radius: 99px; background: var(--v-track); overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--color-fg); border-radius: 99px; transform-origin: left center; }
-.gh-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .gh-link { font-size: 13.5px; padding: 22px 6px 8px; color: var(--v-o-text); }
 .inv-chip { display: block; margin-top: 3px; }
 .warn-text { color: var(--v-o-text) !important; }
@@ -223,8 +213,7 @@
 .idle-copy { margin: 12px 0 0; font-size: 14.5px; color: var(--b-muted); }
 .danger-text { color: var(--b-danger); }
 .stack { display: grid; gap: 10px; }
-.group.flat { box-shadow: none; }
-.group.flat + * { margin-top: 0; }
+app-list-group[flat] + * { margin-top: 0; }
 .row[aria-disabled='true'] { cursor: default; }
 
 .paid { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 6px; }

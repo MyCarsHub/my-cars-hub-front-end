@@ -35,7 +35,8 @@ import { VEHICLE_DOCUMENT_KIND_META, VehicleDocumentKind } from '../../types/veh
   imports: [DocumentsCard],
   template: `
     <app-documents-card
-      title="Documentos anexados"
+      [title]="variant() === 'rows' ? 'Documentos' : 'Documentos anexados'"
+      [variant]="variant()"
       [slotDefs]="slotDefs"
       [ops]="ops"
       [description]="description"
@@ -48,8 +49,9 @@ export class VehicleDocumentsCard {
   private readonly compression = inject(ImageCompressionService);
 
   readonly vehicleId = input.required<string>();
+  readonly variant = input<'card' | 'rows'>('card');
 
-  /** Repassa a lista do card compartilhado; o detalhe tira dela a foto. */
+  /** Repassa a lista do card compartilhado; o detalhe vê nela que o anexo PHOTO mudou. */
   readonly documentsChange = output<DocumentLike[]>();
 
   /** A foto tem teto próprio (`MAX_PHOTO_BYTES`): a frase geral não pode prometer mais. */
@@ -70,14 +72,8 @@ export class VehicleDocumentsCard {
       required: true,
     },
     {
-      kind: 'OTHER',
-      label: VEHICLE_DOCUMENT_KIND_META['OTHER'],
-      hint: 'Qualquer outro arquivo do veículo.',
-      required: false,
-    },
-    {
-      // V115 — OPCIONAL. Vira a miniatura do card na lista de veículos; sem
-      // ela, a lista usa a frente da última vistoria aprovada. Só imagem: o
+      // V115 — OPCIONAL. Vira a foto da lista e do detalhe do veículo; sem ela,
+      // os dois usam a frente da última vistoria aprovada. Só imagem: o
       // servidor recusa PDF neste tipo, e a mensagem cai no banner do card.
       // É o ÚNICO tipo comprimido: a miniatura baixa este arquivo inteiro a
       // cada carga da lista, e foto de carro não precisa de legibilidade.
@@ -85,9 +81,16 @@ export class VehicleDocumentsCard {
       label: VEHICLE_DOCUMENT_KIND_META['PHOTO'],
       hint: `Opcional. Aparece na lista e no detalhe do veículo. Só imagem: JPG, PNG ou WebP, até ${MAX_PHOTO_LABEL}.`,
       required: false,
+      icon: 'image',
       prepare: (file) => this.compression.compress(file),
       maxBytes: MAX_PHOTO_BYTES,
       maxLabel: MAX_PHOTO_LABEL,
+    },
+    {
+      kind: 'OTHER',
+      label: VEHICLE_DOCUMENT_KIND_META['OTHER'],
+      hint: 'Qualquer outro arquivo do veículo.',
+      required: false,
     },
   ];
 
