@@ -123,7 +123,6 @@
 /* ações */
 .cta { display: grid; gap: 10px; align-content: center; }
 .cta .note { margin: 2px 0 0; text-align: center; font-size: 13.5px; color: var(--color-fg-subtle); }
-.cta .note .link { font-size: 13.5px; color: var(--v-o-text); }
 .btn.tonal { background: var(--color-surface); color: var(--color-fg); border: 1px solid var(--color-edge); }
 .btn.tonal:hover:not(:disabled) { background: var(--color-surface-sunken); }
 .hv[data-tone='blk'] .btn.primary, .hv[data-tone='paid'] .btn.primary { background: #fff; color: var(--color-primary-700); box-shadow: none; }
@@ -132,11 +131,6 @@
 .hv[data-tone='blk'] .btn.tonal:hover, .hv[data-tone='paid'] .btn.tonal:hover { background: rgba(255, 255, 255, 0.08); }
 .hv[data-tone='blk'] .cta .note, .hv[data-tone='paid'] .cta .note { color: rgba(255, 255, 255, 0.85); }
 .hv[data-tone='blk'] .btn:focus-visible, .hv[data-tone='paid'] .btn:focus-visible { outline-color: #fff; }
-.ro-note { margin: 0; display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; font-size: 14px; line-height: 1.45;
-  background: var(--color-surface-sunken); color: var(--color-fg-body); }
-.ro-note svg { width: 18px; height: 18px; flex: none; margin-top: 1px; color: var(--color-fg-muted); }
-.hv[data-tone='blk'] .ro-note, .hv[data-tone='paid'] .ro-note { background: rgba(255, 255, 255, 0.14); color: #fff; }
-.hv[data-tone='blk'] .ro-note svg, .hv[data-tone='paid'] .ro-note svg { color: #fff; }
 
 /* linha do tempo */
 .tl { position: relative; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--color-edge-soft, var(--b-edge)); }

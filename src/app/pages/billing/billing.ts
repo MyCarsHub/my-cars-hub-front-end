@@ -125,7 +125,7 @@ type AwaitMode = 'returned' | 'checkout-open';
 const ACTIVE_GATEWAY: PlanGateway = 'stripe';
 
 /** Folhas da página: uma de cada vez. */
-type BillingSheet = 'pay' | 'plans' | 'cancel' | 'paid' | 'invoices' | 'pix';
+type BillingSheet = 'pay' | 'choose' | 'plans' | 'cancel' | 'paid' | 'invoices' | 'pix';
 
 /**
  * Fases da folha "Pagar com Pix". `releasing`: o dinheiro entrou mas o acesso
@@ -1595,6 +1595,9 @@ export class Billing implements OnInit, OnDestroy {
   /** Cartão disponível para pagar a fatura (página da Stripe ou troca de cartão). */
   protected readonly canPayByCard = computed(() => this.canPayInvoice() || this.has('UPDATE_CARD'));
 
+  /** O botão "Pagar R$ …" do cartão de status tem para onde levar o dono. */
+  protected readonly canPayNow = computed(() => this.pixAvailable() || this.canPayInvoice());
+
   /** Início do ciclo, para o anel e a linha do tempo do "em dia". */
   private readonly periodStart = computed<Date | null>(() => {
     const fromSub = parseServerTime(this.subscription()?.currentPeriodStart ?? null);
@@ -2324,6 +2327,28 @@ export class Billing implements OnInit, OnDestroy {
       this.openCardUpdate();
       return;
     }
+    this.openHostedInvoice();
+  }
+
+  /**
+   * "Pagar R$ …" do cartão de status — o ÚNICO lugar de pagar. Com Pix e cartão,
+   * uma escolha curta; só com um deles, direto para ele.
+   */
+  protected payNow(): void {
+    if (!this.canManage()) return;
+    this.sheetError.set(null);
+    if (this.pixAvailable() && this.canPayInvoice()) this.sheet.set('choose');
+    else if (this.pixAvailable()) this.openPix();
+    else this.payByCard();
+  }
+
+  /** Cartão: a fatura hospedada da Stripe; sem ela, a folha de pagamento. */
+  protected payByCard(): void {
+    if (this.canPayInvoice()) this.openHostedInvoice();
+    else this.openPay();
+  }
+
+  private openHostedInvoice(): void {
     const url = this.summary()?.openInvoice?.payUrl;
     if (!url) return;
     this.externalNav.openExternal(url);

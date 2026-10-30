@@ -193,12 +193,8 @@
           </div>
 
           <div class="cta">
-            @if (!canManage()) {
-              <p class="ro-note" data-testid="billing-readonly">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
-                <span>Você está vendo como suporte — pagamento só pelo dono.</span>
-              </p>
-            } @else {
+            <!-- Em dia / pago: só o dono age. Devendo: o suporte vê os MESMOS botões, desligados. -->
+            @if (canManage() || h.tone === 'owe' || h.tone === 'blk') {
               @switch (h.tone) {
                 @case ('ok') {
                   @if (canReactivate()) {
@@ -225,28 +221,23 @@
                   <p class="note">O recibo também foi para o seu e-mail.</p>
                 }
                 @default {
-                  @if (pixAvailable()) {
-                    <button type="button" class="btn primary block" (click)="openPix()" data-testid="hero-pix">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg>
-                      Pagar com Pix
-                    </button>
-                  }
-                  @if (canPayByCard()) {
-                    <button type="button" class="btn block" [class.primary]="!pixAvailable()" [class.tonal]="pixAvailable()" (click)="openPay()" data-testid="hero-pay">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-                      Pagar com cartão
-                    </button>
-                  }
-                  <p class="note">
-                    @if (h.tone === 'blk') {
-                      O acesso volta assim que o pagamento cair.
-                    } @else {
-                      @if (pixAvailable()) { Pix confirma na hora. }
-                      @if (has('UPDATE_CARD')) {
-                        <button type="button" class="link" [disabled]="cardBusy()" (click)="openCardUpdate()" data-testid="hero-card">{{ cardBusy() ? 'Abrindo…' : 'Trocar cartão' }}</button>
-                      }
+                  @if (!canManage()) {
+                    <button type="button" class="btn primary block" disabled aria-describedby="hero-ro" data-testid="hero-pay">{{ payTitle() }}</button>
+                    <button type="button" class="btn tonal block" disabled aria-describedby="hero-ro" data-testid="hero-card">Trocar cartão</button>
+                    <p class="note" id="hero-ro" data-testid="billing-readonly">Só o dono da empresa pode pagar.</p>
+                  } @else {
+                    @if (canPayNow()) {
+                      <button type="button" class="btn primary block" (click)="payNow()" data-testid="hero-pay">{{ payTitle() }}</button>
                     }
-                  </p>
+                    @if (has('UPDATE_CARD')) {
+                      <button type="button" class="btn tonal block" [disabled]="cardBusy()" (click)="openCardUpdate()" data-testid="hero-card">
+                        {{ cardBusy() ? 'Abrindo…' : 'Trocar cartão' }}
+                      </button>
+                    }
+                    @if (h.tone === 'blk') {
+                      <p class="note">O acesso volta assim que o pagamento cair.</p>
+                    }
+                  }
                 }
               }
             }
@@ -296,15 +287,11 @@
           <span class="v strong">Pagar</span>
           <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
         </button>
-      } @else {
+      } @else if (pixOffered()) {
+        <!-- Pix só aparece quando o servidor o oferece; sem "Em breve". -->
         <div class="row" aria-disabled="true" data-testid="row-pix-off">
           <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg></span>
-          @if (pixOffered()) {
-            <span class="t"><b>Pix</b><small>{{ canManage() ? 'Disponível quando houver fatura em aberto' : 'Pagamento só pelo dono da conta' }}</small></span>
-          } @else {
-            <span class="t"><b>Pagar com Pix</b><small>{{ owing() ? 'Pague a fatura em aberto pelo app do banco' : 'Para pagar uma fatura em aberto' }}</small></span>
-            <span class="chip neutral sm">Em breve</span>
-          }
+          <span class="t"><b>Pagar com Pix</b><small>{{ canManage() ? 'Disponível quando houver fatura em aberto' : 'Só o dono da empresa pode pagar' }}</small></span>
         </div>
       }
     </div>
@@ -475,18 +462,41 @@
 
   <!-- ====================================================== folhas -->
   @switch (sheet()) {
-    @case ('pay') {
-      <app-bottom-sheet [title]="payTitle()" [subtitle]="paySubtitle()" [busy]="cardBusy()" (closed)="closeSheet()">
-        <div class="seg" role="tablist" aria-label="Forma de pagamento">
-          <button type="button" role="tab" aria-selected="false" [disabled]="!pixAvailable()" (click)="openPix()" data-testid="pay-tab-pix">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg>
-            Pix @if (!pixAvailable()) { <span class="tag">em breve</span> }
+    @case ('choose') {
+      <!-- "Pagar R$ …" com Pix ligado: uma escolha curta, cada linha já age. -->
+      <app-bottom-sheet [title]="payTitle()" [subtitle]="paySubtitle()" (closed)="closeSheet()">
+        <div class="group flat" data-testid="pay-choice">
+          <button type="button" class="row" (click)="openPix()" data-testid="choose-pix">
+            <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg></span>
+            <span class="t"><b>Pix</b><small>Confirma na hora · QR code ou copia e cola</small></span>
+            <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
           </button>
-          <button type="button" role="tab" aria-selected="true" class="on">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-            Cartão
+          <button type="button" class="row" (click)="payByCard()" data-testid="choose-card">
+            @if (card(); as c) {
+              <span class="cardbrand" aria-hidden="true">{{ c.short }}</span>
+            } @else {
+              <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+            }
+            <span class="t"><b>Cartão</b><small>Na página segura da Stripe</small></span>
+            <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
           </button>
         </div>
+      </app-bottom-sheet>
+    }
+    @case ('pay') {
+      <app-bottom-sheet [title]="payTitle()" [subtitle]="paySubtitle()" [busy]="cardBusy()" (closed)="closeSheet()">
+        @if (pixAvailable()) {
+          <div class="seg" role="tablist" aria-label="Forma de pagamento">
+            <button type="button" role="tab" aria-selected="false" (click)="openPix()" data-testid="pay-tab-pix">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg>
+              Pix
+            </button>
+            <button type="button" role="tab" aria-selected="true" class="on">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              Cartão
+            </button>
+          </div>
+        }
         <div role="radiogroup" aria-label="Como pagar com cartão" style="margin-top: 6px">
           @if (canPayInvoice()) {
             <button type="button" role="radio" class="opt" [class.on]="payOption() === 'invoice'"
