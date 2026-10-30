@@ -408,7 +408,9 @@ describe('VehicleDetail, página única', () => {
         }),
       ),
     });
-    expect(text(host().querySelector('[data-money-empty]'))).toContain('Faltam as parcelas');
+    const empty = text(host().querySelector('[data-money-empty]'));
+    expect(empty).toContain('Faltam as parcelas');
+    expect(empty).toContain('Sem elas não dá');
   });
 
   it('venda de valor zero ainda é venda, e o resultado diz que a inclui', async () => {

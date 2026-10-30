@@ -470,7 +470,7 @@ export function moneyHero(f: GerenciaFinanceChunk): MoneyHero {
               f.downPaymentCents === null
                 ? 'Falta a entrada do financiamento'
                 : 'Faltam as parcelas do financiamento',
-            line: 'Sem ela não dá para calcular o Investido deste carro.',
+            line: `Sem ${f.downPaymentCents === null ? 'ela' : 'elas'} não dá para calcular o Investido deste carro.`,
             action: 'Ver financiamento',
             target: 'financing',
           }
