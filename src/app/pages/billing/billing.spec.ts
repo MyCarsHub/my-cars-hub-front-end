@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { signal } from '@angular/core';
 import { Subject, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -1737,5 +1737,370 @@ describe('Billing', () => {
   });
 
 
+
+  // ---------------------------------------------------------------------------
+  // Assinatura v2 — somente leitura, faturas (tabela + lista) e Pix
+  // ---------------------------------------------------------------------------
+
+  type V2Probe = {
+    canManage(): boolean;
+    canCancel(): boolean;
+    readOnly(): boolean;
+    hero(): { tone: string; chip: { label: string }; ring: { value: string | null; icon: string | null } } | null;
+    pixAvailable(): boolean;
+    openPix(): void;
+    closePix(): void;
+    createPix(): void;
+    copyPix(): Promise<void>;
+    checkPixNow(): void;
+    pixPhase(): string;
+    pixCopied(): boolean;
+    pixToast(): boolean;
+    pixCountdown(): string;
+    pixUrgent(): boolean;
+    sheet(): string | null;
+    paidReceipt(): { method: string; viaPix: boolean } | null;
+    ngOnInit(): void;
+    ngOnDestroy(): void;
+  };
+  const buildV2 = (): V2Probe => build() as unknown as V2Probe;
+
+  const PIX = {
+    attemptId: 'att-1',
+    status: 'PENDING' as const,
+    payload: '00020101021226870014br.gov.bcb.pix2565qrpix.stripe.com/x6304B1F2',
+    qrCodeBase64: 'iVBORw0KGgo=',
+    expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+    amountCents: 7990,
+    hostedInstructionsUrl: 'https://payments.stripe.com/pix/x',
+  };
+  const pixStatus = (status: string, accessReleased = false) => ({
+    attemptId: 'att-1',
+    status,
+    expiresAt: PIX.expiresAt,
+    amountCents: 7990,
+    accessReleased,
+  });
+  const pixSummary = (over: Partial<BillingSummary> = {}): BillingSummary =>
+    pastDueSummary({ payWith: ['CARD', 'PIX'], ...over });
+  const withPixApi = (statuses: ReturnType<typeof pixStatus>[] = [pixStatus('PENDING')]) => {
+    const queue = [...statuses];
+    const api = {
+      createInvoicePix: vi.fn(() => of({ ...PIX })),
+      invoicePixStatus: vi.fn(() => of(queue.length > 1 ? queue.shift()! : queue[0])),
+    };
+    Object.assign(billing, api);
+    return api;
+  };
+
+  it('read-only (support session): no cancel, no pay, and the page says why', () => {
+    summarySignal.set(pixSummary({ canManage: false, actions: [] }));
+    subscriptionSignal.set(sub({ status: 'PAST_DUE', planCode: 'STARTER_MONTHLY_STRIPE', planName: 'STARTER' }));
+    const fixture = TestBed.createComponent(Billing);
+    const c = fixture.componentInstance as unknown as V2Probe;
+    c.ngOnInit();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(c.canManage()).toBe(false);
+    expect(c.canCancel()).toBe(false);
+    expect(c.pixAvailable()).toBe(false);
+    expect(el.querySelector('[data-testid=row-cancel]')).toBeNull();
+    expect(el.querySelector('[data-testid=hero-pix]')).toBeNull();
+    expect(el.querySelector('[data-testid=hero-pay]')).toBeNull();
+    expect(el.querySelector('[data-testid=inv-pay]')).toBeNull();
+    expect(el.querySelector('[data-testid=billing-readonly]')?.textContent).toContain(
+      'Você está vendo como suporte — pagamento só pelo dono.',
+    );
+  });
+
+  it('cancel follows canManage, not only the subscription status', () => {
+    subscriptionSignal.set(sub({ status: 'ACTIVE' }));
+    summarySignal.set(pastDueSummary({ state: 'ACTIVE', canManage: true, actions: ['CANCEL'] }));
+    expect(buildV2().canCancel()).toBe(true);
+    summarySignal.set(pastDueSummary({ state: 'ACTIVE', canManage: false, actions: [] }));
+    expect(buildV2().canCancel()).toBe(false);
+  });
+
+  it('does not presume "can manage" before the summary arrives in a support session', () => {
+    sessionStore.set('impersonation', '{"sessionId":"s1"}');
+    subscriptionSignal.set(sub({ status: 'ACTIVE' }));
+    const c = buildV2();
+    expect(c.canManage()).toBe(false);
+    expect(c.canCancel()).toBe(false);
+  });
+
+  for (const width of [375, 1440]) {
+    it(`renders the invoices as a table AND as a list at ${width}px (the CSS shows one)`, () => {
+      const prev = window.innerWidth;
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+      window.dispatchEvent(new Event('resize'));
+      try {
+        summarySignal.set(
+          pixSummary({
+            invoices: [
+              { ref: 'in_3', number: 'A-3', createdAt: serverTime(-86_400_000), amountCents: 7990, status: 'OPEN', cardBrand: null, cardLast4: null, pdfUrl: null, hostedUrl: 'https://invoice.stripe.com/i/3' },
+              { ref: 'in_2', number: 'A-2', createdAt: serverTime(-31 * 86_400_000), amountCents: 7990, status: 'PAID', cardBrand: 'visa', cardLast4: '4242', pdfUrl: 'https://pay.stripe.com/2.pdf', hostedUrl: null },
+            ],
+          }),
+        );
+        const fixture = TestBed.createComponent(Billing);
+        (fixture.componentInstance as unknown as V2Probe).ngOnInit();
+        fixture.detectChanges();
+        const el = fixture.nativeElement as HTMLElement;
+
+        const table = el.querySelector('[data-testid=invoices-table]');
+        const list = el.querySelector('[data-testid=invoices-list]');
+        expect(table?.querySelectorAll('tbody tr').length).toBe(2);
+        expect(list?.querySelectorAll('button.row').length).toBe(2);
+        // Só a linha EM ABERTO tem "Pagar"; a paga tem o download.
+        expect(table?.querySelectorAll('[data-testid=inv-pay]').length).toBe(1);
+        expect(table?.querySelector('tr.open [data-testid=inv-pay]')).not.toBeNull();
+        expect(table?.textContent).toContain('Em aberto');
+        expect(table?.textContent).toContain('Plano Starter · mensal');
+      } finally {
+        Object.defineProperty(window, 'innerWidth', { configurable: true, value: prev });
+      }
+    });
+  }
+
+  it('hero tones: em dia green, atrasada orange ring with days, bloqueada lock', () => {
+    summarySignal.set(pastDueSummary({ state: 'ACTIVE', amountDueCents: null, openInvoice: null, lastFailure: null }));
+    expect(buildV2().hero()).toMatchObject({ tone: 'ok', chip: { label: 'Em dia' } });
+
+    summarySignal.set(pastDueSummary());
+    expect(buildV2().hero()).toMatchObject({ tone: 'owe', ring: { value: '2', icon: null } });
+
+    summarySignal.set(pastDueSummary({ state: 'BLOCKED', graceEndsAt: serverTime(-3_600_000) }));
+    expect(buildV2().hero()).toMatchObject({ tone: 'blk', chip: { label: 'Acesso pausado' }, ring: { icon: 'lock' } });
+  });
+
+  it('offers Pix only when the server lists it, the account owes and the viewer can pay', () => {
+    summarySignal.set(pastDueSummary());
+    expect(buildV2().pixAvailable()).toBe(false);
+    summarySignal.set(pixSummary());
+    expect(buildV2().pixAvailable()).toBe(true);
+    summarySignal.set(pixSummary({ state: 'ACTIVE' }));
+    expect(buildV2().pixAvailable()).toBe(false);
+  });
+
+  it('Pix: opens the QR, copies it and polls every 3 s while the sheet is open', async () => {
+    vi.useFakeTimers();
+    try {
+      summarySignal.set(pixSummary());
+      const api = withPixApi();
+      const writeText = vi.fn(() => Promise.resolve());
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+      const c = buildV2();
+      c.openPix();
+
+      expect(c.sheet()).toBe('pix');
+      expect(api.createInvoicePix).toHaveBeenCalledTimes(1);
+      expect(c.pixPhase()).toBe('qr');
+      expect(c.pixCountdown()).toMatch(/^(29|30):\d{2}$/);
+
+      await c.copyPix();
+      expect(writeText).toHaveBeenCalledWith(PIX.payload);
+      expect(c.pixCopied()).toBe(true);
+      expect(c.pixToast()).toBe(true);
+
+      vi.advanceTimersByTime(3000);
+      expect(api.invoicePixStatus).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(6000);
+      expect(api.invoicePixStatus).toHaveBeenCalledTimes(3);
+
+      // Fechou a folha: a consulta para.
+      c.closePix();
+      vi.advanceTimersByTime(30_000);
+      expect(api.invoicePixStatus).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Pix: never claims "copiado" when the clipboard is unavailable', async () => {
+    summarySignal.set(pixSummary());
+    withPixApi();
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+    const c = buildV2();
+    c.openPix();
+    await c.copyPix();
+    expect(c.pixCopied()).toBe(false);
+  });
+
+  it('Pix: SETTLED with access released → confirmed screen, polling stops, hero turns "pago"', () => {
+    vi.useFakeTimers();
+    try {
+      summarySignal.set(pixSummary());
+      const api = withPixApi([pixStatus('SETTLED', true)]);
+      const c = buildV2();
+      c.ngOnInit();
+      c.openPix();
+
+      // O resumo seguinte já vem em dia — é o que a confirmação dispara.
+      summarySignal.set(pixSummary({ state: 'ACTIVE', amountDueCents: null, openInvoice: null, lastFailure: null }));
+      vi.advanceTimersByTime(3000);
+
+      expect(c.pixPhase()).toBe('paid');
+      expect(c.sheet()).toBe('pix');
+      expect(c.paidReceipt()).toMatchObject({ method: 'Pix', viaPix: true });
+      expect(c.hero()?.tone).toBe('paid');
+      const calls = api.invoicePixStatus.mock.calls.length;
+      vi.advanceTimersByTime(30_000);
+      expect(api.invoicePixStatus.mock.calls.length).toBe(calls);
+      c.ngOnDestroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Pix: the summary turns ACTIVE before the Pix poll (owner back from the bank app) — the receipt still says Pix', () => {
+    summarySignal.set(pixSummary());
+    const api = withPixApi([pixStatus('SETTLED', true)]);
+    const c = build() as unknown as V2Probe & { revalidate(): void };
+    c.ngOnInit();
+    c.openPix();
+    summarySignal.set(pixSummary({ state: 'ACTIVE', amountDueCents: null, openInvoice: null, lastFailure: null }));
+    c.revalidate();
+
+    expect(api.invoicePixStatus).toHaveBeenCalled();
+    expect(c.pixPhase()).toBe('paid');
+    expect(c.sheet()).toBe('pix');
+    expect(c.paidReceipt()).toMatchObject({ method: 'Pix', viaPix: true });
+    c.ngOnDestroy();
+  });
+
+  it('Pix: SETTLED but access not back yet keeps polling ("liberando o acesso")', () => {
+    vi.useFakeTimers();
+    try {
+      summarySignal.set(pixSummary());
+      const api = withPixApi([pixStatus('SETTLED', false)]);
+      const c = buildV2();
+      c.openPix();
+      vi.advanceTimersByTime(3000);
+      expect(c.pixPhase()).toBe('releasing');
+      vi.advanceTimersByTime(6000);
+      expect(api.invoicePixStatus).toHaveBeenCalledTimes(3);
+      c.closePix();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Pix: REFUNDED (invoice paid elsewhere) shows the refund, never a confirmation', () => {
+    vi.useFakeTimers();
+    try {
+      summarySignal.set(pixSummary());
+      const api = withPixApi([pixStatus('REFUNDED')]);
+      const c = buildV2();
+      c.openPix();
+      vi.advanceTimersByTime(3000);
+      expect(c.pixPhase()).toBe('refunded');
+      vi.advanceTimersByTime(30_000);
+      expect(api.invoicePixStatus).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Pix: local expiry → "Código expirado", polling stops, "Gerar novo código" asks again', () => {
+    vi.useFakeTimers();
+    try {
+      summarySignal.set(pixSummary());
+      const api = withPixApi();
+      api.createInvoicePix.mockReturnValueOnce(
+        of({ ...PIX, expiresAt: new Date(Date.now() + 4_000).toISOString() }),
+      );
+      const c = buildV2();
+      c.openPix();
+      expect(c.pixUrgent()).toBe(true);
+      vi.advanceTimersByTime(5_000);
+      expect(c.pixPhase()).toBe('expired');
+      const calls = api.invoicePixStatus.mock.calls.length;
+      vi.advanceTimersByTime(30_000);
+      expect(api.invoicePixStatus.mock.calls.length).toBe(calls);
+
+      c.createPix();
+      expect(api.createInvoicePix).toHaveBeenCalledTimes(2);
+      expect(c.pixPhase()).toBe('qr');
+      c.closePix();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Pix: EXPIRED from the server also stops and offers a new code', () => {
+    vi.useFakeTimers();
+    try {
+      summarySignal.set(pixSummary());
+      withPixApi([pixStatus('EXPIRED')]);
+      const c = buildV2();
+      c.openPix();
+      vi.advanceTimersByTime(3000);
+      expect(c.pixPhase()).toBe('expired');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Pix: "Já paguei" asks the server right away', () => {
+    summarySignal.set(pixSummary());
+    const api = withPixApi();
+    const c = buildV2();
+    c.openPix();
+    c.checkPixNow();
+    expect(api.invoicePixStatus).toHaveBeenCalledWith('att-1');
+    c.closePix();
+  });
+
+  it('Pix: a refused creation (409) shows the server message and stays retryable', () => {
+    summarySignal.set(pixSummary());
+    const api = withPixApi();
+    api.createInvoicePix.mockReturnValueOnce(
+      throwError(() => new HttpErrorResponse({ status: 409, error: { message: 'Não há fatura em aberto.' } })),
+    );
+    const c = buildV2() as V2Probe & { pixError(): string | null };
+    c.openPix();
+    expect(c.pixPhase()).toBe('error');
+    expect(c.pixError()).toBe('Não há fatura em aberto.');
+    c.createPix();
+    expect(c.pixPhase()).toBe('qr');
+    c.closePix();
+  });
+
+  it('Pix: a read-only viewer cannot open the sheet even by calling it', () => {
+    summarySignal.set(pixSummary({ canManage: false, actions: [] }));
+    const api = withPixApi();
+    const c = buildV2();
+    c.openPix();
+    expect(c.sheet()).toBeNull();
+    expect(api.createInvoicePix).not.toHaveBeenCalled();
+  });
+
+  for (const state of ['TRIAL_EXPIRED', 'TRIALING', 'PAST_DUE'] as const) {
+    it(`help is one centred WhatsApp line, never an orphan "Precisa de ajuda?" section (${state})`, async () => {
+      summarySignal.set(pastDueSummary({ state, trialEndsAt: serverTime(5 * 86_400_000) }));
+      const router = TestBed.inject(Router);
+      const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      const fixture = TestBed.createComponent(Billing);
+      (fixture.componentInstance as unknown as V2Probe).ngOnInit();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+
+      expect(el.textContent).not.toContain('Precisa de ajuda?');
+      expect(el.textContent).not.toContain('WhatsApp do suporte');
+      const help = el.querySelectorAll('[data-testid=billing-help]');
+      expect(help.length).toBe(1);
+      expect(help[0].textContent).toContain('Dúvidas sobre os planos?');
+
+      (el.querySelector('[data-testid=billing-help-wa]') as HTMLButtonElement).click();
+      const opened = externalNav.openExternal.mock.calls.length > 0;
+      if (opened) {
+        expect(externalNav.openExternal.mock.calls[0][0]).toMatch(/^https:\/\/wa\.me\/\d+\?text=/);
+      } else {
+        expect(navigate).toHaveBeenCalledWith(['/suporte']);
+      }
+    });
+  }
 
 });

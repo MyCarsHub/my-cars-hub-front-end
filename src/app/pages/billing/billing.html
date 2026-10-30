@@ -30,7 +30,7 @@
   }
 
   <!-- ====================================================== cartão de status -->
-  <ng-template #hero>
+  <ng-template #heroTpl>
     <section class="card hero st fade-in" [class]="heroTone()" aria-labelledby="hero-plan" data-testid="billing-hero"
       [attr.data-state]="state()">
       <div class="eyebrow">
@@ -141,6 +141,134 @@
     }
   </ng-template>
 
+  <!-- ====================================================== cartão de status v2 -->
+  <ng-template #heroV2>
+    @if (hero(); as h) {
+      <section class="card hv fade-in" [attr.data-tone]="h.tone" [attr.data-state]="state()"
+        aria-labelledby="hero-plan" data-testid="billing-hero">
+        <span class="band" aria-hidden="true"></span>
+        <div class="hv-top">
+          <div class="hv-info">
+            <div class="eyebrow">
+              <span class="plan" id="hero-plan">
+                <span class="tile hv-tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h10"/></svg></span>
+                {{ planName() ? 'Plano ' + planName() : 'Assinatura' }}
+              </span>
+              <span class="chip v" [attr.data-c]="h.chip.cls" data-testid="billing-chip"><i aria-hidden="true"></i>{{ h.chip.label }}</span>
+            </div>
+            @if (h.amount; as a) {
+              <div class="amount"><span class="big">R$ {{ a.reais }}<small>,{{ a.cents }}</small></span><span class="per">{{ h.per }}</span></div>
+            }
+            <p class="hv-reason">
+              @switch (h.reasonIcon) {
+                @case ('alert') { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg> }
+                @case ('lock') { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> }
+                @default { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg> }
+              }
+              <span data-testid="billing-failure">{{ h.reason }}</span>
+            </p>
+          </div>
+
+          <div class="ringbox" role="img" [attr.aria-label]="h.ring.label + (h.ring.sub ? ', ' + h.ring.caption + ' ' + h.ring.sub : ', ' + h.ring.caption)" data-testid="billing-ring">
+            <div class="dial">
+              <svg viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="trk" cx="50" cy="50" r="42"/>
+                @if (h.ring.pct > 0) {
+                  <circle class="arc" cx="50" cy="50" r="42" [attr.stroke-dasharray]="ringDash(h.ring.pct)"/>
+                }
+              </svg>
+              <div class="c" aria-hidden="true">
+                @if (h.ring.icon === 'lock') {
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                } @else if (h.ring.icon === 'check') {
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                } @else if (h.ring.value) {
+                  <b>{{ h.ring.value }}</b><span>{{ h.ring.unit }}</span>
+                } @else {
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                }
+              </div>
+            </div>
+            <div class="ringcap" aria-hidden="true"><b>{{ h.ring.caption }}</b>@if (h.ring.sub) {<span>{{ h.ring.sub }}</span>}</div>
+          </div>
+
+          <div class="cta">
+            @if (!canManage()) {
+              <p class="ro-note" data-testid="billing-readonly">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                <span>Você está vendo como suporte — pagamento só pelo dono.</span>
+              </p>
+            } @else {
+              @switch (h.tone) {
+                @case ('ok') {
+                  @if (canReactivate()) {
+                    <button type="button" class="btn primary block" [disabled]="accountActionBusy()" (click)="reactivate()" data-testid="hero-reactivate">Reativar assinatura</button>
+                  }
+                  @if (lastPaidInvoice()) {
+                    <button type="button" class="btn tonal block" (click)="openLastInvoice()" data-testid="hero-last-invoice">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                      Ver última fatura
+                    </button>
+                  }
+                  <button type="button" class="btn tonal block" (click)="openPlans()" data-testid="hero-plans">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18M3 12h18M3 17h10"/></svg>
+                    Mudar de plano
+                  </button>
+                }
+                @case ('paid') {
+                  @if (paidReceipt()?.receiptUrl) {
+                    <button type="button" class="btn primary block" (click)="openPaidReceipt()" data-testid="hero-receipt">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                      Ver recibo
+                    </button>
+                  }
+                  <p class="note">O recibo também foi para o seu e-mail.</p>
+                }
+                @default {
+                  @if (pixAvailable()) {
+                    <button type="button" class="btn primary block" (click)="openPix()" data-testid="hero-pix">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg>
+                      Pagar com Pix
+                    </button>
+                  }
+                  @if (canPayByCard()) {
+                    <button type="button" class="btn block" [class.primary]="!pixAvailable()" [class.tonal]="pixAvailable()" (click)="openPay()" data-testid="hero-pay">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                      Pagar com cartão
+                    </button>
+                  }
+                  <p class="note">
+                    @if (h.tone === 'blk') {
+                      O acesso volta assim que o pagamento cair.
+                    } @else {
+                      @if (pixAvailable()) { Pix confirma na hora. }
+                      @if (has('UPDATE_CARD')) {
+                        <button type="button" class="link" [disabled]="cardBusy()" (click)="openCardUpdate()" data-testid="hero-card">{{ cardBusy() ? 'Abrindo…' : 'Trocar cartão' }}</button>
+                      }
+                    }
+                  </p>
+                }
+              }
+            }
+          </div>
+        </div>
+
+        <div class="tl">
+          <div class="track" aria-hidden="true"><i [style.transform]="'scaleX(' + h.timeline.fill / 100 + ')'"></i></div>
+          <ol aria-label="Linha do tempo da cobrança">
+            @for (st of h.timeline.stops; track $index) {
+              <li [attr.data-s]="st.cls" [attr.aria-current]="st.cls === 'now' ? 'step' : null">
+                <span class="dot" aria-hidden="true"></span><b>{{ st.date }}</b><span>{{ st.label }}</span>
+              </li>
+            }
+          </ol>
+        </div>
+      </section>
+    } @else {
+      <ng-container *ngTemplateOutlet="heroTpl" />
+    }
+  </ng-template>
+
   <!-- ====================================================== grupos -->
   <ng-template #payment>
     <h2 class="group-h">Pagamento</h2>
@@ -161,21 +289,38 @@
           <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
         }
       </button>
-      <div class="row" aria-disabled="true">
-        <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg></span>
-        <span class="t"><b>Pagar com Pix</b><small>{{ owing() ? 'Pague a fatura em aberto pelo app do banco' : 'Para pagar uma fatura em aberto' }}</small></span>
-        <span class="chip neutral sm">Em breve</span>
-      </div>
+      @if (pixAvailable()) {
+        <button type="button" class="row" (click)="openPix()" data-testid="row-pix">
+          <span class="tile tint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg></span>
+          <span class="t"><b>Pagar com Pix</b><small>QR code ou copia e cola · confirma na hora</small></span>
+          <span class="v strong">Pagar</span>
+          <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
+        </button>
+      } @else {
+        <div class="row" aria-disabled="true" data-testid="row-pix-off">
+          <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg></span>
+          @if (pixOffered()) {
+            <span class="t"><b>Pix</b><small>{{ canManage() ? 'Disponível quando houver fatura em aberto' : 'Pagamento só pelo dono da conta' }}</small></span>
+          } @else {
+            <span class="t"><b>Pagar com Pix</b><small>{{ owing() ? 'Pague a fatura em aberto pelo app do banco' : 'Para pagar uma fatura em aberto' }}</small></span>
+            <span class="chip neutral sm">Em breve</span>
+          }
+        </div>
+      }
     </div>
   </ng-template>
 
   <ng-template #planGroup>
     <h2 class="group-h">Plano</h2>
     <div class="group">
-      <button type="button" class="row" (click)="openPlans()" data-testid="row-plan">
-        <span class="tile tint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h10"/></svg></span>
-        <span class="t"><b>{{ planName() || 'Sem plano' }}@if (planName()) {<span class="mini-pill">Seu plano</span>}</b>
-          @if (usage(); as u) { <small>Até {{ u.limit }} veículos</small> }
+      <button type="button" class="row top" (click)="openPlans()" data-testid="row-plan">
+        <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h10"/></svg></span>
+        <span class="t"><b>{{ planName() || 'Sem plano' }}@if (planName()) {<span class="mini-pill v">Seu plano</span>}</b>
+          @if (usage(); as u) {
+            <small>{{ u.vehicles }} de {{ u.limit }} veículos</small>
+            <span class="meter" role="progressbar" aria-label="Veículos cadastrados" [attr.aria-valuenow]="u.vehicles"
+              aria-valuemin="0" [attr.aria-valuemax]="u.limit"><i [style.transform]="'scaleX(' + u.pct / 100 + ')'"></i></span>
+          }
         </span>
         <span class="v">Mudar</span>
         <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
@@ -194,7 +339,7 @@
       <button type="button" class="row" (click)="openInvoice(inv)" [attr.aria-label]="'Fatura de ' + invoiceDate(inv) + ', ' + invoiceAmount(inv) + ', ' + invoiceStatus(inv)">
         <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
         <span class="t"><b>{{ invoiceDate(inv) }}</b>
-          @if (inv.status === 'OPEN') { <span class="chip warn sm inv-chip">Em aberto</span> }
+          @if (inv.status === 'OPEN') { <span class="inv-chip"><span class="chip v sm" data-c="o"><i aria-hidden="true"></i>Em aberto</span></span> }
           @else { <small>{{ invoiceStatus(inv) }}</small> }
         </span>
         <span class="v inv-amt">{{ invoiceAmount(inv) }}</span>
@@ -204,16 +349,44 @@
   </ng-template>
 
   <ng-template #invoicesGroup>
-    <h2 class="group-h">Faturas</h2>
+    <div class="gh-row">
+      <h2 class="group-h">Faturas</h2>
+      @if (invoices().length > recentInvoices().length) {
+        <button type="button" class="link gh-link" (click)="viewAllInvoices()" data-testid="invoices-all">Ver todas</button>
+      }
+    </div>
     <div class="group" data-testid="invoices">
       @if (recentInvoices().length) {
-        <ng-container *ngTemplateOutlet="invoiceRows; context: { $implicit: recentInvoices() }" />
-        @if (invoices().length > recentInvoices().length) {
-          <button type="button" class="row noicon" (click)="viewAllInvoices()">
-            <span class="t"><b class="link">Ver todas as faturas</b></span>
-            <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
-          </button>
-        }
+        <!-- Desktop: tabela. Celular: lista. As duas existem; o CSS mostra uma. -->
+        <table class="tbl" data-testid="invoices-table">
+          <caption class="sr-only">Últimas faturas</caption>
+          <thead>
+            <tr><th scope="col">Data</th><th scope="col">Descrição</th><th scope="col">Forma</th><th scope="col">Status</th><th scope="col" class="r">Valor</th><th scope="col" class="r"><span class="sr-only">Ação</span></th></tr>
+          </thead>
+          <tbody>
+            @for (inv of recentInvoices(); track inv.ref) {
+              <tr [class.open]="inv.status === 'OPEN'">
+                <td><b>{{ invoiceDate(inv) }}</b></td>
+                <td>{{ invoiceDescription() }}</td>
+                <td>{{ invoiceMethod(inv) }}</td>
+                <td><span class="chip v sm" [attr.data-c]="invoiceChip(inv).cls"><i aria-hidden="true"></i>{{ invoiceChip(inv).label }}</span></td>
+                <td class="r mono">{{ invoiceAmount(inv) }}</td>
+                <td class="r">
+                  @if (canPayRow(inv)) {
+                    <button type="button" class="btn primary sm" (click)="payOpenInvoice()" data-testid="inv-pay">Pagar</button>
+                  } @else if (inv.pdfUrl || inv.hostedUrl) {
+                    <button type="button" class="icbtn" (click)="openInvoice(inv)" [attr.aria-label]="'Abrir fatura de ' + invoiceDate(inv)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <div class="inv-list" data-testid="invoices-list">
+          <ng-container *ngTemplateOutlet="invoiceRows; context: { $implicit: recentInvoices() }" />
+        </div>
       } @else {
         <div class="row noicon"><span class="t"><small>{{ summaryLoaded() ? 'Nenhuma fatura ainda.' : 'Carregando faturas…' }}</small></span></div>
       }
@@ -223,11 +396,12 @@
   <ng-template #account>
     <h2 class="group-h">Conta</h2>
     <div class="group">
-      <a class="row noicon" routerLink="/configuracoes">
-        <span class="t"><b>Dados de cobrança</b><small>Razão social, CNPJ e e-mail das faturas</small></span>
+      <a class="row" routerLink="/configuracoes">
+        <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+        <span class="t"><b>Dados de cobrança</b><small>Razão social, CNPJ e e-mail</small></span>
         <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
       </a>
-      @if (canReactivate()) {
+      @if (canReactivate() && canManage()) {
         <button type="button" class="row noicon" [disabled]="accountActionBusy()" (click)="reactivate()" data-testid="row-reactivate">
           <span class="t"><b class="link">Reativar assinatura</b></span>
         </button>
@@ -242,6 +416,21 @@
     }
   </ng-template>
 
+  <!-- Ajuda: uma linha centrada no fim da página, sem título nem cartão. -->
+  <ng-template #helpLine>
+    <p class="help-line" data-testid="billing-help">
+      <span>Dúvidas sobre os planos?</span>
+      <button type="button" class="btn tonal wa" (click)="openHelp()" data-testid="billing-help-wa">
+        @if (helpUrl) {
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.4.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3z"/></svg>
+          Fale com a gente no WhatsApp
+        } @else {
+          Fale com o suporte
+        }
+      </button>
+    </p>
+  </ng-template>
+
   <!-- ====================================================== página -->
   @if (!summaryLoaded() && !subscription()) {
     <div class="skeleton" aria-busy="true" aria-label="Carregando assinatura">
@@ -250,41 +439,37 @@
       <div class="card sk-row"></div>
     </div>
   } @else if (showsInlinePicker()) {
-    <div class="layout trial">
-      <div class="a-hero"><ng-container *ngTemplateOutlet="hero" /></div>
-      <div class="a-side">
-        <h2 class="group-h first">{{ state() === 'TRIALING' ? 'Seu teste' : 'Precisa de ajuda?' }}</h2>
-        <div class="group">
-          @if (state() === 'TRIALING') {
+    <div class="layout trial" [class.no-side]="state() !== 'TRIALING'">
+      <div class="a-hero"><ng-container *ngTemplateOutlet="heroTpl" /></div>
+      @if (state() === 'TRIALING') {
+        <div class="a-side">
+          <h2 class="group-h first">Seu teste</h2>
+          <div class="group">
             <div class="row">
               <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2v-4l-2-5H5L3 13v4h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></span>
               <span class="t"><b>Limite no teste</b></span>
               <span class="v">{{ trialVehicleLimit() }} veículos</span>
             </div>
-          }
-          <button type="button" class="row" (click)="openSupport()">
-            <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/></svg></span>
-            <span class="t"><b>Dúvidas sobre os planos</b><small>WhatsApp do suporte</small></span>
-            <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
-          </button>
+          </div>
         </div>
-      </div>
+      }
       <div class="a-pick" id="planos">
         <h2 class="group-h pick-h">Escolha seu plano</h2>
         <app-plan-grid [columns]="planColumns()" [cycle]="cycle()" [savings]="yearlySavingsBadge()"
           (cycleChange)="setCycle($event)" (choose)="onColumn($event)" />
         <p class="foot-note">Pague com cartão. Cancele quando quiser.</p>
+        <ng-container *ngTemplateOutlet="helpLine" />
       </div>
     </div>
   } @else {
-    <div class="layout">
-      <div class="a-hero"><ng-container *ngTemplateOutlet="hero" /></div>
-      <div class="a-side">
-        <div class="a-pay"><ng-container *ngTemplateOutlet="payment" /></div>
-        <div class="a-plan"><ng-container *ngTemplateOutlet="planGroup" /></div>
-        <div class="a-acc"><ng-container *ngTemplateOutlet="account" /></div>
-      </div>
-      <div class="a-inv"><ng-container *ngTemplateOutlet="invoicesGroup" /></div>
+    <!-- Celular: status → Pagamento → Plano → Faturas → Conta. Desktop (≥1024): 12 colunas até 1680px. -->
+    <div class="v2" data-testid="billing-v2">
+      <div class="v2-hero"><ng-container *ngTemplateOutlet="heroV2" /></div>
+      <div class="v2-pay"><ng-container *ngTemplateOutlet="payment" /></div>
+      <div class="v2-plan"><ng-container *ngTemplateOutlet="planGroup" /></div>
+      <div class="v2-acc"><ng-container *ngTemplateOutlet="account" /></div>
+      <div class="v2-inv"><ng-container *ngTemplateOutlet="invoicesGroup" /></div>
+      <div class="v2-help"><ng-container *ngTemplateOutlet="helpLine" /></div>
     </div>
   }
 
@@ -293,9 +478,9 @@
     @case ('pay') {
       <app-bottom-sheet [title]="payTitle()" [subtitle]="paySubtitle()" [busy]="cardBusy()" (closed)="closeSheet()">
         <div class="seg" role="tablist" aria-label="Forma de pagamento">
-          <button type="button" role="tab" aria-selected="false" disabled>
+          <button type="button" role="tab" aria-selected="false" [disabled]="!pixAvailable()" (click)="openPix()" data-testid="pay-tab-pix">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg>
-            Pix <span class="tag">em breve</span>
+            Pix @if (!pixAvailable()) { <span class="tag">em breve</span> }
           </button>
           <button type="button" role="tab" aria-selected="true" class="on">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
@@ -382,6 +567,171 @@
           </div>
         </app-bottom-sheet>
       }
+    }
+    @case ('pix') {
+      <app-bottom-sheet title="Pagar com Pix" size="wide" [subtitle]="pixPhase() === 'paid' ? null : pixSubtitle()"
+        [hideTitle]="pixPhase() === 'paid'" (closed)="closePix()">
+        @if (pixPhase() === 'qr' || pixPhase() === 'expired' || pixPhase() === 'releasing') {
+          <div class="pix-exp" aria-hidden="true"><i [style.transform]="'scaleX(' + pixBarScale() + ')'"></i></div>
+        }
+        @switch (pixPhase()) {
+          @case ('loading') {
+            <div class="pix-loading" role="status" data-testid="pix-loading"><span class="spin" aria-hidden="true"></span>Gerando o código Pix…</div>
+          }
+          @case ('error') {
+            <app-alert-banner variant="error" [message]="pixError() ?? ''" data-testid="pix-error" />
+          }
+          @case ('paid') {
+            <div class="okhero" data-testid="pix-paid">
+              <div class="okcheck" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+              <p class="ok-title" role="status">Pagamento confirmado</p>
+              <p class="ok-sub">Plano {{ planName() }} em dia até {{ pixPaidUntil() }}.</p>
+            </div>
+            <dl class="kv4">
+              <div><dt>Valor</dt><dd class="mono">{{ pixAmount()?.label }}</dd></div>
+              <div><dt>Forma</dt><dd>Pix</dd></div>
+              <div><dt>Data</dt><dd>{{ pixPaidAt() }}</dd></div>
+              <div><dt>Acesso</dt><dd class="g">Liberado</dd></div>
+            </dl>
+          }
+          @case ('refunded') {
+            <div class="pix-box" role="status" data-testid="pix-refunded">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+              <div><b>Seu Pix foi devolvido: a fatura já estava paga.</b><span>O valor volta para a mesma conta em alguns minutos. Nada mais a fazer.</span></div>
+            </div>
+          }
+          @default {
+            @if (pixToast()) {
+              <div class="pix-toast" role="status" data-testid="pix-toast">
+                <span class="ck" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                Código Pix copiado
+              </div>
+            }
+            <div class="pix" [class.copied]="pixCopied()" [class.expired]="pixPhase() === 'expired'" data-testid="pix-sheet" [attr.data-phase]="pixPhase()">
+              <div class="pix-qr" [class.open]="pixQrOpen()" id="pix-qr" data-testid="pix-qr">
+                <div class="qrplate">
+                  @if (pixQrSrc(); as src) {
+                    <img [src]="src" width="264" height="264" [alt]="'QR code Pix de ' + (pixAmount()?.label ?? '')" />
+                    <span class="logo" aria-hidden="true"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg></span></span>
+                  } @else {
+                    <p class="qr-missing">O QR code não carregou. Use o código copia e cola
+                      @if (pix()?.hostedInstructionsUrl; as url) { ou <a [href]="url" target="_blank" rel="noreferrer">abra o QR code</a> }.
+                    </p>
+                  }
+                </div>
+                <p class="qrcap">Válido para um pagamento de {{ pixAmount()?.label }}</p>
+              </div>
+              <div class="pix-main">
+                <div class="amt-row pm-amt">
+                  @if (pixAmount(); as a) {
+                    <span class="big">R$ {{ a.reais }}<small>,{{ a.cents }}</small></span>
+                  }
+                  <span class="exp" [class.urgent]="pixUrgent()" data-testid="pix-countdown">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                    @if (pixPhase() === 'expired') { Expirado } @else if (pixPhase() === 'releasing') { Pago } @else { Expira em {{ pixCountdown() }} }
+                  </span>
+                </div>
+                <div class="codebox pm-code"><code #pixCode data-testid="pix-code">{{ pix()?.payload }}</code></div>
+                @if (pixCopyHint(); as hint) {
+                  <p class="pm-hint" role="status">{{ hint }}</p>
+                }
+                <button type="button" class="btn block pm-copy m-only" [class.primary]="!pixCopied()" [class.okfill]="pixCopied()"
+                  [disabled]="pixPhase() !== 'qr'" (click)="copyPix()" data-testid="pix-copy">
+                  @if (pixCopied()) {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                    Código copiado
+                  } @else {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                    Copiar código Pix
+                  }
+                </button>
+                <div class="wait pm-wait" [attr.data-phase]="pixPhase()" role="status" aria-live="polite" data-testid="pix-wait">
+                  @switch (pixPhase()) {
+                    @case ('expired') {
+                      <svg class="wi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                      <div><b>Código expirado</b><span>Gere um novo para pagar. O anterior não aceita mais pagamento.</span></div>
+                      <button type="button" class="btn primary sm m-only" (click)="createPix()" data-testid="pix-regenerate">Gerar novo código</button>
+                    }
+                    @case ('releasing') {
+                      <span class="pulse g" aria-hidden="true"></span>
+                      <div><b>Pagamento recebido — liberando o acesso</b><span>Leva poucos segundos. Pode fechar esta janela.</span></div>
+                    }
+                    @default {
+                      <span class="pulse" aria-hidden="true"></span>
+                      <div><b>Aguardando o pagamento</b><span>{{ pixCopied() ? 'Pode voltar para cá depois de pagar.' : 'Esta tela atualiza sozinha.' }}</span></div>
+                      <button type="button" class="link sm" [disabled]="pixChecking()" (click)="checkPixNow()" data-testid="pix-check">{{ pixChecking() ? 'Verificando…' : 'Já paguei' }}</button>
+                    }
+                  }
+                </div>
+                <ol class="steps pm-steps">
+                  <li [attr.data-s]="pixCopied() ? 'done' : 'now'">
+                    <span class="n" aria-hidden="true">
+                      @if (pixCopied()) { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> } @else { 1 }
+                    </span>
+                    <div><b>Copie o código<span class="d-only"> ou escaneie o QR</span></b><span class="m-only">Ele fica salvo na área de transferência</span><span class="d-only">Com a câmera do app do banco</span></div>
+                  </li>
+                  <li [attr.data-s]="pixCopied() ? 'now' : ''">
+                    <span class="n" aria-hidden="true">2</span>
+                    <div><b>Pague no app do banco</b><span>Pix › Pix Copia e Cola</span></div>
+                  </li>
+                  <li>
+                    <span class="n" aria-hidden="true">3</span>
+                    <div><b>Pronto</b><span>Confirmamos aqui em segundos</span></div>
+                  </li>
+                </ol>
+                <button type="button" class="fold pm-fold m-only" [attr.aria-expanded]="pixQrOpen()" aria-controls="pix-qr" (click)="togglePixQr()" data-testid="pix-fold">
+                  <svg class="q" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg>
+                  <b>Pagar de outro aparelho</b><span>QR code</span>
+                  <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
+                </button>
+              </div>
+            </div>
+          }
+        }
+        <div sheetFooter class="pix-foot" [attr.data-phase]="pixPhase()">
+          @switch (pixPhase()) {
+            @case ('paid') {
+              @if (paidReceipt()?.receiptUrl) {
+                <button type="button" class="link pf-left" (click)="openPaidReceipt()">Ver recibo</button>
+              }
+              <button type="button" class="btn primary pf-main" (click)="closePix()" data-testid="pix-done">Concluir</button>
+            }
+            @case ('refunded') {
+              <button type="button" class="btn primary pf-main" (click)="closePix()" data-testid="pix-done">Concluir</button>
+            }
+            @case ('error') {
+              @if (canPayByCard()) {
+                <button type="button" class="link pf-left" (click)="pixPayByCard()">Prefiro pagar com cartão</button>
+              }
+              <button type="button" class="btn primary pf-main" (click)="createPix()" data-testid="pix-retry">Tentar de novo</button>
+            }
+            @case ('loading') {
+              @if (canPayByCard()) {
+                <button type="button" class="link pf-left" (click)="pixPayByCard()">Prefiro pagar com cartão</button>
+              }
+            }
+            @default {
+              @if (canPayByCard()) {
+                <button type="button" class="link pf-left" (click)="pixPayByCard()" data-testid="pix-card">Prefiro pagar com cartão</button>
+              }
+              @if (pixPhase() === 'expired') {
+                <button type="button" class="btn primary pf-main d-only" (click)="createPix()">Gerar novo código</button>
+              } @else {
+                <button type="button" class="btn pf-main d-only" [class.primary]="!pixCopied()" [class.okfill]="pixCopied()"
+                  [disabled]="pixPhase() !== 'qr'" (click)="copyPix()" data-testid="pix-copy-desk">
+                  @if (pixCopied()) {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                    Código copiado
+                  } @else {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                    Copiar código Pix
+                  }
+                </button>
+              }
+            }
+          }
+        </div>
+      </app-bottom-sheet>
     }
     @case ('invoices') {
       <app-bottom-sheet title="Faturas" [subtitle]="'Últimas ' + invoices().length" size="lg" (closed)="closeSheet()">

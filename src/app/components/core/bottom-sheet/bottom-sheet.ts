@@ -74,10 +74,10 @@ let nextId = 0;
           role="dialog"
           aria-modal="true"
           [attr.aria-labelledby]="titleId"
-          class="panel pointer-events-auto w-full bg-surface border border-edge-soft shadow-2xl
+          class="panel relative overflow-hidden pointer-events-auto w-full bg-surface border border-edge-soft shadow-2xl
                  rounded-t-3xl lg:rounded-2xl max-h-[92dvh] flex flex-col
                  pb-[env(safe-area-inset-bottom)] lg:pb-0"
-          [class]="size() === 'xl' ? 'lg:max-w-[1220px]' : size() === 'lg' ? 'lg:max-w-2xl' : 'lg:max-w-md'"
+          [class]="size() === 'xl' ? 'lg:max-w-[1220px]' : size() === 'wide' ? 'lg:max-w-[820px]' : size() === 'lg' ? 'lg:max-w-2xl' : 'lg:max-w-md'"
           (keydown.tab)="trapTab($event)"
         >
           <header class="px-5 pt-3 lg:pt-6 lg:px-6 shrink-0">
@@ -120,8 +120,11 @@ export class BottomSheet implements OnInit, OnDestroy {
   readonly subtitle = input<string | null>(null);
   /** O conteúdo desenha o próprio título (ex.: confirmação centralizada); o h2 fica só para leitores de tela. */
   readonly hideTitle = input(false);
-  /** `xl`: a grade de planos com cinco colunas (Assinatura → Mudar de plano). */
-  readonly size = input<'md' | 'lg' | 'xl'>('md');
+  /**
+   * `xl`: a grade de planos com cinco colunas (Assinatura → Mudar de plano).
+   * `wide`: 820px no desktop — o Pix da assinatura (QR à esquerda, passos à direita).
+   */
+  readonly size = input<'md' | 'lg' | 'wide' | 'xl'>('md');
   /** Bloqueia Esc/fundo enquanto uma ação está em voo. */
   readonly busy = input(false);
   readonly closed = output<void>();
