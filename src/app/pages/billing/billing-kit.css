@@ -145,15 +145,20 @@
 /* ---------- plan grid v6 ---------- */
 .cycwrap { display: flex; justify-content: center; margin-top: 8px; }
 .cyc { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--color-surface-sunken); border: 1px solid var(--b-edge); }
-.cyc button { height: 32px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--b-muted); display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; cursor: pointer; transition: background-color 0.2s, color 0.2s; }
-.cyc button:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
-.cyc button.on.m { background: var(--color-surface); color: var(--color-fg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
-.cyc button.on.y { background: #0A7854; color: #fff; }
+/* Alvo de 44px com o desenho de sempre: a pílula fica no ::before, e a margem negativa impede o botão de esticar a cápsula. */
+.cyc button { position: relative; isolation: isolate; height: 44px; margin-block: -6px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--b-muted); display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; cursor: pointer; transition: color 0.2s; }
+.cyc button::before { content: ""; position: absolute; inset: 6px 0; z-index: -1; border-radius: 999px; transition: background-color 0.2s; }
+.cyc button:focus-visible { outline: none; }
+.cyc button:focus-visible::before { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+.cyc button.on.m { color: var(--color-fg); }
+.cyc button.on.m::before { background: var(--color-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.cyc button.on.y { color: #fff; }
+.cyc button.on.y::before { background: #0A7854; }
 .cyc .off { font-size: 11.5px; font-weight: 700; color: var(--b-ok); background: var(--b-ok-bg); padding: 1px 6px; border-radius: 99px; }
 .cyc button.on.y .off { color: #fff; background: rgba(0, 0, 0, 0.22); }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn, .st, .opt, .cyc button { transition: none; }
+  .btn, .st, .opt, .cyc button, .cyc button::before { transition: none; }
   .bar.drain > i, .fade-in, .check, .pulse { animation: none; }
   .btn:active:not(:disabled) { transform: none; }
 }

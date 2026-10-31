@@ -242,6 +242,8 @@ export function undoErrorMessage(err: unknown): string {
       return 'Só o dono da conta pode desfazer a mudança, e nunca em sessão somente leitura.';
     case 503:
       return 'A Stripe não respondeu. Nada mudou. Tente de novo.';
+    case 500:
+      return 'Não conseguimos concluir o desfazer. Tente de novo em instantes.';
     default:
       return err.status === 0 || err.status >= 500
         ? UNDO_UNKNOWN_MESSAGE

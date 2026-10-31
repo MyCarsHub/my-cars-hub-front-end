@@ -1236,6 +1236,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
       [409, 'PLAN_CHANGE_TOO_LATE', /renovação já aconteceu/i],
       [503, undefined, /stripe não respondeu.*nada mudou/i],
       [403, undefined, /dono da conta/i],
+      [500, undefined, /Não conseguimos concluir o desfazer. Tente de novo em instantes./],
       [504, undefined, /Não conseguimos confirmar/],
     ])('%i %s ao desfazer: traduz e relê', (status, code, copy) => {
       billing.undoPlanChange.mockReturnValue(throwError(() => apiError(status, code, 'servidor')));
@@ -1247,6 +1248,19 @@ describe('Billing: upgrade decidido pelo servidor', () => {
       expect(el.textContent).toMatch(copy);
       expect(notifications.success).not.toHaveBeenCalled();
       expect(billing.loadSummary.mock.calls.length).toBeGreaterThan(reads);
+    });
+
+    it('500 ao desfazer deixa tentar de novo: repetir conclui', () => {
+      billing.undoPlanChange.mockReturnValueOnce(throwError(() => apiError(500, undefined, 'servidor')));
+      withChange();
+      const { el, fixture } = render();
+      (byTest(el, 'row-undo-plan-change') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      const row = byTest(el, 'row-undo-plan-change') as HTMLButtonElement;
+      expect(row.disabled).toBe(false);
+      row.click();
+      expect(billing.undoPlanChange).toHaveBeenCalledTimes(2);
+      expect(notifications.success).toHaveBeenCalledWith('Mudança desfeita.');
     });
 
     it('sem resposta ao desfazer não afirma nada', () => {
