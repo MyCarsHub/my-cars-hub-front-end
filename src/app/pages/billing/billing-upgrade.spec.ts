@@ -784,6 +784,18 @@ describe('Billing: upgrade decidido pelo servidor', () => {
       expect(byTest(el, 'plan-notice-message')?.textContent).toMatch(/nada foi cobrado/i);
     });
 
+    it.each([
+      ['UPGRADE_DOWNGRADE_SCHEDULED', 'Há uma mudança de plano agendada.'],
+      ['UPGRADE_CANCELLATION_SCHEDULED', 'Há um cancelamento agendado.'],
+    ])('%s no checkout mostra o motivo, fora do cartão fechado', (code, message) => {
+      billing.startCheckout.mockReturnValue(throwError(() => apiError(409, code, message)));
+      const { c, el } = reachCheckout();
+      expect(tab.close).toHaveBeenCalled();
+      expect(c.sheet()).toBe('notice');
+      expect(byTest(el, 'plan-notice-message')?.textContent).toContain(message);
+      expect(billing.startCheckout).toHaveBeenCalledTimes(1);
+    });
+
     it('releitura BLOCKED mostra o motivo', () => {
       refused();
       billing.planChangePreview.mockReturnValue(of(blocked('DOWNGRADE_SCHEDULED', 'Há uma mudança agendada.')));

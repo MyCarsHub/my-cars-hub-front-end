@@ -109,6 +109,7 @@ describe('coupon-copy', () => {
       ['COUPON_PLAN_MISMATCH', 409, /plano atual/i],
       ['COUPON_ALREADY_APPLIED', 409, /já tem um desconto/i],
       ['COUPON_NO_OWNER', 409, /dono/i],
+      ['COUPON_NO_INVOICE_IN_WINDOW', 400, /nenhuma fatura.*aumente a duração/i],
     ])('%s tem texto próprio, não o do servidor', (code, status, copy) => {
       const message = couponErrorMessage(apiError(status, code), 'preview');
       expect(message).toMatch(copy);

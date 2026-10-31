@@ -71,7 +71,7 @@ import {
   UpgradeCopy,
   blockedNotice,
   isUseInPlace,
-  lockNotice,
+  refusalNotice,
   upgradeCanRetry,
   upgradeCopy,
   upgradeErrorMessage,
@@ -1262,11 +1262,11 @@ export class Billing implements OnInit, OnDestroy {
       this.previewPlanChange(plan, true);
       return;
     }
-    // O checkout de um plano menor sai do diálogo, com a folha de planos fechada:
-    // no cartão, a data da trava ficaria onde ninguém lê.
-    const locked = err === undefined ? null : lockNotice(err);
-    if (locked) {
-      this.showPlanNotice(locked);
+    // O checkout sai do diálogo, com a folha de planos fechada: no cartão, o motivo
+    // da recusa e a data da trava ficariam onde ninguém lê.
+    const refused = err === undefined ? null : refusalNotice(err);
+    if (refused) {
+      this.showPlanNotice(refused);
       return;
     }
     this.ctaError.set({ planId: plan.id, message });
@@ -1299,9 +1299,9 @@ export class Billing implements OnInit, OnDestroy {
           : 'Não foi possível voltar ao plano gratuito nesta situação. Escolha um plano ou fale com o suporte.';
         const message = this.apiErrors.messageFor(err, fallback);
         this.billingService.clearError();
-        const locked = lockNotice(err);
-        if (locked) {
-          this.showPlanNotice(locked);
+        const refused = refusalNotice(err);
+        if (refused) {
+          this.showPlanNotice(refused);
           return;
         }
         this.ctaError.set({ planId: plan.id, message });

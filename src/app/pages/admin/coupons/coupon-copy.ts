@@ -27,6 +27,8 @@ const CODE_MESSAGES: Record<string, string> = {
   COUPON_PLAN_MISMATCH: 'O cupom precisa ser do plano atual da assinatura. Escolha o plano que a empresa já paga.',
   COUPON_ALREADY_APPLIED: 'Esta assinatura já tem um desconto. Desative o atual antes de criar outro.',
   COUPON_NO_OWNER: 'Esta empresa não tem dono com e-mail, e o código é preso ao cliente dele.',
+  COUPON_NO_INVOICE_IN_WINDOW:
+    'Nenhuma fatura cai dentro destes meses: o desconto nunca seria usado. Aumente a duração.',
 };
 
 const STRIPE_DOWN: Record<CouponAction, string> = {

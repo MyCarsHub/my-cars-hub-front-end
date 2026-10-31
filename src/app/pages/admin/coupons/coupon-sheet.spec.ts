@@ -272,6 +272,7 @@ describe('CouponSheet', () => {
       ['COUPON_PLAN_MISMATCH', 409, /plano atual/i],
       ['COUPON_ALREADY_APPLIED', 409, /já tem um desconto/i],
       ['COUPON_NO_OWNER', 409, /dono/i],
+      ['COUPON_NO_INVOICE_IN_WINDOW', 400, /nenhuma fatura/i],
       [undefined, 404, /empresa ou plano/i],
       [undefined, 503, /stripe/i],
     ])('%s traduz e não deixa criar', async (code, status, copy) => {
@@ -399,6 +400,7 @@ describe('CouponSheet', () => {
       ['COUPON_PLAN_MISMATCH', 409, /plano atual/i],
       ['COUPON_ALREADY_APPLIED', 409, /já tem um desconto/i],
       ['COUPON_NO_OWNER', 409, /dono/i],
+      ['COUPON_NO_INVOICE_IN_WINDOW', 400, /nenhuma fatura/i],
       [undefined, 503, /confira a lista/i],
       [undefined, 403, /dono/i],
       [undefined, 404, /empresa ou plano/i],

@@ -97,12 +97,20 @@ export function blockedNotice(preview: PlanChangePreview): PlanNotice {
   };
 }
 
-export function lockNotice(err: unknown): PlanNotice | null {
+/** Recusa de checkout ou de descida que corresponde a um `BLOCKED` da prévia. */
+const REFUSAL_REASONS: Record<string, PlanChangeReason> = {
+  [DOWNGRADE_LOCKED_CODE]: 'DOWNGRADE_LOCKED_UNTIL_PAID',
+  UPGRADE_DOWNGRADE_SCHEDULED: 'DOWNGRADE_SCHEDULED',
+  UPGRADE_CANCELLATION_SCHEDULED: 'CANCELLATION_SCHEDULED',
+};
+
+export function refusalNotice(err: unknown): PlanNotice | null {
   const parsed = parseApiError(err);
-  if (parsed.code !== DOWNGRADE_LOCKED_CODE) return null;
+  const reason = parsed.code ? REFUSAL_REASONS[parsed.code] : undefined;
+  if (!reason) return null;
   return {
-    title: BLOCKED_TITLES.DOWNGRADE_LOCKED_UNTIL_PAID as string,
-    message: parsed.message ?? (BLOCKED_MESSAGES.DOWNGRADE_LOCKED_UNTIL_PAID as string),
+    title: BLOCKED_TITLES[reason] as string,
+    message: parsed.message ?? (BLOCKED_MESSAGES[reason] as string),
   };
 }
 
