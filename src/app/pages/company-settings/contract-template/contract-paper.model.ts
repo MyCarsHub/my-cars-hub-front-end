@@ -218,6 +218,43 @@ function excerptAt(text: string, excerpt: string): number {
   return -1;
 }
 
+/** Quanto do contrato a pergunta cita de cada lado do trecho. */
+const QUOTE_REACH = 70;
+
+function tokenAround(text: string, position: number): { from: number; to: number } | null {
+  for (const m of text.matchAll(ANY_TOKEN)) {
+    const from = m.index ?? 0;
+    const to = from + m[0].length;
+    if (position > from && position < to) return { from, to };
+  }
+  return null;
+}
+
+export interface QuoteParts {
+  before: PaperSegment[];
+  hit: string;
+  after: PaperSegment[];
+}
+
+/**
+ * O trecho citado na pergunta, com a mesma leitura da folha: acha o trecho fora dos tokens e mostra
+ * os `{{campo}}` vizinhos como campo. O corte da citação nunca parte um token ao meio.
+ */
+export function quoteOf(context: string, hit: string): QuoteParts {
+  const at = hit ? excerptAt(context, hit) : -1;
+  if (at < 0) return { before: [], hit, after: [] };
+  const wantedStart = at - QUOTE_REACH;
+  const start = wantedStart <= 0 ? 0 : (tokenAround(context, wantedStart)?.to ?? wantedStart);
+  const end = at + hit.length;
+  const wantedEnd = end + QUOTE_REACH;
+  const stop = wantedEnd >= context.length ? context.length : (tokenAround(context, wantedEnd)?.from ?? wantedEnd);
+  const before = withFields(context.slice(start, at));
+  const after = withFields(context.slice(end, stop));
+  if (start > 0) before.unshift({ kind: 'text', text: '…' });
+  if (stop < context.length) after.push({ kind: 'text', text: '…' });
+  return { before, hit, after };
+}
+
 /** Texto mascarado com as marcas trocadas por rótulos, para frases fora do contrato. */
 export function humanizeMasked(text: string): string {
   return text.replace(MASK_TOKEN, (_m, kind: string) => hiddenLabel(kind));

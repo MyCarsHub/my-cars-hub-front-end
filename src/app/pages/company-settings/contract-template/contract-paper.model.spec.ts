@@ -9,6 +9,7 @@ import {
   buildMarkdownDocument,
   buildMaskedDocument,
   parseInline,
+  quoteOf,
 } from './contract-paper.model';
 
 const clause = (
@@ -173,6 +174,44 @@ describe('contrato que já chega com {{campo}}', () => {
     });
 
     expect(text(doc)).toEqual(['{initialKm} e {franchiseKm} rodados']);
+  });
+});
+
+describe('trecho citado na pergunta', () => {
+  const read = (segments: ReturnType<typeof quoteOf>['before']) =>
+    segments.map((s) => (s.kind === 'field' ? `{${s.field}}` : s.kind === 'text' ? s.text : '')).join('');
+
+  it('um campo ao lado do trecho aparece como campo, nunca cru', () => {
+    const quote = quoteOf('Campinas, {{contractDate}}', 'Campinas');
+
+    expect(quote.hit).toBe('Campinas');
+    expect(read(quote.after)).toBe(', {contractDate}');
+  });
+
+  it('o trecho é achado no texto, fora do nome de um campo', () => {
+    const quote = quoteOf('{{initialKm}} Km rodados', 'Km');
+
+    expect(read(quote.before)).toBe('{initialKm} ');
+    expect(read(quote.after)).toBe(' rodados');
+  });
+
+  it('o corte de um texto longo nunca parte um campo ao meio', () => {
+    const long = 'x'.repeat(80) + ' {{driverName}} ' + 'y'.repeat(50) + ' Alvo ' + 'z'.repeat(50) + ' {{driverCpf}} ' + 'w'.repeat(80);
+
+    const quote = quoteOf(long, 'Alvo');
+
+    expect(read(quote.before)).not.toContain('{{');
+    expect(read(quote.after)).not.toContain('{{');
+    expect(read(quote.before).startsWith('…')).toBe(true);
+    expect(read(quote.after).endsWith('…')).toBe(true);
+  });
+
+  it('token desconhecido fica como texto, como na folha', () => {
+    expect(read(quoteOf('Alvo {{campoEstranho}}', 'Alvo').after)).toBe(' {{campoEstranho}}');
+  });
+
+  it('sem o trecho no contexto, mostra só o trecho', () => {
+    expect(quoteOf('outro texto', 'Alvo')).toEqual({ before: [], hit: 'Alvo', after: [] });
   });
 });
 

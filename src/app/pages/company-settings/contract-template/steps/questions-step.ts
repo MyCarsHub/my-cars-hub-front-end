@@ -9,11 +9,11 @@ import {
 } from '@angular/core';
 import { FormField, FieldControl } from '../../../../components/form-field/form-field';
 import { ContractAiService } from '../ai/contract-ai.service';
-import { FIELD_LABELS, safeText } from '../ai/contract-ai.messages';
+import { FIELD_LABELS, fieldLabel, safeText } from '../ai/contract-ai.messages';
 import { SuggestionView } from '../ai/contract-ai.types';
 import { ContractExistingFields } from '../contract-existing-fields';
 import { FIELD_KEYS, plainFieldLabel } from '../contract-fields';
-import { humanizeMasked } from '../contract-paper.model';
+import { PaperSegment, QuoteParts, humanizeMasked, quoteOf } from '../contract-paper.model';
 import { ContractIcon } from '../contract-icon';
 
 export const KEEP_TEXT = '__none__';
@@ -82,7 +82,7 @@ const MAX_ANSWERS = 3;
       <figure class="m-0 flex flex-col gap-1.5">
         <figcaption class="text-[13px] font-semibold text-fg-muted">Está assim no seu contrato:</figcaption>
         <blockquote class="m-0 rounded-r-xl border-l-4 border-amber-400 bg-amber-50/50 dark:bg-amber-500/10 py-2.5 pl-3.5 pr-3 doc-serif text-base leading-relaxed text-fg-body break-words">
-          {{ quote().before }}<mark class="rounded-[3px] border-b-2 border-amber-500 bg-amber-100 dark:bg-amber-500/15 px-0.5 font-bold text-fg">{{ quote().hit }}</mark>{{ quote().after }}
+          <!-- Uma linha só: espaço entre os spans viraria espaço no texto do contrato. -->@for (s of quote().before; track $index) {<span [class]="quoteClass(s)">{{ quoteText(s) }}</span>}<mark class="rounded-[3px] border-b-2 border-amber-500 bg-amber-100 dark:bg-amber-500/15 px-0.5 font-bold text-fg">{{ quote().hit }}</mark>@for (s of quote().after; track $index) {<span [class]="quoteClass(s)">{{ quoteText(s) }}</span>}
         </blockquote>
       </figure>
       <div role="radiogroup" aria-label="Escolha uma resposta" class="flex flex-col gap-2.5">
@@ -211,21 +211,22 @@ export class ContractQuestionsStep {
     return prior.accept ? prior.field : KEEP_TEXT;
   });
 
-  protected readonly quote = computed(() => {
+  protected readonly quote = computed<QuoteParts>(() => {
     const d = this.current();
-    if (!d) return { before: '', hit: '', after: '' };
-    const hit = humanizeMasked(safeText(d.excerpt));
-    const context = humanizeMasked(safeText(d.context));
-    const at = context.indexOf(hit);
-    if (!hit || at < 0) return { before: '', hit, after: '' };
-    const before = context.slice(0, at);
-    const after = context.slice(at + hit.length);
-    return {
-      before: before.length > 70 ? '…' + before.slice(-70) : before,
-      hit,
-      after: after.length > 70 ? after.slice(0, 70) + '…' : after,
-    };
+    if (!d) return { before: [], hit: '', after: [] };
+    return quoteOf(humanizeMasked(safeText(d.context)), humanizeMasked(safeText(d.excerpt)));
   });
+
+  protected quoteText(s: PaperSegment): string {
+    if (s.kind === 'field') return fieldLabel(s.field);
+    return s.kind === 'hidden' ? s.label : s.text;
+  }
+
+  protected quoteClass(s: PaperSegment): string {
+    return s.kind === 'field'
+      ? 'rounded-[3px] border-b-2 border-emerald-500 bg-emerald-100 dark:bg-emerald-500/15 px-0.5 font-semibold text-emerald-900 dark:text-emerald-200 [box-decoration-break:clone]'
+      : '';
+  }
 
   protected pick(d: SuggestionView, value: string): void {
     this.focused.emit(d.id);

@@ -474,6 +474,9 @@ describe('ContractEsteira', () => {
       },
     );
 
+    expect(host.querySelector('blockquote')?.textContent).toContain('Campinas');
+    expect(host.querySelector('blockquote')?.textContent).toContain('Data do contrato');
+    expect(host.querySelector('blockquote')?.textContent).not.toContain('{{');
     expect(host.textContent).toContain('Seu contrato já tinha 2 dados.');
     expect(host.textContent).toContain('Só falta 1 pergunta rápida.');
     expect(host.textContent).toContain('2 dados já estão no contrato');
