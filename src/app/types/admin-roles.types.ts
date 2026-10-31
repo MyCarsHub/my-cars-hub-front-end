@@ -14,6 +14,7 @@ export type AdminCapabilityCode =
   | 'ver_como'
   | 'modo_edicao'
   | 'cobranca.agir'
+  | 'cupom.gerir'
   | 'asaas.comparar'
   | 'empresa.teste'
   | 'empresa.gerir'

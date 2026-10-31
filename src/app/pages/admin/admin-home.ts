@@ -97,6 +97,13 @@ const SECTIONS: AdminSection[] = [
     icon: 'M2 10h20 M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M7 15h2',
   },
   {
+    route: '/admin/cupons',
+    capability: 'ver',
+    title: 'Cupons',
+    description: 'Descontos por empresa: direto na assinatura ou por código.',
+    icon: 'M3 9V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3a3 3 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a3 3 0 0 0 0-6z M14 5v2 M14 11v2 M14 17v2',
+  },
+  {
     route: '/admin/notificacoes',
     capability: 'ver',
     title: 'Notificações',
