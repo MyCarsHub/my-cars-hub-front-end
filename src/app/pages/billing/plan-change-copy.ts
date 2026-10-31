@@ -26,10 +26,10 @@ const UPGRADE_REFUSALS: Record<string, string> = {
 };
 
 const BLOCKED_TITLES: Partial<Record<PlanChangeReason, string>> = {
-  ALREADY_ON_PLAN: 'Você já está neste plano',
+  ALREADY_ON_PLAN: 'Nada a mudar',
   PLAN_NOT_AVAILABLE: 'Plano indisponível',
-  DOWNGRADE_SCHEDULED: 'Há uma mudança agendada',
-  CANCELLATION_SCHEDULED: 'Há um cancelamento agendado',
+  DOWNGRADE_SCHEDULED: 'Antes, desfaça o agendamento',
+  CANCELLATION_SCHEDULED: 'Antes, desfaça o cancelamento',
   DOWNGRADE_LOCKED_UNTIL_PAID: 'Disponível depois do pagamento',
 };
 
@@ -58,11 +58,6 @@ function planLabel(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 }
 
-/** "R$ 149,90", com espaço comum: a mesma forma do resto da página. */
-function money(cents: number): string {
-  return formatBRL(cents).replace(/ /g, ' ');
-}
-
 /**
  * A frase do diálogo, com data e valor da API. `null` quando a resposta não
  * sustenta a promessa: sem data, sem valor, ou com cobrança hoje.
@@ -74,7 +69,7 @@ export function upgradeCopy(preview: PlanChangePreview): UpgradeCopy | null {
   return {
     planLabel: label,
     lead: `O ${label} começa agora.`,
-    rest: `Você não paga nada hoje. A partir de ${formatFullDate(next)} a mensalidade passa a ${money(preview.nextAmountCents)}.`,
+    rest: `Você não paga nada hoje. A partir de ${formatFullDate(next)} a mensalidade passa a ${formatBRL(preview.nextAmountCents)}.`,
   };
 }
 

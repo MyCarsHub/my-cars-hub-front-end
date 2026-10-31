@@ -212,7 +212,7 @@
               }
             </app-painted-card>
           } @else if (previewLoading()) {
-            <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse" data-testid="coupon-preview-loading"></div>
+            <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none" data-testid="coupon-preview-loading"></div>
           } @else if (previewError(); as err) {
             <div class="flex flex-col gap-2" data-testid="coupon-preview-error">
               <app-alert-banner variant="error" [message]="err" />
@@ -238,7 +238,7 @@
     }
   </div>
 
-  <div sheetFooter>
+  <div sheetFooter class="pt-3">
     @if (created()) {
       <button
         type="button"

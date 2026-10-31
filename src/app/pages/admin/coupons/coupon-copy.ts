@@ -44,7 +44,7 @@ const GENERIC: Record<CouponAction, string> = {
 };
 
 export function discountLabel(coupon: Pick<AdminCoupon, 'amountOffCents' | 'percentOff'>): string {
-  if (coupon.amountOffCents !== null) return formatBRL(coupon.amountOffCents).replace(/ /g, ' ');
+  if (coupon.amountOffCents !== null) return formatBRL(coupon.amountOffCents).replace(/\u00A0/g, ' ');
   if (coupon.percentOff !== null) return `${PERCENT.format(coupon.percentOff)}%`;
   return '—';
 }

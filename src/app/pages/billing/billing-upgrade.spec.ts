@@ -286,7 +286,12 @@ describe('Billing: upgrade decidido pelo servidor', () => {
     it('usa o valor da prévia da Stripe, não o preço de tabela', () => {
       billing.planChangePreview.mockReturnValue(of(inPlace({ nextAmountCents: 10000 })));
       const { el } = startUpgrade();
-      expect(byTest(el, 'upgrade-copy')?.textContent).toContain('R$ 100,00');
+      expect(byTest(el, 'upgrade-copy')?.textContent).toContain('R$\u00A0100,00');
+    });
+
+    it('o valor nunca quebra entre "R$" e os números', () => {
+      const { el } = startUpgrade();
+      expect(byTest(el, 'upgrade-copy')?.textContent).toContain('R$\u00A0149,90');
     });
 
     it('tem só "Agora não" e "Confirmar upgrade", sem ícone de alerta nem vermelho', () => {

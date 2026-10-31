@@ -50,8 +50,8 @@
 
   @if (loading() && rows().length === 0) {
     <div class="grid gap-3 lg:grid-cols-2" data-testid="skeleton">
-      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse"></div>
-      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse"></div>
+      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
     </div>
   } @else if (!error() && rows().length === 0) {
     <div class="py-10 text-center">
@@ -127,20 +127,20 @@
         <tbody>
           @for (row of rows(); track row.coupon.couponId; let i = $index) {
             <tr
-              class="enter-up border-t border-edge-soft align-top transition-colors hover:bg-canvas"
+              class="enter-up border-t border-edge-soft align-middle transition-colors hover:bg-canvas"
               [style.--stagger-i]="i"
               data-testid="coupon-row"
             >
-              <td class="px-4 py-3 font-semibold tabular-nums text-fg">{{ row.code }}</td>
+              <td class="px-4 py-3 font-semibold tabular-nums text-fg whitespace-nowrap">{{ row.code }}</td>
               <td class="px-4 py-3">
                 @if (row.coupon.companyId; as companyId) {
                   <a
                     [routerLink]="['/admin/companies', companyId]"
-                    class="font-semibold text-primary-700 dark:text-primary-300 hover:underline rounded-sm
+                    class="inline-flex items-center min-h-[44px] font-semibold text-primary-700 dark:text-primary-300 hover:underline rounded-sm
                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                   >{{ row.company }}</a>
                 }
-                <span class="block mt-0.5 text-xs text-fg-subtle">{{ row.plan }}</span>
+                <span class="block text-xs text-fg-subtle">{{ row.plan }}</span>
               </td>
               <td class="px-4 py-3 text-right font-semibold tabular-nums text-fg">{{ row.discount }}</td>
               <td class="px-4 py-3 text-fg-soft whitespace-nowrap">{{ row.duration }}</td>
