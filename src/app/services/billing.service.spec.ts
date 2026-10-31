@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
 import { HttpErrorResponse } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BillingService, isFreePlanInForce } from './billing.service';
@@ -370,6 +370,19 @@ describe('BillingService: troca de plano', () => {
     expect(body).toEqual({});
     expect(options.context.get(OWNED_HTTP_ERRORS)).toBe(true);
     expect(invalidate).toHaveBeenCalledTimes(1);
+  });
+
+  const ACCOUNT_ACTIONS: [string, (s: BillingService) => Observable<unknown>][] = [
+    ['cancel', (s) => s.cancel()],
+    ['downgrade', (s) => s.downgrade()],
+    ['reactivate', (s) => s.reactivate()],
+  ];
+
+  it.each(ACCOUNT_ACTIONS)('%s: a tela é dona do 503, sem toast repetindo o aviso', (_name, call) => {
+    post.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+    call(TestBed.inject(BillingService)).subscribe({ error: () => undefined });
+    const options = post.mock.calls[0][2] as { context: HttpContext };
+    expect(options.context.get(OWNED_HTTP_ERRORS)).toBe(true);
   });
 
   it('upgrade recusado não toca o banner da página nem o cache de acesso', () => {

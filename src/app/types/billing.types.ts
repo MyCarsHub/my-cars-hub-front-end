@@ -140,7 +140,8 @@ export type PlanChangeReason =
   | 'PLAN_NOT_AVAILABLE'
   | 'DOWNGRADE_SCHEDULED'
   | 'CANCELLATION_SCHEDULED'
-  | 'DOWNGRADE_LOCKED_UNTIL_PAID';
+  | 'DOWNGRADE_LOCKED_UNTIL_PAID'
+  | 'PROVIDER_MISMATCH';
 
 export interface PlanChangePreview {
   mode: PlanChangeMode;
@@ -226,6 +227,12 @@ export interface BillingSummary {
   scheduledDowngradeAt: string | null;
   scheduledChangePlanCode?: string | null;
   scheduledChangeAt?: string | null;
+  /**
+   * O que a próxima fatura vai cobrar, já com desconto ou mudança agendada. `null`
+   * sem próxima cobrança, ou quando a Stripe não respondeu a tempo: aí não há valor
+   * a afirmar, e o preço do plano não pode se passar por ele.
+   */
+  nextChargeAmountCents?: number | null;
   pastDueSince: string | null;
   graceEndsAt: string | null;
   amountDueCents: number | null;

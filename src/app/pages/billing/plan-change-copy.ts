@@ -44,6 +44,7 @@ const BLOCKED_TITLES: Partial<Record<PlanChangeReason, string>> = {
   DOWNGRADE_SCHEDULED: 'Antes, desfaça o agendamento',
   CANCELLATION_SCHEDULED: 'Antes, desfaça o cancelamento',
   DOWNGRADE_LOCKED_UNTIL_PAID: 'Disponível depois do pagamento',
+  PROVIDER_MISMATCH: 'Precisamos revisar sua assinatura',
 };
 
 /** Só para o caso de o servidor não mandar `message` num `BLOCKED`. */
@@ -53,6 +54,8 @@ const BLOCKED_MESSAGES: Partial<Record<PlanChangeReason, string>> = {
   DOWNGRADE_SCHEDULED: UPGRADE_REFUSALS['UPGRADE_DOWNGRADE_SCHEDULED'],
   CANCELLATION_SCHEDULED: UPGRADE_REFUSALS['UPGRADE_CANCELLATION_SCHEDULED'],
   DOWNGRADE_LOCKED_UNTIL_PAID: 'A volta para um plano menor fica disponível depois que a próxima fatura for paga.',
+  PROVIDER_MISMATCH:
+    'A Stripe mostra a assinatura diferente do que temos aqui. Nada foi alterado. Fale com o suporte.',
 };
 
 export const PREVIEW_FAILED_NOTICE: PlanNotice = {
@@ -180,6 +183,13 @@ const REFUSAL_REASONS: Record<string, PlanChangeReason> = {
 
 export function refusalNotice(err: unknown): PlanNotice | null {
   const parsed = parseApiError(err);
+  // Vale para qualquer outro `BLOCKED` do servidor: a frase aqui é a que não insinua cobrança.
+  if (parsed.code === 'UPGRADE_NOT_AVAILABLE') {
+    return {
+      title: BLOCKED_TITLES.PLAN_NOT_AVAILABLE as string,
+      message: 'Este plano não está disponível no momento. Nada foi cobrado.',
+    };
+  }
   const reason = parsed.code ? REFUSAL_REASONS[parsed.code] : undefined;
   if (!reason) return null;
   return {
@@ -237,6 +247,16 @@ export function undoErrorMessage(err: unknown): string {
         ? UNDO_UNKNOWN_MESSAGE
         : 'Não foi possível desfazer a mudança. Tente de novo.';
   }
+}
+
+/**
+ * 503 em cancelar, voltar ao gratuito e reativar: o contrato garante que nada
+ * mudou e que repetir é seguro. Os outros status não garantem, e ficam de fora.
+ */
+export function providerDownMessage(err: unknown): string | null {
+  return err instanceof HttpErrorResponse && err.status === 503
+    ? 'A Stripe não respondeu. Nada mudou e sua assinatura segue como estava. Tente de novo.'
+    : null;
 }
 
 /** Cancelar com mudança agendada: nada é desfeito em silêncio. */

@@ -229,7 +229,9 @@ export class BillingService {
   downgrade(planCode?: string): Observable<SubscriptionChangeResponse> {
     const body: DowngradeRequest = planCode ? { planCode } : {};
     return this.mutate(
-      this.http.post<SubscriptionChangeResponse>(`${API_BASE}/downgrade`, body),
+      this.http.post<SubscriptionChangeResponse>(`${API_BASE}/downgrade`, body, {
+        context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+      }),
       'Não foi possível alterar o plano. Tente novamente.',
     );
   }
@@ -287,7 +289,11 @@ export class BillingService {
   /** Undo a scheduled cancellation. 400 means the user must pay again. */
   reactivate(): Observable<SubscriptionChangeResponse> {
     return this.mutate(
-      this.http.post<SubscriptionChangeResponse>(`${API_BASE}/reactivate`, {}),
+      this.http.post<SubscriptionChangeResponse>(
+        `${API_BASE}/reactivate`,
+        {},
+        { context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
+      ),
       'Não foi possível reativar a assinatura. Tente novamente.',
     );
   }
@@ -295,7 +301,13 @@ export class BillingService {
   cancel(): Observable<void> {
     this._loading.set(true);
     this._error.set(null);
-    return this.http.post(`${API_BASE}/cancel`, {}, { responseType: 'text' }).pipe(
+    return this.http
+      .post(
+        `${API_BASE}/cancel`,
+        {},
+        { responseType: 'text', context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
+      )
+      .pipe(
       map(() => void 0),
       // No optimistic `cancelAtPeriodEnd` write here — the backend is the
       // source of truth and the caller re-reads `/subscription`.

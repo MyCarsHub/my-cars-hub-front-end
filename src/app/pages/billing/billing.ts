@@ -72,6 +72,7 @@ import {
   blockedNotice,
   cancelRefusal,
   isRerouted,
+  providerDownMessage,
   refusalNotice,
   scheduledCopy,
   undoErrorMessage,
@@ -1366,6 +1367,11 @@ export class Billing implements OnInit, OnDestroy {
           this.showPlanNotice(refused);
           return;
         }
+        const providerDown = providerDownMessage(err);
+        if (providerDown) {
+          this.showPlanNotice({ title: 'Nada mudou', message: providerDown });
+          return;
+        }
         this.ctaError.set({ planId: plan.id, message });
       },
     });
@@ -1575,7 +1581,7 @@ export class Billing implements OnInit, OnDestroy {
           err,
           'Não foi possível cancelar a assinatura. Tente novamente.',
         );
-        this.accountActionError.set(cancelRefusal(err) ?? message);
+        this.accountActionError.set(cancelRefusal(err) ?? providerDownMessage(err) ?? message);
         this.billingService.clearError();
       },
     });
@@ -1601,14 +1607,15 @@ export class Billing implements OnInit, OnDestroy {
       },
       error: (err: unknown) => {
         this.accountActionBusy.set(false);
-        this.accountActionError.set(
-          this.apiErrors.messageFor(
-            err,
-            'Não foi possível reativar. Escolha um plano para retomar o acesso.',
-          ),
+        const message = this.apiErrors.messageFor(
+          err,
+          'Não foi possível reativar. Escolha um plano para retomar o acesso.',
         );
+        const providerDown = providerDownMessage(err);
+        this.accountActionError.set(providerDown ?? message);
         this.billingService.clearError();
-        this.sheet.set('plans');
+        // A assinatura segue viva: os planos seriam um convite a pagar de novo.
+        if (!providerDown) this.sheet.set('plans');
       },
     });
   }
@@ -1753,6 +1760,7 @@ export class Billing implements OnInit, OnDestroy {
     const sum = this.summary();
     let cents: number | null = null;
     if (this.owing() && sum?.amountDueCents != null) cents = sum.amountDueCents;
+    else if (!this.owing() && sum?.nextChargeAmountCents != null) cents = sum.nextChargeAmountCents;
     else {
       const price = sum?.plan?.price ?? this.currentPlan()?.price ?? null;
       if (price != null && price > 0) cents = Math.round(price * 100);
@@ -1765,8 +1773,18 @@ export class Billing implements OnInit, OnDestroy {
     };
   });
 
+  /** A fatura vem diferente do preço do plano: "/mês" seria mentira ao lado dela. */
+  private readonly nextChargeIsNotThePrice = computed(() => {
+    const sum = this.summary();
+    const next = sum?.nextChargeAmountCents;
+    if (next == null) return false;
+    const price = sum?.plan?.price ?? this.currentPlan()?.price ?? null;
+    return price == null || next !== Math.round(price * 100);
+  });
+
   protected readonly heroPer = computed(() => {
     if (this.owing()) return 'em aberto';
+    if (this.nextChargeIsNotThePrice()) return 'próxima cobrança';
     const period = this.summary()?.plan?.period ?? this.currentPlan()?.period;
     return period === 'YEARLY' ? '/ano' : '/mês';
   });
