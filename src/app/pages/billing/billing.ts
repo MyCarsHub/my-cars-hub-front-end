@@ -14,7 +14,7 @@ import {
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { timeout } from 'rxjs';
+import { Observable, timeout } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { BottomSheet } from '../../components/core/bottom-sheet/bottom-sheet';
@@ -68,10 +68,13 @@ import {
   PREVIEW_FAILED_MESSAGE,
   PREVIEW_FAILED_NOTICE,
   PlanNotice,
-  UpgradeCopy,
+  PlanOfferCopy,
   blockedNotice,
-  isUseInPlace,
+  cancelRefusal,
+  isRerouted,
   refusalNotice,
+  scheduledCopy,
+  undoErrorMessage,
   upgradeCanRetry,
   upgradeCopy,
   upgradeErrorMessage,
@@ -89,15 +92,12 @@ export type PlanIntent =
   | 'UPGRADE'
   /** Target is the FREE plan — the only thing `/downgrade` accepts. */
   | 'DOWNGRADE'
-  /**
-   * Cheaper PAID plan, same period. The backend answers 400 on `/downgrade`
-   * for a paid target, so this is a brand new checkout, not a schedule.
-   */
+  /** Plano pago menor, mesmo ciclo: agendado para a renovação, sem cobrança hoje. */
   | 'PLAN_SWITCH'
   | 'SCHEDULED'
-  /** Mensal → Anual. New paid commitment, no proration on the month left. */
+  /** Mensal → Anual: agendado para a renovação, sem cobrança hoje. */
   | 'PERIOD_UPGRADE'
-  /** Anual → Mensal. Burns the remainder of an already-paid year. */
+  /** Anual → Mensal: agendado para a renovação, sem cobrança hoje. */
   | 'PERIOD_DOWNGRADE';
 
 /** `visibilitychange` + `focus` fire together; don't double-fetch. */
@@ -336,11 +336,15 @@ export class Billing implements OnInit, OnDestroy {
   /** Mensal↔Anual target awaiting an explicit, informed confirmation. */
   protected readonly periodSwitchTarget = signal<PlanResponse | null>(null);
 
-  /** Upgrade que o servidor aceita na mesma assinatura, aguardando a confirmação. */
-  protected readonly upgradeOffer = signal<{ plan: PlanResponse; copy: UpgradeCopy } | null>(null);
-  protected readonly upgradeBusy = signal(false);
+  /** Troca sem cobrança hoje, aguardando a confirmação: agora ou na renovação. */
+  protected readonly planOffer = signal<{
+    plan: PlanResponse;
+    copy: PlanOfferCopy;
+    kind: 'IN_PLACE' | 'SCHEDULED';
+  } | null>(null);
+  protected readonly planOfferBusy = signal(false);
   /** O servidor recusou de um jeito que repetir não resolve: só resta fechar. */
-  protected readonly upgradeRefused = signal(false);
+  protected readonly planOfferRefused = signal(false);
   /** Por que esta mudança não acontece agora: `BLOCKED` ou a trava da descida. */
   protected readonly planNotice = signal<PlanNotice | null>(null);
 
@@ -444,6 +448,32 @@ export class Billing implements OnInit, OnDestroy {
    * ACTIVE one whose `currentPeriodEnd` is already in the past — guaranteed a
    * 400 + error toast every time.
    */
+  /** Plano pago menor ou troca de ciclo agendados. O plano em vigor segue `planCode`. */
+  protected readonly scheduledChangeCode = computed<string | null>(
+    () => this.subscription()?.scheduledChangePlanCode ?? this.summary()?.scheduledChangePlanCode ?? null,
+  );
+
+  private readonly scheduledChangeAt = computed(() =>
+    parseServerTime(this.subscription()?.scheduledChangeAt ?? this.summary()?.scheduledChangeAt ?? null),
+  );
+
+  /** "Starter mensal": o ciclo também pode ser o que muda. */
+  private readonly scheduledChangeName = computed(() => {
+    const row = this.plans().find((p) => p.code === this.scheduledChangeCode());
+    if (!row) return 'outro plano';
+    return `${displayPlanName(row.name)} ${row.period === 'YEARLY' ? 'anual' : 'mensal'}`;
+  });
+
+  protected readonly scheduledChangeLine = computed(() =>
+    this.scheduledChangeCode()
+      ? `Muda para ${this.scheduledChangeName()} em ${formatFullDate(this.scheduledChangeAt())}`
+      : null,
+  );
+
+  protected readonly canUndoPlanChange = computed(
+    () => this.canManage() && this.has('UNDO_PLAN_CHANGE'),
+  );
+
   protected readonly canReactivate = computed<boolean>(() => {
     const sub = this.subscription();
     // Nothing to reactivate on a free plan: there is no paid commitment and no
@@ -468,6 +498,8 @@ export class Billing implements OnInit, OnDestroy {
     // 403 — o botão não pode existir.
     if (!this.canManage()) return false;
     if (sub.cancelAtPeriodEnd) return false;
+    // O servidor recusa: nada é desfeito em silêncio. "Desfazer" entra no lugar.
+    if (sub.status === 'ACTIVE' && this.scheduledChangeCode()) return false;
     // A free ACTIVE plan is the floor — "Cancelar assinatura" would be a 400
     // and means nothing to the user.
     if (this.isFreeActive()) return false;
@@ -761,7 +793,9 @@ export class Billing implements OnInit, OnDestroy {
   /** O que a troca é em si, ignorando um checkout já iniciado para este plano. */
   private changeIntent(plan: PlanResponse): PlanIntent {
     if (this.isCurrent(plan)) return 'CURRENT';
-    if (this.scheduledDowngradeCode() === plan.code) return 'SCHEDULED';
+    if (this.scheduledDowngradeCode() === plan.code || this.scheduledChangeCode() === plan.code) {
+      return 'SCHEDULED';
+    }
 
     // The FREE row is never something you buy. It is either the plan already in
     // force, or a `/downgrade` destination — never a `/checkout`. Classified
@@ -884,20 +918,10 @@ export class Billing implements OnInit, OnDestroy {
 
   protected planCtaNote(plan: PlanResponse): string | null {
     switch (this.planIntent(plan)) {
-      case 'UPGRADE':
-        // Only when there is a paid period to lose — a first checkout from the
-        // free plan costs the user nothing extra.
-        return this.burnsPaidPeriod()
-          ? 'Cobrança imediata do novo plano; o restante do período pago não vira crédito.'
-          : null;
       case 'PENDING_PAYMENT':
         // Must read as "resume", never as "pay again": the CTA reopens the
         // SAME charge that was already started, it does not create a second.
         return 'Retoma a mesma cobrança já iniciada — nada é cobrado duas vezes.';
-      case 'PERIOD_UPGRADE':
-        return 'Cobrança anual imediata, sem proporcional do mês em curso.';
-      case 'PERIOD_DOWNGRADE':
-        return 'Cancela sua anual na hora, sem reembolso do período restante.';
       case 'DOWNGRADE':
         // `burnsPaidPeriod()` is the ONLY proof there is a paid period left to
         // honour. Without it (PAST_DUE / CANCELED / EXPIRED) the promise would
@@ -905,12 +929,8 @@ export class Billing implements OnInit, OnDestroy {
         return this.burnsPaidPeriod()
           ? 'Vale a partir do fim do período já pago.'
           : 'Sem cobranças. Você volta para o plano gratuito.';
-      case 'PLAN_SWITCH':
-        // Paid → paid is a new charge, NOT a scheduled change: say so before
-        // the click, not after the card is billed.
-        return 'Cobrança imediata do novo plano; o restante do período pago não vira crédito.';
       case 'SCHEDULED': {
-        const at = this.scheduledDowngradeAt();
+        const at = this.scheduledDowngradeAt() ?? this.subscription()?.scheduledChangeAt ?? null;
         return at ? `Entra em vigor em ${this.formatDate(at)}.` : 'Já agendado.';
       }
       default:
@@ -1022,7 +1042,8 @@ export class Billing implements OnInit, OnDestroy {
   private applyPlanChange(plan: PlanResponse, preview: PlanChangePreview, afterRefusal: boolean): void {
     switch (preview.mode) {
       case 'IN_PLACE':
-        this.offerUpgrade(plan, preview, afterRefusal);
+      case 'SCHEDULED':
+        this.offerPlanChange(plan, preview, preview.mode, afterRefusal);
         return;
       case 'CHECKOUT':
         if (afterRefusal) {
@@ -1053,47 +1074,88 @@ export class Billing implements OnInit, OnDestroy {
     else this.ctaError.set({ planId: plan.id, message: PREVIEW_FAILED_MESSAGE });
   }
 
-  private offerUpgrade(plan: PlanResponse, preview: PlanChangePreview, afterRefusal: boolean): void {
-    const copy = upgradeCopy(preview);
+  private offerPlanChange(
+    plan: PlanResponse,
+    preview: PlanChangePreview,
+    kind: 'IN_PLACE' | 'SCHEDULED',
+    afterRefusal: boolean,
+  ): void {
+    const current = this.currentPlan();
+    const copy =
+      kind === 'IN_PLACE'
+        ? upgradeCopy(preview, plan.period)
+        : current && scheduledCopy(preview, plan.period, current);
     if (!copy) {
       this.previewFailed(plan, afterRefusal);
       return;
     }
     this.sheetError.set(null);
-    this.upgradeRefused.set(false);
-    this.upgradeOffer.set({ plan, copy });
+    this.planOfferRefused.set(false);
+    this.planOffer.set({ plan, copy, kind });
     this.sheet.set('upgrade');
   }
 
-  protected confirmUpgrade(): void {
-    const offer = this.upgradeOffer();
-    if (!offer || this.upgradeBusy() || this.upgradeRefused() || !this.canManage()) return;
-    this.upgradeBusy.set(true);
+  protected confirmPlanChange(): void {
+    const offer = this.planOffer();
+    if (!offer || this.planOfferBusy() || this.planOfferRefused() || !this.canManage()) return;
+    this.planOfferBusy.set(true);
     this.sheetError.set(null);
+    const inPlace = offer.kind === 'IN_PLACE';
+    const request: Observable<{ message: string | null }> = inPlace
+      ? this.billingService.upgrade(offer.plan.code)
+      : this.billingService.schedulePlanChange(offer.plan.code);
+    const fallback = inPlace
+      ? `O ${displayPlanName(offer.plan.name)} já está ativo.`
+      : 'Mudança agendada. Você não paga nada hoje.';
+    request.pipe(timeout(CHECKOUT_REQUEST_TIMEOUT_MS)).subscribe({
+      next: (res) => {
+        this.planOfferBusy.set(false);
+        this.closePlanOffer();
+        this.notifications.success(res.message ?? fallback);
+        this.revalidateAfterImmediateChange();
+      },
+      error: (err: unknown) => {
+        this.planOfferBusy.set(false);
+        this.apiErrors.claim(err);
+        if (isRerouted(err)) {
+          this.closePlanOffer();
+          this.previewPlanChange(offer.plan, true);
+          return;
+        }
+        this.planOfferRefused.set(!upgradeCanRetry(err));
+        this.sheetError.set(upgradeErrorMessage(err));
+        this.revalidateAfterImmediateChange();
+      },
+    });
+  }
+
+  protected closePlanOffer(): void {
+    this.planOffer.set(null);
+    this.planOfferRefused.set(false);
+    this.closeSheet();
+  }
+
+  /** Desfaz a mudança agendada. O plano e a renovação ficam como estavam. */
+  protected undoPlanChange(): void {
+    if (this.accountActionBusy()) return;
+    this.accountActionError.set(null);
+    this.accountActionBusy.set(true);
     this.billingService
-      .upgrade(offer.plan.code)
+      .undoPlanChange()
       .pipe(timeout(CHECKOUT_REQUEST_TIMEOUT_MS))
       .subscribe({
         next: (res) => {
-          this.upgradeBusy.set(false);
-          this.closeUpgrade();
-          this.notifications.success(res.message ?? `O ${displayPlanName(res.planName)} já está ativo.`);
+          this.accountActionBusy.set(false);
+          this.notifications.success(res.message ?? 'Mudança desfeita. Seu plano continua o mesmo.');
           this.revalidateAfterImmediateChange();
         },
         error: (err: unknown) => {
-          this.upgradeBusy.set(false);
+          this.accountActionBusy.set(false);
           this.apiErrors.claim(err);
-          this.upgradeRefused.set(!upgradeCanRetry(err));
-          this.sheetError.set(upgradeErrorMessage(err));
+          this.accountActionError.set(undoErrorMessage(err));
           this.revalidateAfterImmediateChange();
         },
       });
-  }
-
-  protected closeUpgrade(): void {
-    this.upgradeOffer.set(null);
-    this.upgradeRefused.set(false);
-    this.closeSheet();
   }
 
   private showPlanNotice(notice: PlanNotice): void {
@@ -1258,7 +1320,7 @@ export class Billing implements OnInit, OnDestroy {
     this.clearCheckoutMarkers();
     const message = err === undefined ? fallback : this.apiErrors.messageFor(err, fallback);
     this.billingService.clearError();
-    if (err !== undefined && isUseInPlace(err)) {
+    if (err !== undefined && isRerouted(err)) {
       this.previewPlanChange(plan, true);
       return;
     }
@@ -1373,8 +1435,8 @@ export class Billing implements OnInit, OnDestroy {
   );
 
   // ---------------------------------------------------------------------------
-  // Immediate plan change (Mensal ↔ Anual, or paid → cheaper paid) — always
-  // charged on the spot, so explicit, informed consent is required.
+  // Troca pelo checkout: só quem não tem assinatura paga ativa chega aqui. Ela
+  // cobra na hora, então o consentimento é explícito e informado.
   // ---------------------------------------------------------------------------
 
   /** Whole days left in the period the customer already paid for. */
@@ -1509,12 +1571,11 @@ export class Billing implements OnInit, OnDestroy {
       },
       error: (err: unknown) => {
         this.accountActionBusy.set(false);
-        this.accountActionError.set(
-          this.apiErrors.messageFor(
-            err,
-            'Não foi possível cancelar a assinatura. Tente novamente.',
-          ),
+        const message = this.apiErrors.messageFor(
+          err,
+          'Não foi possível cancelar a assinatura. Tente novamente.',
         );
+        this.accountActionError.set(cancelRefusal(err) ?? message);
         this.billingService.clearError();
       },
     });
@@ -1877,7 +1938,9 @@ export class Billing implements OnInit, OnDestroy {
     let reason: string;
     if (!end) reason = 'Plano ativo.';
     else if (ending) reason = `Acesso até ${formatFullDate(end)}. Sem novas cobranças.`;
-    else
+    else if (this.scheduledChangeCode()) {
+      reason = `Em ${formatDayMonth(this.scheduledChangeAt() ?? end)} você passa para o ${this.scheduledChangeName()}.`;
+    } else
       reason = card
         ? `Próxima cobrança em ${dayMonth} no ${card.label}.`
         : `Próxima cobrança em ${dayMonth}.`;

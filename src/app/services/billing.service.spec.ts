@@ -352,6 +352,26 @@ describe('BillingService: troca de plano', () => {
     expect(got).toBe(response);
   });
 
+  it('agendar manda só o plano, invalida o acesso e a tela é dona do erro', () => {
+    post.mockReturnValue(of({ outcome: 'SCHEDULED' }));
+    TestBed.inject(BillingService).schedulePlanChange('STARTER_MONTHLY_STRIPE').subscribe();
+    const [url, body, options] = post.mock.calls[0] as [string, unknown, { context: HttpContext }];
+    expect(url).toMatch(/\/billing\/plan-change$/);
+    expect(body).toEqual({ planCode: 'STARTER_MONTHLY_STRIPE' });
+    expect(options.context.get(OWNED_HTTP_ERRORS)).toBe(true);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it('desfazer não tem corpo com dados, invalida o acesso e a tela é dona do erro', () => {
+    post.mockReturnValue(of({ outcome: 'UNDONE' }));
+    TestBed.inject(BillingService).undoPlanChange().subscribe();
+    const [url, body, options] = post.mock.calls[0] as [string, unknown, { context: HttpContext }];
+    expect(url).toMatch(/\/billing\/plan-change\/undo$/);
+    expect(body).toEqual({});
+    expect(options.context.get(OWNED_HTTP_ERRORS)).toBe(true);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+  });
+
   it('upgrade recusado não toca o banner da página nem o cache de acesso', () => {
     post.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
     const service = TestBed.inject(BillingService);

@@ -11,6 +11,7 @@ import {
   PlanChangePreview,
   PlanResponse,
   PlanUpgradeResponse,
+  ScheduledPlanChange,
   SubscriptionChangeResponse,
   SubscriptionPix,
   SubscriptionPixStatus,
@@ -150,8 +151,9 @@ export class BillingService {
    *                 The specific row already encodes name + period + gateway;
    *                 no separate billing cycle argument is needed.
    *
-   * Upgrades and first subscriptions ONLY. Downgrades must go through
-   * `downgrade()` — routing them here produced a R$ 0,00 checkout.
+   * First subscriptions and customers with no paid subscription ONLY. A paying
+   * customer moves through `upgrade()` or `schedulePlanChange()`, and the free
+   * plan through `downgrade()`.
    */
   /**
    * Resumo da página Assinatura. Falha NÃO escreve em `error`: a página continua
@@ -219,8 +221,8 @@ export class BillingService {
    * Schedule the move to the FREE plan at the end of the paid period.
    * NEVER hits `/checkout` and never returns a redirect URL.
    *
-   * The backend rejects a PAID `planCode` with 400 ("…exige um novo checkout"),
-   * so paid→paid changes must go through `startCheckout()` instead.
+   * The backend rejects a PAID `planCode` with 400: a cheaper paid plan goes
+   * through `schedulePlanChange()`.
    *
    * @param planCode Target free plan. Omit to let the backend pick it.
    */
@@ -252,6 +254,31 @@ export class BillingService {
       .post<PlanUpgradeResponse>(
         `${API_BASE}/upgrade`,
         { planCode },
+        { context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
+      )
+      .pipe(tap(() => this.access.invalidate()));
+  }
+
+  /**
+   * Plano pago menor ou troca de ciclo: nada é cobrado e nada muda antes da
+   * renovação. A falha fica no diálogo, como no upgrade.
+   */
+  schedulePlanChange(planCode: string): Observable<ScheduledPlanChange> {
+    return this.http
+      .post<ScheduledPlanChange>(
+        `${API_BASE}/plan-change`,
+        { planCode },
+        { context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
+      )
+      .pipe(tap(() => this.access.invalidate()));
+  }
+
+  /** Desfaz o que `schedulePlanChange` agendou, antes da renovação. */
+  undoPlanChange(): Observable<ScheduledPlanChange> {
+    return this.http
+      .post<ScheduledPlanChange>(
+        `${API_BASE}/plan-change/undo`,
+        {},
         { context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
       )
       .pipe(tap(() => this.access.invalidate()));

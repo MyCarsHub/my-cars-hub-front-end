@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { parseApiError } from '../../services/api-error';
 import { formatBRL } from '../../types/dashboard.types';
-import { PlanChangePreview, PlanChangeReason } from '../../types/billing.types';
+import { PlanChangePreview, PlanChangeReason, PlanPeriod } from '../../types/billing.types';
 import { formatFullDate, parseServerTime } from '../../utils/server-time';
 
 /** A recusa da descida traz a data no `message`: a frase do servidor é a que vale. */
@@ -9,6 +9,9 @@ export const DOWNGRADE_LOCKED_CODE = 'DOWNGRADE_LOCKED_UNTIL_PAID';
 
 /** O checkout recusou: esta troca é na mesma assinatura. A página relê a decisão. */
 export const USE_IN_PLACE_CODE = 'UPGRADE_USE_IN_PLACE';
+
+/** O inverso: esta mudança é agendada para a renovação. */
+export const USE_SCHEDULE_CODE = 'PLAN_CHANGE_USE_SCHEDULE';
 
 /** Sem resposta o resultado é desconhecido: esta frase não afirma nada sobre a troca. */
 export const UNKNOWN_OUTCOME_MESSAGE =
@@ -18,16 +21,19 @@ export const UNKNOWN_OUTCOME_MESSAGE =
 export const PREVIEW_FAILED_MESSAGE =
   'Não conseguimos conferir esta mudança agora. Nada foi cobrado. Tente de novo.';
 
+const UNDO_UNKNOWN_MESSAGE =
+  'Não conseguimos confirmar se a mudança foi desfeita. Atualize a página para ver seu plano.';
+
 const UPGRADE_REFUSALS: Record<string, string> = {
   UPGRADE_DOWNGRADE_SCHEDULED:
-    'Há uma mudança de plano agendada. Desfaça o agendamento antes de fazer o upgrade.',
+    'Há uma mudança de plano agendada. Desfaça o agendamento antes de mudar de novo.',
   UPGRADE_CANCELLATION_SCHEDULED:
-    'Há um cancelamento agendado. Desfaça o cancelamento antes de fazer o upgrade.',
+    'Há um cancelamento agendado. Desfaça o cancelamento antes de mudar de plano.',
   UPGRADE_USE_CHECKOUT:
     'Esta mudança agora passa pelo checkout. Feche e escolha o plano de novo. Nada foi alterado.',
   UPGRADE_NOT_AVAILABLE: 'Este plano não está disponível no momento. Nada foi alterado.',
   UPGRADE_CHECKOUT_IN_PROGRESS:
-    'Há um pagamento em andamento para esta assinatura. Conclua ou aguarde antes de fazer o upgrade. Nada foi alterado.',
+    'Há um pagamento em andamento para esta assinatura. Conclua ou aguarde antes de mudar de plano. Nada foi alterado.',
   UPGRADE_PROVIDER_MISMATCH:
     'A Stripe mostra a assinatura diferente do que temos aqui. Nada foi alterado. Atualize a página ou fale com o suporte.',
 };
@@ -59,33 +65,101 @@ export interface PlanNotice {
   message: string;
 }
 
-export interface UpgradeCopy {
+export interface PlanOfferCopy {
   planLabel: string;
   lead: string;
   rest: string;
+  /** O desconto atual para de valer com esta troca. */
+  discountNote: string | null;
+  /** A frota passa do teto do plano de destino. */
+  fleetNote: string | null;
 }
+
+const RECURRING_WORD: Record<PlanPeriod, string> = { MONTHLY: 'mensalidade', YEARLY: 'anuidade' };
+const PERIOD_WORD: Record<PlanPeriod, string> = { MONTHLY: 'mensal', YEARLY: 'anual' };
 
 /** O nome do plano como a tela escreve: "Pro", nunca "PRO". */
 function planLabel(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 }
 
-/**
- * A frase do diálogo, com data e valor da API. `null` quando a resposta não
- * sustenta a promessa: sem data, sem valor, ou com cobrança hoje.
- */
-export function upgradeCopy(preview: PlanChangePreview): UpgradeCopy | null {
-  const next = parseServerTime(preview.nextChargeAt);
-  if (!next || preview.nextAmountCents === null || preview.amountTodayCents !== 0) return null;
+/** A resposta sustenta "nada hoje, tal valor em tal data"? Se não, a frase não sai. */
+function promise(preview: PlanChangePreview): { date: string; next: number } | null {
+  const at = parseServerTime(preview.nextChargeAt);
+  if (!at || preview.nextAmountCents === null || preview.amountTodayCents !== 0) return null;
+  return { date: formatFullDate(at), next: preview.nextAmountCents };
+}
+
+function offerNotes(preview: PlanChangePreview): Pick<PlanOfferCopy, 'discountNote' | 'fleetNote'> {
+  const limit = preview.targetVehicleLimit;
+  return {
+    discountNote:
+      preview.discountAfterChange === 'LOST' ? 'O desconto atual não continua no novo plano.' : null,
+    fleetNote:
+      preview.fleetOverLimit && limit !== null
+        ? `Sua frota tem ${preview.vehicleCount} veículos e o ${planLabel(preview.planName)} vai até ${limit}. Nenhum veículo é removido e todos continuam editáveis. Só não dá para adicionar novos até a frota ficar abaixo de ${limit}.`
+        : null,
+  };
+}
+
+/** Upgrade na mesma assinatura. `null` quando a resposta não sustenta a promessa. */
+export function upgradeCopy(preview: PlanChangePreview, period: PlanPeriod): PlanOfferCopy | null {
+  const known = promise(preview);
+  if (!known) return null;
+  const { date } = known;
   const label = planLabel(preview.planName);
-  const date = formatFullDate(next);
   const listed = formatBRL(preview.listAmountCents);
   // A próxima fatura pode vir com desconto: ela não é a mensalidade do plano.
   const rest =
     preview.nextAmountCents === preview.listAmountCents
-      ? `Você não paga nada hoje. A partir de ${date} a mensalidade passa a ${listed}.`
+      ? `Você não paga nada hoje. A partir de ${date} a ${RECURRING_WORD[period]} passa a ${listed}.`
       : `Você não paga nada hoje. A próxima fatura, em ${date}, vem em ${formatBRL(preview.nextAmountCents)}. O preço do plano é ${listed}.`;
-  return { planLabel: label, lead: `O ${label} começa agora.`, rest };
+  return { planLabel: label, lead: `O ${label} começa agora.`, rest, ...offerNotes(preview) };
+}
+
+/**
+ * Mudança agendada para a renovação: plano menor ou troca de ciclo. O plano em
+ * vigor segue igual até lá, e a frase diz isso antes de falar de valor.
+ */
+export function scheduledCopy(
+  preview: PlanChangePreview,
+  period: PlanPeriod,
+  current: { name: string; period: PlanPeriod },
+): PlanOfferCopy | null {
+  const known = promise(preview);
+  if (!known) return null;
+  const { date, next } = known;
+  const from = planLabel(current.name);
+  const to = planLabel(preview.planName);
+  const listed = formatBRL(preview.listAmountCents);
+  const discounted = next !== preview.listAmountCents;
+  const today = 'Você não paga nada hoje.';
+  const notes = offerNotes(preview);
+
+  if (preview.reasonCode === 'INTERVAL_CHANGE') {
+    const target = `${to} ${PERIOD_WORD[period]}`;
+    const rest = [
+      `Nessa data começa o ${target}, com fatura de ${formatBRL(next)}.`,
+      discounted ? `O preço do plano é ${listed}.` : null,
+      from === to ? null : `Os limites do ${to} valem a partir dessa data.`,
+      today,
+    ];
+    return {
+      planLabel: target,
+      lead: `Você continua no ${from} ${PERIOD_WORD[current.period]} até ${date}.`,
+      rest: rest.filter(Boolean).join(' '),
+      ...notes,
+    };
+  }
+
+  return {
+    planLabel: to,
+    lead: `Você continua no ${from} até ${date}.`,
+    rest: discounted
+      ? `A próxima fatura, nessa data, vem em ${formatBRL(next)}. O preço do plano é ${listed}. ${today}`
+      : `A partir daí a ${RECURRING_WORD[period]} passa a ${listed}. ${today}`,
+    ...notes,
+  };
 }
 
 export function blockedNotice(preview: PlanChangePreview): PlanNotice {
@@ -114,8 +188,10 @@ export function refusalNotice(err: unknown): PlanNotice | null {
   };
 }
 
-export function isUseInPlace(err: unknown): boolean {
-  return parseApiError(err).code === USE_IN_PLACE_CODE;
+/** O servidor mandou esta troca para o outro caminho: quem decide é uma nova prévia. */
+export function isRerouted(err: unknown): boolean {
+  const { code } = parseApiError(err);
+  return code === USE_IN_PLACE_CODE || code === USE_SCHEDULE_CODE;
 }
 
 /**
@@ -134,7 +210,7 @@ export function upgradeErrorMessage(err: unknown): string {
   if (refusal) return refusal;
   switch (err.status) {
     case 403:
-      return 'Só o dono da conta pode fazer o upgrade, e nunca em sessão somente leitura.';
+      return 'Só o dono da conta pode mudar o plano, e nunca em sessão somente leitura.';
     case 503:
       return 'A Stripe não respondeu. Nada mudou e nada foi cobrado. Tente de novo.';
     case 500:
@@ -142,6 +218,30 @@ export function upgradeErrorMessage(err: unknown): string {
     default:
       return err.status === 0 || err.status >= 500
         ? UNKNOWN_OUTCOME_MESSAGE
-        : 'Não foi possível fazer o upgrade. Nada foi alterado. Tente de novo.';
+        : 'Não foi possível mudar o plano. Nada foi alterado. Tente de novo.';
   }
+}
+
+export function undoErrorMessage(err: unknown): string {
+  if (!(err instanceof HttpErrorResponse)) return UNDO_UNKNOWN_MESSAGE;
+  if (parseApiError(err).code === 'PLAN_CHANGE_TOO_LATE') {
+    return 'A renovação já aconteceu e o novo preço já está na fatura. Não dá mais para desfazer.';
+  }
+  switch (err.status) {
+    case 403:
+      return 'Só o dono da conta pode desfazer a mudança, e nunca em sessão somente leitura.';
+    case 503:
+      return 'A Stripe não respondeu. Nada mudou. Tente de novo.';
+    default:
+      return err.status === 0 || err.status >= 500
+        ? UNDO_UNKNOWN_MESSAGE
+        : 'Não foi possível desfazer a mudança. Tente de novo.';
+  }
+}
+
+/** Cancelar com mudança agendada: nada é desfeito em silêncio. */
+export function cancelRefusal(err: unknown): string | null {
+  return parseApiError(err).code === 'CANCEL_PLAN_CHANGE_SCHEDULED'
+    ? 'Há uma mudança de plano agendada. Desfaça a mudança antes de cancelar.'
+    : null;
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PLAN_CAPACITY } from './plan-limits';
 import {
   PLAN_DESCRIPTION,
   PLAN_FEATURE_EXTRAS,
@@ -349,6 +350,7 @@ describe('plan-features', () => {
       expect(description.length).toBeGreaterThan(0);
     }
 
+    expect(PLAN_DESCRIPTION.SCALE).toContain(`até ${PLAN_CAPACITY.SCALE.vehicles} veículos`);
     expect(PLAN_DESCRIPTION.PRO).toContain('na frente da fila');
     expect(PLAN_DESCRIPTION.ENTERPRISE).toContain('atendimento prioritário');
 

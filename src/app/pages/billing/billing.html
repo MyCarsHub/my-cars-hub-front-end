@@ -292,6 +292,9 @@
             <span class="meter" role="progressbar" aria-label="Veículos cadastrados" [attr.aria-valuenow]="u.vehicles"
               aria-valuemin="0" [attr.aria-valuemax]="u.limit"><i [style.transform]="'scaleX(' + u.pct / 100 + ')'"></i></span>
           }
+          @if (scheduledChangeLine(); as line) {
+            <small data-testid="scheduled-change">{{ line }}</small>
+          }
         </span>
         <span class="v">Mudar</span>
         <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
@@ -371,6 +374,10 @@
       @if (canReactivate() && canManage()) {
         <button type="button" appListRow inset class="row" [disabled]="accountActionBusy()" (click)="reactivate()" data-testid="row-reactivate">
           <span class="t"><b class="link">Reativar assinatura</b></span>
+        </button>
+      } @else if (canUndoPlanChange()) {
+        <button type="button" appListRow inset class="row" [disabled]="accountActionBusy()" (click)="undoPlanChange()" data-testid="row-undo-plan-change">
+          <span class="t"><b class="link">Desfazer mudança de plano</b></span>
         </button>
       } @else if (canCancel()) {
         <button type="button" appListRow inset danger class="row" [disabled]="accountActionBusy()" (click)="openCancel()" data-testid="row-cancel">
@@ -532,20 +539,26 @@
       </app-bottom-sheet>
     }
     @case ('upgrade') {
-      @if (upgradeOffer(); as offer) {
-        <app-bottom-sheet [title]="'Mudar para o ' + offer.copy.planLabel" [busy]="upgradeBusy()" (closed)="closeUpgrade()">
+      @if (planOffer(); as offer) {
+        <app-bottom-sheet [title]="'Mudar para o ' + offer.copy.planLabel" [busy]="planOfferBusy()" (closed)="closePlanOffer()">
           <div data-testid="upgrade-sheet">
             <p class="upgrade-copy" data-testid="upgrade-copy"><b>{{ offer.copy.lead }}</b> {{ offer.copy.rest }}</p>
+            @if (offer.copy.discountNote; as note) {
+              <p class="upgrade-note" data-testid="upgrade-discount">{{ note }}</p>
+            }
+            @if (offer.copy.fleetNote; as note) {
+              <div class="notice warn upgrade-fleet" data-testid="upgrade-fleet"><p>{{ note }}</p></div>
+            }
             @if (!canManage()) {
-              <p class="note upgrade-readonly">Sessão somente leitura: o upgrade não é executado aqui.</p>
+              <p class="note upgrade-readonly">Sessão somente leitura: a mudança não é executada aqui.</p>
             }
             @if (sheetError(); as e) {
               <div data-testid="upgrade-error" class="mt-3"><app-alert-banner variant="error" [message]="e" /></div>
             }
             <div class="upgrade-actions">
-              <button type="button" class="btn tonal" [disabled]="upgradeBusy()" (click)="closeUpgrade()" data-testid="upgrade-dismiss">Agora não</button>
-              <button type="button" class="btn primary" [disabled]="upgradeBusy() || upgradeRefused() || !canManage()" (click)="confirmUpgrade()" data-testid="upgrade-confirm">
-                {{ upgradeBusy() ? 'Confirmando…' : 'Confirmar upgrade' }}
+              <button type="button" class="btn tonal" [disabled]="planOfferBusy()" (click)="closePlanOffer()" data-testid="upgrade-dismiss">Agora não</button>
+              <button type="button" class="btn primary" [disabled]="planOfferBusy() || planOfferRefused() || !canManage()" (click)="confirmPlanChange()" data-testid="upgrade-confirm">
+                {{ planOfferBusy() ? 'Confirmando…' : offer.kind === 'IN_PLACE' ? 'Confirmar upgrade' : 'Confirmar mudança' }}
               </button>
             </div>
           </div>

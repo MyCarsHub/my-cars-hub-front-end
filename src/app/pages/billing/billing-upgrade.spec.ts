@@ -17,6 +17,7 @@ import {
   PlanChangePreview,
   PlanResponse,
   PlanUpgradeResponse,
+  ScheduledPlanChange,
   SubscriptionResponse,
 } from '../../types/billing.types';
 
@@ -118,6 +119,10 @@ const inPlace = (over: Partial<PlanChangePreview> = {}): PlanChangePreview => ({
   listAmountCents: 14990,
   nextChargeAt: '2026-11-13T10:00:00',
   nextAmountCents: 14990,
+  discountAfterChange: null,
+  vehicleCount: 8,
+  targetVehicleLimit: 25,
+  fleetOverLimit: false,
   ...over,
 });
 
@@ -136,6 +141,32 @@ const applied: PlanUpgradeResponse = {
   nextAmountCents: 14990,
   message: 'O PRO já está ativo. Você não paga nada hoje.',
 };
+
+const scheduled: ScheduledPlanChange = {
+  outcome: 'SCHEDULED',
+  currentPlanCode: 'PRO_MONTHLY_STRIPE',
+  planCode: 'STARTER_MONTHLY_STRIPE',
+  planName: 'STARTER',
+  amountTodayCents: 0,
+  effectiveAt: '2026-11-13T10:00:00',
+  nextAmountCents: 7990,
+  message: 'Você continua no PRO até 13/11/2026. Você não paga nada hoje.',
+};
+
+const undone: ScheduledPlanChange = { ...scheduled, outcome: 'UNDONE', planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO', nextAmountCents: 14990, message: 'Mudança desfeita.' };
+
+const schedule = (reasonCode: 'LOWER_PLAN' | 'INTERVAL_CHANGE', over: Partial<PlanChangePreview> = {}): PlanChangePreview =>
+  inPlace({
+    mode: 'SCHEDULED',
+    reasonCode,
+    currentPlanCode: 'PRO_MONTHLY_STRIPE',
+    planCode: 'STARTER_MONTHLY_STRIPE',
+    planName: 'STARTER',
+    listAmountCents: 7990,
+    nextAmountCents: 7990,
+    targetVehicleLimit: 15,
+    ...over,
+  });
 
 const apiError = (status: number, code?: string, message?: string): HttpErrorResponse =>
   new HttpErrorResponse({ status, error: { message: message ?? `servidor ${status}`, code } });
@@ -176,6 +207,9 @@ describe('Billing: upgrade decidido pelo servidor', () => {
     clearError: ReturnType<typeof vi.fn>;
     planChangePreview: ReturnType<typeof vi.fn>;
     upgrade: ReturnType<typeof vi.fn>;
+    schedulePlanChange: ReturnType<typeof vi.fn>;
+    undoPlanChange: ReturnType<typeof vi.fn>;
+    cancel: ReturnType<typeof vi.fn>;
   };
   let externalNav: { openExternal: ReturnType<typeof vi.fn>; openPendingTab: ReturnType<typeof vi.fn> };
   let access: { invalidate: ReturnType<typeof vi.fn>; load: ReturnType<typeof vi.fn> };
@@ -200,6 +234,9 @@ describe('Billing: upgrade decidido pelo servidor', () => {
       clearError: vi.fn(),
       planChangePreview: vi.fn(() => of(inPlace())),
       upgrade: vi.fn(() => of(applied)),
+      schedulePlanChange: vi.fn(() => of(scheduled)),
+      undoPlanChange: vi.fn(() => of(undone)),
+      cancel: vi.fn(() => of(void 0)),
     };
     tab = { blocked: false, navigate: vi.fn(), close: vi.fn() };
     externalNav = { openExternal: vi.fn(), openPendingTab: vi.fn(() => tab) };
@@ -500,7 +537,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
 
   describe('CHECKOUT', () => {
     it('com período pago mantém o aviso de hoje e só compra depois de confirmar', () => {
-      billing.planChangePreview.mockReturnValue(of(checkout('YEARLY_PLAN')));
+      billing.planChangePreview.mockReturnValue(of(checkout('NOT_ACTIVE')));
       const { c } = startUpgrade();
       expect(c.periodSwitchTarget()).toEqual(PRO);
       expect(c.periodSwitchVariant()).toBe('danger');
@@ -510,7 +547,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
     });
 
     it('a folha de planos fecha para o aviso ficar à vista', () => {
-      billing.planChangePreview.mockReturnValue(of(checkout('INTERVAL_CHANGE')));
+      billing.planChangePreview.mockReturnValue(of(checkout('NOT_ACTIVE')));
       const { c, fixture } = render();
       c.openPlans();
       fixture.detectChanges();
@@ -568,7 +605,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
 
     it('plano pago menor, pelo checkout: fecha a aba reservada e mostra a data', () => {
       subscriptionSignal.set(subscription({ planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO' }));
-      billing.planChangePreview.mockReturnValue(of(checkout('LOWER_PLAN')));
+      billing.planChangePreview.mockReturnValue(of(checkout('NOT_ACTIVE')));
       billing.startCheckout.mockReturnValue(throwError(() => apiError(409, 'DOWNGRADE_LOCKED_UNTIL_PAID', LOCK)));
       const { c, el, fixture } = render();
       c.onPlanCta(STARTER);
@@ -704,7 +741,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
 
     it('CHECKOUT com dias pagos a perder: avisa antes, nunca retoma em silêncio', () => {
       subscriptionSignal.set(pending());
-      billing.planChangePreview.mockReturnValue(of(checkout('INTERVAL_CHANGE')));
+      billing.planChangePreview.mockReturnValue(of(checkout('NOT_ACTIVE')));
       const { c } = startUpgrade();
       expect(billing.startCheckout).not.toHaveBeenCalled();
       expect(c.periodSwitchTarget()).toEqual(PRO);
@@ -749,7 +786,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
     };
     /** Chega ao checkout pelo aviso, como faria um cartão com a decisão antiga. */
     const reachCheckout = (): ReturnType<typeof render> => {
-      billing.planChangePreview.mockReturnValueOnce(of(checkout('YEARLY_PLAN')));
+      billing.planChangePreview.mockReturnValueOnce(of(checkout('NOT_ACTIVE')));
       const view = render();
       view.c.onPlanCta(PRO);
       view.c.confirmPeriodSwitch();
@@ -769,7 +806,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
 
     it('se a releitura disser CHECKOUT, para: nunca volta ao checkout em laço', () => {
       refused();
-      billing.planChangePreview.mockReturnValue(of(checkout('YEARLY_PLAN')));
+      billing.planChangePreview.mockReturnValue(of(checkout('NOT_ACTIVE')));
       const { c } = reachCheckout();
       expect(billing.startCheckout).toHaveBeenCalledTimes(1);
       expect(c.periodSwitchTarget()).toBeNull();
@@ -805,8 +842,425 @@ describe('Billing: upgrade decidido pelo servidor', () => {
     });
   });
 
+  const textOf = (el: HTMLElement, id: string): string =>
+    (byTest(el, id)?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const onPro = (over: Partial<SubscriptionResponse> = {}): void =>
+    subscriptionSignal.set(subscription({ planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO', ...over }));
+  const proSummary = (over: Partial<BillingSummary> = {}): BillingSummary =>
+    summary({
+      plan: { code: 'PRO_MONTHLY_STRIPE', name: 'PRO', period: 'MONTHLY', price: 149.9, vehicleLimit: 25, contactOnly: false },
+      ...over,
+    });
+  const choose = (plan: PlanResponse): ReturnType<typeof render> => {
+    const view = render();
+    view.c.onPlanCta(plan);
+    view.fixture.detectChanges();
+    return view;
+  };
+  const confirmOffer = (view: ReturnType<typeof render>): void => {
+    (byTest(view.el, 'upgrade-confirm') as HTMLButtonElement).click();
+    view.fixture.detectChanges();
+  };
+
+  describe('upgrade anual na mesma assinatura (§7)', () => {
+    const YEARLY = inPlace({
+      currentPlanCode: 'STARTER_YEARLY_STRIPE',
+      planCode: 'PRO_YEARLY_STRIPE',
+      listAmountCents: 149900,
+      nextChargeAt: '2027-03-01T10:00:00',
+      nextAmountCents: 149900,
+    });
+    const onYearly = (): void =>
+      subscriptionSignal.set(subscription({ planCode: 'STARTER_YEARLY_STRIPE', billingCycle: 'YEARLY' }));
+
+    it('diz anuidade, nunca mensalidade', () => {
+      onYearly();
+      billing.planChangePreview.mockReturnValue(of(YEARLY));
+      const { el } = choose(PRO_Y);
+      expect(textOf(el, 'upgrade-copy')).toBe(
+        'O Pro começa agora. Você não paga nada hoje. A partir de 01/03/2027 a anuidade passa a R$ 1.499,00.',
+      );
+      expect(billing.startCheckout).not.toHaveBeenCalled();
+    });
+
+    it('confirma pelo upgrade, sem checkout', () => {
+      onYearly();
+      billing.planChangePreview.mockReturnValue(of(YEARLY));
+      const view = choose(PRO_Y);
+      confirmOffer(view);
+      expect(billing.upgrade).toHaveBeenCalledExactlyOnceWith('PRO_YEARLY_STRIPE');
+      expect(billing.schedulePlanChange).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('SCHEDULED: plano pago menor (§6)', () => {
+    beforeEach(() => onPro());
+
+    it('abre o diálogo com a data, o valor e nada cobrado hoje', () => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN')));
+      const { el, c } = choose(STARTER);
+      expect(c.sheet()).toBe('upgrade');
+      expect(textOf(el, 'upgrade-copy')).toBe(
+        'Você continua no Pro até 13/11/2026. A partir daí a mensalidade passa a R$ 79,90. Você não paga nada hoje.',
+      );
+      expect(textOf(el, 'upgrade-confirm')).toBe('Confirmar mudança');
+      expect(textOf(el, 'upgrade-dismiss')).toBe('Agora não');
+    });
+
+    it('não mostra o aviso de perda, não abre aba nem checkout', () => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN')));
+      const { c, el } = choose(STARTER);
+      expect(c.periodSwitchTarget()).toBeNull();
+      expect(billing.startCheckout).not.toHaveBeenCalled();
+      expect(externalNav.openPendingTab).not.toHaveBeenCalled();
+      expect(byTest(el, 'upgrade-sheet')?.outerHTML).not.toMatch(/\b(red|rose|amber)-\d/);
+    });
+
+    it('plano anual menor diz anuidade', () => {
+      subscriptionSignal.set(subscription({ planCode: 'PRO_YEARLY_STRIPE', planName: 'PRO', billingCycle: 'YEARLY' }));
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN', { planCode: 'STARTER_YEARLY_STRIPE', listAmountCents: 79900, nextAmountCents: 79900 })));
+      const { el } = choose(STARTER_Y);
+      expect(textOf(el, 'upgrade-copy')).toContain('a anuidade passa a R$ 799,00');
+    });
+
+    it('fatura com desconto não vira mensalidade', () => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN', { nextAmountCents: 5990, discountAfterChange: 'KEPT' })));
+      const { el } = choose(STARTER);
+      const text = textOf(el, 'upgrade-copy');
+      expect(text).not.toMatch(/mensalidade passa a R\$ 59,90/);
+      expect(text).toContain('R$ 59,90');
+      expect(text).toContain('R$ 79,90');
+    });
+
+    it('avisa quando o desconto para de valer', () => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN', { discountAfterChange: 'LOST' })));
+      const { el } = choose(STARTER);
+      expect(textOf(el, 'upgrade-discount')).toMatch(/desconto.*não continua/i);
+    });
+
+    it('desconto mantido ou inexistente não gera aviso', () => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN', { discountAfterChange: 'KEPT' })));
+      const { el } = choose(STARTER);
+      expect(byTest(el, 'upgrade-discount')).toBeNull();
+    });
+
+    it.each([
+      ['sem data', { nextChargeAt: null }],
+      ['sem valor', { nextAmountCents: null }],
+      ['cobrança hoje', { amountTodayCents: 7990 }],
+    ])('recusa a promessa %s', (_label, over) => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN', over)));
+      const { c } = choose(STARTER);
+      expect(c.sheet()).not.toBe('upgrade');
+      expect(c.planCardError(STARTER)).toMatch(/nada foi cobrado/i);
+    });
+
+    it('dois cliques agendam uma vez só, e não vai ao upgrade', () => {
+      const pending = new Subject<ScheduledPlanChange>();
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN')));
+      billing.schedulePlanChange.mockReturnValue(pending);
+      const view = choose(STARTER);
+      const button = byTest(view.el, 'upgrade-confirm') as HTMLButtonElement;
+      button.click();
+      button.click();
+      view.fixture.detectChanges();
+      expect(billing.schedulePlanChange).toHaveBeenCalledExactlyOnceWith('STARTER_MONTHLY_STRIPE');
+      expect(billing.upgrade).not.toHaveBeenCalled();
+      expect(button.disabled).toBe(true);
+    });
+
+    it('sucesso fecha, usa a frase do servidor e relê a página', () => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN')));
+      const view = choose(STARTER);
+      const reads = billing.loadSummary.mock.calls.length;
+      confirmOffer(view);
+      expect(view.c.sheet()).toBeNull();
+      expect(notifications.success).toHaveBeenCalledWith(scheduled.message);
+      expect(billing.loadSummary.mock.calls.length).toBeGreaterThan(reads);
+    });
+
+    it('NO_OP sem mensagem ainda confirma, sem prometer cobrança', () => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN')));
+      billing.schedulePlanChange.mockReturnValue(of({ ...scheduled, outcome: 'NO_OP', message: null }));
+      const view = choose(STARTER);
+      confirmOffer(view);
+      expect(view.c.sheet()).toBeNull();
+      expect(notifications.success.mock.calls[0][0]).toMatch(/agendada/i);
+    });
+
+    it('em sessão somente leitura não executa', () => {
+      summarySignal.set(proSummary({ canManage: false }));
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN')));
+      const view = choose(STARTER);
+      const button = byTest(view.el, 'upgrade-confirm') as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      button.click();
+      expect(billing.schedulePlanChange).not.toHaveBeenCalled();
+    });
+
+    const REFUSALS: [number, string | undefined, RegExp, boolean][] = [
+      [409, 'UPGRADE_USE_CHECKOUT', /checkout/i, false],
+      [409, 'UPGRADE_DOWNGRADE_SCHEDULED', /mudança de plano agendada/i, false],
+      [409, 'UPGRADE_CANCELLATION_SCHEDULED', /cancelamento agendado/i, false],
+      [409, 'UPGRADE_NOT_AVAILABLE', /disponível/i, false],
+      [409, 'UPGRADE_CHECKOUT_IN_PROGRESS', /pagamento em andamento/i, false],
+      [409, 'UPGRADE_PROVIDER_MISMATCH', /stripe/i, false],
+      [503, undefined, /stripe não respondeu.*nada mudou/i, true],
+      [500, undefined, /Não conseguimos concluir a alteração do plano/, true],
+      [403, undefined, /dono da conta/i, false],
+      [504, undefined, /Não conseguimos confirmar a troca/, false],
+    ];
+
+    it.each(REFUSALS)('%i %s: traduz e nada de checkout', (status, code, copy, canRetry) => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN')));
+      billing.schedulePlanChange.mockReturnValue(throwError(() => apiError(status, code)));
+      const view = choose(STARTER);
+      confirmOffer(view);
+      expect(view.c.sheet()).toBe('upgrade');
+      expect(textOf(view.el, 'upgrade-error')).toMatch(copy);
+      expect((byTest(view.el, 'upgrade-confirm') as HTMLButtonElement).disabled).toBe(!canRetry);
+      expect(billing.startCheckout).not.toHaveBeenCalled();
+    });
+
+    it('a trava mostra a data do servidor', () => {
+      const lock = 'A volta para um plano menor fica disponível depois que a fatura de 13/11/2027 for paga.';
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN')));
+      billing.schedulePlanChange.mockReturnValue(throwError(() => apiError(409, 'DOWNGRADE_LOCKED_UNTIL_PAID', lock)));
+      const view = choose(STARTER);
+      confirmOffer(view);
+      expect(textOf(view.el, 'upgrade-error')).toContain(lock);
+    });
+
+    it('UPGRADE_USE_IN_PLACE relê a prévia e abre o diálogo certo', () => {
+      billing.planChangePreview.mockReturnValueOnce(of(schedule('LOWER_PLAN'))).mockReturnValue(of(inPlace()));
+      billing.schedulePlanChange.mockReturnValue(throwError(() => apiError(409, 'UPGRADE_USE_IN_PLACE')));
+      const view = choose(STARTER);
+      confirmOffer(view);
+      expect(billing.planChangePreview).toHaveBeenCalledTimes(2);
+      expect(textOf(view.el, 'upgrade-confirm')).toBe('Confirmar upgrade');
+      expect(byTest(view.el, 'upgrade-error')).toBeNull();
+    });
+  });
+
+  describe('o upgrade e o checkout mandados para o agendamento', () => {
+    it('POST /upgrade com PLAN_CHANGE_USE_SCHEDULE abre o agendamento', () => {
+      billing.planChangePreview.mockReturnValueOnce(of(inPlace())).mockReturnValue(of(schedule('LOWER_PLAN')));
+      billing.upgrade.mockReturnValue(throwError(() => apiError(409, 'PLAN_CHANGE_USE_SCHEDULE')));
+      const view = startUpgrade();
+      confirmOffer(view);
+      expect(textOf(view.el, 'upgrade-confirm')).toBe('Confirmar mudança');
+    });
+
+    it('POST /checkout com PLAN_CHANGE_USE_SCHEDULE fecha a aba e abre o agendamento', () => {
+      billing.planChangePreview.mockReturnValueOnce(of(checkout('NOT_ACTIVE'))).mockReturnValue(of(schedule('LOWER_PLAN')));
+      billing.startCheckout.mockReturnValue(throwError(() => apiError(409, 'PLAN_CHANGE_USE_SCHEDULE')));
+      const view = render();
+      view.c.onPlanCta(PRO);
+      view.c.confirmPeriodSwitch();
+      view.fixture.detectChanges();
+      expect(tab.close).toHaveBeenCalled();
+      expect(view.c.sheet()).toBe('upgrade');
+      expect(billing.startCheckout).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('SCHEDULED: troca de ciclo (§7)', () => {
+    const PRO_YEARLY_PREVIEW = schedule('INTERVAL_CHANGE', {
+      planCode: 'PRO_YEARLY_STRIPE',
+      planName: 'PRO',
+      listAmountCents: 149900,
+      nextAmountCents: 149900,
+      targetVehicleLimit: 25,
+    });
+
+    it('mesmo plano: diz os dois ciclos, a data e o valor', () => {
+      onPro();
+      billing.planChangePreview.mockReturnValue(of(PRO_YEARLY_PREVIEW));
+      const { el } = choose(PRO_Y);
+      expect(textOf(el, 'upgrade-copy')).toBe(
+        'Você continua no Pro mensal até 13/11/2026. Nessa data começa o Pro anual, com fatura de R$ 1.499,00. Você não paga nada hoje.',
+      );
+    });
+
+    it('sobe de plano junto: os limites valem só na renovação', () => {
+      billing.planChangePreview.mockReturnValue(of({ ...PRO_YEARLY_PREVIEW, currentPlanCode: 'STARTER_MONTHLY_STRIPE' }));
+      const { el } = choose(PRO_Y);
+      expect(textOf(el, 'upgrade-copy')).toContain('Os limites do Pro valem a partir dessa data.');
+    });
+
+    it('anual para mensal usa o mesmo caminho', () => {
+      subscriptionSignal.set(subscription({ planCode: 'PRO_YEARLY_STRIPE', planName: 'PRO', billingCycle: 'YEARLY' }));
+      billing.planChangePreview.mockReturnValue(of(schedule('INTERVAL_CHANGE', { planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO', listAmountCents: 14990, nextAmountCents: 14990 })));
+      const view = choose(PRO);
+      expect(textOf(view.el, 'upgrade-copy')).toContain('Pro anual até 13/11/2026');
+      confirmOffer(view);
+      expect(billing.schedulePlanChange).toHaveBeenCalledExactlyOnceWith('PRO_MONTHLY_STRIPE');
+    });
+
+    it('nenhuma frase promete cobrança hoje', () => {
+      onPro();
+      billing.planChangePreview.mockReturnValue(of(PRO_YEARLY_PREVIEW));
+      const { el } = choose(PRO_Y);
+      expect(textOf(el, 'upgrade-sheet')).not.toMatch(/cobrad[oa]s? (agora|hoje)|cobrança imediata/i);
+    });
+  });
+
+  describe('frota acima do limite do plano menor', () => {
+    beforeEach(() => onPro());
+
+    it('avisa antes de confirmar, com os números, e deixa confirmar', () => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN', { vehicleCount: 22, fleetOverLimit: true })));
+      const { el } = choose(STARTER);
+      const warning = textOf(el, 'upgrade-fleet');
+      expect(warning).toContain('22 veículos');
+      expect(warning).toContain('o Starter vai até 15');
+      expect(warning).toMatch(/nenhum veículo é removido/i);
+      expect(warning).toMatch(/adicionar novos/i);
+      expect((byTest(el, 'upgrade-confirm') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('dentro do limite não avisa', () => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN')));
+      const { el } = choose(STARTER);
+      expect(byTest(el, 'upgrade-fleet')).toBeNull();
+    });
+
+    it('sem teto no destino não avisa', () => {
+      billing.planChangePreview.mockReturnValue(of(schedule('LOWER_PLAN', { targetVehicleLimit: null, fleetOverLimit: false })));
+      const { el } = choose(STARTER);
+      expect(byTest(el, 'upgrade-fleet')).toBeNull();
+    });
+  });
+
+  describe('mudança agendada na página', () => {
+    const SCHEDULED_AT = '2026-11-13T10:00:00';
+    const withChange = (over: Partial<SubscriptionResponse> = {}): void => {
+      onPro({ scheduledChangePlanCode: 'STARTER_MONTHLY_STRIPE', scheduledChangeAt: SCHEDULED_AT, ...over });
+      summarySignal.set(
+        proSummary({
+          scheduledChangePlanCode: 'STARTER_MONTHLY_STRIPE',
+          scheduledChangeAt: SCHEDULED_AT,
+          actions: ['UPDATE_CARD', 'CHANGE_PLAN', 'UNDO_PLAN_CHANGE'],
+        }),
+      );
+    };
+
+    it('o plano agendado fica marcado e não pode ser escolhido de novo', () => {
+      withChange();
+      const { c } = render();
+      expect(c.planCtaDisabled(STARTER)).toBe(true);
+      expect(c.planCtaLabel(STARTER)).toBe('Mudança agendada');
+    });
+
+    it('diz o que muda e quando', () => {
+      withChange();
+      const { el } = render();
+      expect(textOf(el, 'scheduled-change')).toBe('Muda para Starter mensal em 13/11/2026');
+    });
+
+    it('o resumo diz a próxima data sem afirmar a cobrança do plano atual', () => {
+      withChange();
+      const { el } = render();
+      expect(textOf(el, 'billing-failure')).toContain('Em 13/11 você passa para o Starter mensal');
+    });
+
+    it('sem mudança agendada nada disso aparece', () => {
+      onPro();
+      summarySignal.set(proSummary({ actions: ['UPDATE_CARD', 'CHANGE_PLAN', 'CANCEL'] }));
+      const { el } = render();
+      expect(byTest(el, 'scheduled-change')).toBeNull();
+      expect(byTest(el, 'row-undo-plan-change')).toBeNull();
+      expect(byTest(el, 'row-cancel')).not.toBeNull();
+    });
+
+    it('Desfazer entra no lugar de Cancelar', () => {
+      withChange();
+      const { el } = render();
+      expect(byTest(el, 'row-undo-plan-change')).not.toBeNull();
+      expect(byTest(el, 'row-cancel')).toBeNull();
+    });
+
+    it('sem a ação no resumo (somente leitura) não oferece desfazer', () => {
+      withChange();
+      summarySignal.set(proSummary({ canManage: false, actions: [], scheduledChangePlanCode: 'STARTER_MONTHLY_STRIPE', scheduledChangeAt: SCHEDULED_AT }));
+      const { el } = render();
+      expect(byTest(el, 'row-undo-plan-change')).toBeNull();
+      expect(textOf(el, 'scheduled-change')).toContain('Starter');
+    });
+
+    it('PAST_DUE com mudança pendente: não desfaz, e cancelar continua aberto', () => {
+      withChange({ status: 'PAST_DUE' });
+      summarySignal.set(proSummary({ state: 'PAST_DUE', actions: ['PAY_NOW', 'UPDATE_CARD', 'CANCEL'], scheduledChangePlanCode: 'STARTER_MONTHLY_STRIPE', scheduledChangeAt: SCHEDULED_AT }));
+      const { el } = render();
+      expect(byTest(el, 'row-undo-plan-change')).toBeNull();
+      expect(byTest(el, 'row-cancel')).not.toBeNull();
+    });
+
+    it('dois cliques desfazem uma vez e a página relê', () => {
+      const pending = new Subject<ScheduledPlanChange>();
+      billing.undoPlanChange.mockReturnValue(pending);
+      withChange();
+      const { el, fixture } = render();
+      const row = byTest(el, 'row-undo-plan-change') as HTMLButtonElement;
+      row.click();
+      row.click();
+      fixture.detectChanges();
+      expect(billing.undoPlanChange).toHaveBeenCalledTimes(1);
+      const reads = billing.loadSummary.mock.calls.length;
+      pending.next(undone);
+      pending.complete();
+      expect(notifications.success).toHaveBeenCalledWith('Mudança desfeita.');
+      expect(billing.loadSummary.mock.calls.length).toBeGreaterThan(reads);
+    });
+
+    it.each([
+      [409, 'PLAN_CHANGE_TOO_LATE', /renovação já aconteceu/i],
+      [503, undefined, /stripe não respondeu.*nada mudou/i],
+      [403, undefined, /dono da conta/i],
+      [504, undefined, /Não conseguimos confirmar/],
+    ])('%i %s ao desfazer: traduz e relê', (status, code, copy) => {
+      billing.undoPlanChange.mockReturnValue(throwError(() => apiError(status, code, 'servidor')));
+      withChange();
+      const { el, fixture } = render();
+      const reads = billing.loadSummary.mock.calls.length;
+      (byTest(el, 'row-undo-plan-change') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(el.textContent).toMatch(copy);
+      expect(notifications.success).not.toHaveBeenCalled();
+      expect(billing.loadSummary.mock.calls.length).toBeGreaterThan(reads);
+    });
+
+    it('sem resposta ao desfazer não afirma nada', () => {
+      billing.undoPlanChange.mockReturnValue(throwError(() => new TimeoutError()));
+      withChange();
+      const { el, fixture } = render();
+      (byTest(el, 'row-undo-plan-change') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(el.textContent).toMatch(/Não conseguimos confirmar/);
+    });
+
+    it('cancelar com mudança pendente mostra a saída, sem desfazer em silêncio', () => {
+      billing.cancel.mockReturnValue(throwError(() => apiError(409, 'CANCEL_PLAN_CHANGE_SCHEDULED', 'servidor')));
+      onPro();
+      summarySignal.set(proSummary({ actions: ['UPDATE_CARD', 'CHANGE_PLAN', 'CANCEL'] }));
+      const { c, el, fixture } = render();
+      (c as unknown as { onCancelConfirmed(): void }).onCancelConfirmed();
+      fixture.detectChanges();
+      expect(el.textContent).toMatch(/desfaça.*antes de cancelar/i);
+      expect(billing.undoPlanChange).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('assinatura encerrada sem dívida', () => {
+    it('a página não fala em fatura em aberto', () => {
+      subscriptionSignal.set(subscription({ status: 'CANCELED', currentPeriodEnd: serverTime(-5 * 86_400_000) }));
+      summarySignal.set(summary({ state: 'CANCELED', plan: null, actions: ['SUBSCRIBE'], paymentMethod: null }));
+      const { el } = render();
+      expect(el.textContent).not.toMatch(/em aberto|não foi paga/i);
+    });
+  });
+
   describe('plano mais barato e troca de período também têm prévia (FE4)', () => {
-    const onPro = (): void => subscriptionSignal.set(subscription({ planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO' }));
 
     it('trava aparece antes do aviso de perda', () => {
       onPro();
@@ -820,7 +1274,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
 
     it('CHECKOUT mantém o aviso de perda', () => {
       onPro();
-      billing.planChangePreview.mockReturnValue(of(checkout('LOWER_PLAN')));
+      billing.planChangePreview.mockReturnValue(of(checkout('NOT_ACTIVE')));
       const { c } = render();
       c.onPlanCta(STARTER);
       expect(c.periodSwitchTarget()).toEqual(STARTER);
@@ -829,7 +1283,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
 
     it('sem dias pagos, ainda confirma: a troca paga nunca vai direto', () => {
       subscriptionSignal.set(subscription({ planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO', currentPeriodEnd: serverTime(-2 * 86_400_000) }));
-      billing.planChangePreview.mockReturnValue(of(checkout('LOWER_PLAN')));
+      billing.planChangePreview.mockReturnValue(of(checkout('NOT_ACTIVE')));
       const { c } = render();
       c.onPlanCta(STARTER);
       expect(c.periodSwitchTarget()).toEqual(STARTER);
@@ -837,7 +1291,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
     });
 
     it('troca de período também passa pela prévia', () => {
-      billing.planChangePreview.mockReturnValue(of(checkout('INTERVAL_CHANGE')));
+      billing.planChangePreview.mockReturnValue(of(checkout('NOT_ACTIVE')));
       const { c } = render();
       c.onPlanCta(PRO_Y);
       expect(billing.planChangePreview).toHaveBeenCalledExactlyOnceWith('PRO_YEARLY_STRIPE');

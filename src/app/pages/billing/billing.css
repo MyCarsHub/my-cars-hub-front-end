@@ -250,3 +250,5 @@ app-list-group[flat] + * { margin-top: 0; }
 .upgrade-actions { display: grid; gap: 10px; margin-top: 20px; }
 @media (min-width: 640px) { .upgrade-actions { grid-template-columns: 1fr 1fr; } }
 .plan-retry { margin-bottom: 16px; gap: 10px; }
+.upgrade-note { margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--color-fg-soft); }
+.upgrade-fleet { margin-top: 14px; }

@@ -170,7 +170,7 @@ const SCALE_M = plan({
   name: 'SCALE',
   price: 299,
   trialDays: 0,
-  vehicleLimit: 75,
+  vehicleLimit: 90,
   purchasable: false,
 });
 const ENT_M = plan({
@@ -343,7 +343,7 @@ describe('Billing', () => {
       syncCardAfterUpdate: vi.fn(() => of('UPDATED')),
       // O servidor mandaria para o checkout: estes testes cobrem o fluxo de hoje.
       // O upgrade na mesma assinatura está em billing-upgrade.spec.ts.
-      planChangePreview: vi.fn(() => of({ mode: 'CHECKOUT', reasonCode: 'YEARLY_PLAN', message: null })),
+      planChangePreview: vi.fn(() => of({ mode: 'CHECKOUT', reasonCode: 'NOT_ACTIVE', message: null })),
       upgrade: vi.fn(),
     };
     tabs = [];
@@ -593,7 +593,7 @@ describe('Billing', () => {
     // and send the user straight to /checkout.
     expect(c.planIntent(PRO)).toBe('PERIOD_DOWNGRADE');
     expect(c.planIntent(BUSINESS)).toBe('PERIOD_DOWNGRADE');
-    expect(c.planCtaNote(PRO)).toContain('sem reembolso');
+    expect(c.planCtaNote(PRO)).toBeNull();
 
     // The free row is MONTHLY: it must stay a DOWNGRADE for a YEARLY
     // subscriber, never a period switch routed into a R$ 0 checkout.
@@ -1177,7 +1177,7 @@ describe('Billing', () => {
     // Same period (yearly → yearly), pricier: still an immediate charge that
     // cancels the year already paid for.
     expect(c.planIntent(BUSINESS_YEARLY)).toBe('UPGRADE');
-    expect(c.planCtaNote(BUSINESS_YEARLY)).toContain('não vira crédito');
+    expect(c.planCtaNote(BUSINESS_YEARLY)).toBeNull();
 
     c.onPlanCta(BUSINESS_YEARLY);
 

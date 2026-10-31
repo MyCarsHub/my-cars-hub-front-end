@@ -1,4 +1,4 @@
-import { PlanTier, normalizePlanName } from './plan-limits';
+import { PLAN_CAPACITY, PlanTier, normalizePlanName } from './plan-limits';
 
 /**
  * Bullets QUALITATIVOS dos planos — o texto que não sai de número nenhum.
@@ -276,7 +276,7 @@ export const PLAN_DESCRIPTION: Readonly<Record<PlanTier, string>> = {
   TRIAL: 'Coloque seus primeiros carros e veja rodando. 14 dias, sem cartão.',
   STARTER: 'Saia da planilha de vez. Até 15 veículos, com contrato e cobrança no automático.',
   PRO: 'A frota cresceu e o suporte acompanha: até 25 veículos e sua mensagem na frente da fila.',
-  SCALE: 'Para operações com frota grande: até 75 veículos, com atendimento prioritário.',
+  SCALE: `Para operações com frota grande: até ${PLAN_CAPACITY.SCALE.vehicles} veículos, com atendimento prioritário.`,
   ENTERPRISE:
     'Frota ilimitada, com atendimento prioritário. Para quem não quer pensar em teto.',
 };
