@@ -113,6 +113,14 @@ describe('contrato que já chega com {{campo}}', () => {
     expect(message).toContain('Word');
   });
 
+  it('token quebrado é recusado com instrução do que fazer, sem ecoar o conteúdo', () => {
+    const message = refused('TEMPLATE_MALFORMED_PLACEHOLDER');
+
+    expect(message).not.toBe('genérico');
+    expect(message).toContain('Word');
+    expect(message).toMatch(/incompleto|escrito errado/);
+  });
+
   it('contrato sem campo nenhum diz o que falta', () => {
     expect(refused('TEMPLATE_NO_FIELDS')).toContain('pelo menos um');
   });
