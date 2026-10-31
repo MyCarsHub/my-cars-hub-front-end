@@ -79,6 +79,11 @@ describe('AdminCouponsService', () => {
     expect(planCode).toBe('PRO_MONTHLY_STRIPE');
   });
 
+  it('nunca monta caminho com um id cru', () => {
+    service.company('a/b').subscribe();
+    http.expectOne(`${environment.apiUrl}/admin/companies/a%2Fb`).flush({ id: 'a/b', name: 'x', documentMasked: null, subscription: null });
+  });
+
   it('empresa sem assinatura vira plano nulo', () => {
     let planCode: string | null | undefined = 'x';
     service.company('co-1').subscribe((c) => (planCode = c.planCode));

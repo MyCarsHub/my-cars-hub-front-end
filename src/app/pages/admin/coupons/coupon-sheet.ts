@@ -21,6 +21,7 @@ import {
   merge,
   of,
   switchMap,
+  timeout,
   timer,
 } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
@@ -43,12 +44,14 @@ import {
   couponDate,
   couponErrorMessage,
   couponPlanLabel,
+  createOutcomeUnknown,
   discountLabel,
   durationLabel,
   modeCopy,
 } from './coupon-copy';
 
 export const PREVIEW_DEBOUNCE_MS = 350;
+export const CREATE_TIMEOUT_MS = 20000;
 
 const MIN_SEARCH_LENGTH = 2;
 const PERCENT_DECIMALS = 2;
@@ -87,6 +90,8 @@ export class CouponSheet implements OnInit {
   readonly company = input<CouponCompany | null>(null);
   readonly saved = output<{ coupon: AdminCoupon; company: CouponCompany }>();
   readonly closed = output<void>();
+  /** A criação ficou sem resposta: o cupom pode existir, e só a lista sabe. */
+  readonly listMayHaveChanged = output<void>();
 
   protected readonly kindOptions = KIND_OPTIONS;
   protected readonly monthOptions = MONTH_OPTIONS;
@@ -164,7 +169,11 @@ export class CouponSheet implements OnInit {
   });
 
   protected readonly canSubmit = computed(
-    () => this.preview() !== null && this.reasonValue().trim() !== '' && !this.creating(),
+    () =>
+      this.preview() !== null &&
+      !this.noInvoiceInWindow() &&
+      this.reasonValue().trim() !== '' &&
+      !this.creating(),
   );
 
   protected readonly submitLabel = computed(() => {
@@ -310,7 +319,7 @@ export class CouponSheet implements OnInit {
     if (!this.canSubmit() || !request || !company) return;
     this.creating.set(true);
     this.createError.set(null);
-    this.service.create({ ...request, reason: this.reasonControl.value.trim() }).subscribe({
+    this.service.create({ ...request, reason: this.reasonControl.value.trim() }).pipe(timeout(CREATE_TIMEOUT_MS)).subscribe({
       next: (coupon) => {
         this.creating.set(false);
         this.created.set(coupon);
@@ -319,6 +328,7 @@ export class CouponSheet implements OnInit {
       error: (err: unknown) => {
         this.creating.set(false);
         this.createError.set(couponErrorMessage(err, 'create'));
+        if (createOutcomeUnknown(err)) this.listMayHaveChanged.emit();
       },
     });
   }

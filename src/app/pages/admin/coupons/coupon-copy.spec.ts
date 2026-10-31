@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { TimeoutError } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -72,6 +73,24 @@ describe('coupon-copy', () => {
       });
     });
 
+    it('na assinatura, depois da janela, não se apresenta como ativo', () => {
+      expect(
+        couponStatus(
+          { mode: 'APPLIED_TO_SUBSCRIPTION', status: 'ACTIVE', expiresAt: null, timesRedeemed: 1, createdAt: '2026-07-01T10:00:00', durationMonths: 2 },
+          NOW,
+        ),
+      ).toMatchObject({ label: 'Encerrado', live: false });
+    });
+
+    it('na assinatura, dentro da janela, continua ativo', () => {
+      expect(
+        couponStatus(
+          { mode: 'APPLIED_TO_SUBSCRIPTION', status: 'ACTIVE', expiresAt: null, timesRedeemed: 1, createdAt: '2026-10-01T10:00:00', durationMonths: 2 },
+          NOW,
+        ),
+      ).toMatchObject({ label: 'Ativo', live: true });
+    });
+
     it('na assinatura, ter sido resgatado é o normal: continua ativo', () => {
       expect(
         couponStatus({ mode: 'APPLIED_TO_SUBSCRIPTION', status: 'ACTIVE', expiresAt: null, timesRedeemed: 1 }, NOW),
@@ -103,7 +122,8 @@ describe('coupon-copy', () => {
     });
 
     it('503 diz que a Stripe falhou e o que aconteceu com cada ação', () => {
-      expect(couponErrorMessage(apiError(503), 'create')).toMatch(/stripe.*nenhum cupom foi criado/i);
+      expect(couponErrorMessage(apiError(503), 'create')).toMatch(/stripe.*confira a lista/i);
+      expect(couponErrorMessage(apiError(503), 'create')).not.toMatch(/nenhum cupom foi criado/i);
       expect(couponErrorMessage(apiError(503), 'deactivate')).toMatch(/stripe.*continua como estava/i);
       expect(couponErrorMessage(apiError(503), 'preview')).toMatch(/stripe/i);
       expect(couponErrorMessage(apiError(503), 'load')).toMatch(/stripe/i);
@@ -116,6 +136,20 @@ describe('coupon-copy', () => {
 
     it('403 diz que é coisa do papel Dono', () => {
       expect(couponErrorMessage(apiError(403), 'create')).toMatch(/dono/i);
+      expect(couponErrorMessage(apiError(403), 'deactivate')).toMatch(/dono/i);
+    });
+
+    it('403 ao ler não fala de criar nem desativar', () => {
+      for (const action of ['load', 'preview'] as const) {
+        expect(couponErrorMessage(apiError(403), action)).toMatch(/seu papel não acessa/i);
+        expect(couponErrorMessage(apiError(403), action)).not.toMatch(/cria e desativa/i);
+      }
+    });
+
+    it('sem resposta na criação não diz que nada aconteceu', () => {
+      for (const err of [new HttpErrorResponse({ status: 0 }), apiError(504), new TimeoutError()]) {
+        expect(couponErrorMessage(err, 'create')).toMatch(/confira a lista/i);
+      }
     });
 
     it('sem rede não mostra texto do navegador', () => {

@@ -193,7 +193,9 @@
                 <p class="text-sm font-semibold">{{ modeView()?.title }}</p>
                 <p class="mt-0.5 text-sm">{{ modeView()?.detail }}</p>
               </div>
-              <p class="text-xl font-bold leading-snug">{{ result.summary }}</p>
+              @if (!noInvoiceInWindow()) {
+                <p class="text-xl font-bold leading-snug">{{ result.summary }}</p>
+              }
               @if (invoiceDates().length > 0) {
                 <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
                   <dt>Com desconto</dt>

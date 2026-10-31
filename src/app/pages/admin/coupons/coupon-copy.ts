@@ -32,7 +32,7 @@ const CODE_MESSAGES: Record<string, string> = {
 const STRIPE_DOWN: Record<CouponAction, string> = {
   load: 'A Stripe não respondeu, e a lista de cupons mora lá. Tente de novo.',
   preview: 'A Stripe não respondeu. Tente de novo para ver a prévia.',
-  create: 'A Stripe não respondeu. Nenhum cupom foi criado. Tente de novo.',
+  create: 'A Stripe não respondeu. Confira a lista de cupons antes de tentar de novo.',
   deactivate: 'A Stripe não respondeu. O cupom continua como estava. Tente de novo.',
 };
 
@@ -77,16 +77,29 @@ export function couponPlanLabel(planCode: string | null): string {
  * mas um código de uso único já usado, ou vencido, não serve mais para nada.
  */
 export function couponStatus(
-  coupon: Pick<AdminCoupon, 'mode' | 'status' | 'expiresAt' | 'timesRedeemed'>,
+  coupon: Pick<AdminCoupon, 'mode' | 'status' | 'expiresAt' | 'timesRedeemed'> &
+    Partial<Pick<AdminCoupon, 'createdAt' | 'durationMonths'>>,
   now: Date,
 ): CouponStatusView {
   if (coupon.status === 'DEACTIVATED') return { label: 'Desativado', tone: 'neutral', live: false };
+  if (coupon.mode === 'APPLIED_TO_SUBSCRIPTION' && windowEnded(coupon, now)) {
+    return { label: 'Encerrado', tone: 'neutral', live: false };
+  }
   if (coupon.mode === 'PROMOTION_CODE') {
     if ((coupon.timesRedeemed ?? 0) > 0) return { label: 'Usado', tone: 'blue', live: false };
     const expires = parseServerTime(coupon.expiresAt);
     if (expires && expires.getTime() < now.getTime()) return { label: 'Vencido', tone: 'amber', live: false };
   }
   return { label: 'Ativo', tone: 'green', live: true };
+}
+
+/** Na assinatura o desconto começa ao criar: a janela conta daí. */
+function windowEnded(coupon: Partial<Pick<AdminCoupon, 'createdAt' | 'durationMonths'>>, now: Date): boolean {
+  const start = parseServerTime(coupon.createdAt);
+  if (!start || !coupon.durationMonths) return false;
+  const end = new Date(start);
+  end.setUTCMonth(end.getUTCMonth() + coupon.durationMonths);
+  return end.getTime() < now.getTime();
 }
 
 export function modeCopy(mode: AdminCouponMode): { title: string; detail: string } {
@@ -101,17 +114,28 @@ export function modeCopy(mode: AdminCouponMode): { title: string; detail: string
       };
 }
 
+/**
+ * Sem resposta a criação pode ter acontecido, e até um 503 deixa o cupom na Stripe
+ * quando a resposta da aplicação se perde. Só a lista sabe.
+ */
+export function createOutcomeUnknown(err: unknown): boolean {
+  return !(err instanceof HttpErrorResponse) || err.status === 0 || err.status >= 500;
+}
+
 /** Cada recusa do contrato tem texto próprio; status sem código dizem o que aconteceu. */
 export function couponErrorMessage(err: unknown, action: CouponAction): string {
   const parsed = parseApiError(err);
   if (parsed.code && CODE_MESSAGES[parsed.code]) return CODE_MESSAGES[parsed.code];
   if (parsed.code === 'COUPON_INVALID' && parsed.message) return parsed.message;
+  if (action === 'create' && createOutcomeUnknown(err)) return STRIPE_DOWN.create;
   if (err instanceof HttpErrorResponse) {
     switch (err.status) {
       case 0:
         return 'Sem conexão com o servidor. Tente de novo.';
       case 403:
-        return 'Só o papel Dono cria e desativa cupons.';
+        return action === 'load' || action === 'preview'
+          ? 'Seu papel não acessa os cupons.'
+          : 'Só o papel Dono cria e desativa cupons.';
       case 404:
         return action === 'deactivate'
           ? 'Cupom não encontrado na Stripe.'

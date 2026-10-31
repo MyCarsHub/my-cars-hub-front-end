@@ -166,7 +166,7 @@
 </app-default-page-layout>
 
 @if (sheetOpen()) {
-  <app-coupon-sheet [company]="prefill()" (saved)="onSaved($event)" (closed)="closeSheet()" />
+  <app-coupon-sheet [company]="prefill()" (saved)="onSaved($event)" (listMayHaveChanged)="load()" (closed)="closeSheet()" />
 }
 
 <app-confirm-dialog

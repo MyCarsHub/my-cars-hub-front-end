@@ -66,9 +66,11 @@ import { environment } from '../../../environments/environment';
 import { PlanColumn, PlanGrid } from './plan-grid';
 import {
   PREVIEW_FAILED_MESSAGE,
+  PREVIEW_FAILED_NOTICE,
   PlanNotice,
   UpgradeCopy,
   blockedNotice,
+  isUseInPlace,
   lockNotice,
   upgradeCanRetry,
   upgradeCopy,
@@ -342,6 +344,13 @@ export class Billing implements OnInit, OnDestroy {
   /** Por que esta mudança não acontece agora: `BLOCKED` ou a trava da descida. */
   protected readonly planNotice = signal<PlanNotice | null>(null);
 
+  /** A última leitura falhou. Um 404 não entra aqui: é "não há assinatura", um fato. */
+  private readonly subscriptionFailed = signal(false);
+  /** A primeira leitura ainda não voltou. Reler depois disso não apaga o que já se sabe. */
+  private readonly subscriptionReading = signal(false);
+  private readonly subscriptionEverRead = signal(false);
+  private readonly plansFailed = signal(false);
+
   private visibilityListener: (() => void) | null = null;
   private focusListener: (() => void) | null = null;
   private lastRevalidateAt = 0;
@@ -465,6 +474,28 @@ export class Billing implements OnInit, OnDestroy {
     return sub.status === 'ACTIVE' || sub.status === 'TRIALING' || sub.status === 'PAST_DUE';
   });
 
+  /**
+   * A intenção do clique só pode ser decidida com a assinatura e o plano atual em
+   * mãos. Sem eles, "nenhum plano em vigor" vira `SUBSCRIBE`, e um cliente pagante
+   * cai no checkout: paga de novo, perde os dias e encerra a assinatura. Ausência
+   * de dado nunca é prova de que não há assinatura paga.
+   */
+  protected readonly planDataUnknown = computed(() => {
+    if (this.subscriptionFailed() || this.plansFailed() || this.firstReadPending()) return true;
+    if (this.isPlanInForce() && this.plans().length > 0 && this.currentPlan() === null) return true;
+    const summary = this.summary();
+    return summary?.state === 'ACTIVE' && (summary.plan?.price ?? 0) > 0 && !this.isPaidActive();
+  });
+
+  private readonly firstReadPending = computed(
+    () => this.subscriptionReading() && !this.subscriptionEverRead() && this.subscription() === null,
+  );
+
+  /** A primeira leitura em voo também trava a compra, mas não é falha para mostrar. */
+  protected readonly planRetryVisible = computed(
+    () => this.planDataUnknown() && !this.firstReadPending(),
+  );
+
   // ---------------------------------------------------------------------------
   // Blocked-access reason (arrives as `?reason=` from the guard / paywall).
   // ---------------------------------------------------------------------------
@@ -521,16 +552,7 @@ export class Billing implements OnInit, OnDestroy {
     // is the call that turns "gratuito vs pago" into a fact. Losing it degrades
     // the classification to "unknown", and `isFreePlanInForce` deliberately
     // resolves unknown as PAID rather than hiding the cancel button.
-    this.billingService.loadPlans().subscribe({
-      error: (err: unknown) => {
-        // The service already put the message in the page-level banner; claiming
-        // it here stops the interceptor safety net from saying the same thing again.
-        this.apiErrors.claim(err);
-        // Warning, not error: the page stays usable and the fallback is
-        // documented — `isFreePlanInForce` resolves the unknown plan as PAID.
-        this.logger.warn('[billing] loadPlans failed', { error: err });
-      },
-    });
+    this.loadPlanCatalog();
     this.refreshSubscription();
     this.refreshSummary();
 
@@ -541,6 +563,21 @@ export class Billing implements OnInit, OnDestroy {
     this.focusListener = () => this.revalidate();
     this.document.addEventListener('visibilitychange', this.visibilityListener);
     window.addEventListener('focus', this.focusListener);
+  }
+
+  private loadPlanCatalog(): void {
+    this.billingService.loadPlans().subscribe({
+      next: () => this.plansFailed.set(false),
+      error: (err: unknown) => {
+        this.plansFailed.set(true);
+        // The service already put the message in the page-level banner; claiming
+        // it here stops the interceptor safety net from saying the same thing again.
+        this.apiErrors.claim(err);
+        // Warning, not error: the page stays usable and the fallback is
+        // documented — `isFreePlanInForce` resolves the unknown plan as PAID.
+        this.logger.warn('[billing] loadPlans failed', { error: err });
+      },
+    });
   }
 
   ngOnDestroy(): void {
@@ -589,14 +626,28 @@ export class Billing implements OnInit, OnDestroy {
   }
 
   private refreshSubscription(): void {
+    this.subscriptionReading.set(true);
     this.billingService.loadSubscription().subscribe({
-      next: () => this.settlePendingPayment(),
+      next: () => {
+        this.subscriptionReading.set(false);
+        this.subscriptionEverRead.set(true);
+        this.subscriptionFailed.set(false);
+        this.settlePendingPayment();
+      },
       error: (err: unknown) => {
+        this.subscriptionReading.set(false);
+        this.subscriptionFailed.set(true);
         // Same deal as `loadPlans`: the banner already carries this message.
         this.apiErrors.claim(err);
         this.settlePendingPayment();
       },
     });
+  }
+
+  protected retryPlanData(): void {
+    this.loadPlanCatalog();
+    this.refreshSubscription();
+    this.refreshSummary();
   }
 
   /**
@@ -704,7 +755,11 @@ export class Billing implements OnInit, OnDestroy {
    * routed into `/checkout`.
    */
   protected planIntent(plan: PlanResponse): PlanIntent {
-    if (this.isPending(plan)) return 'PENDING_PAYMENT';
+    return this.isPending(plan) ? 'PENDING_PAYMENT' : this.changeIntent(plan);
+  }
+
+  /** O que a troca é em si, ignorando um checkout já iniciado para este plano. */
+  private changeIntent(plan: PlanResponse): PlanIntent {
     if (this.isCurrent(plan)) return 'CURRENT';
     if (this.scheduledDowngradeCode() === plan.code) return 'SCHEDULED';
 
@@ -864,6 +919,7 @@ export class Billing implements OnInit, OnDestroy {
   }
 
   protected planCtaDisabled(plan: PlanResponse): boolean {
+    if (this.planDataUnknown()) return true;
     const intent = this.planIntent(plan);
     if (intent === 'CURRENT' || intent === 'SCHEDULED') return true;
     // NOTE: PENDING_PAYMENT is deliberately NOT a disabling intent — that is
@@ -900,12 +956,18 @@ export class Billing implements OnInit, OnDestroy {
         // esperar a resposta tiraria o checkout do gesto do clique: no celular a
         // aba viraria pop-up bloqueado. Só quem paga tem o que perguntar.
         if (this.isPaidActive()) {
-          this.previewUpgrade(plan);
+          this.previewPlanChange(plan);
           return;
         }
         this.startCheckout(plan);
         return;
       case 'PENDING_PAYMENT':
+        // Quem paga passa pela mesma decisão: retomar o checkout cobraria uma
+        // troca que o servidor faz sem cobrança.
+        if (this.isPaidActive()) {
+          this.previewPlanChange(plan);
+          return;
+        }
         // Resume, do NOT re-open. Same plan code, no gateway override, so the
         // backend can match the pending session instead of minting a second.
         this.startCheckout(plan, { resumePending: true });
@@ -913,6 +975,11 @@ export class Billing implements OnInit, OnDestroy {
       case 'PERIOD_UPGRADE':
       case 'PERIOD_DOWNGRADE':
       case 'PLAN_SWITCH':
+        // Uma recusa aparece antes do aviso de perda, não depois de confirmá-lo.
+        if (this.isPaidActive()) {
+          this.previewPlanChange(plan);
+          return;
+        }
         // Never straight to /checkout: the user must first be told, in words,
         // exactly what the immediate charge costs them.
         this.periodSwitchTarget.set(plan);
@@ -926,11 +993,14 @@ export class Billing implements OnInit, OnDestroy {
   }
 
   /**
-   * O servidor decide como este upgrade acontece. A falha da consulta para aqui:
+   * O servidor decide como esta troca acontece. A falha da consulta para aqui:
    * cair no checkout antigo cobraria o cliente pelo caminho que a prévia existe
    * para evitar.
+   *
+   * `afterRefusal`: o checkout acabou de recusar a troca. Nesse caso a resposta
+   * `CHECKOUT` não volta ao checkout, ou os dois se mandariam um ao outro.
    */
-  private previewUpgrade(plan: PlanResponse): void {
+  private previewPlanChange(plan: PlanResponse, afterRefusal = false): void {
     if (this.busyPlanId() !== null) return;
     this.busyPlanId.set(plan.id);
     this.billingService
@@ -939,25 +1009,30 @@ export class Billing implements OnInit, OnDestroy {
       .subscribe({
         next: (preview) => {
           this.busyPlanId.set(null);
-          this.applyPlanChange(plan, preview);
+          this.applyPlanChange(plan, preview, afterRefusal);
         },
         error: (err: unknown) => {
           this.busyPlanId.set(null);
           this.apiErrors.claim(err);
-          this.ctaError.set({ planId: plan.id, message: PREVIEW_FAILED_MESSAGE });
+          this.previewFailed(plan, afterRefusal);
         },
       });
   }
 
-  private applyPlanChange(plan: PlanResponse, preview: PlanChangePreview): void {
+  private applyPlanChange(plan: PlanResponse, preview: PlanChangePreview, afterRefusal: boolean): void {
     switch (preview.mode) {
       case 'IN_PLACE':
-        this.offerUpgrade(plan, preview);
+        this.offerUpgrade(plan, preview, afterRefusal);
         return;
       case 'CHECKOUT':
-        // O aviso de hoje, onde ele ainda vale: há dias pagos a perder. O diálogo
-        // fica abaixo da folha de planos, então ela fecha aqui.
-        if (this.burnsPaidPeriod()) {
+        if (afterRefusal) {
+          this.previewFailed(plan, afterRefusal);
+          return;
+        }
+        // O aviso de hoje, onde ele ainda vale: há dias pagos a perder, ou uma
+        // troca que nunca foi direto. O diálogo fica abaixo da folha de planos,
+        // então ela fecha aqui.
+        if (this.burnsPaidPeriod() || this.changeIntent(plan) !== 'UPGRADE') {
           this.periodSwitchTarget.set(plan);
           this.sheet.set(null);
           return;
@@ -968,14 +1043,20 @@ export class Billing implements OnInit, OnDestroy {
         this.showPlanNotice(blockedNotice(preview));
         return;
       default:
-        this.ctaError.set({ planId: plan.id, message: PREVIEW_FAILED_MESSAGE });
+        this.previewFailed(plan, afterRefusal);
     }
   }
 
-  private offerUpgrade(plan: PlanResponse, preview: PlanChangePreview): void {
+  /** Depois de uma recusa do checkout a folha de planos está fechada: o cartão não seria lido. */
+  private previewFailed(plan: PlanResponse, afterRefusal: boolean): void {
+    if (afterRefusal) this.showPlanNotice(PREVIEW_FAILED_NOTICE);
+    else this.ctaError.set({ planId: plan.id, message: PREVIEW_FAILED_MESSAGE });
+  }
+
+  private offerUpgrade(plan: PlanResponse, preview: PlanChangePreview, afterRefusal: boolean): void {
     const copy = upgradeCopy(preview);
     if (!copy) {
-      this.ctaError.set({ planId: plan.id, message: PREVIEW_FAILED_MESSAGE });
+      this.previewFailed(plan, afterRefusal);
       return;
     }
     this.sheetError.set(null);
@@ -1177,6 +1258,10 @@ export class Billing implements OnInit, OnDestroy {
     this.clearCheckoutMarkers();
     const message = err === undefined ? fallback : this.apiErrors.messageFor(err, fallback);
     this.billingService.clearError();
+    if (err !== undefined && isUseInPlace(err)) {
+      this.previewPlanChange(plan, true);
+      return;
+    }
     // O checkout de um plano menor sai do diálogo, com a folha de planos fechada:
     // no cartão, a data da trava ficaria onde ninguém lê.
     const locked = err === undefined ? null : lockNotice(err);
@@ -1313,7 +1398,7 @@ export class Billing implements OnInit, OnDestroy {
   /** Which of the immediate changes the dialog is confirming. */
   private readonly periodSwitchIntent = computed<PlanIntent | null>(() => {
     const plan = this.periodSwitchTarget();
-    return plan ? this.planIntent(plan) : null;
+    return plan ? this.changeIntent(plan) : null;
   });
 
   /** The confirmation burns money the user already paid for. */
@@ -2387,6 +2472,13 @@ export class Billing implements OnInit, OnDestroy {
     currentTier: PlanTier | null,
   ): { label: string; disabled: boolean; aria?: string } {
     if (contact) return { label: 'Falar com a gente', disabled: false };
+    if (this.planDataUnknown()) {
+      return {
+        label: 'Indisponível agora',
+        disabled: true,
+        aria: `Plano ${PLAN_COPY[tier].name} indisponível até lermos sua assinatura`,
+      };
+    }
     if (!row) return { label: 'Em breve', disabled: true, aria: `Plano ${PLAN_COPY[tier].name} em breve` };
     if (this.busyPlanId() === row.id) return { label: 'Processando…', disabled: true };
     const intent = this.planIntent(row);

@@ -7,6 +7,13 @@ import { formatFullDate, parseServerTime } from '../../utils/server-time';
 /** A recusa da descida traz a data no `message`: a frase do servidor é a que vale. */
 export const DOWNGRADE_LOCKED_CODE = 'DOWNGRADE_LOCKED_UNTIL_PAID';
 
+/** O checkout recusou: esta troca é na mesma assinatura. A página relê a decisão. */
+export const USE_IN_PLACE_CODE = 'UPGRADE_USE_IN_PLACE';
+
+/** Sem resposta o resultado é desconhecido: esta frase não afirma nada sobre a troca. */
+export const UNKNOWN_OUTCOME_MESSAGE =
+  'Não conseguimos confirmar a troca. Atualize a página para ver seu plano.';
+
 /** A prévia nunca chega a cobrar: a falha dela só precisa dizer isso. */
 export const PREVIEW_FAILED_MESSAGE =
   'Não conseguimos conferir esta mudança agora. Nada foi cobrado. Tente de novo.';
@@ -42,6 +49,11 @@ const BLOCKED_MESSAGES: Partial<Record<PlanChangeReason, string>> = {
   DOWNGRADE_LOCKED_UNTIL_PAID: 'A volta para um plano menor fica disponível depois que a próxima fatura for paga.',
 };
 
+export const PREVIEW_FAILED_NOTICE: PlanNotice = {
+  title: 'Não deu para conferir',
+  message: PREVIEW_FAILED_MESSAGE,
+};
+
 export interface PlanNotice {
   title: string;
   message: string;
@@ -66,11 +78,14 @@ export function upgradeCopy(preview: PlanChangePreview): UpgradeCopy | null {
   const next = parseServerTime(preview.nextChargeAt);
   if (!next || preview.nextAmountCents === null || preview.amountTodayCents !== 0) return null;
   const label = planLabel(preview.planName);
-  return {
-    planLabel: label,
-    lead: `O ${label} começa agora.`,
-    rest: `Você não paga nada hoje. A partir de ${formatFullDate(next)} a mensalidade passa a ${formatBRL(preview.nextAmountCents)}.`,
-  };
+  const date = formatFullDate(next);
+  const listed = formatBRL(preview.listAmountCents);
+  // A próxima fatura pode vir com desconto: ela não é a mensalidade do plano.
+  const rest =
+    preview.nextAmountCents === preview.listAmountCents
+      ? `Você não paga nada hoje. A partir de ${date} a mensalidade passa a ${listed}.`
+      : `Você não paga nada hoje. A próxima fatura, em ${date}, vem em ${formatBRL(preview.nextAmountCents)}. O preço do plano é ${listed}.`;
+  return { planLabel: label, lead: `O ${label} começa agora.`, rest };
 }
 
 export function blockedNotice(preview: PlanChangePreview): PlanNotice {
@@ -91,30 +106,34 @@ export function lockNotice(err: unknown): PlanNotice | null {
   };
 }
 
-/** 503 e 500 são os dois que o contrato garante poder repetir. */
+export function isUseInPlace(err: unknown): boolean {
+  return parseApiError(err).code === USE_IN_PLACE_CODE;
+}
+
+/**
+ * 503 e 500 são os dois que o contrato garante poder repetir. Sem resposta, quem
+ * decide é a releitura: a prévia seguinte diz onde a assinatura ficou.
+ */
 export function upgradeCanRetry(err: unknown): boolean {
-  if (!(err instanceof HttpErrorResponse)) return true;
-  return err.status === 0 || err.status >= 500;
+  return err instanceof HttpErrorResponse && (err.status === 500 || err.status === 503);
 }
 
 export function upgradeErrorMessage(err: unknown): string {
-  if (!(err instanceof HttpErrorResponse)) {
-    return 'Não tivemos resposta. Tente de novo: se o upgrade já tiver entrado, nada muda e nada é cobrado.';
-  }
+  if (!(err instanceof HttpErrorResponse)) return UNKNOWN_OUTCOME_MESSAGE;
   const parsed = parseApiError(err);
   if (parsed.code === DOWNGRADE_LOCKED_CODE && parsed.message) return parsed.message;
   const refusal = parsed.code ? UPGRADE_REFUSALS[parsed.code] : undefined;
   if (refusal) return refusal;
   switch (err.status) {
-    case 0:
-      return 'Sem conexão com o servidor. Nada foi alterado. Tente de novo.';
     case 403:
       return 'Só o dono da conta pode fazer o upgrade, e nunca em sessão somente leitura.';
     case 503:
       return 'A Stripe não respondeu. Nada mudou e nada foi cobrado. Tente de novo.';
     case 500:
-      return 'A Stripe aceitou a troca, mas seu plano ainda não atualizou aqui. Tente de novo para concluir: nada é cobrado.';
+      return 'Não conseguimos concluir a alteração do plano. Tente de novo em instantes.';
     default:
-      return 'Não foi possível fazer o upgrade. Nada foi alterado. Tente de novo.';
+      return err.status === 0 || err.status >= 500
+        ? UNKNOWN_OUTCOME_MESSAGE
+        : 'Não foi possível fazer o upgrade. Nada foi alterado. Tente de novo.';
   }
 }

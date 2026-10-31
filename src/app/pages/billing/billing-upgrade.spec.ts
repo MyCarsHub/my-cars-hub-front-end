@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { NEVER, Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, TimeoutError, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Billing } from './billing';
@@ -145,11 +145,14 @@ type Probe = {
   onColumn(col: { contact: boolean; plan: PlanResponse | null }): void;
   openPlans(): void;
   sheet(): string | null;
+  revalidate(): void;
   planCardError(plan: PlanResponse): string | null;
   planCtaLabel(plan: PlanResponse): string;
   planCtaDisabled(plan: PlanResponse): boolean;
   periodSwitchTarget(): PlanResponse | null;
   periodSwitchVariant(): string;
+  periodSwitchDialogMessage(): string;
+  planColumns(): { contact: boolean; ctaDisabled: boolean; ctaLabel: string }[];
   confirmPeriodSwitch(): void;
   downgradeTarget(): PlanResponse | null;
   confirmDowngrade(): void;
@@ -158,6 +161,7 @@ type Probe = {
 describe('Billing: upgrade decidido pelo servidor', () => {
   let subscriptionSignal: ReturnType<typeof signal<SubscriptionResponse | null>>;
   let summarySignal: ReturnType<typeof signal<BillingSummary | null>>;
+  let plansSignal: ReturnType<typeof signal<PlanResponse[]>>;
   let billing: {
     plans: unknown;
     subscription: unknown;
@@ -181,8 +185,9 @@ describe('Billing: upgrade decidido pelo servidor', () => {
   beforeEach(() => {
     subscriptionSignal = signal<SubscriptionResponse | null>(subscription());
     summarySignal = signal<BillingSummary | null>(summary());
+    plansSignal = signal<PlanResponse[]>(PLANS);
     billing = {
-      plans: signal(PLANS).asReadonly(),
+      plans: plansSignal.asReadonly(),
       subscription: subscriptionSignal.asReadonly(),
       loading: signal(false).asReadonly(),
       error: signal<string | null>(null).asReadonly(),
@@ -260,6 +265,9 @@ describe('Billing: upgrade decidido pelo servidor', () => {
       subscriptionSignal.set(
         subscription({ planCode: 'TRIAL_MONTHLY_STRIPE', planName: 'TRIAL', externalId: null, currentPeriodEnd: null }),
       );
+      summarySignal.set(
+        summary({ plan: { code: 'TRIAL_MONTHLY_STRIPE', name: 'TRIAL', period: 'MONTHLY', price: 0, vehicleLimit: 3, contactOnly: false } }),
+      );
       const { c } = render();
       c.onPlanCta(PRO);
       expect(billing.planChangePreview).not.toHaveBeenCalled();
@@ -287,6 +295,15 @@ describe('Billing: upgrade decidido pelo servidor', () => {
       billing.planChangePreview.mockReturnValue(of(inPlace({ nextAmountCents: 10000 })));
       const { el } = startUpgrade();
       expect(byTest(el, 'upgrade-copy')?.textContent).toContain('R$\u00A0100,00');
+    });
+
+    it('com desconto, a fatura com desconto não é chamada de mensalidade', () => {
+      billing.planChangePreview.mockReturnValue(of(inPlace({ nextAmountCents: 10000 })));
+      const { el } = startUpgrade();
+      const text = byTest(el, 'upgrade-copy')?.textContent ?? '';
+      expect(text).not.toMatch(/mensalidade passa a R\$\s100,00/);
+      expect(text).toContain('13/11/2026');
+      expect(text).toContain('R$\u00A0149,90');
     });
 
     it('o valor nunca quebra entre "R$" e os números', () => {
@@ -383,8 +400,8 @@ describe('Billing: upgrade decidido pelo servidor', () => {
       [409, 'UPGRADE_NOT_AVAILABLE', /disponível/i, false],
       [409, 'UPGRADE_CHECKOUT_IN_PROGRESS', /pagamento em andamento/i, false],
       [409, 'UPGRADE_PROVIDER_MISMATCH', /stripe/i, false],
-      [503, undefined, /stripe não respondeu/i, true],
-      [500, undefined, /tente de novo/i, true],
+      [503, undefined, /stripe não respondeu.*nada mudou/i, true],
+      [500, undefined, /Não conseguimos concluir a alteração do plano\. Tente de novo em instantes\./, true],
       [403, undefined, /dono da conta/i, false],
     ];
 
@@ -398,6 +415,31 @@ describe('Billing: upgrade decidido pelo servidor', () => {
       expect((byTest(view.el, 'upgrade-confirm') as HTMLButtonElement).disabled).toBe(!canRetry);
       expect((byTest(view.el, 'upgrade-dismiss') as HTMLButtonElement).disabled).toBe(false);
       expect(billing.startCheckout).not.toHaveBeenCalled();
+      expect(notifications.success).not.toHaveBeenCalled();
+    });
+
+    it('500 não afirma que a Stripe aceitou a troca', () => {
+      billing.upgrade.mockReturnValue(throwError(() => apiError(500)));
+      const view = startUpgrade();
+      confirm(view);
+      expect(byTest(view.el, 'upgrade-error')?.textContent).not.toMatch(/aceitou/i);
+    });
+
+    it.each([
+      ['sem rede', () => new HttpErrorResponse({ status: 0 })],
+      ['502', () => apiError(502)],
+      ['504', () => apiError(504)],
+      ['tempo esgotado', () => new TimeoutError()],
+    ])('%s: resultado desconhecido, não afirma nada e relê o plano', (_label, make) => {
+      billing.upgrade.mockReturnValue(throwError(make));
+      const view = startUpgrade();
+      const reads = billing.loadSubscription.mock.calls.length;
+      confirm(view);
+      const text = byTest(view.el, 'upgrade-error')?.textContent ?? '';
+      expect(text).toContain('Não conseguimos confirmar a troca. Atualize a página para ver seu plano');
+      expect(text).not.toMatch(/nada (mudou|foi)/i);
+      expect(billing.loadSubscription.mock.calls.length).toBeGreaterThan(reads);
+      expect((byTest(view.el, 'upgrade-confirm') as HTMLButtonElement).disabled).toBe(true);
       expect(notifications.success).not.toHaveBeenCalled();
     });
 
@@ -526,6 +568,7 @@ describe('Billing: upgrade decidido pelo servidor', () => {
 
     it('plano pago menor, pelo checkout: fecha a aba reservada e mostra a data', () => {
       subscriptionSignal.set(subscription({ planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO' }));
+      billing.planChangePreview.mockReturnValue(of(checkout('LOWER_PLAN')));
       billing.startCheckout.mockReturnValue(throwError(() => apiError(409, 'DOWNGRADE_LOCKED_UNTIL_PAID', LOCK)));
       const { c, el, fixture } = render();
       c.onPlanCta(STARTER);
@@ -544,6 +587,249 @@ describe('Billing: upgrade decidido pelo servidor', () => {
       c.confirmDowngrade();
       expect(c.sheet()).toBeNull();
       expect(c.planCardError(TRIAL)).toBe('Não dá.');
+    });
+  });
+
+  describe('intenção só com dados completos (FE1)', () => {
+    const noPurchase = (c: Probe): void => {
+      c.onPlanCta(PRO);
+      expect(billing.startCheckout).not.toHaveBeenCalled();
+      expect(billing.planChangePreview).not.toHaveBeenCalled();
+      expect(externalNav.openPendingTab).not.toHaveBeenCalled();
+      expect(c.periodSwitchTarget()).toBeNull();
+    };
+    const buyable = (c: Probe): string[] =>
+      c
+        .planColumns()
+        .filter((col) => !col.contact && !col.ctaDisabled)
+        .map((col) => col.ctaLabel);
+
+    it('/subscription falhou: pede para tentar de novo e não oferece compra', () => {
+      subscriptionSignal.set(null);
+      billing.loadSubscription.mockReturnValue(throwError(() => apiError(500)));
+      const { c, el, fixture } = render();
+      c.openPlans();
+      fixture.detectChanges();
+      expect(byTest(el, 'plan-data-retry')).not.toBeNull();
+      expect(buyable(c)).toEqual([]);
+      expect(c.planColumns().map((col) => col.ctaLabel)).not.toContain('Assinar Pro');
+      noPurchase(c);
+    });
+
+    it('tentar de novo relê tudo e devolve as ações', () => {
+      billing.loadSubscription.mockReturnValueOnce(throwError(() => apiError(503)));
+      const { c, el, fixture } = render();
+      c.openPlans();
+      fixture.detectChanges();
+      const reads = billing.loadSummary.mock.calls.length;
+      (byTest(el, 'plan-data-retry-button') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(billing.loadPlans.mock.calls.length).toBeGreaterThan(1);
+      expect(billing.loadSummary.mock.calls.length).toBeGreaterThan(reads);
+      expect(byTest(el, 'plan-data-retry')).toBeNull();
+      expect(buyable(c)).toContain('Subir para Pro');
+    });
+
+    it('plano atual fora de /plans: não decide', () => {
+      subscriptionSignal.set(subscription({ planCode: 'LEGACY_MONTHLY_STRIPE', planName: 'LEGACY' }));
+      const { c, el, fixture } = render();
+      c.openPlans();
+      fixture.detectChanges();
+      expect(byTest(el, 'plan-data-retry')).not.toBeNull();
+      expect(buyable(c)).toEqual([]);
+      noPurchase(c);
+    });
+
+    it('/plans falhou: mostra o caminho de volta', () => {
+      plansSignal.set([]);
+      billing.loadPlans.mockReturnValue(throwError(() => apiError(500)));
+      const { c, el, fixture } = render();
+      c.openPlans();
+      fixture.detectChanges();
+      expect(byTest(el, 'plan-data-retry')).not.toBeNull();
+    });
+
+    it('resumo diz assinatura paga e /subscription diz que não há: fontes em conflito, não decide', () => {
+      subscriptionSignal.set(null);
+      const { c, el, fixture } = render();
+      c.openPlans();
+      fixture.detectChanges();
+      expect(byTest(el, 'plan-data-retry')).not.toBeNull();
+      noPurchase(c);
+    });
+
+    it('primeira leitura em voo: sem dado ainda, sem compra', () => {
+      subscriptionSignal.set(null);
+      summarySignal.set(null);
+      billing.loadSubscription.mockReturnValue(NEVER);
+      const { c } = render();
+      expect(buyable(c)).toEqual([]);
+      noPurchase(c);
+    });
+
+    it('reler ao voltar para a aba não tira a compra de quem já sabemos que não tem assinatura', () => {
+      subscriptionSignal.set(null);
+      summarySignal.set(summary({ state: 'NONE', plan: null }));
+      const { c } = render();
+      expect(buyable(c)).toContain('Assinar Pro');
+      billing.loadSubscription.mockReturnValue(NEVER);
+      c.revalidate();
+      expect(billing.loadSubscription.mock.calls.length).toBeGreaterThan(1);
+      expect(buyable(c)).toContain('Assinar Pro');
+    });
+
+    it('sem assinatura de verdade (404 lido) continua comprando normalmente', () => {
+      subscriptionSignal.set(null);
+      summarySignal.set(summary({ state: 'NONE', plan: null, canManage: true }));
+      const { c, el, fixture } = render();
+      fixture.detectChanges();
+      expect(byTest(el, 'plan-data-retry')).toBeNull();
+      c.onPlanCta(PRO);
+      expect(billing.startCheckout).toHaveBeenCalledWith('PRO_MONTHLY_STRIPE');
+    });
+  });
+
+  describe('PENDING_PAYMENT passa pela mesma decisão (FE1)', () => {
+    const pending = (over: Partial<SubscriptionResponse> = {}): SubscriptionResponse =>
+      subscription({ pendingPlanCode: 'PRO_MONTHLY_STRIPE', ...over });
+
+    it('cliente pagante com checkout pendente: oferece o upgrade sem cobrança', () => {
+      subscriptionSignal.set(pending());
+      const { c } = startUpgrade();
+      expect(billing.planChangePreview).toHaveBeenCalledExactlyOnceWith('PRO_MONTHLY_STRIPE');
+      expect(c.sheet()).toBe('upgrade');
+      expect(billing.startCheckout).not.toHaveBeenCalled();
+      expect(externalNav.openPendingTab).not.toHaveBeenCalled();
+    });
+
+    it('CHECKOUT com dias pagos a perder: avisa antes, nunca retoma em silêncio', () => {
+      subscriptionSignal.set(pending());
+      billing.planChangePreview.mockReturnValue(of(checkout('INTERVAL_CHANGE')));
+      const { c } = startUpgrade();
+      expect(billing.startCheckout).not.toHaveBeenCalled();
+      expect(c.periodSwitchTarget()).toEqual(PRO);
+      expect(c.periodSwitchVariant()).toBe('danger');
+      expect(c.periodSwitchDialogMessage()).toMatch(/cobrados agora/);
+      c.confirmPeriodSwitch();
+      expect(billing.startCheckout).toHaveBeenCalledWith('PRO_MONTHLY_STRIPE');
+    });
+
+    it('BLOCKED mostra o motivo', () => {
+      subscriptionSignal.set(pending());
+      billing.planChangePreview.mockReturnValue(of(blocked('CANCELLATION_SCHEDULED', 'Há um cancelamento agendado.')));
+      const { c } = startUpgrade();
+      expect(c.sheet()).toBe('notice');
+      expect(billing.startCheckout).not.toHaveBeenCalled();
+    });
+
+    it('prévia falhou: não retoma', () => {
+      subscriptionSignal.set(pending());
+      billing.planChangePreview.mockReturnValue(throwError(() => apiError(503)));
+      const { c } = startUpgrade();
+      expect(billing.startCheckout).not.toHaveBeenCalled();
+      expect(c.planCardError(PRO)).toMatch(/nada foi cobrado/i);
+    });
+
+    it('quem não paga retoma como hoje, dentro do gesto do clique', () => {
+      subscriptionSignal.set(
+        subscription({ status: 'PENDING', planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO', pendingPlanCode: 'PRO_MONTHLY_STRIPE', currentPeriodEnd: null }),
+      );
+      summarySignal.set(summary({ state: 'NONE', plan: null }));
+      const { c } = render();
+      c.onPlanCta(PRO);
+      expect(billing.planChangePreview).not.toHaveBeenCalled();
+      expect(externalNav.openPendingTab).toHaveBeenCalledTimes(1);
+      expect(billing.startCheckout).toHaveBeenCalledWith('PRO_MONTHLY_STRIPE');
+    });
+  });
+
+  describe('409 UPGRADE_USE_IN_PLACE no checkout', () => {
+    const refused = (): void => {
+      billing.startCheckout.mockReturnValue(throwError(() => apiError(409, 'UPGRADE_USE_IN_PLACE')));
+    };
+    /** Chega ao checkout pelo aviso, como faria um cartão com a decisão antiga. */
+    const reachCheckout = (): ReturnType<typeof render> => {
+      billing.planChangePreview.mockReturnValueOnce(of(checkout('YEARLY_PLAN')));
+      const view = render();
+      view.c.onPlanCta(PRO);
+      view.c.confirmPeriodSwitch();
+      view.fixture.detectChanges();
+      return view;
+    };
+
+    it('relê plan-change e abre o diálogo sem cobrança', () => {
+      refused();
+      const { c, el } = reachCheckout();
+      expect(tab.close).toHaveBeenCalled();
+      expect(billing.planChangePreview).toHaveBeenCalledTimes(2);
+      expect(c.sheet()).toBe('upgrade');
+      expect(byTest(el, 'upgrade-copy')?.textContent).toContain('13/11/2026');
+      expect(billing.startCheckout).toHaveBeenCalledTimes(1);
+    });
+
+    it('se a releitura disser CHECKOUT, para: nunca volta ao checkout em laço', () => {
+      refused();
+      billing.planChangePreview.mockReturnValue(of(checkout('YEARLY_PLAN')));
+      const { c } = reachCheckout();
+      expect(billing.startCheckout).toHaveBeenCalledTimes(1);
+      expect(c.periodSwitchTarget()).toBeNull();
+      expect(c.sheet()).toBe('notice');
+    });
+
+    it('releitura com falha avisa em vez de sumir num cartão fechado', () => {
+      refused();
+      billing.planChangePreview.mockReturnValue(throwError(() => apiError(503)));
+      const { c, el } = reachCheckout();
+      expect(c.sheet()).toBe('notice');
+      expect(byTest(el, 'plan-notice-message')?.textContent).toMatch(/nada foi cobrado/i);
+    });
+
+    it('releitura BLOCKED mostra o motivo', () => {
+      refused();
+      billing.planChangePreview.mockReturnValue(of(blocked('DOWNGRADE_SCHEDULED', 'Há uma mudança agendada.')));
+      const { c, el } = reachCheckout();
+      expect(c.sheet()).toBe('notice');
+      expect(byTest(el, 'plan-notice-message')?.textContent).toContain('Há uma mudança agendada.');
+    });
+  });
+
+  describe('plano mais barato e troca de período também têm prévia (FE4)', () => {
+    const onPro = (): void => subscriptionSignal.set(subscription({ planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO' }));
+
+    it('trava aparece antes do aviso de perda', () => {
+      onPro();
+      billing.planChangePreview.mockReturnValue(of(blocked('DOWNGRADE_LOCKED_UNTIL_PAID', 'Fatura de 13/11/2026.')));
+      const { c } = render();
+      c.onPlanCta(STARTER);
+      expect(billing.planChangePreview).toHaveBeenCalledExactlyOnceWith('STARTER_MONTHLY_STRIPE');
+      expect(c.periodSwitchTarget()).toBeNull();
+      expect(c.sheet()).toBe('notice');
+    });
+
+    it('CHECKOUT mantém o aviso de perda', () => {
+      onPro();
+      billing.planChangePreview.mockReturnValue(of(checkout('LOWER_PLAN')));
+      const { c } = render();
+      c.onPlanCta(STARTER);
+      expect(c.periodSwitchTarget()).toEqual(STARTER);
+      expect(billing.startCheckout).not.toHaveBeenCalled();
+    });
+
+    it('sem dias pagos, ainda confirma: a troca paga nunca vai direto', () => {
+      subscriptionSignal.set(subscription({ planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO', currentPeriodEnd: serverTime(-2 * 86_400_000) }));
+      billing.planChangePreview.mockReturnValue(of(checkout('LOWER_PLAN')));
+      const { c } = render();
+      c.onPlanCta(STARTER);
+      expect(c.periodSwitchTarget()).toEqual(STARTER);
+      expect(billing.startCheckout).not.toHaveBeenCalled();
+    });
+
+    it('troca de período também passa pela prévia', () => {
+      billing.planChangePreview.mockReturnValue(of(checkout('INTERVAL_CHANGE')));
+      const { c } = render();
+      c.onPlanCta(PRO_Y);
+      expect(billing.planChangePreview).toHaveBeenCalledExactlyOnceWith('PRO_YEARLY_STRIPE');
+      expect(c.periodSwitchTarget()).toEqual(PRO_Y);
     });
   });
 });

@@ -398,6 +398,16 @@
     </p>
   </ng-template>
 
+  <!-- Sem assinatura ou plano atual lidos, não há ação de compra: só o caminho de volta. -->
+  <ng-template #planDataRetry>
+    @if (planRetryVisible()) {
+      <div role="alert" class="notice warn col plan-retry" data-testid="plan-data-retry">
+        <p>Não conseguimos ler sua assinatura agora, então a mudança de plano fica parada. Nada foi cobrado.</p>
+        <button type="button" class="btn tonal" (click)="retryPlanData()" data-testid="plan-data-retry-button">Tentar de novo</button>
+      </div>
+    }
+  </ng-template>
+
   <!-- ====================================================== página -->
   @if (!summaryLoaded() && !subscription()) {
     <div class="skeleton" aria-busy="true" aria-label="Carregando assinatura">
@@ -421,6 +431,7 @@
       }
       <div class="a-pick" id="planos">
         <h2 class="group-h pick-h">Escolha seu plano</h2>
+        <ng-container *ngTemplateOutlet="planDataRetry" />
         <app-plan-grid [columns]="planColumns()" [cycle]="cycle()" [savings]="yearlySavingsBadge()"
           (cycleChange)="setCycle($event)" (choose)="onColumn($event)" />
         <p class="foot-note">Pague com cartão. Cancele quando quiser.</p>
@@ -514,6 +525,7 @@
       <app-bottom-sheet title="Mudar de plano" size="xl"
         [subtitle]="usage() ? 'Você usa ' + usage()!.vehicles + ' de ' + usage()!.limit + ' veículos do ' + planName() + '.' : null"
         (closed)="closeSheet()">
+        <ng-container *ngTemplateOutlet="planDataRetry" />
         <app-plan-grid [columns]="planColumns()" [cycle]="cycle()" [savings]="yearlySavingsBadge()"
           (cycleChange)="setCycle($event)" (choose)="onColumn($event)" />
         <p class="foot-note">Ao trocar de plano, o valor e o que acontece com o período já pago aparecem antes de confirmar.</p>

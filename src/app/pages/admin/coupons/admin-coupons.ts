@@ -1,6 +1,7 @@
 import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { EMPTY, catchError, from, mergeMap } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { BackLink } from '../../../components/core/back-link/back-link';
@@ -24,6 +25,11 @@ import { CouponSheet } from './coupon-sheet';
 
 /** Parâmetro do atalho "Criar cupom" no detalhe da empresa. */
 const COMPANY_PARAM = 'empresa';
+
+/** A lista traz todos os cupons da Stripe: os nomes não saem todos de uma vez. */
+export const MAX_NAME_READS = 4;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Tamanho do id quando o nome da empresa não pôde ser lido. */
 const SHORT_ID_LENGTH = 8;
@@ -85,7 +91,8 @@ export class AdminCoupons implements OnInit {
         plan: couponPlanLabel(coupon.planCode),
         discount: discountLabel(coupon),
         duration: durationLabel(coupon.durationMonths),
-        validity: validityLabel(coupon),
+        // Desconto que já saiu da assinatura não vale "nas próximas faturas".
+        validity: coupon.mode === 'APPLIED_TO_SUBSCRIPTION' && !status.live ? '—' : validityLabel(coupon),
         canDeactivate: this.canManage() && status.live,
       };
     }),
@@ -123,17 +130,29 @@ export class AdminCoupons implements OnInit {
 
   /**
    * O item da lista só traz o id da empresa. Cada empresa é lida uma vez, e uma
-   * falha aqui deixa a linha com o id curto, sem derrubar a lista.
+   * falha aqui deixa a linha com o id curto, sem derrubar a lista; a próxima carga
+   * tenta aquele nome de novo.
    */
   private resolveNames(list: AdminCoupon[]): void {
+    const ids = new Set<string>();
     for (const { companyId } of list) {
-      if (!companyId || this.requestedNames.has(companyId) || this.names()[companyId]) continue;
-      this.requestedNames.add(companyId);
-      this.service.company(companyId).subscribe({
-        next: (company) => this.rememberName(company),
-        error: () => undefined,
-      });
+      if (companyId && !this.requestedNames.has(companyId) && !this.names()[companyId]) ids.add(companyId);
     }
+    ids.forEach((id) => this.requestedNames.add(id));
+    from(ids)
+      .pipe(
+        mergeMap(
+          (id) =>
+            this.service.company(id).pipe(
+              catchError(() => {
+                this.requestedNames.delete(id);
+                return EMPTY;
+              }),
+            ),
+          MAX_NAME_READS,
+        ),
+      )
+      .subscribe((company) => this.rememberName(company));
   }
 
   private rememberName(company: CouponCompany): void {
@@ -147,7 +166,7 @@ export class AdminCoupons implements OnInit {
 
   private openFromShortcut(): void {
     const id = this.route.snapshot.queryParamMap.get(COMPANY_PARAM);
-    if (!id || !this.canManage()) return;
+    if (!id || !UUID.test(id) || !this.canManage()) return;
     this.service.company(id).subscribe({
       next: (company) => {
         this.prefill.set(company);

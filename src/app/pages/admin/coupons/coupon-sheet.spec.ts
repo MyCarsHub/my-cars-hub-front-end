@@ -7,7 +7,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { AdminCoupon, AdminCouponPreview, CouponCompany } from '../../../types/admin-coupon.types';
 import { PlanResponse } from '../../../types/billing.types';
 import { AdminCouponsService } from './admin-coupons.service';
-import { CouponSheet, PREVIEW_DEBOUNCE_MS } from './coupon-sheet';
+import { CREATE_TIMEOUT_MS, CouponSheet, PREVIEW_DEBOUNCE_MS } from './coupon-sheet';
 
 const plan = (over: Partial<PlanResponse>): PlanResponse => ({
   id: 'p',
@@ -246,11 +246,14 @@ describe('CouponSheet', () => {
       expect(q('coupon-preview').textContent).not.toContain('13/11/2026');
     });
 
-    it('avisa quando nenhuma fatura cai na janela, como no plano anual', async () => {
+    it('sem fatura na janela: tira a frase falsa e não deixa criar', async () => {
       service['preview'].mockReturnValue(of({ ...APPLIED_PREVIEW, discountedInvoices: [] }));
       render();
+      type('coupon-reason', 'Negociação');
       await fill();
       expect(q('coupon-no-invoice').textContent).toMatch(/nenhuma fatura/i);
+      expect(q('coupon-preview').textContent).not.toContain('Paga R$ 100,00');
+      expect(q<HTMLButtonElement>('coupon-submit').disabled).toBe(true);
     });
 
     it('resposta velha não sobrescreve a nova', async () => {
@@ -356,12 +359,47 @@ describe('CouponSheet', () => {
       expect(q('coupon-created-code')).toBeNull();
     });
 
+    it('sem resposta da criação, solta a folha e não finge que falhou', async () => {
+      service['create'].mockReturnValue(NEVER);
+      const changed = vi.fn();
+      render();
+      fixture.componentInstance.listMayHaveChanged.subscribe(changed);
+      await ready();
+      q('coupon-submit').click();
+      fixture.detectChanges();
+      await vi.advanceTimersByTimeAsync(CREATE_TIMEOUT_MS + 1);
+      fixture.detectChanges();
+      expect(q('coupon-create-error').textContent).toMatch(/confira a lista/i);
+      expect(q<HTMLButtonElement>('coupon-submit').textContent).not.toMatch(/criando/i);
+      expect(changed).toHaveBeenCalledTimes(1);
+    });
+
+    it('503 na criação pede para a lista reler', async () => {
+      service['create'].mockReturnValue(throwError(() => apiError(503)));
+      const changed = vi.fn();
+      render();
+      fixture.componentInstance.listMayHaveChanged.subscribe(changed);
+      await ready();
+      q('coupon-submit').click();
+      expect(changed).toHaveBeenCalledTimes(1);
+    });
+
+    it('recusa de negócio não mexe na lista', async () => {
+      service['create'].mockReturnValue(throwError(() => apiError(409, 'COUPON_ALREADY_APPLIED')));
+      const changed = vi.fn();
+      render();
+      fixture.componentInstance.listMayHaveChanged.subscribe(changed);
+      await ready();
+      q('coupon-submit').click();
+      expect(changed).not.toHaveBeenCalled();
+    });
+
     it.each([
       ['COUPON_ZEROES_PLAN', 400, /zera o plano/i],
       ['COUPON_PLAN_MISMATCH', 409, /plano atual/i],
       ['COUPON_ALREADY_APPLIED', 409, /já tem um desconto/i],
       ['COUPON_NO_OWNER', 409, /dono/i],
-      [undefined, 503, /nenhum cupom foi criado/i],
+      [undefined, 503, /confira a lista/i],
       [undefined, 403, /dono/i],
       [undefined, 404, /empresa ou plano/i],
     ])('%s na criação traduz e mantém o formulário', async (code, status, copy) => {

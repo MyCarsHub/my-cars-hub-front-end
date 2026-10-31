@@ -11,7 +11,9 @@ import { adminGuard } from '../../../services/admin.guard';
 import { NotificationService } from '../../../services/notification.service';
 import { AdminCoupon, CouponCompany } from '../../../types/admin-coupon.types';
 import type { AdminCapabilityCode } from '../../../types/admin-roles.types';
-import { AdminCoupons } from './admin-coupons';
+import { By } from '@angular/platform-browser';
+import { AdminCoupons, MAX_NAME_READS } from './admin-coupons';
+import { CouponSheet } from './coupon-sheet';
 import { AdminCouponsService } from './admin-coupons.service';
 
 const CODE: AdminCoupon = {
@@ -48,6 +50,8 @@ const COMPANY: CouponCompany = {
   planCode: 'PRO_MONTHLY_STRIPE',
   planName: 'PRO',
 };
+
+const COMPANY_UUID = '3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b';
 
 const DONO: AdminCapabilityCode[] = ['ver', 'cupom.gerir'];
 const LEITURA: AdminCapabilityCode[] = ['ver'];
@@ -161,6 +165,43 @@ describe('AdminCoupons', () => {
       const row = el.querySelector('[data-testid="coupon-row"]') as HTMLElement;
       expect(row.textContent).toContain('MCH-7KQ2M9XA');
       expect(row.querySelector('a')?.textContent).toContain('co-1');
+    });
+
+    it('tentar de novo busca outra vez o nome que falhou', () => {
+      service['list'].mockReturnValueOnce(of([CODE])).mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 }))).mockReturnValue(of([CODE]));
+      service['company'].mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
+      const { fixture } = render();
+      const page = fixture.componentInstance as unknown as { load(): void };
+      page.load();
+      page.load();
+      fixture.detectChanges();
+      expect(service['company']).toHaveBeenCalledTimes(2);
+    });
+
+    it('limita as leituras simultâneas de nomes', () => {
+      const pending: Subject<CouponCompany>[] = [];
+      service['list'].mockReturnValue(of(Array.from({ length: 9 }, (_, i) => ({ ...CODE, couponId: `c${i}`, companyId: `co-${i}` }))));
+      service['company'].mockImplementation(() => {
+        const answer = new Subject<CouponCompany>();
+        pending.push(answer);
+        return answer;
+      });
+      render();
+      expect(pending).toHaveLength(MAX_NAME_READS);
+      pending[0].next(COMPANY);
+      pending[0].complete();
+      expect(pending).toHaveLength(MAX_NAME_READS + 1);
+    });
+
+    it.each([
+      ['encerrado', { createdAt: '2026-01-01T10:00:00' }, 'Encerrado'],
+      ['desativado', { status: 'DEACTIVATED' as const }, 'Desativado'],
+    ])('desconto %s não promete as próximas faturas', (_label, over, status) => {
+      service['list'].mockReturnValue(of([{ ...APPLIED, ...over }]));
+      const { el } = render();
+      const row = el.querySelector('[data-testid="coupon-row"]') as HTMLElement;
+      expect(row.textContent).toContain(status);
+      expect(row.textContent).not.toContain('Nas próximas faturas');
     });
 
     it('chip de situação é só texto: sem bolinha dentro', () => {
@@ -308,26 +349,44 @@ describe('AdminCoupons', () => {
 
   describe('atalho vindo da empresa', () => {
     it('?empresa= abre a folha com a empresa preenchida', () => {
-      queryParams = { empresa: 'co-1' };
+      queryParams = { empresa: COMPANY_UUID };
       const { el } = render(DONO);
       expect(document.querySelector('[data-testid="coupon-company-selected"]')?.textContent ?? el.textContent).toContain(
         'Locadora Teste',
       );
     });
 
+    it('parâmetro que não é um id é ignorado, sem chamar a API', () => {
+      queryParams = { empresa: '../../billing/plans' };
+      render(DONO);
+      expect(service['company']).toHaveBeenCalledTimes(1);
+      expect(service['company']).toHaveBeenCalledWith('co-1');
+      expect(document.querySelector('[data-testid="coupon-sheet"]')).toBeNull();
+    });
+
     it('sem cupom.gerir o atalho não abre a folha', () => {
-      queryParams = { empresa: 'co-1' };
+      queryParams = { empresa: COMPANY_UUID };
       render(LEITURA);
       expect(document.querySelector('[data-testid="coupon-sheet"]')).toBeNull();
     });
 
     it('fechar limpa o parâmetro, para recarregar não reabrir', () => {
-      queryParams = { empresa: 'co-1' };
+      queryParams = { empresa: COMPANY_UUID };
       const { fixture } = render(DONO);
       const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
       (fixture.componentInstance as unknown as { closeSheet(): void }).closeSheet();
       expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: {}, replaceUrl: true }));
     });
+  });
+
+  it('criação sem resposta relê a lista', () => {
+    const { fixture } = render();
+    (fixture.componentInstance as unknown as { openSheet(): void }).openSheet();
+    fixture.detectChanges();
+    const reads = service['list'].mock.calls.length;
+    const sheet = fixture.debugElement.query(By.directive(CouponSheet)).componentInstance as CouponSheet;
+    sheet.listMayHaveChanged.emit();
+    expect(service['list'].mock.calls.length).toBe(reads + 1);
   });
 
   it('cupom criado entra no topo da lista com o nome já conhecido', () => {

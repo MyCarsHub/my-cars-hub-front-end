@@ -55,7 +55,7 @@ export class AdminCouponsService {
 
   /** O item da lista só traz o id: é daqui que sai o nome da empresa. */
   company(id: string): Observable<CouponCompany> {
-    return this.http.get<AdminCompanyDetail>(`${COMPANIES}/${id}`, { context: this.context() }).pipe(
+    return this.http.get<AdminCompanyDetail>(`${COMPANIES}/${encodeURIComponent(id)}`, { context: this.context() }).pipe(
       map((detail) => ({
         id: detail.id,
         name: detail.name,
