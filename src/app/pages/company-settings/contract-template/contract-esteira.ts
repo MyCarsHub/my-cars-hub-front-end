@@ -454,7 +454,10 @@ export class ContractEsteira {
     this.ai.unanswered().map((q) => ({
       id: q.id,
       value: readable(safeText(q.excerpt)),
-      where: shortQuote(safeText(q.context), safeText(q.excerpt)),
+      // Numa tabela a célula sozinha é igual à do lado: o que a distingue é a coluna.
+      where: q.nearby.some((n) => n.where === 'COLUMN')
+        ? readable(safeText(q.nearby.filter((n) => n.where === 'COLUMN').at(-1)?.text))
+        : shortQuote(safeText(q.context), safeText(q.excerpt)),
     })),
   );
 

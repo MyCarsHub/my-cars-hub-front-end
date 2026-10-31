@@ -574,6 +574,31 @@ describe('ContractEsteira', () => {
     expect(left).not.toContain('[CPF_1]');
   });
 
+  it('o «Conferir» distingue duas células iguais pela coluna de cada uma', async () => {
+    const cell = (id: string, marker: string, column: string) => ({
+      ...QUESTION,
+      id,
+      excerpt: marker,
+      context: `CPF: ${marker}`,
+      places: [{ paragraphId: 'p1', excerpt: marker }],
+      nearby: [{ where: 'COLUMN', text: column }],
+    });
+    await analysed([{ id: 'p1', text: 'CPF: [CPF_1] CPF: [CPF_2]' }], {
+      status: 'NEEDS_REVIEW',
+      questions: [cell('q0001', '[CPF_1]', 'LOCADOR: Fulano'), cell('q0002', '[CPF_2]', 'LOCATÁRIO: Beltrano')],
+    });
+
+    click('Próxima pergunta');
+    click('Ver como ficou');
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`)
+      .flush({ draftId: DRAFT, status: 'READY', acceptedCount: 0, pendingDoubtIds: [] });
+    fixture.detectChanges();
+
+    const rows = Array.from(host.querySelectorAll('[data-unanswered] li')).map((li) => li.textContent);
+    expect(rows[0]).toContain('LOCADOR: Fulano');
+    expect(rows[1]).toContain('LOCATÁRIO: Beltrano');
+  });
+
   it('o «Conferir» avisa quando o contrato não tem nome nem CPF do motorista como campo', async () => {
     await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [QUESTION] });
 
