@@ -35,6 +35,8 @@ export interface DraftStatusResponse {
   layoutSimplified: boolean;
   certain: SuggestionView[];
   doubts: SuggestionView[];
+  /** Campos que o contrato enviado JÁ traz como `{{campo}}`. Ausente até a análise terminar. */
+  existingFields?: FieldOption[];
 }
 
 export interface DraftSubmittedResponse {

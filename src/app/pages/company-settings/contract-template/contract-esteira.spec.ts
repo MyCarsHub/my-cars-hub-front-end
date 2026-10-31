@@ -387,6 +387,123 @@ describe('ContractEsteira', () => {
     http.expectNone(`${ROOT}/drafts`);
   });
 
+  /** Da escolha do arquivo até a resposta da análise, com o texto mascarado dado. */
+  async function analysed(paragraphs: { id: string; text: string }[], status: object): Promise<void> {
+    mocks.renderAsync.mockImplementation(async (_b: Blob, el: HTMLElement) => {
+      el.innerHTML = '<p>CONTRATO</p>';
+    });
+    mount();
+    click('Ajustar o meu contrato');
+    const input = host.querySelector<HTMLInputElement>('input[type=file]')!;
+    const file = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1])], 'meu.docx', { type: DOCX_MIME });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(button('Continuar')!.disabled).toBe(false);
+    });
+    click('Continuar');
+    http.expectOne(`${ROOT}/drafts`).flush({ draftId: DRAFT, status: 'AWAITING_CONSENT' });
+    fixture.detectChanges();
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/masked-text`).flush({
+      draftId: DRAFT,
+      paragraphs,
+      maskedTextSha256: 'abc',
+      consentVersion: 'v3',
+      notMasked: [],
+      aiRoute: 'r',
+      aiProviders: [],
+    });
+    fixture.detectChanges();
+    host.querySelector<HTMLInputElement>('input[type=checkbox]')!.click();
+    fixture.detectChanges();
+    click('Autorizar e analisar');
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/consent`).flush({ draftId: DRAFT, status: 'ANALYZING' });
+    fixture.detectChanges();
+    http.expectOne(`${ROOT}/drafts/${DRAFT}`).flush({
+      draftId: DRAFT,
+      failureCode: null,
+      filename: 'meu.docx',
+      layoutSimplified: false,
+      certain: [],
+      doubts: [],
+      ...status,
+    });
+    fixture.detectChanges();
+  }
+
+  const EXISTING = [
+    { field: 'rentalId', label: 'Número do contrato' },
+    { field: 'driverName', label: 'Nome do motorista' },
+    { field: 'contractDate', label: 'Data do contrato' },
+  ];
+
+  it('contrato com campos e nada novo: vai direto a «Conferir», conta os campos e salva sem decisões', async () => {
+    await analysed(
+      [
+        { id: 'p1', text: 'Contrato nº {{rentalId}}' },
+        { id: 'p2', text: 'LOCATÁRIO: {{driverName}}, em {{contractDate}}.' },
+      ],
+      { status: 'READY', existingFields: EXISTING },
+    );
+
+    expect(host.textContent).toContain('Confira e salve');
+    expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('3');
+    expect(host.textContent).toContain('3 dados já estão no contrato');
+    expect(paperText()).not.toContain('{{');
+    expect(host.querySelectorAll('article [class*="emerald"]').length).toBe(3);
+
+    click('Salvar contrato');
+    http.expectNone(`${ROOT}/drafts/${DRAFT}/decisions`);
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/save`).flush(SAVED);
+  });
+
+  it('a etapa dos campos mostra o que já está no contrato, e o total soma os dois', async () => {
+    await analysed(
+      [
+        { id: 'p1', text: 'Contrato nº {{rentalId}}' },
+        { id: 'p2', text: 'Campinas, {{contractDate}}' },
+      ],
+      {
+        status: 'NEEDS_REVIEW',
+        existingFields: EXISTING.filter((f) => f.field !== 'driverName'),
+        doubts: [
+          { id: 's0001', paragraphId: 'p2', field: 'companyCity', fieldLabel: 'Cidade da empresa', excerpt: 'Campinas',
+            context: 'Campinas, {{contractDate}}', confidence: 0.6, reason: '', alternatives: [] },
+        ],
+      },
+    );
+
+    expect(host.textContent).toContain('Seu contrato já tinha 2 dados.');
+    expect(host.textContent).toContain('Só falta 1 pergunta rápida.');
+    expect(host.textContent).toContain('2 dados já estão no contrato');
+    expect(paperText()).not.toContain('{{');
+
+    click('Ver como ficou');
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`)
+      .flush({ draftId: DRAFT, status: 'READY', acceptedCount: 1, pendingDoubtIds: [] });
+    fixture.detectChanges();
+
+    expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('3');
+  });
+
+  it('token desconhecido: o salvar recusa com a instrução, e o contrato fica na tela', async () => {
+    await analysed([{ id: 'p1', text: 'Olá {{campoEstranho}} e {{rentalId}}' }], {
+      status: 'READY',
+      existingFields: [EXISTING[0]],
+    });
+
+    click('Salvar contrato');
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/save`).flush(
+      { code: 'TEMPLATE_UNKNOWN_PLACEHOLDER' },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    fixture.detectChanges();
+
+    expect(host.textContent).toContain('não reconhece');
+    expect(host.textContent).toContain('Confira e salve');
+  });
+
   it('ajustar o meu: envio → texto mascarado → autorização → uma pergunta por vez → decisões', async () => {
     mocks.renderAsync.mockImplementation(async (_b: Blob, el: HTMLElement) => {
       el.innerHTML = '<p>CONTRATO DE LOCAÇÃO</p><p>LOCATÁRIO: Carlos <script>x()</script></p>';

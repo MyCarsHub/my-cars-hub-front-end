@@ -330,6 +330,7 @@
           <app-contract-review-step
             [fields]="reviewCounts().fields"
             [clauses]="reviewCounts().clauses"
+            [existing]="ai.existingFields()"
             [currentName]="template()?.filename ?? null"
             [where]="where()"
           />

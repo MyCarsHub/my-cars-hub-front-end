@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { LEGAL_DISCLAIMER } from '../ai/contract-ai.messages';
+import { FieldOption } from '../ai/contract-ai.types';
+import { ContractExistingFields } from '../contract-existing-fields';
 import { ContractIcon } from '../contract-icon';
 
 /** Última etapa dos dois caminhos: contagem, aviso de substituição e aviso jurídico. */
@@ -7,7 +9,7 @@ import { ContractIcon } from '../contract-icon';
   selector: 'app-contract-review-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-5' },
-  imports: [ContractIcon],
+  imports: [ContractIcon, ContractExistingFields],
   template: `
     <div class="flex flex-col gap-1.5">
       <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-fg focus:outline-none">
@@ -33,6 +35,7 @@ import { ContractIcon } from '../contract-icon';
         </dd>
       </div>
     </dl>
+    <app-contract-existing-fields [fields]="existing()" />
     <div class="flex flex-col gap-2">
       <span class="text-[13px] font-semibold uppercase tracking-wide text-fg-muted">Ao salvar</span>
       <ul class="m-0 flex list-none flex-col gap-2 p-0 text-[15px] leading-snug text-fg-body">
@@ -62,6 +65,8 @@ import { ContractIcon } from '../contract-icon';
 export class ContractReviewStep {
   readonly fields = input(0);
   readonly clauses = input(0);
+  /** O que o contrato enviado já trazia: sem perguntas, aqui é o único lugar que mostra. */
+  readonly existing = input<readonly FieldOption[]>([]);
   readonly currentName = input<string | null>(null);
   readonly where = input('ao lado');
   protected readonly disclaimer = LEGAL_DISCLAIMER;

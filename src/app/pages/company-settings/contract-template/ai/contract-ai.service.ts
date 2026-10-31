@@ -99,6 +99,8 @@ export class ContractAiService {
   });
 
   readonly failureText = computed(() => failureMessage(this.draft()?.failureCode ?? null));
+  /** O que o contrato enviado já trazia como `{{campo}}`. */
+  readonly existingFields = computed(() => this.draft()?.existingFields ?? []);
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private pollSub: Subscription | null = null;

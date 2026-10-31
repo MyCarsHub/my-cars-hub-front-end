@@ -49,6 +49,8 @@ export const FIELD_EXAMPLES: Readonly<Record<string, string>> = {
   pickupDate: '01/11/2026',
   firstPaymentDate: '08/11/2026',
   dailyInterest: '0,33%',
+  lateInterestPercent: '1,00% ao mês',
+  lateInterestTerms: '1,00% ao mês sobre o valor devido',
   lateFine: '2%',
   franchiseKm: '3.000',
   returnFuelPolicy: 'tanque cheio',
@@ -115,6 +117,11 @@ export function plainFieldLabel(field: string, apiLabel?: string | null): string
 
 export function hiddenLabel(kind: string): string {
   return HIDDEN_LABELS[kind] ?? 'dado escondido';
+}
+
+/** É um campo da lista fechada? Token fora dela o backend recusa ao salvar. */
+export function isKnownField(field: string): boolean {
+  return Object.hasOwn(FIELD_LABELS, field);
 }
 
 /** Todas as chaves conhecidas, na ordem do catálogo (para os seletores de correção). */

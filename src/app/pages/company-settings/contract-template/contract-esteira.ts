@@ -425,7 +425,13 @@ export class ContractEsteira {
     }
     const d = this.ai.draft();
     const decisions = this.ai.decisions();
-    const fields = new Set<string>();
+    const doc = this.maskedDoc() ?? this.fallbackDoc();
+    // O servidor vê o arquivo inteiro (cabeçalho e rodapé); o texto do contrato cobre o servidor
+    // sem esse dado, como um rascunho de antes do campo.
+    const fields = new Set<string>([
+      ...this.ai.existingFields().map((f) => f.field),
+      ...(doc?.fields ?? []),
+    ]);
     for (const s of d?.certain ?? []) {
       const dec = decisions[s.id];
       if (!dec || dec.accept) fields.add(dec?.field ?? s.field);
@@ -434,7 +440,6 @@ export class ContractEsteira {
       const dec = decisions[s.id];
       if (dec?.accept) fields.add(dec.field);
     }
-    const doc = this.maskedDoc() ?? this.fallbackDoc();
     return { fields: fields.size, clauses: doc?.clauses ?? 0 };
   });
 

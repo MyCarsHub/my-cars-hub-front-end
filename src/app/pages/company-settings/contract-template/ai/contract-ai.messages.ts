@@ -87,6 +87,10 @@ const HTTP_MESSAGES: Record<string, string> = {
   DRAFT_CHANGED: 'O rascunho mudou em outra aba. Atualizamos a tela para você.',
   TEMPLATE_APPLY_FAILED:
     'Não foi possível aplicar os campos escolhidos ao contrato. Nada foi alterado.',
+  TEMPLATE_UNKNOWN_PLACEHOLDER:
+    'O contrato tem um campo entre chaves {{ }} que o sistema não reconhece. Corrija ou apague esse campo no Word e envie o arquivo de novo.',
+  TEMPLATE_NO_FIELDS:
+    'Nenhum dado vai ser preenchido sozinho. Aceite pelo menos um campo antes de salvar.',
 };
 
 export function errorCode(err: unknown): string | null {
@@ -168,6 +172,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   pickupDate: 'Data de retirada',
   firstPaymentDate: 'Data do primeiro pagamento',
   dailyInterest: 'Juros por dia de atraso',
+  lateInterestPercent: 'Juros ao mês (%)',
+  lateInterestTerms: 'Juros de mora (frase)',
   lateFine: 'Multa por atraso',
   franchiseKm: 'Km de franquia',
   returnFuelPolicy: 'Combustível na devolução',

@@ -11,6 +11,7 @@ import { FormField, FieldControl } from '../../../../components/form-field/form-
 import { ContractAiService } from '../ai/contract-ai.service';
 import { FIELD_LABELS, safeText } from '../ai/contract-ai.messages';
 import { SuggestionView } from '../ai/contract-ai.types';
+import { ContractExistingFields } from '../contract-existing-fields';
 import { FIELD_KEYS, plainFieldLabel } from '../contract-fields';
 import { humanizeMasked } from '../contract-paper.model';
 import { ContractIcon } from '../contract-icon';
@@ -35,7 +36,7 @@ const MAX_ANSWERS = 3;
   selector: 'app-contract-questions-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-4' },
-  imports: [FormField, FieldControl, ContractIcon],
+  imports: [FormField, FieldControl, ContractIcon, ContractExistingFields],
   // Trecho citado com a mesma fonte de documento do contrato ao vivo.
   styles: `
     .doc-serif {
@@ -103,6 +104,8 @@ const MAX_ANSWERS = 3;
       </div>
     }
 
+    <app-contract-existing-fields [fields]="existing()" />
+
     @if (certain().length > 0) {
       <div class="rounded-2xl bg-surface-muted px-1">
         <button type="button" (click)="open.set(!open())" [attr.aria-expanded]="open()"
@@ -149,14 +152,21 @@ export class ContractQuestionsStep {
 
   protected readonly doubts = computed<SuggestionView[]>(() => this.svc.draft()?.doubts ?? []);
   protected readonly certain = computed<SuggestionView[]>(() => this.svc.draft()?.certain ?? []);
+  protected readonly existing = this.svc.existingFields;
   protected readonly current = computed(() => this.doubts()[this.index()] ?? null);
 
   protected readonly foundText = computed(() => {
+    const had = this.existing().length;
     const n = this.certain().length;
     const q = this.doubts().length;
-    const marked = n === 1 ? 'A IA marcou 1 dado sozinha.' : `A IA marcou ${n} dados sozinha.`;
     const left = q === 1 ? 'Só falta 1 pergunta rápida.' : `Só faltam ${q} perguntas rápidas.`;
-    return `${marked} ${left}`;
+    if (had === 0) {
+      const marked = n === 1 ? 'A IA marcou 1 dado sozinha.' : `A IA marcou ${n} dados sozinha.`;
+      return `${marked} ${left}`;
+    }
+    const found = had === 1 ? 'Seu contrato já tinha 1 dado.' : `Seu contrato já tinha ${had} dados.`;
+    if (n === 0) return `${found} ${left}`;
+    return `${found} A IA marcou mais ${n}. ${left}`;
   });
 
   protected readonly correctLabel = computed(() => {

@@ -1,5 +1,5 @@
 import { DraftDecision, SuggestionView } from './ai/contract-ai.types';
-import { MASK_TOKEN, hiddenLabel } from './contract-fields';
+import { MASK_TOKEN, hiddenLabel, isKnownField } from './contract-fields';
 import { ContractBaseClause } from './base/contract-base.types';
 
 /**
@@ -32,6 +32,10 @@ export interface PaperDocument {
 }
 
 const FIELD_OR_BOLD = /(\{\{\s*[A-Za-z0-9_]+\s*\}\}|\*\*[^*]+\*\*)/;
+/** `{{campo}}` no texto do contrato enviado. */
+const FIELD_TOKEN = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
+/** Qualquer coisa entre chaves duplas: mesmo critério do backend para o que não se toca. */
+const ANY_TOKEN = /\{\{[^{}]*\}\}/g;
 
 /** Texto de uma linha: `{{campo}}` vira campo e `**negrito**` vira texto em negrito. */
 export function parseInline(text: string): PaperSegment[] {
@@ -181,6 +185,39 @@ function withHidden(text: string): PaperSegment[] {
   return out;
 }
 
+/**
+ * O texto do contrato com os `{{campo}}` que ele já trazia virando campo, igual a uma sugestão
+ * aceita. Token fora da lista fica como texto: não é verde porque o salvar vai recusá-lo.
+ */
+function withFields(text: string): PaperSegment[] {
+  const out: PaperSegment[] = [];
+  let at = 0;
+  for (const m of text.matchAll(FIELD_TOKEN)) {
+    if (!isKnownField(m[1])) continue;
+    const i = m.index ?? 0;
+    if (i > at) out.push(...withHidden(text.slice(at, i)));
+    out.push({ kind: 'field', field: m[1], tone: 'ok' });
+    at = i + m[0].length;
+  }
+  if (at < text.length) out.push(...withHidden(text.slice(at)));
+  return out;
+}
+
+/** Primeira ocorrência do trecho fora dos tokens («Km» não pode cair em `{{initialKm}}`). */
+function excerptAt(text: string, excerpt: string): number {
+  const tokens = [...text.matchAll(ANY_TOKEN)].map((m) => {
+    const from = m.index ?? 0;
+    return { from, to: from + m[0].length };
+  });
+  let at = text.indexOf(excerpt);
+  while (at >= 0) {
+    const end = at + excerpt.length;
+    if (!tokens.some((t) => at < t.to && end > t.from)) return at;
+    at = text.indexOf(excerpt, at + 1);
+  }
+  return -1;
+}
+
 /** Texto mascarado com as marcas trocadas por rótulos, para frases fora do contrato. */
 export function humanizeMasked(text: string): string {
   return text.replace(MASK_TOKEN, (_m, kind: string) => hiddenLabel(kind));
@@ -198,7 +235,8 @@ export interface MaskedStage {
 /**
  * «Ajustar o meu contrato»: o texto mascarado que a IA leu, com cada sugestão trocada pelo
  * campo que a pessoa aceitou. Sugestão recusada fica com o texto original; dúvida ainda sem
- * resposta aparece em âmbar até ser respondida.
+ * resposta aparece em âmbar até ser respondida. No consentimento o texto fica intacto, chaves
+ * inclusive: ali ele é o que vai à IA.
  */
 export function buildMaskedDocument(
   paragraphs: readonly { id: string; text: string }[],
@@ -209,14 +247,14 @@ export function buildMaskedDocument(
     if (opts.stage === 'consent') return { id: p.id, role, segments: withHidden(p.text) };
     const hits = (opts.suggestions ?? [])
       .filter((s) => s.paragraphId === p.id && s.excerpt)
-      .map((s) => ({ s, at: p.text.indexOf(s.excerpt) }))
+      .map((s) => ({ s, at: excerptAt(p.text, s.excerpt) }))
       .filter((h) => h.at >= 0)
       .sort((a, b) => a.at - b.at);
     const segments: PaperSegment[] = [];
     let cursor = 0;
     for (const { s, at } of hits) {
       if (at < cursor) continue; // sobreposta a outra sugestão: a primeira vence
-      if (at > cursor) segments.push(...withHidden(p.text.slice(cursor, at)));
+      if (at > cursor) segments.push(...withFields(p.text.slice(cursor, at)));
       const decision = opts.decisions?.[s.id];
       const isDoubt = opts.doubtIds?.has(s.id) ?? false;
       const focus = s.id === opts.focusId;
@@ -234,7 +272,7 @@ export function buildMaskedDocument(
       }
       cursor = at + s.excerpt.length;
     }
-    if (cursor < p.text.length) segments.push(...withHidden(p.text.slice(cursor)));
+    if (cursor < p.text.length) segments.push(...withFields(p.text.slice(cursor)));
     return { id: p.id, role, segments };
   });
   return {
