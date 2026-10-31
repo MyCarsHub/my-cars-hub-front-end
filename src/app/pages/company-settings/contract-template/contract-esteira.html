@@ -332,7 +332,8 @@
             [clauses]="reviewCounts().clauses"
             [existing]="ai.existingFields()"
             [unanswered]="unanswered()"
-            [driverMissing]="path() === 'mine' && reviewCounts().driverMissing"
+            [driverMissing]="path() === 'mine' && reviewCounts().driverMissing && !readParagraph()"
+            [readParagraph]="readParagraph()"
             [currentName]="template()?.filename ?? null"
             [where]="where()"
           />

@@ -56,6 +56,12 @@ import { ContractIcon } from '../contract-icon';
         </ul>
       </section>
     }
+    @if (readParagraph(); as text) {
+      <p data-read-paragraph class="m-0 flex items-start gap-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 text-[13px] leading-normal text-amber-950 dark:text-amber-100">
+        <app-contract-icon name="info" [size]="16" class="mt-px" />
+        <span class="min-w-0 [overflow-wrap:anywhere]">Leia este trecho: «{{ text }}». Se o nome ao lado continuar fixo, o contrato sai com o nome de uma pessoa e o documento de outra. Cabeçalho e rodapé não mudam.</span>
+      </p>
+    }
     @if (driverMissing()) {
       <p class="m-0 flex items-start gap-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 text-[13px] leading-normal text-amber-950 dark:text-amber-100">
         <app-contract-icon name="info" [size]="16" class="mt-px" />
@@ -97,6 +103,8 @@ export class ContractReviewStep {
   readonly unanswered = input<readonly { id: string; value: string; where: string }[]>([]);
   /** Nenhum campo identifica o motorista: todo aluguel sairia sem dizer quem é. */
   readonly driverMissing = input(false);
+  /** Trecho a reler: documento do motorista respondido, nome sem campo. */
+  readonly readParagraph = input<string | null>(null);
   readonly currentName = input<string | null>(null);
   readonly where = input('ao lado');
   protected readonly disclaimer = LEGAL_DISCLAIMER;

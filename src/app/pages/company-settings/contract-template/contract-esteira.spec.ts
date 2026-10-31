@@ -610,6 +610,40 @@ describe('ContractEsteira', () => {
     expect(host.textContent).toContain('sem o nome e o CPF do motorista');
   });
 
+  it('documento respondido sem o nome: o «Conferir» pede para ler o trecho, uma vez só', async () => {
+    await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [QUESTION] });
+    answerRadios()[0].click();
+    fixture.detectChanges();
+    click('Ver como ficou');
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`)
+      .flush({ draftId: DRAFT, status: 'READY', acceptedCount: 1, pendingDoubtIds: [] });
+    fixture.detectChanges();
+
+    const warning = host.querySelectorAll('[data-read-paragraph]');
+    expect(warning.length).toBe(1);
+    expect(warning[0].textContent).toContain('CONTRATANTE: Fulano');
+    expect(warning[0].textContent).toContain('o nome de uma pessoa e o documento de outra');
+    expect(warning[0].textContent).toContain('Cabeçalho e rodapé não mudam');
+  });
+
+  it('documento e nome respondidos: nada a avisar', async () => {
+    const name = { ...QUESTION, id: 'q0002', kind: 'NAME', excerpt: 'Fulano',
+      places: [{ paragraphId: 'p1', excerpt: 'Fulano' }],
+      options: [{ field: 'driverName', label: 'Nome do motorista' }] };
+    await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [QUESTION, name] });
+    answerRadios()[0].click();
+    fixture.detectChanges();
+    click('Próxima pergunta');
+    answerRadios()[0].click();
+    fixture.detectChanges();
+    click('Ver como ficou');
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`)
+      .flush({ draftId: DRAFT, status: 'READY', acceptedCount: 2, pendingDoubtIds: [] });
+    fixture.detectChanges();
+
+    expect(host.querySelector('[data-read-paragraph]')).toBeNull();
+  });
+
   it('salvar com perguntas diz ao backend que elas foram vistas', async () => {
     await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [QUESTION] });
     click('Ver como ficou');

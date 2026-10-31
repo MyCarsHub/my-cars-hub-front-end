@@ -74,6 +74,7 @@ const BASE_RELOAD_CODES = new Set([
   'CONTRACT_BASE_FIXED_CLAUSE',
   'CONTRACT_BASE_DUPLICATE_CLAUSE',
 ]);
+const DOCUMENT_KINDS = new Set(['CPF', 'RG', 'CNH']);
 const READING_TEXTS = ['Abrindo o arquivo', 'Procurando nomes, valores e datas', 'Quase pronto'];
 const READING_PCT = ['25%', '60%', '90%'];
 const STEPS: Record<EsteiraPath, string[]> = {
@@ -423,7 +424,7 @@ export class ContractEsteira {
   protected readonly reviewCounts = computed(() => {
     if (this.path() === 'zero') {
       const doc = this.zeroDoc();
-      return { fields: doc.fields.length, clauses: doc.clauses, driverMissing: false };
+      return { fields: doc.fields.length, clauses: doc.clauses, driverMissing: false, driverNamed: true };
     }
     const d = this.ai.draft();
     const decisions = this.ai.decisions();
@@ -446,7 +447,18 @@ export class ContractEsteira {
       fields: fields.size,
       clauses: doc?.clauses ?? 0,
       driverMissing: !fields.has('driverName') && !fields.has('driverCpf'),
+      driverNamed: fields.has('driverName'),
     };
+  });
+
+  /** Documento do motorista respondido sem o nome: o nome ao lado pode ter ficado fixo. */
+  protected readonly readParagraph = computed(() => {
+    if (this.path() !== 'mine' || this.reviewCounts().driverNamed) return null;
+    const decisions = this.ai.decisions();
+    const q = this.ai.questions().find(
+      (o) => DOCUMENT_KINDS.has(o.kind) && decisions[o.id]?.accept && decisions[o.id]?.field?.startsWith('driver'),
+    );
+    return q ? shortQuote(safeText(q.context), safeText(q.excerpt)) : null;
   });
 
   /** O que vai ficar fixo porque ninguém respondeu: o «Conferir» diz em palavras. */
