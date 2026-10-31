@@ -52,6 +52,7 @@ import {
   BillingInvoice,
   BillingState,
   BillingSummary,
+  PlanChangePreview,
   PlanGateway,
   PlanPeriod,
   PlanResponse,
@@ -63,6 +64,16 @@ import {
 import { IMPERSONATION_STATE_KEY } from '../../services/impersonation.context';
 import { environment } from '../../../environments/environment';
 import { PlanColumn, PlanGrid } from './plan-grid';
+import {
+  PREVIEW_FAILED_MESSAGE,
+  PlanNotice,
+  UpgradeCopy,
+  blockedNotice,
+  lockNotice,
+  upgradeCanRetry,
+  upgradeCopy,
+  upgradeErrorMessage,
+} from './plan-change-copy';
 
 /**
  * What the CTA of a given plan card means for THIS customer. Derived from
@@ -130,7 +141,16 @@ type AwaitMode = 'returned' | 'checkout-open';
 const ACTIVE_GATEWAY: PlanGateway = 'stripe';
 
 /** Folhas da página: uma de cada vez. */
-type BillingSheet = 'pay' | 'choose' | 'plans' | 'cancel' | 'paid' | 'invoices' | 'pix';
+type BillingSheet =
+  | 'pay'
+  | 'choose'
+  | 'plans'
+  | 'cancel'
+  | 'paid'
+  | 'invoices'
+  | 'pix'
+  | 'upgrade'
+  | 'notice';
 
 /**
  * Fases da folha "Pagar com Pix". `releasing`: o dinheiro entrou mas o acesso
@@ -313,6 +333,14 @@ export class Billing implements OnInit, OnDestroy {
   protected readonly downgradeTarget = signal<PlanResponse | null>(null);
   /** Mensal↔Anual target awaiting an explicit, informed confirmation. */
   protected readonly periodSwitchTarget = signal<PlanResponse | null>(null);
+
+  /** Upgrade que o servidor aceita na mesma assinatura, aguardando a confirmação. */
+  protected readonly upgradeOffer = signal<{ plan: PlanResponse; copy: UpgradeCopy } | null>(null);
+  protected readonly upgradeBusy = signal(false);
+  /** O servidor recusou de um jeito que repetir não resolve: só resta fechar. */
+  protected readonly upgradeRefused = signal(false);
+  /** Por que esta mudança não acontece agora: `BLOCKED` ou a trava da descida. */
+  protected readonly planNotice = signal<PlanNotice | null>(null);
 
   private visibilityListener: (() => void) | null = null;
   private focusListener: (() => void) | null = null;
@@ -868,12 +896,11 @@ export class Billing implements OnInit, OnDestroy {
         this.startCheckout(plan);
         return;
       case 'UPGRADE':
-        // An upgrade takes the same server path as PLAN_SWITCH: immediate
-        // charge, old subscription cancelled on the spot, no proration and no
-        // refund. If there is a paid period left to burn, the user must be told
-        // in numbers first — the cheaper direction already was.
-        if (this.burnsPaidPeriod()) {
-          this.periodSwitchTarget.set(plan);
+        // Sem assinatura paga em vigor o servidor sempre responderia CHECKOUT, e
+        // esperar a resposta tiraria o checkout do gesto do clique: no celular a
+        // aba viraria pop-up bloqueado. Só quem paga tem o que perguntar.
+        if (this.isPaidActive()) {
+          this.previewUpgrade(plan);
           return;
         }
         this.startCheckout(plan);
@@ -896,6 +923,106 @@ export class Billing implements OnInit, OnDestroy {
       default:
         return;
     }
+  }
+
+  /**
+   * O servidor decide como este upgrade acontece. A falha da consulta para aqui:
+   * cair no checkout antigo cobraria o cliente pelo caminho que a prévia existe
+   * para evitar.
+   */
+  private previewUpgrade(plan: PlanResponse): void {
+    if (this.busyPlanId() !== null) return;
+    this.busyPlanId.set(plan.id);
+    this.billingService
+      .planChangePreview(plan.code)
+      .pipe(timeout(CHECKOUT_REQUEST_TIMEOUT_MS))
+      .subscribe({
+        next: (preview) => {
+          this.busyPlanId.set(null);
+          this.applyPlanChange(plan, preview);
+        },
+        error: (err: unknown) => {
+          this.busyPlanId.set(null);
+          this.apiErrors.claim(err);
+          this.ctaError.set({ planId: plan.id, message: PREVIEW_FAILED_MESSAGE });
+        },
+      });
+  }
+
+  private applyPlanChange(plan: PlanResponse, preview: PlanChangePreview): void {
+    switch (preview.mode) {
+      case 'IN_PLACE':
+        this.offerUpgrade(plan, preview);
+        return;
+      case 'CHECKOUT':
+        // O aviso de hoje, onde ele ainda vale: há dias pagos a perder. O diálogo
+        // fica abaixo da folha de planos, então ela fecha aqui.
+        if (this.burnsPaidPeriod()) {
+          this.periodSwitchTarget.set(plan);
+          this.sheet.set(null);
+          return;
+        }
+        this.startCheckout(plan);
+        return;
+      case 'BLOCKED':
+        this.showPlanNotice(blockedNotice(preview));
+        return;
+      default:
+        this.ctaError.set({ planId: plan.id, message: PREVIEW_FAILED_MESSAGE });
+    }
+  }
+
+  private offerUpgrade(plan: PlanResponse, preview: PlanChangePreview): void {
+    const copy = upgradeCopy(preview);
+    if (!copy) {
+      this.ctaError.set({ planId: plan.id, message: PREVIEW_FAILED_MESSAGE });
+      return;
+    }
+    this.sheetError.set(null);
+    this.upgradeRefused.set(false);
+    this.upgradeOffer.set({ plan, copy });
+    this.sheet.set('upgrade');
+  }
+
+  protected confirmUpgrade(): void {
+    const offer = this.upgradeOffer();
+    if (!offer || this.upgradeBusy() || this.upgradeRefused() || !this.canManage()) return;
+    this.upgradeBusy.set(true);
+    this.sheetError.set(null);
+    this.billingService
+      .upgrade(offer.plan.code)
+      .pipe(timeout(CHECKOUT_REQUEST_TIMEOUT_MS))
+      .subscribe({
+        next: (res) => {
+          this.upgradeBusy.set(false);
+          this.closeUpgrade();
+          this.notifications.success(res.message ?? `O ${displayPlanName(res.planName)} já está ativo.`);
+          this.revalidateAfterImmediateChange();
+        },
+        error: (err: unknown) => {
+          this.upgradeBusy.set(false);
+          this.apiErrors.claim(err);
+          this.upgradeRefused.set(!upgradeCanRetry(err));
+          this.sheetError.set(upgradeErrorMessage(err));
+          this.revalidateAfterImmediateChange();
+        },
+      });
+  }
+
+  protected closeUpgrade(): void {
+    this.upgradeOffer.set(null);
+    this.upgradeRefused.set(false);
+    this.closeSheet();
+  }
+
+  private showPlanNotice(notice: PlanNotice): void {
+    this.planNotice.set(notice);
+    this.sheet.set('notice');
+  }
+
+  protected closePlanNotice(): void {
+    this.planNotice.set(null);
+    this.closeSheet();
   }
 
   /**
@@ -1049,8 +1176,15 @@ export class Billing implements OnInit, OnDestroy {
     this.stopAwaitPolling();
     this.clearCheckoutMarkers();
     const message = err === undefined ? fallback : this.apiErrors.messageFor(err, fallback);
-    this.ctaError.set({ planId: plan.id, message });
     this.billingService.clearError();
+    // O checkout de um plano menor sai do diálogo, com a folha de planos fechada:
+    // no cartão, a data da trava ficaria onde ninguém lê.
+    const locked = err === undefined ? null : lockNotice(err);
+    if (locked) {
+      this.showPlanNotice(locked);
+      return;
+    }
+    this.ctaError.set({ planId: plan.id, message });
   }
 
   protected confirmDowngrade(): void {
@@ -1078,8 +1212,14 @@ export class Billing implements OnInit, OnDestroy {
         const fallback = this.isPaidActive()
           ? 'Não foi possível alterar o plano. Tente novamente.'
           : 'Não foi possível voltar ao plano gratuito nesta situação. Escolha um plano ou fale com o suporte.';
-        this.ctaError.set({ planId: plan.id, message: this.apiErrors.messageFor(err, fallback) });
+        const message = this.apiErrors.messageFor(err, fallback);
         this.billingService.clearError();
+        const locked = lockNotice(err);
+        if (locked) {
+          this.showPlanNotice(locked);
+          return;
+        }
+        this.ctaError.set({ planId: plan.id, message });
       },
     });
   }
@@ -2296,7 +2436,8 @@ export class Billing implements OnInit, OnDestroy {
     if (!col.plan) return;
     this.onPlanCta(col.plan);
     // As confirmações (troca de período, voltar ao gratuito) são diálogos que
-    // ficam ABAIXO da folha: fecha a folha para o diálogo ficar à vista.
+    // ficam ABAIXO da folha: fecha a folha para o diálogo ficar à vista. A
+    // resposta da prévia pode chegar depois: `applyPlanChange` cuida desse caso.
     if (this.periodSwitchTarget() || this.downgradeTarget()) this.sheet.set(null);
   }
 

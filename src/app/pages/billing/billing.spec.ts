@@ -260,6 +260,8 @@ describe('Billing', () => {
     loadSummary: ReturnType<typeof vi.fn>;
     cardUpdateUrl: ReturnType<typeof vi.fn>;
     syncCardAfterUpdate: ReturnType<typeof vi.fn>;
+    planChangePreview: ReturnType<typeof vi.fn>;
+    upgrade: ReturnType<typeof vi.fn>;
   };
   /**
    * A tab handed out by the stubbed `openPendingTab()`. `snapshot` models the
@@ -339,6 +341,10 @@ describe('Billing', () => {
       loadSummary: vi.fn(() => of(summarySignal())),
       cardUpdateUrl: vi.fn(() => of('https://billing.stripe.com/p/session/x')),
       syncCardAfterUpdate: vi.fn(() => of('UPDATED')),
+      // O servidor mandaria para o checkout: estes testes cobrem o fluxo de hoje.
+      // O upgrade na mesma assinatura está em billing-upgrade.spec.ts.
+      planChangePreview: vi.fn(() => of({ mode: 'CHECKOUT', reasonCode: 'YEARLY_PLAN', message: null })),
+      upgrade: vi.fn(),
     };
     tabs = [];
     popupBlocked = false;

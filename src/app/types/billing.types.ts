@@ -122,6 +122,50 @@ export interface SubscriptionChangeResponse {
   message: string | null;
 }
 
+/**
+ * `GET /billing/plan-change`: como este plano pode ser contratado por quem já tem
+ * a assinatura. O servidor decide; a página só ramifica.
+ */
+export type PlanChangeMode = 'IN_PLACE' | 'CHECKOUT' | 'BLOCKED';
+
+export type PlanChangeReason =
+  | 'NO_PAID_SUBSCRIPTION'
+  | 'NOT_ACTIVE'
+  | 'INTERVAL_CHANGE'
+  | 'YEARLY_PLAN'
+  | 'LOWER_PLAN'
+  | 'ALREADY_ON_PLAN'
+  | 'PLAN_NOT_AVAILABLE'
+  | 'DOWNGRADE_SCHEDULED'
+  | 'CANCELLATION_SCHEDULED'
+  | 'DOWNGRADE_LOCKED_UNTIL_PAID';
+
+export interface PlanChangePreview {
+  mode: PlanChangeMode;
+  reasonCode: PlanChangeReason | null;
+  /** Texto pronto para a tela quando `BLOCKED`. */
+  message: string | null;
+  currentPlanCode: string | null;
+  planCode: string;
+  planName: string;
+  /** Os três abaixo só vêm em `IN_PLACE`. */
+  amountTodayCents: number | null;
+  listAmountCents: number;
+  nextChargeAt: string | null;
+  nextAmountCents: number | null;
+}
+
+/** `APPLIED`, ou `NO_OP` no clique repetido: o plano já é o destino. */
+export interface PlanUpgradeResponse {
+  outcome: 'APPLIED' | 'NO_OP';
+  planCode: string;
+  planName: string;
+  amountTodayCents: number;
+  nextChargeAt: string | null;
+  nextAmountCents: number | null;
+  message: string | null;
+}
+
 /** Estado da página Assinatura, derivado do veredito de acesso no backend. */
 export type BillingState =
   | 'ACTIVE'

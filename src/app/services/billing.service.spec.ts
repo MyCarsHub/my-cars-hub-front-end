@@ -1,11 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BillingService, isFreePlanInForce } from './billing.service';
 import { BillingAccessService } from './billing-access.service';
+import { OWNED_HTTP_ERRORS } from './http-errors.context';
 import { ApiErrorService } from './api-error.service';
 import { NotificationService } from './notification.service';
 import {
@@ -299,4 +300,65 @@ describe('BillingService', () => {
     });
   });
 
+});
+
+describe('BillingService: troca de plano', () => {
+  const post = vi.fn();
+  const get = vi.fn();
+  const invalidate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        BillingService,
+        ApiErrorService,
+        { provide: HttpClient, useValue: { post, get } },
+        { provide: BillingAccessService, useValue: { invalidate } },
+        { provide: NotificationService, useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() } },
+      ],
+    });
+  });
+
+  it('planChangePreview lê a prévia pelo código do plano, e a tela é dona do erro', () => {
+    const preview = { mode: 'IN_PLACE' };
+    get.mockReturnValue(of(preview));
+    let got: unknown;
+    TestBed.inject(BillingService)
+      .planChangePreview('PRO_MONTHLY_STRIPE')
+      .subscribe((res) => (got = res));
+
+    const [url, options] = get.mock.calls[0] as [string, { params: HttpParams; context: HttpContext }];
+    expect(url).toMatch(/\/billing\/plan-change$/);
+    expect(options.params.get('planCode')).toBe('PRO_MONTHLY_STRIPE');
+    expect(options.context.get(OWNED_HTTP_ERRORS)).toBe(true);
+    expect(got).toBe(preview);
+  });
+
+  it('upgrade manda só o plano, invalida o acesso e deixa o erro para a tela', () => {
+    const response = { outcome: 'APPLIED' };
+    post.mockReturnValue(of(response));
+    let got: unknown;
+    TestBed.inject(BillingService)
+      .upgrade('PRO_MONTHLY_STRIPE')
+      .subscribe((res) => (got = res));
+
+    const [url, body, options] = post.mock.calls[0] as [string, unknown, { context: HttpContext }];
+    expect(url).toMatch(/\/billing\/upgrade$/);
+    expect(body).toEqual({ planCode: 'PRO_MONTHLY_STRIPE' });
+    expect(options.context.get(OWNED_HTTP_ERRORS)).toBe(true);
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(got).toBe(response);
+  });
+
+  it('upgrade recusado não toca o banner da página nem o cache de acesso', () => {
+    post.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+    const service = TestBed.inject(BillingService);
+    let failed = false;
+    service.upgrade('PRO_MONTHLY_STRIPE').subscribe({ error: () => (failed = true) });
+    expect(failed).toBe(true);
+    expect(service.error()).toBeNull();
+    expect(invalidate).not.toHaveBeenCalled();
+  });
 });

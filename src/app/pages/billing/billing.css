@@ -242,3 +242,10 @@ app-list-group[flat] + * { margin-top: 0; }
   .tbl td { transition: none; }
   .btn.wa:hover:not(:disabled), .btn.wa:active:not(:disabled) { transform: none; }
 }
+
+/* Upgrade na mesma assinatura: a frase é o conteúdo. Sem ícone, sem vermelho. */
+.upgrade-copy { margin: 0; font-size: 17px; line-height: 1.5; color: var(--color-fg-soft); }
+.upgrade-copy b { display: block; margin-bottom: 6px; font-size: 22px; line-height: 1.25; font-weight: 700; color: var(--color-fg); }
+.upgrade-readonly { margin: 12px 0 0; }
+.upgrade-actions { display: grid; gap: 10px; margin-top: 20px; }
+@media (min-width: 640px) { .upgrade-actions { grid-template-columns: 1fr 1fr; } }

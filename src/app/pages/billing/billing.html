@@ -519,6 +519,37 @@
         <p class="foot-note">Ao trocar de plano, o valor e o que acontece com o período já pago aparecem antes de confirmar.</p>
       </app-bottom-sheet>
     }
+    @case ('upgrade') {
+      @if (upgradeOffer(); as offer) {
+        <app-bottom-sheet [title]="'Mudar para o ' + offer.copy.planLabel" [busy]="upgradeBusy()" (closed)="closeUpgrade()">
+          <div data-testid="upgrade-sheet">
+            <p class="upgrade-copy" data-testid="upgrade-copy"><b>{{ offer.copy.lead }}</b> {{ offer.copy.rest }}</p>
+            @if (!canManage()) {
+              <p class="note upgrade-readonly">Sessão somente leitura: o upgrade não é executado aqui.</p>
+            }
+            @if (sheetError(); as e) {
+              <div data-testid="upgrade-error" class="mt-3"><app-alert-banner variant="error" [message]="e" /></div>
+            }
+            <div class="upgrade-actions">
+              <button type="button" class="btn tonal" [disabled]="upgradeBusy()" (click)="closeUpgrade()" data-testid="upgrade-dismiss">Agora não</button>
+              <button type="button" class="btn primary" [disabled]="upgradeBusy() || upgradeRefused() || !canManage()" (click)="confirmUpgrade()" data-testid="upgrade-confirm">
+                {{ upgradeBusy() ? 'Confirmando…' : 'Confirmar upgrade' }}
+              </button>
+            </div>
+          </div>
+        </app-bottom-sheet>
+      }
+    }
+    @case ('notice') {
+      @if (planNotice(); as notice) {
+        <app-bottom-sheet [title]="notice.title" (closed)="closePlanNotice()">
+          <p class="upgrade-copy" data-testid="plan-notice-message">{{ notice.message }}</p>
+          <div sheetFooter>
+            <button type="button" class="btn primary block" (click)="closePlanNotice()" data-testid="plan-notice-close">Entendi</button>
+          </div>
+        </app-bottom-sheet>
+      }
+    }
     @case ('cancel') {
       <app-bottom-sheet title="Cancelar assinatura" subtitle="Os dados da sua conta continuam salvos." [busy]="accountActionBusy()" (closed)="closeSheet()">
         <app-list-group flat>

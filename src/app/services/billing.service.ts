@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, map, of, switchMap, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -8,7 +8,9 @@ import {
   CheckoutResponse,
   DowngradeRequest,
   GatewayOverride,
+  PlanChangePreview,
   PlanResponse,
+  PlanUpgradeResponse,
   SubscriptionChangeResponse,
   SubscriptionPix,
   SubscriptionPixStatus,
@@ -17,6 +19,7 @@ import {
 import { BillingAccessService } from './billing-access.service';
 import { TenantResetRegistry } from './tenant-reset.registry';
 import { ApiErrorService } from './api-error.service';
+import { OWNED_HTTP_ERRORS } from './http-errors.context';
 
 const API_BASE = `${environment.apiUrl}/billing`;
 
@@ -227,6 +230,31 @@ export class BillingService {
       this.http.post<SubscriptionChangeResponse>(`${API_BASE}/downgrade`, body),
       'Não foi possível alterar o plano. Tente novamente.',
     );
+  }
+
+  /**
+   * Como este plano pode ser contratado agora. Só lê a Stripe, então funciona
+   * também em "Ver como". A tela traduz cada falha: sem toast genérico.
+   */
+  planChangePreview(planCode: string): Observable<PlanChangePreview> {
+    return this.http.get<PlanChangePreview>(`${API_BASE}/plan-change`, {
+      params: new HttpParams().set('planCode', planCode),
+      context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+    });
+  }
+
+  /**
+   * Upgrade na mesma assinatura: nada é cobrado hoje. Quem chama relê a página
+   * depois do sucesso. A falha fica no diálogo, nunca no banner da página.
+   */
+  upgrade(planCode: string): Observable<PlanUpgradeResponse> {
+    return this.http
+      .post<PlanUpgradeResponse>(
+        `${API_BASE}/upgrade`,
+        { planCode },
+        { context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
+      )
+      .pipe(tap(() => this.access.invalidate()));
   }
 
   /** Undo a scheduled cancellation. 400 means the user must pay again. */
