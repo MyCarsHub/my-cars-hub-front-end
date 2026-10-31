@@ -204,12 +204,12 @@ function withFields(text: string): PaperSegment[] {
 }
 
 /** Primeira ocorrência do trecho fora dos tokens («Km» não pode cair em `{{initialKm}}`). */
-function excerptAt(text: string, excerpt: string): number {
+function excerptAt(text: string, excerpt: string, from = 0): number {
   const tokens = [...text.matchAll(ANY_TOKEN)].map((m) => {
     const from = m.index ?? 0;
     return { from, to: from + m[0].length };
   });
-  let at = text.indexOf(excerpt);
+  let at = text.indexOf(excerpt, from);
   while (at >= 0) {
     const end = at + excerpt.length;
     if (!tokens.some((t) => at < t.to && end > t.from)) return at;
@@ -282,9 +282,15 @@ export function buildMaskedDocument(
   const out: PaperParagraph[] = paragraphs.map((p, index) => {
     const role: PaperParagraph['role'] = index === 0 && looksLikeTitle(p.text) ? 'title' : 'body';
     if (opts.stage === 'consent') return { id: p.id, role, segments: withHidden(p.text) };
+    // O backend faz uma sugestão por ocorrência: cada uma continua de onde a anterior parou.
+    const resumeAt = new Map<string, number>();
     const hits = (opts.suggestions ?? [])
       .filter((s) => s.paragraphId === p.id && s.excerpt)
-      .map((s) => ({ s, at: excerptAt(p.text, s.excerpt) }))
+      .map((s) => {
+        const at = excerptAt(p.text, s.excerpt, resumeAt.get(s.excerpt) ?? 0);
+        if (at >= 0) resumeAt.set(s.excerpt, at + s.excerpt.length);
+        return { s, at };
+      })
       .filter((h) => h.at >= 0)
       .sort((a, b) => a.at - b.at);
     const segments: PaperSegment[] = [];

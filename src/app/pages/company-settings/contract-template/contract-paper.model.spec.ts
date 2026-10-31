@@ -137,6 +137,15 @@ describe('contrato que já chega com {{campo}}', () => {
     });
   });
 
+  it('trecho repetido: cada sugestão é uma ocorrência, como o salvar aplica', () => {
+    const doc = buildMaskedDocument(para('Km {{initialKm}} Km'), {
+      stage: 'review',
+      suggestions: [sug('Km', 'franchiseKm', 's0001'), sug('Km', 'franchiseKm', 's0002')],
+    });
+
+    expect(text(doc)).toEqual(['{franchiseKm} {initialKm} {franchiseKm}']);
+  });
+
   it('recusar a sugestão deixa o literal fixo sem mexer no campo ao lado', () => {
     const doc = buildMaskedDocument(para('Campinas, {{contractDate}}'), {
       stage: 'review',
