@@ -487,6 +487,73 @@ describe('ContractEsteira', () => {
     expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('3');
   });
 
+  const PARTY_QUESTION = {
+    id: 's0001',
+    paragraphId: 'p1',
+    field: 'driverCpf',
+    fieldLabel: 'CPF do motorista',
+    excerpt: '[CPF_1]',
+    context: 'CONTRATANTE: Fulano, CPF [CPF_1].',
+    confidence: 1,
+    reason: '',
+    alternatives: [],
+    askParty: true,
+  };
+  const answerRadios = () =>
+    Array.from(host.querySelectorAll<HTMLButtonElement>('[role=radio]')).filter((r) =>
+      r.closest('[aria-label="Escolha uma resposta"]'),
+    );
+
+  it('de quem é o dado: pergunta sem resposta marcada, sem «Mais provável»', async () => {
+    await analysed([{ id: 'p1', text: 'CONTRATANTE: Fulano, CPF [CPF_1].' }], {
+      status: 'NEEDS_REVIEW',
+      doubts: [PARTY_QUESTION],
+    });
+
+    expect(host.textContent).toContain('De quem é «CPF escondido»?');
+    expect(host.textContent).toContain('Sem resposta, ele fica como está');
+    expect(host.textContent).not.toContain('Mais provável');
+    expect(answerRadios().map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false']);
+    expect(answerRadios().map((r) => r.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+      'CPF do motorista',
+      'Não é do motorista. Deixar sempre igual',
+    ]);
+  });
+
+  it('de quem é o dado: seguir sem responder não aceita nada e o texto fica fixo', async () => {
+    await analysed([{ id: 'p1', text: 'CONTRATANTE: Fulano, CPF [CPF_1].' }], {
+      status: 'NEEDS_REVIEW',
+      doubts: [PARTY_QUESTION],
+    });
+
+    click('Ver como ficou');
+    const put = http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`);
+    expect(put.request.body).toEqual({ decisions: [] });
+    put.flush({ draftId: DRAFT, status: 'READY', acceptedCount: 0, pendingDoubtIds: [] });
+    fixture.detectChanges();
+
+    expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('0');
+    expect(host.querySelectorAll('article [class*="emerald"]').length).toBe(0);
+  });
+
+  it('de quem é o dado: respondido como do motorista, vira campo', async () => {
+    await analysed([{ id: 'p1', text: 'CONTRATANTE: Fulano, CPF [CPF_1].' }], {
+      status: 'NEEDS_REVIEW',
+      doubts: [PARTY_QUESTION],
+    });
+
+    answerRadios()[0].click();
+    fixture.detectChanges();
+    expect(answerRadios()[0].getAttribute('aria-checked')).toBe('true');
+    click('Ver como ficou');
+    const put = http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`);
+    expect(put.request.body).toEqual({ decisions: [{ id: 's0001', field: 'driverCpf', accept: true }] });
+    put.flush({ draftId: DRAFT, status: 'READY', acceptedCount: 1, pendingDoubtIds: [] });
+    fixture.detectChanges();
+
+    expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('1');
+  });
+
   it('token desconhecido: o salvar recusa com a instrução, e o contrato fica na tela', async () => {
     await analysed([{ id: 'p1', text: 'Olá {{campoEstranho}} e {{rentalId}}' }], {
       status: 'READY',

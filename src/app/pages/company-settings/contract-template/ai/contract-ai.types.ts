@@ -25,6 +25,8 @@ export interface SuggestionView {
   confidence: number;
   reason: string;
   alternatives: FieldOption[] | null;
+  /** O servidor não ligou o dado ao motorista: pergunta sem resposta sugerida. Sem resposta, fica fixo. */
+  askParty?: boolean;
 }
 
 export interface DraftStatusResponse {

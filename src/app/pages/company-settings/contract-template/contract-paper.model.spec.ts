@@ -98,6 +98,44 @@ describe('contrato que já chega com {{campo}}', () => {
     expect(doc.fields).toEqual(['companyCity', 'contractDate']);
   });
 
+  describe('pergunta de quem é o dado', () => {
+    const question = { ...sug('[CPF_1]', 'driverCpf'), askParty: true };
+
+    it('sem resposta o dado fica como está, em todas as etapas: nada de campo presumido', () => {
+      for (const stage of ['fields', 'review'] as const) {
+        const doc = buildMaskedDocument(para('CONTRATANTE: CPF [CPF_1]'), {
+          stage,
+          suggestions: [question],
+          doubtIds: new Set(['s0001']),
+        });
+
+        expect(doc.fields).toEqual([]);
+        expect(doc.paragraphs[0].segments.some((s) => s.kind === 'field')).toBe(false);
+      }
+    });
+
+    it('a pergunta em foco aparece marcada no contrato', () => {
+      const doc = buildMaskedDocument(para('CONTRATANTE: CPF [CPF_1]'), {
+        stage: 'fields',
+        suggestions: [question],
+        doubtIds: new Set(['s0001']),
+        focusId: 's0001',
+      });
+
+      expect(doc.paragraphs[0].segments).toContainEqual({ kind: 'kept', text: 'CPF escondido', focus: true });
+    });
+
+    it('respondida como do motorista, vira campo', () => {
+      const doc = buildMaskedDocument(para('CONTRATANTE: CPF [CPF_1]'), {
+        stage: 'review',
+        suggestions: [question],
+        decisions: { s0001: { id: 's0001', field: 'driverCpf', accept: true } },
+      });
+
+      expect(doc.fields).toEqual(['driverCpf']);
+    });
+  });
+
   it('recusar a sugestão deixa o literal fixo sem mexer no campo ao lado', () => {
     const doc = buildMaskedDocument(para('Campinas, {{contractDate}}'), {
       stage: 'review',

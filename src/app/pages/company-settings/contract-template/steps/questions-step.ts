@@ -67,8 +67,17 @@ const MAX_ANSWERS = 3;
           </span>
         </div>
         <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-fg break-words focus:outline-none sm:text-2xl">
-          O que é «{{ quote().hit }}» no seu contrato?
+          @if (d.askParty) {
+            De quem é «{{ quote().hit }}»?
+          } @else {
+            O que é «{{ quote().hit }}» no seu contrato?
+          }
         </h3>
+        @if (d.askParty) {
+          <p class="m-0 text-[15px] leading-relaxed text-fg-soft">
+            Não deu para saber se este dado é do motorista. Sem resposta, ele fica como está no contrato.
+          </p>
+        }
       </div>
       <figure class="m-0 flex flex-col gap-1.5">
         <figcaption class="text-[13px] font-semibold text-fg-muted">Está assim no seu contrato:</figcaption>
@@ -183,9 +192,13 @@ export class ContractQuestionsStep {
     const out: Answer[] = unique.map((field, i) => ({
       value: field,
       label: plainFieldLabel(field, field === d.field ? d.fieldLabel : null),
-      suggested: i === 0,
+      suggested: i === 0 && !d.askParty,
     }));
-    out.push({ value: KEEP_TEXT, label: 'Nenhum desses. Deixar sempre igual', suggested: false });
+    out.push({
+      value: KEEP_TEXT,
+      label: d.askParty ? 'Não é do motorista. Deixar sempre igual' : 'Nenhum desses. Deixar sempre igual',
+      suggested: false,
+    });
     return out;
   });
 
@@ -194,7 +207,7 @@ export class ContractQuestionsStep {
     const d = this.current();
     if (!d) return null;
     const prior = this.svc.decisions()[d.id];
-    if (!prior) return d.field;
+    if (!prior) return d.askParty ? null : d.field;
     return prior.accept ? prior.field : KEEP_TEXT;
   });
 

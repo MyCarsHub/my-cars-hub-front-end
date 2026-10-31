@@ -934,8 +934,9 @@ export class ContractEsteira {
       case 'fields': {
         const doubts = this.doubts();
         const current = doubts[this.qIndex()];
-        // «Próxima» sem tocar numa resposta aceita a mais provável.
-        if (current && !this.ai.decisions()[current.id]) {
+        // «Próxima» sem tocar numa resposta aceita a mais provável. Na pergunta de quem é o dado
+        // não há mais provável: sem resposta, o texto fica fixo.
+        if (current && !current.askParty && !this.ai.decisions()[current.id]) {
           this.ai.setDecision({ id: current.id, field: current.field, accept: true });
         }
         if (this.qIndex() < doubts.length - 1) {

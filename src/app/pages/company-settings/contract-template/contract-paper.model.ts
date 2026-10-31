@@ -258,7 +258,8 @@ export function buildMaskedDocument(
       const decision = opts.decisions?.[s.id];
       const isDoubt = opts.doubtIds?.has(s.id) ?? false;
       const focus = s.id === opts.focusId;
-      if (decision && !decision.accept) {
+      // Pergunta de quem é o dado: sem resposta o texto fica fixo, então a folha não presume o campo.
+      if ((decision && !decision.accept) || (!decision && s.askParty)) {
         const kept = humanizeMasked(s.excerpt);
         segments.push({ kind: 'kept', text: kept, focus });
       } else {
