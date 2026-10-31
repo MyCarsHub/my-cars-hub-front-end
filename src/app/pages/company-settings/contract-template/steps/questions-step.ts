@@ -9,13 +9,21 @@ import {
 } from '@angular/core';
 import { FormField, FieldControl } from '../../../../components/form-field/form-field';
 import { ContractAiService } from '../ai/contract-ai.service';
-import { FIELD_LABELS, safeText } from '../ai/contract-ai.messages';
-import { SuggestionView } from '../ai/contract-ai.types';
-import { FIELD_KEYS, plainFieldLabel } from '../contract-fields';
-import { humanizeMasked } from '../contract-paper.model';
+import { FIELD_LABELS, fieldLabel, safeText } from '../ai/contract-ai.messages';
+import { NearbyWhere, SuggestionView } from '../ai/contract-ai.types';
+import { ContractExistingFields } from '../contract-existing-fields';
+import { FIELD_KEYS, plainFieldLabel, questionTitle } from '../contract-fields';
+import { PaperSegment, QuoteParts, humanizeMasked, quoteOf, readable } from '../contract-paper.model';
 import { ContractIcon } from '../contract-icon';
 
 export const KEEP_TEXT = '__none__';
+const KEEP_LABEL = 'Locador, fiador, testemunha ou outra pessoa: manter como está';
+const NEARBY_LABELS: Readonly<Record<NearbyWhere, string>> = {
+  COLUMN: 'Na mesma coluna',
+  ROW: 'Na mesma linha',
+  BEFORE: 'Antes',
+  AFTER: 'Depois',
+};
 
 interface Answer {
   value: string;
@@ -35,7 +43,7 @@ const MAX_ANSWERS = 3;
   selector: 'app-contract-questions-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-4' },
-  imports: [FormField, FieldControl, ContractIcon],
+  imports: [FormField, FieldControl, ContractIcon, ContractExistingFields],
   // Trecho citado com a mesma fonte de documento do contrato ao vivo.
   styles: `
     .doc-serif {
@@ -66,13 +74,39 @@ const MAX_ANSWERS = 3;
           </span>
         </div>
         <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-fg break-words focus:outline-none sm:text-2xl">
-          O que é «{{ quote().hit }}» no seu contrato?
+          @if (d.question; as q) {
+            {{ title(q.kind) }}
+          } @else {
+            O que é «{{ quote().hit }}» no seu contrato?
+          }
         </h3>
+        @if (d.question; as q) {
+          <p class="m-0 text-[15px] leading-relaxed text-fg-soft">
+            @if (q.options.length === 0) {
+              Este dado não pode virar campo aqui, então ele fica como está no contrato.
+            } @else {
+              Sem resposta, ele fica como está no contrato.
+            }
+            @if (q.places.length > 1) {
+              Aparece {{ q.places.length }} vezes, e a resposta vale para todas.
+            }
+          </p>
+        }
       </div>
+      @if (nearby().length > 0) {
+        <ul data-question-nearby class="m-0 flex list-none flex-col gap-1.5 rounded-xl bg-surface-muted px-3.5 py-2.5 text-[13px] leading-snug">
+          @for (n of nearby(); track $index) {
+            <li class="flex min-w-0 flex-col">
+              <span class="font-semibold text-fg-muted">{{ n.label }}</span>
+              <span class="doc-serif text-[15px] text-fg-body [overflow-wrap:anywhere]">{{ n.text }}</span>
+            </li>
+          }
+        </ul>
+      }
       <figure class="m-0 flex flex-col gap-1.5">
         <figcaption class="text-[13px] font-semibold text-fg-muted">Está assim no seu contrato:</figcaption>
         <blockquote class="m-0 rounded-r-xl border-l-4 border-amber-400 bg-amber-50/50 dark:bg-amber-500/10 py-2.5 pl-3.5 pr-3 doc-serif text-base leading-relaxed text-fg-body break-words">
-          {{ quote().before }}<mark class="rounded-[3px] border-b-2 border-amber-500 bg-amber-100 dark:bg-amber-500/15 px-0.5 font-bold text-fg">{{ quote().hit }}</mark>{{ quote().after }}
+          <!-- Uma linha só: espaço entre os spans viraria espaço no texto do contrato. -->@for (s of quote().before; track $index) {<span [class]="quoteClass(s)">{{ quoteText(s) }}</span>}<mark class="rounded-[3px] border-b-2 border-amber-500 bg-amber-100 dark:bg-amber-500/15 px-0.5 font-bold text-fg">{{ quote().hit }}</mark>@for (s of quote().after; track $index) {<span [class]="quoteClass(s)">{{ quoteText(s) }}</span>}
         </blockquote>
       </figure>
       <div role="radiogroup" aria-label="Escolha uma resposta" class="flex flex-col gap-2.5">
@@ -102,6 +136,8 @@ const MAX_ANSWERS = 3;
         }
       </div>
     }
+
+    <app-contract-existing-fields [fields]="existing()" />
 
     @if (certain().length > 0) {
       <div class="rounded-2xl bg-surface-muted px-1">
@@ -147,16 +183,23 @@ export class ContractQuestionsStep {
   protected readonly labels = FIELD_LABELS;
   protected readonly open = signal(false);
 
-  protected readonly doubts = computed<SuggestionView[]>(() => this.svc.draft()?.doubts ?? []);
+  protected readonly doubts = this.svc.asks;
   protected readonly certain = computed<SuggestionView[]>(() => this.svc.draft()?.certain ?? []);
+  protected readonly existing = this.svc.existingFields;
   protected readonly current = computed(() => this.doubts()[this.index()] ?? null);
 
   protected readonly foundText = computed(() => {
+    const had = this.existing().length;
     const n = this.certain().length;
     const q = this.doubts().length;
-    const marked = n === 1 ? 'A IA marcou 1 dado sozinha.' : `A IA marcou ${n} dados sozinha.`;
     const left = q === 1 ? 'Só falta 1 pergunta rápida.' : `Só faltam ${q} perguntas rápidas.`;
-    return `${marked} ${left}`;
+    if (had === 0) {
+      const marked = n === 1 ? 'A IA marcou 1 dado sozinha.' : `A IA marcou ${n} dados sozinha.`;
+      return `${marked} ${left}`;
+    }
+    const found = had === 1 ? 'Seu contrato já tinha 1 dado.' : `Seu contrato já tinha ${had} dados.`;
+    if (n === 0) return `${found} ${left}`;
+    return `${found} A IA marcou mais ${n}. ${left}`;
   });
 
   protected readonly correctLabel = computed(() => {
@@ -168,14 +211,18 @@ export class ContractQuestionsStep {
   protected readonly answers = computed<Answer[]>(() => {
     const d = this.current();
     if (!d) return [];
-    const fields = [d.field, ...(d.alternatives ?? []).map((a) => a.field)];
+    const fields = [d.field, ...(d.alternatives ?? []).map((a) => a.field)].filter((f) => !!f);
     const unique = [...new Set(fields)].slice(0, MAX_ANSWERS);
     const out: Answer[] = unique.map((field, i) => ({
       value: field,
       label: plainFieldLabel(field, field === d.field ? d.fieldLabel : null),
-      suggested: i === 0,
+      suggested: i === 0 && !d.question,
     }));
-    out.push({ value: KEEP_TEXT, label: 'Nenhum desses. Deixar sempre igual', suggested: false });
+    out.push({
+      value: KEEP_TEXT,
+      label: d.question ? KEEP_LABEL : 'Nenhum desses. Deixar sempre igual',
+      suggested: false,
+    });
     return out;
   });
 
@@ -184,28 +231,49 @@ export class ContractQuestionsStep {
     const d = this.current();
     if (!d) return null;
     const prior = this.svc.decisions()[d.id];
-    if (!prior) return d.field;
-    return prior.accept ? prior.field : KEEP_TEXT;
+    if (!prior) return d.question ? null : d.field;
+    return prior.accept && prior.field ? prior.field : KEEP_TEXT;
   });
 
-  protected readonly quote = computed(() => {
+  protected readonly quote = computed<QuoteParts>(() => {
     const d = this.current();
-    if (!d) return { before: '', hit: '', after: '' };
-    const hit = humanizeMasked(safeText(d.excerpt));
-    const context = humanizeMasked(safeText(d.context));
-    const at = context.indexOf(hit);
-    if (!hit || at < 0) return { before: '', hit, after: '' };
-    const before = context.slice(0, at);
-    const after = context.slice(at + hit.length);
-    return {
-      before: before.length > 70 ? '…' + before.slice(-70) : before,
-      hit,
-      after: after.length > 70 ? after.slice(0, 70) + '…' : after,
-    };
+    if (!d) return { before: [], hit: '', after: [] };
+    return quoteOf(humanizeMasked(safeText(d.context)), humanizeMasked(safeText(d.excerpt)));
   });
+
+  protected title(kind: string): string {
+    return questionTitle(kind, this.quote().hit);
+  }
+
+  /** Numa célula de tabela o trecho sozinho não diz de quem é: a coluna e a linha dizem. */
+  protected readonly nearby = computed(() =>
+    (this.current()?.question?.nearby ?? []).map((n) => ({
+      label: NEARBY_LABELS[n.where],
+      text: readable(safeText(n.text)),
+    })),
+  );
+
+  protected quoteText(s: PaperSegment): string {
+    if (s.kind === 'field') return fieldLabel(s.field);
+    return s.kind === 'hidden' ? s.label : s.text;
+  }
+
+  protected quoteClass(s: PaperSegment): string {
+    return s.kind === 'field'
+      ? 'rounded-[3px] border-b-2 border-emerald-500 bg-emerald-100 dark:bg-emerald-500/15 px-0.5 font-semibold text-emerald-900 dark:text-emerald-200 [box-decoration-break:clone]'
+      : '';
+  }
 
   protected pick(d: SuggestionView, value: string): void {
     this.focused.emit(d.id);
+    if (d.question) {
+      this.svc.setDecision(
+        value === KEEP_TEXT
+          ? { id: d.id, field: null, accept: false }
+          : { id: d.id, field: value, accept: true, confirmed: true },
+      );
+      return;
+    }
     this.svc.setDecision(
       value === KEEP_TEXT
         ? { id: d.id, field: d.field, accept: false }
@@ -220,7 +288,7 @@ export class ContractQuestionsStep {
   protected certainValue(s: SuggestionView): string {
     const d = this.svc.decisions()[s.id];
     if (!d) return s.field;
-    return d.accept ? d.field : KEEP_TEXT;
+    return d.accept && d.field ? d.field : KEEP_TEXT;
   }
 
   protected correct(s: SuggestionView, value: string): void {

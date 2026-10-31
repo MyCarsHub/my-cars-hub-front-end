@@ -49,6 +49,8 @@ export const FIELD_EXAMPLES: Readonly<Record<string, string>> = {
   pickupDate: '01/11/2026',
   firstPaymentDate: '08/11/2026',
   dailyInterest: '0,33%',
+  lateInterestPercent: '1,00% ao mês',
+  lateInterestTerms: '1,00% ao mês sobre o valor devido',
   lateFine: '2%',
   franchiseKm: '3.000',
   returnFuelPolicy: 'tanque cheio',
@@ -79,6 +81,21 @@ const PLAIN_LABELS: Readonly<Record<string, string>> = {
   lateFine: 'A multa por atraso',
   dailyInterest: 'Os juros por dia de atraso',
 };
+
+/** Como a pergunta chama o dado, por tipo. Nome e endereço não têm: vão em claro, entre aspas. */
+const QUESTION_NOUNS: Readonly<Record<string, string>> = {
+  CPF: 'este CPF',
+  RG: 'este RG',
+  CNH: 'esta CNH',
+  CNPJ: 'este CNPJ',
+  PHONE: 'este telefone',
+  EMAIL: 'este e-mail',
+  CEP: 'este CEP',
+};
+
+export function questionTitle(kind: string, value: string): string {
+  return `De quem é ${QUESTION_NOUNS[kind] ?? `«${value}»`}?`;
+}
 
 /** Rótulo das marcas do texto mascarado (`[CPF_1]` → «CPF escondido»). */
 const HIDDEN_LABELS: Readonly<Record<string, string>> = {
@@ -115,6 +132,11 @@ export function plainFieldLabel(field: string, apiLabel?: string | null): string
 
 export function hiddenLabel(kind: string): string {
   return HIDDEN_LABELS[kind] ?? 'dado escondido';
+}
+
+/** É um campo da lista fechada? Token fora dela o backend recusa ao salvar. */
+export function isKnownField(field: string): boolean {
+  return Object.hasOwn(FIELD_LABELS, field);
 }
 
 /** Todas as chaves conhecidas, na ordem do catálogo (para os seletores de correção). */

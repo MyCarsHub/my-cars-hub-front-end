@@ -9,6 +9,7 @@ import {
   buildMarkdownDocument,
   buildMaskedDocument,
   parseInline,
+  quoteOf,
 } from './contract-paper.model';
 
 const clause = (
@@ -42,10 +43,200 @@ function text(doc: PaperDocument): string[] {
 }
 
 describe('catálogo de campos', () => {
-  it('todo campo do app (46: + companyCity, extraKmPrice, lateFineTerms, kmTerms) tem valor de exemplo, e nenhum a mais', () => {
+  it('todo campo do app (48: + companyCity, extraKmPrice, lateFineTerms, kmTerms, lateInterestPercent, lateInterestTerms) tem valor de exemplo, e nenhum a mais', () => {
     const labels = Object.keys(FIELD_LABELS).sort();
-    expect(labels.length).toBe(46);
+    expect(labels.length).toBe(48);
     expect(Object.keys(FIELD_EXAMPLES).sort()).toEqual(labels);
+  });
+});
+
+describe('contrato que já chega com {{campo}}', () => {
+  const para = (text: string) => [{ id: 'p0001', text }];
+  const sug = (excerpt: string, field: string, id = 's0001'): SuggestionView => ({
+    id,
+    paragraphId: 'p0001',
+    field,
+    fieldLabel: field,
+    excerpt,
+    context: '',
+    confidence: 0.9,
+    reason: '',
+    alternatives: null,
+  });
+
+  it('no «Conferir», o campo que já estava no contrato é um campo como os outros', () => {
+    const doc = buildMaskedDocument(para('Contrato nº {{rentalId}}'), { stage: 'review' });
+
+    expect(doc.paragraphs[0].segments).toEqual([
+      { kind: 'text', text: 'Contrato nº ' },
+      { kind: 'field', field: 'rentalId', tone: 'ok' },
+    ]);
+    expect(doc.fields).toEqual(['rentalId']);
+  });
+
+  it('na etapa dos campos também, e nunca como pergunta em aberto', () => {
+    const doc = buildMaskedDocument(para('LOCATÁRIO: {{driverName}}, CPF {{ driverCpf }}.'), { stage: 'fields' });
+
+    expect(doc.fields).toEqual(['driverName', 'driverCpf']);
+    expect(doc.paragraphs[0].segments.filter((s) => s.kind === 'field').map((s) => 'tone' in s && s.tone))
+      .toEqual(['ok', 'ok']);
+  });
+
+  it('no consentimento o texto fica exatamente como vai à IA', () => {
+    const doc = buildMaskedDocument(para('Contrato nº {{rentalId}}'), { stage: 'consent' });
+
+    expect(doc.paragraphs[0].segments).toEqual([{ kind: 'text', text: 'Contrato nº {{rentalId}}' }]);
+    expect(doc.fields).toEqual([]);
+  });
+
+  it('literal sugerido ao lado de um campo vira campo, e o campo continua', () => {
+    const doc = buildMaskedDocument(para('Campinas, {{contractDate}}'), {
+      stage: 'review',
+      suggestions: [sug('Campinas', 'companyCity')],
+    });
+
+    expect(text(doc)).toEqual(['{companyCity}, {contractDate}']);
+    expect(doc.fields).toEqual(['companyCity', 'contractDate']);
+  });
+
+  describe('pergunta de quem é o dado', () => {
+    const question = {
+      ...sug('[CPF_1]', 'driverCpf'),
+      question: {
+        id: 's0001',
+        kind: 'CPF',
+        excerpt: '[CPF_1]',
+        context: '',
+        places: [
+          { paragraphId: 'p0001', excerpt: '[CPF_1]' },
+          { paragraphId: 'p0002', excerpt: '[CPF_1]' },
+        ],
+        options: [{ field: 'driverCpf', label: 'CPF do motorista' }],
+        nearby: [],
+      },
+    };
+    const two = [
+      { id: 'p0001', text: 'CONTRATANTE: CPF [CPF_1]' },
+      { id: 'p0002', text: 'Assina: CPF [CPF_1]' },
+    ];
+
+    it('sem resposta o dado fica como está, em todas as etapas: nada de campo presumido', () => {
+      for (const stage of ['fields', 'review'] as const) {
+        const doc = buildMaskedDocument(two, { stage, suggestions: [question], doubtIds: new Set(['s0001']) });
+
+        expect(doc.fields).toEqual([]);
+        expect(doc.paragraphs.flatMap((p) => p.segments).some((s) => s.kind === 'field')).toBe(false);
+      }
+    });
+
+    it('a pergunta em foco aparece marcada em todos os lugares do valor', () => {
+      const doc = buildMaskedDocument(two, {
+        stage: 'fields',
+        suggestions: [question],
+        doubtIds: new Set(['s0001']),
+        focusId: 's0001',
+      });
+
+      for (const p of doc.paragraphs) {
+        expect(p.segments).toContainEqual({ kind: 'kept', text: 'CPF escondido', focus: true });
+      }
+    });
+
+    it('respondida, a resposta vale para todas as ocorrências', () => {
+      const doc = buildMaskedDocument(two, {
+        stage: 'review',
+        suggestions: [question],
+        decisions: { s0001: { id: 's0001', field: 'driverCpf', accept: true, confirmed: true } },
+      });
+
+      expect(text(doc)).toEqual(['CONTRATANTE: CPF {driverCpf}', 'Assina: CPF {driverCpf}']);
+    });
+  });
+
+  it('trecho repetido: cada sugestão é uma ocorrência, como o salvar aplica', () => {
+    const doc = buildMaskedDocument(para('Km {{initialKm}} Km'), {
+      stage: 'review',
+      suggestions: [sug('Km', 'franchiseKm', 's0001'), sug('Km', 'franchiseKm', 's0002')],
+    });
+
+    expect(text(doc)).toEqual(['{franchiseKm} {initialKm} {franchiseKm}']);
+  });
+
+  it('recusar a sugestão deixa o literal fixo sem mexer no campo ao lado', () => {
+    const doc = buildMaskedDocument(para('Campinas, {{contractDate}}'), {
+      stage: 'review',
+      suggestions: [sug('Campinas', 'companyCity')],
+      decisions: { s0001: { id: 's0001', field: 'companyCity', accept: false } },
+    });
+
+    expect(text(doc)).toEqual(['Campinas, {contractDate}']);
+    expect(doc.fields).toEqual(['contractDate']);
+  });
+
+  it('marca de dado escondido ao lado de um campo continua escondida', () => {
+    const doc = buildMaskedDocument(para('CPF [CPF_1] e {{driverName}}'), { stage: 'review' });
+
+    expect(text(doc)).toEqual(['CPF <CPF escondido> e {driverName}']);
+  });
+
+  it('token que o sistema não conhece não fica verde: o salvar é quem recusa', () => {
+    const doc = buildMaskedDocument(para('Olá {{campoEstranho}} e {{driverName}}'), { stage: 'review' });
+
+    expect(text(doc)).toEqual(['Olá {{campoEstranho}} e {driverName}']);
+    expect(doc.fields).toEqual(['driverName']);
+  });
+
+  it('campo do backend que faltava no espelho também é reconhecido', () => {
+    const doc = buildMaskedDocument(para('Juros: {{lateInterestPercent}}; {{lateInterestTerms}}'), { stage: 'review' });
+
+    expect(doc.fields).toEqual(['lateInterestPercent', 'lateInterestTerms']);
+  });
+
+  it('um trecho que também aparece dentro de um campo é achado no texto, fora do campo', () => {
+    const doc = buildMaskedDocument(para('{{initialKm}} e Km rodados'), {
+      stage: 'review',
+      suggestions: [sug('Km', 'franchiseKm')],
+    });
+
+    expect(text(doc)).toEqual(['{initialKm} e {franchiseKm} rodados']);
+  });
+});
+
+describe('trecho citado na pergunta', () => {
+  const read = (segments: ReturnType<typeof quoteOf>['before']) =>
+    segments.map((s) => (s.kind === 'field' ? `{${s.field}}` : s.kind === 'text' ? s.text : '')).join('');
+
+  it('um campo ao lado do trecho aparece como campo, nunca cru', () => {
+    const quote = quoteOf('Campinas, {{contractDate}}', 'Campinas');
+
+    expect(quote.hit).toBe('Campinas');
+    expect(read(quote.after)).toBe(', {contractDate}');
+  });
+
+  it('o trecho é achado no texto, fora do nome de um campo', () => {
+    const quote = quoteOf('{{initialKm}} Km rodados', 'Km');
+
+    expect(read(quote.before)).toBe('{initialKm} ');
+    expect(read(quote.after)).toBe(' rodados');
+  });
+
+  it('o corte de um texto longo nunca parte um campo ao meio', () => {
+    const long = 'x'.repeat(80) + ' {{driverName}} ' + 'y'.repeat(50) + ' Alvo ' + 'z'.repeat(50) + ' {{driverCpf}} ' + 'w'.repeat(80);
+
+    const quote = quoteOf(long, 'Alvo');
+
+    expect(read(quote.before)).not.toContain('{{');
+    expect(read(quote.after)).not.toContain('{{');
+    expect(read(quote.before).startsWith('…')).toBe(true);
+    expect(read(quote.after).endsWith('…')).toBe(true);
+  });
+
+  it('token desconhecido fica como texto, como na folha', () => {
+    expect(read(quoteOf('Alvo {{campoEstranho}}', 'Alvo').after)).toBe(' {{campoEstranho}}');
+  });
+
+  it('sem o trecho no contexto, mostra só o trecho', () => {
+    expect(quoteOf('outro texto', 'Alvo')).toEqual({ before: [], hit: 'Alvo', after: [] });
   });
 });
 

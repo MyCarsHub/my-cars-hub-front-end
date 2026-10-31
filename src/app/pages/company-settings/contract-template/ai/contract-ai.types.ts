@@ -25,6 +25,31 @@ export interface SuggestionView {
   confidence: number;
   reason: string;
   alternatives: FieldOption[] | null;
+  /** Dado de pessoa ou empresa: pergunta ao dono, sem resposta sugerida. Sem resposta, fica fixo. */
+  question?: QuestionView;
+}
+
+export interface QuestionPlace {
+  paragraphId: string;
+  excerpt: string;
+}
+
+export type NearbyWhere = 'COLUMN' | 'ROW' | 'BEFORE' | 'AFTER';
+
+export interface QuestionNearby {
+  where: NearbyWhere;
+  text: string;
+}
+
+/** Um valor distinto do contrato. A resposta vale para todas as `places`. Texto mascarado. */
+export interface QuestionView {
+  id: string;
+  kind: string;
+  excerpt: string;
+  context: string;
+  places: QuestionPlace[];
+  options: FieldOption[];
+  nearby: QuestionNearby[];
 }
 
 export interface DraftStatusResponse {
@@ -35,6 +60,10 @@ export interface DraftStatusResponse {
   layoutSimplified: boolean;
   certain: SuggestionView[];
   doubts: SuggestionView[];
+  /** Campos que o contrato enviado JÁ traz como `{{campo}}`. Ausente até a análise terminar. */
+  existingFields?: FieldOption[];
+  /** Ausente num backend anterior às perguntas: esta tela segue funcionando com ele. */
+  questions?: QuestionView[];
 }
 
 export interface DraftSubmittedResponse {
@@ -72,8 +101,10 @@ export interface AiProviderView {
 
 export interface DraftDecision {
   id: string;
-  field: string;
+  field: string | null;
   accept: boolean;
+  /** Só na resposta a uma pergunta: o backend recusa o aceite sem isto. */
+  confirmed?: boolean;
 }
 
 export type FlowStep =
