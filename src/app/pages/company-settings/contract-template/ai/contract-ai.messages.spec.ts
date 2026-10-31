@@ -121,6 +121,11 @@ describe('contrato que já chega com {{campo}}', () => {
     expect(message).toMatch(/incompleto|escrito errado/);
   });
 
+  it('tela desatualizada: o backend recusa e a mensagem manda atualizar', () => {
+    expect(refused('QUESTIONS_NOT_REVIEWED')).toContain('Atualize a página');
+    expect(refused('DECISION_NOT_CONFIRMED')).toContain('Atualize a página');
+  });
+
   it('contrato sem campo nenhum diz o que falta', () => {
     expect(refused('TEMPLATE_NO_FIELDS')).toContain('pelo menos um');
   });

@@ -100,40 +100,56 @@ describe('contrato que já chega com {{campo}}', () => {
   });
 
   describe('pergunta de quem é o dado', () => {
-    const question = { ...sug('[CPF_1]', 'driverCpf'), askParty: true };
+    const question = {
+      ...sug('[CPF_1]', 'driverCpf'),
+      question: {
+        id: 's0001',
+        kind: 'CPF',
+        excerpt: '[CPF_1]',
+        context: '',
+        places: [
+          { paragraphId: 'p0001', excerpt: '[CPF_1]' },
+          { paragraphId: 'p0002', excerpt: '[CPF_1]' },
+        ],
+        options: [{ field: 'driverCpf', label: 'CPF do motorista' }],
+        nearby: [],
+      },
+    };
+    const two = [
+      { id: 'p0001', text: 'CONTRATANTE: CPF [CPF_1]' },
+      { id: 'p0002', text: 'Assina: CPF [CPF_1]' },
+    ];
 
     it('sem resposta o dado fica como está, em todas as etapas: nada de campo presumido', () => {
       for (const stage of ['fields', 'review'] as const) {
-        const doc = buildMaskedDocument(para('CONTRATANTE: CPF [CPF_1]'), {
-          stage,
-          suggestions: [question],
-          doubtIds: new Set(['s0001']),
-        });
+        const doc = buildMaskedDocument(two, { stage, suggestions: [question], doubtIds: new Set(['s0001']) });
 
         expect(doc.fields).toEqual([]);
-        expect(doc.paragraphs[0].segments.some((s) => s.kind === 'field')).toBe(false);
+        expect(doc.paragraphs.flatMap((p) => p.segments).some((s) => s.kind === 'field')).toBe(false);
       }
     });
 
-    it('a pergunta em foco aparece marcada no contrato', () => {
-      const doc = buildMaskedDocument(para('CONTRATANTE: CPF [CPF_1]'), {
+    it('a pergunta em foco aparece marcada em todos os lugares do valor', () => {
+      const doc = buildMaskedDocument(two, {
         stage: 'fields',
         suggestions: [question],
         doubtIds: new Set(['s0001']),
         focusId: 's0001',
       });
 
-      expect(doc.paragraphs[0].segments).toContainEqual({ kind: 'kept', text: 'CPF escondido', focus: true });
+      for (const p of doc.paragraphs) {
+        expect(p.segments).toContainEqual({ kind: 'kept', text: 'CPF escondido', focus: true });
+      }
     });
 
-    it('respondida como do motorista, vira campo', () => {
-      const doc = buildMaskedDocument(para('CONTRATANTE: CPF [CPF_1]'), {
+    it('respondida, a resposta vale para todas as ocorrências', () => {
+      const doc = buildMaskedDocument(two, {
         stage: 'review',
         suggestions: [question],
-        decisions: { s0001: { id: 's0001', field: 'driverCpf', accept: true } },
+        decisions: { s0001: { id: 's0001', field: 'driverCpf', accept: true, confirmed: true } },
       });
 
-      expect(doc.fields).toEqual(['driverCpf']);
+      expect(text(doc)).toEqual(['CONTRATANTE: CPF {driverCpf}', 'Assina: CPF {driverCpf}']);
     });
   });
 

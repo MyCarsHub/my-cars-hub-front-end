@@ -82,6 +82,21 @@ const PLAIN_LABELS: Readonly<Record<string, string>> = {
   dailyInterest: 'Os juros por dia de atraso',
 };
 
+/** Como a pergunta chama o dado, por tipo. Nome e endereço não têm: vão em claro, entre aspas. */
+const QUESTION_NOUNS: Readonly<Record<string, string>> = {
+  CPF: 'este CPF',
+  RG: 'este RG',
+  CNH: 'esta CNH',
+  CNPJ: 'este CNPJ',
+  PHONE: 'este telefone',
+  EMAIL: 'este e-mail',
+  CEP: 'este CEP',
+};
+
+export function questionTitle(kind: string, value: string): string {
+  return `De quem é ${QUESTION_NOUNS[kind] ?? `«${value}»`}?`;
+}
+
 /** Rótulo das marcas do texto mascarado (`[CPF_1]` → «CPF escondido»). */
 const HIDDEN_LABELS: Readonly<Record<string, string>> = {
   EMPRESA: 'nome escondido',

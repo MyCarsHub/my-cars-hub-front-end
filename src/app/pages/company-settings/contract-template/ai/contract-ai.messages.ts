@@ -89,6 +89,10 @@ const HTTP_MESSAGES: Record<string, string> = {
     'Não foi possível aplicar os campos escolhidos ao contrato. Nada foi alterado.',
   TEMPLATE_UNKNOWN_PLACEHOLDER:
     'O contrato tem um campo entre chaves {{ }} que o sistema não reconhece. Corrija ou apague esse campo no Word e envie o arquivo de novo.',
+  QUESTIONS_NOT_REVIEWED:
+    'Esta tela está desatualizada. Atualize a página para ver as perguntas do contrato.',
+  DECISION_NOT_CONFIRMED:
+    'Esta tela está desatualizada. Atualize a página para responder às perguntas do contrato.',
   TEMPLATE_MALFORMED_PLACEHOLDER:
     'O contrato tem um campo entre chaves {{ }} incompleto ou escrito errado. Corrija esse campo no Word e envie o arquivo de novo.',
   TEMPLATE_NO_FIELDS:

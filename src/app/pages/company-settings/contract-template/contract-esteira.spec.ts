@@ -490,44 +490,74 @@ describe('ContractEsteira', () => {
     expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('3');
   });
 
-  const PARTY_QUESTION = {
-    id: 's0001',
-    paragraphId: 'p1',
-    field: 'driverCpf',
-    fieldLabel: 'CPF do motorista',
+  const QUESTION = {
+    id: 'q0001',
+    kind: 'CPF',
     excerpt: '[CPF_1]',
     context: 'CONTRATANTE: Fulano, CPF [CPF_1].',
-    confidence: 1,
-    reason: '',
-    alternatives: [],
-    askParty: true,
+    places: [{ paragraphId: 'p1', excerpt: '[CPF_1]' }],
+    options: [{ field: 'driverCpf', label: 'CPF do motorista' }],
+    nearby: [],
   };
+  const TEXT = [{ id: 'p1', text: 'CONTRATANTE: Fulano, CPF [CPF_1].' }];
   const answerRadios = () =>
     Array.from(host.querySelectorAll<HTMLButtonElement>('[role=radio]')).filter((r) =>
       r.closest('[aria-label="Escolha uma resposta"]'),
     );
+  const KEEP = 'Locador, fiador, testemunha ou outra pessoa: manter como está';
 
-  it('de quem é o dado: pergunta sem resposta marcada, sem «Mais provável»', async () => {
-    await analysed([{ id: 'p1', text: 'CONTRATANTE: Fulano, CPF [CPF_1].' }], {
-      status: 'NEEDS_REVIEW',
-      doubts: [PARTY_QUESTION],
-    });
+  it('pergunta: nenhuma resposta marcada, sem «Mais provável», e terceiros são resposta válida', async () => {
+    await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [QUESTION] });
 
-    expect(host.textContent).toContain('De quem é «CPF escondido»?');
+    expect(host.textContent).toContain('De quem é este CPF?');
     expect(host.textContent).toContain('Sem resposta, ele fica como está');
     expect(host.textContent).not.toContain('Mais provável');
     expect(answerRadios().map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false']);
-    expect(answerRadios().map((r) => r.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
-      'CPF do motorista',
-      'Não é do motorista. Deixar sempre igual',
-    ]);
+    expect(answerRadios().map((r) => r.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['CPF do motorista', KEEP]);
   });
 
-  it('de quem é o dado: seguir sem responder não aceita nada e o texto fica fixo', async () => {
-    await analysed([{ id: 'p1', text: 'CONTRATANTE: Fulano, CPF [CPF_1].' }], {
+  it('pergunta numa célula de tabela: mostra a coluna e a linha, com o valor mascarado', async () => {
+    await analysed([{ id: 'p1', text: 'CPF: [CPF_1]' }], {
       status: 'NEEDS_REVIEW',
-      doubts: [PARTY_QUESTION],
+      questions: [
+        {
+          ...QUESTION,
+          context: 'CPF: [CPF_1]',
+          nearby: [
+            { where: 'COLUMN', text: 'LOCADOR: {{driverName}}' },
+            { where: 'ROW', text: 'CPF [CPF_2]' },
+          ],
+        },
+      ],
     });
+
+    const near = host.querySelector('[data-question-nearby]')?.textContent?.replace(/\s+/g, ' ') ?? '';
+    expect(near).toContain('Na mesma coluna');
+    expect(near).toContain('LOCADOR: Nome do motorista');
+    expect(near).toContain('Na mesma linha');
+    expect(near).toContain('CPF CPF escondido');
+    expect(near).not.toContain('[CPF_2]');
+    expect(near).not.toContain('{{');
+  });
+
+  it('pergunta de um valor repetido diz que a resposta vale para todos os lugares', async () => {
+    await analysed(TEXT, {
+      status: 'NEEDS_REVIEW',
+      questions: [{ ...QUESTION, places: [...QUESTION.places, { paragraphId: 'p1', excerpt: '[CPF_1]' }] }],
+    });
+
+    expect(host.textContent).toContain('Aparece 2 vezes');
+  });
+
+  it('dado que não pode virar campo: a pergunta informa e não oferece campo', async () => {
+    await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [{ ...QUESTION, options: [] }] });
+
+    expect(host.textContent).toContain('não pode virar campo');
+    expect(answerRadios().map((r) => r.textContent?.replace(/\s+/g, ' ').trim())).toEqual([KEEP]);
+  });
+
+  it('seguir sem responder não aceita nada, e o «Conferir» lista o que ficou fixo', async () => {
+    await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [QUESTION] });
 
     click('Ver como ficou');
     const put = http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`);
@@ -537,24 +567,78 @@ describe('ContractEsteira', () => {
 
     expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('0');
     expect(host.querySelectorAll('article [class*="emerald"]').length).toBe(0);
+    const left = host.querySelector('[data-unanswered]')?.textContent?.replace(/\s+/g, ' ') ?? '';
+    expect(left).toContain('1 pergunta sem resposta');
+    expect(left).toContain('CPF escondido');
+    expect(left).toContain('CONTRATANTE: Fulano');
+    expect(left).not.toContain('[CPF_1]');
   });
 
-  it('de quem é o dado: respondido como do motorista, vira campo', async () => {
-    await analysed([{ id: 'p1', text: 'CONTRATANTE: Fulano, CPF [CPF_1].' }], {
-      status: 'NEEDS_REVIEW',
-      doubts: [PARTY_QUESTION],
-    });
+  it('o «Conferir» avisa quando o contrato não tem nome nem CPF do motorista como campo', async () => {
+    await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [QUESTION] });
+
+    click('Ver como ficou');
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`)
+      .flush({ draftId: DRAFT, status: 'READY', acceptedCount: 0, pendingDoubtIds: [] });
+    fixture.detectChanges();
+
+    expect(host.textContent).toContain('sem o nome e o CPF do motorista');
+  });
+
+  it('salvar com perguntas diz ao backend que elas foram vistas', async () => {
+    await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [QUESTION] });
+    click('Ver como ficou');
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`)
+      .flush({ draftId: DRAFT, status: 'READY', acceptedCount: 0, pendingDoubtIds: [] });
+    fixture.detectChanges();
+
+    click('Salvar contrato');
+    const post = http.expectOne(`${ROOT}/drafts/${DRAFT}/save`);
+
+    expect(post.request.body).toEqual({ questionsReviewed: true });
+    post.flush(SAVED);
+  });
+
+  it('sem perguntas, o salvar manda o corpo de sempre: esta tela vai ao ar antes do backend novo', async () => {
+    await analysed([{ id: 'p1', text: '{{rentalId}}' }], { status: 'READY', existingFields: [EXISTING[0]] });
+
+    click('Salvar contrato');
+    const post = http.expectOne(`${ROOT}/drafts/${DRAFT}/save`);
+
+    expect(post.request.body).toEqual({});
+    post.flush(SAVED);
+  });
+
+  it('respondida como do motorista: vai com a confirmação e vira campo', async () => {
+    await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [QUESTION] });
 
     answerRadios()[0].click();
     fixture.detectChanges();
     expect(answerRadios()[0].getAttribute('aria-checked')).toBe('true');
     click('Ver como ficou');
     const put = http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`);
-    expect(put.request.body).toEqual({ decisions: [{ id: 's0001', field: 'driverCpf', accept: true }] });
+    expect(put.request.body).toEqual({
+      decisions: [{ id: 'q0001', field: 'driverCpf', accept: true, confirmed: true }],
+    });
     put.flush({ draftId: DRAFT, status: 'READY', acceptedCount: 1, pendingDoubtIds: [] });
     fixture.detectChanges();
 
     expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('1');
+    expect(host.querySelector('[data-unanswered]')).toBeNull();
+  });
+
+  it('respondida como de outra pessoa: fica fixo e não conta como sem resposta', async () => {
+    await analysed(TEXT, { status: 'NEEDS_REVIEW', questions: [QUESTION] });
+
+    answerRadios()[1].click();
+    fixture.detectChanges();
+    click('Ver como ficou');
+    const put = http.expectOne(`${ROOT}/drafts/${DRAFT}/decisions`);
+    expect(put.request.body).toEqual({ decisions: [{ id: 'q0001', field: null, accept: false }] });
+    put.flush({ draftId: DRAFT, status: 'READY', acceptedCount: 0, pendingDoubtIds: [] });
+    fixture.detectChanges();
+
+    expect(host.querySelector('[data-unanswered]')).toBeNull();
   });
 
   it('token desconhecido: o salvar recusa com a instrução, e o contrato fica na tela', async () => {

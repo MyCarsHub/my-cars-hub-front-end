@@ -331,6 +331,8 @@
             [fields]="reviewCounts().fields"
             [clauses]="reviewCounts().clauses"
             [existing]="ai.existingFields()"
+            [unanswered]="unanswered()"
+            [driverMissing]="path() === 'mine' && reviewCounts().driverMissing"
             [currentName]="template()?.filename ?? null"
             [where]="where()"
           />

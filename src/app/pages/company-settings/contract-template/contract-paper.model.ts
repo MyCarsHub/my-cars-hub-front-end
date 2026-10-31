@@ -1,4 +1,5 @@
 import { DraftDecision, SuggestionView } from './ai/contract-ai.types';
+import { fieldLabel } from './ai/contract-ai.messages';
 import { MASK_TOKEN, hiddenLabel, isKnownField } from './contract-fields';
 import { ContractBaseClause } from './base/contract-base.types';
 
@@ -260,6 +261,27 @@ export function humanizeMasked(text: string): string {
   return text.replace(MASK_TOKEN, (_m, kind: string) => hiddenLabel(kind));
 }
 
+/** Texto mascarado para ler fora da folha: marcas e `{{campo}}` viram rótulos. */
+export function readable(text: string): string {
+  return humanizeMasked(text).replace(FIELD_TOKEN, (token, field: string) =>
+    isKnownField(field) ? fieldLabel(field) : token,
+  );
+}
+
+/** Quanto do contexto cabe numa linha da lista do «Conferir». */
+const SHORT_REACH = 45;
+
+/** O trecho com um pouco do texto ao redor, em uma linha. */
+export function shortQuote(context: string, hit: string): string {
+  const text = readable(context);
+  const value = readable(hit);
+  const at = text.indexOf(value);
+  if (at < 0) return text.slice(0, SHORT_REACH * 2);
+  const start = Math.max(0, at - SHORT_REACH);
+  const end = Math.min(text.length, at + value.length + SHORT_REACH);
+  return `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`;
+}
+
 export interface MaskedStage {
   /** `consent`: só o texto mascarado. `fields`: dúvidas em aberto em âmbar. `review`: final. */
   stage: 'consent' | 'fields' | 'review';
@@ -282,39 +304,47 @@ export function buildMaskedDocument(
   const out: PaperParagraph[] = paragraphs.map((p, index) => {
     const role: PaperParagraph['role'] = index === 0 && looksLikeTitle(p.text) ? 'title' : 'body';
     if (opts.stage === 'consent') return { id: p.id, role, segments: withHidden(p.text) };
-    // O backend faz uma sugestão por ocorrência: cada uma continua de onde a anterior parou.
+    // Uma sugestão por ocorrência; a pergunta diz onde o valor está. Cada uma continua de onde a
+    // anterior do mesmo trecho parou.
     const resumeAt = new Map<string, number>();
     const hits = (opts.suggestions ?? [])
-      .filter((s) => s.paragraphId === p.id && s.excerpt)
-      .map((s) => {
-        const at = excerptAt(p.text, s.excerpt, resumeAt.get(s.excerpt) ?? 0);
-        if (at >= 0) resumeAt.set(s.excerpt, at + s.excerpt.length);
-        return { s, at };
+      .flatMap((s) =>
+        s.question
+          ? s.question.places.filter((place) => place.paragraphId === p.id).map((place) => ({ s, excerpt: place.excerpt }))
+          : s.paragraphId === p.id
+            ? [{ s, excerpt: s.excerpt }]
+            : [],
+      )
+      .filter((h) => h.excerpt)
+      .map((h) => {
+        const at = excerptAt(p.text, h.excerpt, resumeAt.get(h.excerpt) ?? 0);
+        if (at >= 0) resumeAt.set(h.excerpt, at + h.excerpt.length);
+        return { ...h, at };
       })
       .filter((h) => h.at >= 0)
       .sort((a, b) => a.at - b.at);
     const segments: PaperSegment[] = [];
     let cursor = 0;
-    for (const { s, at } of hits) {
+    for (const { s, excerpt, at } of hits) {
       if (at < cursor) continue; // sobreposta a outra sugestão: a primeira vence
       if (at > cursor) segments.push(...withFields(p.text.slice(cursor, at)));
       const decision = opts.decisions?.[s.id];
       const isDoubt = opts.doubtIds?.has(s.id) ?? false;
       const focus = s.id === opts.focusId;
-      // Pergunta de quem é o dado: sem resposta o texto fica fixo, então a folha não presume o campo.
-      if ((decision && !decision.accept) || (!decision && s.askParty)) {
-        const kept = humanizeMasked(s.excerpt);
+      // Pergunta: sem resposta o texto fica fixo, então a folha não presume o campo.
+      if ((decision && !decision.accept) || (!decision && s.question)) {
+        const kept = humanizeMasked(excerpt);
         segments.push({ kind: 'kept', text: kept, focus });
       } else {
         const open = isDoubt && !decision && opts.stage === 'fields';
         segments.push({
           kind: 'field',
-          field: decision?.field ?? s.field,
+          field: decision?.field || s.field,
           tone: open ? 'doubt' : 'ok',
           focus,
         });
       }
-      cursor = at + s.excerpt.length;
+      cursor = at + excerpt.length;
     }
     if (cursor < p.text.length) segments.push(...withFields(p.text.slice(cursor)));
     return { id: p.id, role, segments };

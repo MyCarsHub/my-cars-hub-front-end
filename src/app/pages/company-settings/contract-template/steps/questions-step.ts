@@ -10,13 +10,20 @@ import {
 import { FormField, FieldControl } from '../../../../components/form-field/form-field';
 import { ContractAiService } from '../ai/contract-ai.service';
 import { FIELD_LABELS, fieldLabel, safeText } from '../ai/contract-ai.messages';
-import { SuggestionView } from '../ai/contract-ai.types';
+import { NearbyWhere, SuggestionView } from '../ai/contract-ai.types';
 import { ContractExistingFields } from '../contract-existing-fields';
-import { FIELD_KEYS, plainFieldLabel } from '../contract-fields';
-import { PaperSegment, QuoteParts, humanizeMasked, quoteOf } from '../contract-paper.model';
+import { FIELD_KEYS, plainFieldLabel, questionTitle } from '../contract-fields';
+import { PaperSegment, QuoteParts, humanizeMasked, quoteOf, readable } from '../contract-paper.model';
 import { ContractIcon } from '../contract-icon';
 
 export const KEEP_TEXT = '__none__';
+const KEEP_LABEL = 'Locador, fiador, testemunha ou outra pessoa: manter como está';
+const NEARBY_LABELS: Readonly<Record<NearbyWhere, string>> = {
+  COLUMN: 'Na mesma coluna',
+  ROW: 'Na mesma linha',
+  BEFORE: 'Antes',
+  AFTER: 'Depois',
+};
 
 interface Answer {
   value: string;
@@ -67,18 +74,35 @@ const MAX_ANSWERS = 3;
           </span>
         </div>
         <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-fg break-words focus:outline-none sm:text-2xl">
-          @if (d.askParty) {
-            De quem é «{{ quote().hit }}»?
+          @if (d.question; as q) {
+            {{ title(q.kind) }}
           } @else {
             O que é «{{ quote().hit }}» no seu contrato?
           }
         </h3>
-        @if (d.askParty) {
+        @if (d.question; as q) {
           <p class="m-0 text-[15px] leading-relaxed text-fg-soft">
-            Não deu para saber se este dado é do motorista. Sem resposta, ele fica como está no contrato.
+            @if (q.options.length === 0) {
+              Este dado não pode virar campo aqui, então ele fica como está no contrato.
+            } @else {
+              Sem resposta, ele fica como está no contrato.
+            }
+            @if (q.places.length > 1) {
+              Aparece {{ q.places.length }} vezes, e a resposta vale para todas.
+            }
           </p>
         }
       </div>
+      @if (nearby().length > 0) {
+        <ul data-question-nearby class="m-0 flex list-none flex-col gap-1.5 rounded-xl bg-surface-muted px-3.5 py-2.5 text-[13px] leading-snug">
+          @for (n of nearby(); track $index) {
+            <li class="flex min-w-0 flex-col">
+              <span class="font-semibold text-fg-muted">{{ n.label }}</span>
+              <span class="doc-serif text-[15px] text-fg-body [overflow-wrap:anywhere]">{{ n.text }}</span>
+            </li>
+          }
+        </ul>
+      }
       <figure class="m-0 flex flex-col gap-1.5">
         <figcaption class="text-[13px] font-semibold text-fg-muted">Está assim no seu contrato:</figcaption>
         <blockquote class="m-0 rounded-r-xl border-l-4 border-amber-400 bg-amber-50/50 dark:bg-amber-500/10 py-2.5 pl-3.5 pr-3 doc-serif text-base leading-relaxed text-fg-body break-words">
@@ -159,7 +183,7 @@ export class ContractQuestionsStep {
   protected readonly labels = FIELD_LABELS;
   protected readonly open = signal(false);
 
-  protected readonly doubts = computed<SuggestionView[]>(() => this.svc.draft()?.doubts ?? []);
+  protected readonly doubts = this.svc.asks;
   protected readonly certain = computed<SuggestionView[]>(() => this.svc.draft()?.certain ?? []);
   protected readonly existing = this.svc.existingFields;
   protected readonly current = computed(() => this.doubts()[this.index()] ?? null);
@@ -187,16 +211,16 @@ export class ContractQuestionsStep {
   protected readonly answers = computed<Answer[]>(() => {
     const d = this.current();
     if (!d) return [];
-    const fields = [d.field, ...(d.alternatives ?? []).map((a) => a.field)];
+    const fields = [d.field, ...(d.alternatives ?? []).map((a) => a.field)].filter((f) => !!f);
     const unique = [...new Set(fields)].slice(0, MAX_ANSWERS);
     const out: Answer[] = unique.map((field, i) => ({
       value: field,
       label: plainFieldLabel(field, field === d.field ? d.fieldLabel : null),
-      suggested: i === 0 && !d.askParty,
+      suggested: i === 0 && !d.question,
     }));
     out.push({
       value: KEEP_TEXT,
-      label: d.askParty ? 'Não é do motorista. Deixar sempre igual' : 'Nenhum desses. Deixar sempre igual',
+      label: d.question ? KEEP_LABEL : 'Nenhum desses. Deixar sempre igual',
       suggested: false,
     });
     return out;
@@ -207,8 +231,8 @@ export class ContractQuestionsStep {
     const d = this.current();
     if (!d) return null;
     const prior = this.svc.decisions()[d.id];
-    if (!prior) return d.askParty ? null : d.field;
-    return prior.accept ? prior.field : KEEP_TEXT;
+    if (!prior) return d.question ? null : d.field;
+    return prior.accept && prior.field ? prior.field : KEEP_TEXT;
   });
 
   protected readonly quote = computed<QuoteParts>(() => {
@@ -216,6 +240,18 @@ export class ContractQuestionsStep {
     if (!d) return { before: [], hit: '', after: [] };
     return quoteOf(humanizeMasked(safeText(d.context)), humanizeMasked(safeText(d.excerpt)));
   });
+
+  protected title(kind: string): string {
+    return questionTitle(kind, this.quote().hit);
+  }
+
+  /** Numa célula de tabela o trecho sozinho não diz de quem é: a coluna e a linha dizem. */
+  protected readonly nearby = computed(() =>
+    (this.current()?.question?.nearby ?? []).map((n) => ({
+      label: NEARBY_LABELS[n.where],
+      text: readable(safeText(n.text)),
+    })),
+  );
 
   protected quoteText(s: PaperSegment): string {
     if (s.kind === 'field') return fieldLabel(s.field);
@@ -230,6 +266,14 @@ export class ContractQuestionsStep {
 
   protected pick(d: SuggestionView, value: string): void {
     this.focused.emit(d.id);
+    if (d.question) {
+      this.svc.setDecision(
+        value === KEEP_TEXT
+          ? { id: d.id, field: null, accept: false }
+          : { id: d.id, field: value, accept: true, confirmed: true },
+      );
+      return;
+    }
     this.svc.setDecision(
       value === KEEP_TEXT
         ? { id: d.id, field: d.field, accept: false }
@@ -244,7 +288,7 @@ export class ContractQuestionsStep {
   protected certainValue(s: SuggestionView): string {
     const d = this.svc.decisions()[s.id];
     if (!d) return s.field;
-    return d.accept ? d.field : KEEP_TEXT;
+    return d.accept && d.field ? d.field : KEEP_TEXT;
   }
 
   protected correct(s: SuggestionView, value: string): void {

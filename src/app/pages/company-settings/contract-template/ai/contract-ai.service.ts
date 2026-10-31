@@ -20,6 +20,7 @@ import {
   DraftSubmittedResponse,
   FlowStep,
   MaskedTextResponse,
+  SuggestionView,
 } from './contract-ai.types';
 
 const BASE = `${environment.apiUrl}/settings/contract-template`;
@@ -36,8 +37,8 @@ export function pollDelay(attempt: number): number {
   return Math.min(POLL_FIRST_DELAY_MS * Math.pow(1.5, attempt), POLL_MAX_DELAY_MS);
 }
 
-/** Ids de sugestao do backend: s0001, s0002... (SuggestionValidator). */
-const SUGGESTION_ID_RE = /^s\d{1,6}$/;
+/** Ids do backend: s0001 (sugestão), q0001 (pergunta). */
+const SUGGESTION_ID_RE = /^[sq]\d{1,6}$/;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -101,6 +102,28 @@ export class ContractAiService {
   readonly failureText = computed(() => failureMessage(this.draft()?.failureCode ?? null));
   /** O que o contrato enviado já trazia como `{{campo}}`. */
   readonly existingFields = computed(() => this.draft()?.existingFields ?? []);
+  /** Dados de pessoa ou empresa: só viram campo com a resposta do dono. */
+  readonly questions = computed(() => this.draft()?.questions ?? []);
+
+  /** O que a etapa «Campos» pergunta, um por vez: primeiro as perguntas, depois as dúvidas. */
+  readonly asks = computed<SuggestionView[]>(() => [
+    ...this.questions().map((q) => ({
+      id: q.id,
+      paragraphId: q.places[0]?.paragraphId ?? '',
+      field: q.options[0]?.field ?? '',
+      fieldLabel: q.options[0]?.label ?? '',
+      excerpt: q.excerpt,
+      context: q.context,
+      confidence: 0,
+      reason: '',
+      alternatives: q.options.slice(1),
+      question: q,
+    })),
+    ...(this.draft()?.doubts ?? []),
+  ]);
+
+  /** Perguntas que seguem sem resposta: o dado fica fixo, e o «Conferir» as lista. */
+  readonly unanswered = computed(() => this.questions().filter((q) => !this.decisions()[q.id]));
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private pollSub: Subscription | null = null;
@@ -359,11 +382,11 @@ export class ContractAiService {
             typeof d === 'object' &&
             SUGGESTION_ID_RE.test(key) &&
             d.id === key &&
-            typeof d.field === 'string' &&
-            Object.hasOwn(FIELD_LABELS, d.field) &&
+            (d.field === null || (typeof d.field === 'string' && Object.hasOwn(FIELD_LABELS, d.field))) &&
             typeof d.accept === 'boolean'
           ) {
-            clean[key] = { id: key, field: d.field, accept: d.accept };
+            clean[key] = { id: key, field: d.field ?? null, accept: d.accept };
+            if (d.confirmed === true) clean[key].confirmed = true;
           }
         }
       }
@@ -411,7 +434,12 @@ export class ContractAiService {
     if (!id || this.busy()) return;
     this.error.set(null);
     this.busy.set(true);
-    const body = confirmOverwrite ? { confirmOverwrite: true } : {};
+    // `questionsReviewed` só com perguntas: o backend atual recusa chave que não conhece, e esta
+    // tela vai ao ar antes do backend novo.
+    const body = {
+      ...(confirmOverwrite ? { confirmOverwrite: true } : {}),
+      ...(this.questions().length > 0 ? { questionsReviewed: true } : {}),
+    };
     this.http.post<ContractTemplateDto>(`${BASE}/drafts/${id}/save`, body).subscribe({
       next: (tpl) => {
         this.busy.set(false);

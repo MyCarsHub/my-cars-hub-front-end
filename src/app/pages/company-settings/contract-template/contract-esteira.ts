@@ -31,6 +31,8 @@ import {
   buildMarkdownDocument,
   buildMaskedDocument,
   buildPlainDocument,
+  readable,
+  shortQuote,
 } from './contract-paper.model';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
 import { readDocxParagraphs } from './docx-text';
@@ -286,7 +288,7 @@ export class ContractEsteira {
   // `bg-neutral-50/60` daqui (ordem do Tailwind), então o fundo real era branco — e continua.
   protected readonly cardOff = 'border-dashed border-edge-strong';
 
-  protected readonly doubts = computed(() => this.ai.draft()?.doubts ?? []);
+  protected readonly doubts = this.ai.asks;
   protected readonly notMaskedLabels = computed(() =>
     (this.ai.masked()?.notMasked ?? []).map((n) => safeText(n.label)),
   );
@@ -323,8 +325,8 @@ export class ContractEsteira {
     const d = this.ai.draft();
     return buildMaskedDocument(paragraphs, {
       stage: view === 'fields' ? 'fields' : 'review',
-      suggestions: [...(d?.certain ?? []), ...(d?.doubts ?? [])],
-      doubtIds: new Set((d?.doubts ?? []).map((s) => s.id)),
+      suggestions: [...(d?.certain ?? []), ...this.ai.asks()],
+      doubtIds: new Set(this.ai.asks().map((s) => s.id)),
       decisions: this.ai.decisions(),
       focusId: view === 'fields' ? this.focusId() : null,
     });
@@ -421,7 +423,7 @@ export class ContractEsteira {
   protected readonly reviewCounts = computed(() => {
     if (this.path() === 'zero') {
       const doc = this.zeroDoc();
-      return { fields: doc.fields.length, clauses: doc.clauses };
+      return { fields: doc.fields.length, clauses: doc.clauses, driverMissing: false };
     }
     const d = this.ai.draft();
     const decisions = this.ai.decisions();
@@ -434,14 +436,27 @@ export class ContractEsteira {
     ]);
     for (const s of d?.certain ?? []) {
       const dec = decisions[s.id];
-      if (!dec || dec.accept) fields.add(dec?.field ?? s.field);
+      if (!dec || dec.accept) fields.add(dec?.field || s.field);
     }
-    for (const s of d?.doubts ?? []) {
+    for (const s of this.ai.asks()) {
       const dec = decisions[s.id];
-      if (dec?.accept) fields.add(dec.field);
+      if (dec?.accept && dec.field) fields.add(dec.field);
     }
-    return { fields: fields.size, clauses: doc?.clauses ?? 0 };
+    return {
+      fields: fields.size,
+      clauses: doc?.clauses ?? 0,
+      driverMissing: !fields.has('driverName') && !fields.has('driverCpf'),
+    };
   });
+
+  /** O que vai ficar fixo porque ninguém respondeu: o «Conferir» diz em palavras. */
+  protected readonly unanswered = computed(() =>
+    this.ai.unanswered().map((q) => ({
+      id: q.id,
+      value: readable(safeText(q.excerpt)),
+      where: shortQuote(safeText(q.context), safeText(q.excerpt)),
+    })),
+  );
 
   // ---- navegação do rodapé
   protected readonly showNav = computed(() => {
@@ -934,9 +949,9 @@ export class ContractEsteira {
       case 'fields': {
         const doubts = this.doubts();
         const current = doubts[this.qIndex()];
-        // «Próxima» sem tocar numa resposta aceita a mais provável. Na pergunta de quem é o dado
-        // não há mais provável: sem resposta, o texto fica fixo.
-        if (current && !current.askParty && !this.ai.decisions()[current.id]) {
+        // «Próxima» sem tocar numa resposta aceita a mais provável. Na pergunta não há mais provável:
+        // sem resposta, o texto fica fixo.
+        if (current && !current.question && !this.ai.decisions()[current.id]) {
           this.ai.setDecision({ id: current.id, field: current.field, accept: true });
         }
         if (this.qIndex() < doubts.length - 1) {
