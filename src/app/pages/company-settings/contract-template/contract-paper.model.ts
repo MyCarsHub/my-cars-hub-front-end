@@ -1,5 +1,6 @@
 import { DraftDecision, SuggestionView } from './ai/contract-ai.types';
-import { MASK_TOKEN, hiddenLabel } from './contract-fields';
+import { fieldLabel } from './ai/contract-ai.messages';
+import { MASK_TOKEN, hiddenLabel, isKnownField } from './contract-fields';
 import { ContractBaseClause } from './base/contract-base.types';
 
 /**
@@ -32,6 +33,10 @@ export interface PaperDocument {
 }
 
 const FIELD_OR_BOLD = /(\{\{\s*[A-Za-z0-9_]+\s*\}\}|\*\*[^*]+\*\*)/;
+/** `{{campo}}` no texto do contrato enviado. */
+const FIELD_TOKEN = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
+/** Qualquer coisa entre chaves duplas: mesmo critério do backend para o que não se toca. */
+const ANY_TOKEN = /\{\{[^{}]*\}\}/g;
 
 /** Texto de uma linha: `{{campo}}` vira campo e `**negrito**` vira texto em negrito. */
 export function parseInline(text: string): PaperSegment[] {
@@ -181,9 +186,100 @@ function withHidden(text: string): PaperSegment[] {
   return out;
 }
 
+/**
+ * O texto do contrato com os `{{campo}}` que ele já trazia virando campo, igual a uma sugestão
+ * aceita. Token fora da lista fica como texto: não é verde porque o salvar vai recusá-lo.
+ */
+function withFields(text: string): PaperSegment[] {
+  const out: PaperSegment[] = [];
+  let at = 0;
+  for (const m of text.matchAll(FIELD_TOKEN)) {
+    if (!isKnownField(m[1])) continue;
+    const i = m.index ?? 0;
+    if (i > at) out.push(...withHidden(text.slice(at, i)));
+    out.push({ kind: 'field', field: m[1], tone: 'ok' });
+    at = i + m[0].length;
+  }
+  if (at < text.length) out.push(...withHidden(text.slice(at)));
+  return out;
+}
+
+/** Primeira ocorrência do trecho fora dos tokens («Km» não pode cair em `{{initialKm}}`). */
+function excerptAt(text: string, excerpt: string, from = 0): number {
+  const tokens = [...text.matchAll(ANY_TOKEN)].map((m) => {
+    const from = m.index ?? 0;
+    return { from, to: from + m[0].length };
+  });
+  let at = text.indexOf(excerpt, from);
+  while (at >= 0) {
+    const end = at + excerpt.length;
+    if (!tokens.some((t) => at < t.to && end > t.from)) return at;
+    at = text.indexOf(excerpt, at + 1);
+  }
+  return -1;
+}
+
+/** Quanto do contrato a pergunta cita de cada lado do trecho. */
+const QUOTE_REACH = 70;
+
+function tokenAround(text: string, position: number): { from: number; to: number } | null {
+  for (const m of text.matchAll(ANY_TOKEN)) {
+    const from = m.index ?? 0;
+    const to = from + m[0].length;
+    if (position > from && position < to) return { from, to };
+  }
+  return null;
+}
+
+export interface QuoteParts {
+  before: PaperSegment[];
+  hit: string;
+  after: PaperSegment[];
+}
+
+/**
+ * O trecho citado na pergunta, com a mesma leitura da folha: acha o trecho fora dos tokens e mostra
+ * os `{{campo}}` vizinhos como campo. O corte da citação nunca parte um token ao meio.
+ */
+export function quoteOf(context: string, hit: string): QuoteParts {
+  const at = hit ? excerptAt(context, hit) : -1;
+  if (at < 0) return { before: [], hit, after: [] };
+  const wantedStart = at - QUOTE_REACH;
+  const start = wantedStart <= 0 ? 0 : (tokenAround(context, wantedStart)?.to ?? wantedStart);
+  const end = at + hit.length;
+  const wantedEnd = end + QUOTE_REACH;
+  const stop = wantedEnd >= context.length ? context.length : (tokenAround(context, wantedEnd)?.from ?? wantedEnd);
+  const before = withFields(context.slice(start, at));
+  const after = withFields(context.slice(end, stop));
+  if (start > 0) before.unshift({ kind: 'text', text: '…' });
+  if (stop < context.length) after.push({ kind: 'text', text: '…' });
+  return { before, hit, after };
+}
+
 /** Texto mascarado com as marcas trocadas por rótulos, para frases fora do contrato. */
 export function humanizeMasked(text: string): string {
   return text.replace(MASK_TOKEN, (_m, kind: string) => hiddenLabel(kind));
+}
+
+/** Texto mascarado para ler fora da folha: marcas e `{{campo}}` viram rótulos. */
+export function readable(text: string): string {
+  return humanizeMasked(text).replace(FIELD_TOKEN, (token, field: string) =>
+    isKnownField(field) ? fieldLabel(field) : token,
+  );
+}
+
+/** Quanto do contexto cabe numa linha da lista do «Conferir». */
+const SHORT_REACH = 45;
+
+/** O trecho com um pouco do texto ao redor, em uma linha. */
+export function shortQuote(context: string, hit: string): string {
+  const text = readable(context);
+  const value = readable(hit);
+  const at = text.indexOf(value);
+  if (at < 0) return text.slice(0, SHORT_REACH * 2);
+  const start = Math.max(0, at - SHORT_REACH);
+  const end = Math.min(text.length, at + value.length + SHORT_REACH);
+  return `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`;
 }
 
 export interface MaskedStage {
@@ -198,7 +294,8 @@ export interface MaskedStage {
 /**
  * «Ajustar o meu contrato»: o texto mascarado que a IA leu, com cada sugestão trocada pelo
  * campo que a pessoa aceitou. Sugestão recusada fica com o texto original; dúvida ainda sem
- * resposta aparece em âmbar até ser respondida.
+ * resposta aparece em âmbar até ser respondida. No consentimento o texto fica intacto, chaves
+ * inclusive: ali ele é o que vai à IA.
  */
 export function buildMaskedDocument(
   paragraphs: readonly { id: string; text: string }[],
@@ -207,34 +304,49 @@ export function buildMaskedDocument(
   const out: PaperParagraph[] = paragraphs.map((p, index) => {
     const role: PaperParagraph['role'] = index === 0 && looksLikeTitle(p.text) ? 'title' : 'body';
     if (opts.stage === 'consent') return { id: p.id, role, segments: withHidden(p.text) };
+    // Uma sugestão por ocorrência; a pergunta diz onde o valor está. Cada uma continua de onde a
+    // anterior do mesmo trecho parou.
+    const resumeAt = new Map<string, number>();
     const hits = (opts.suggestions ?? [])
-      .filter((s) => s.paragraphId === p.id && s.excerpt)
-      .map((s) => ({ s, at: p.text.indexOf(s.excerpt) }))
+      .flatMap((s) =>
+        s.question
+          ? s.question.places.filter((place) => place.paragraphId === p.id).map((place) => ({ s, excerpt: place.excerpt }))
+          : s.paragraphId === p.id
+            ? [{ s, excerpt: s.excerpt }]
+            : [],
+      )
+      .filter((h) => h.excerpt)
+      .map((h) => {
+        const at = excerptAt(p.text, h.excerpt, resumeAt.get(h.excerpt) ?? 0);
+        if (at >= 0) resumeAt.set(h.excerpt, at + h.excerpt.length);
+        return { ...h, at };
+      })
       .filter((h) => h.at >= 0)
       .sort((a, b) => a.at - b.at);
     const segments: PaperSegment[] = [];
     let cursor = 0;
-    for (const { s, at } of hits) {
+    for (const { s, excerpt, at } of hits) {
       if (at < cursor) continue; // sobreposta a outra sugestão: a primeira vence
-      if (at > cursor) segments.push(...withHidden(p.text.slice(cursor, at)));
+      if (at > cursor) segments.push(...withFields(p.text.slice(cursor, at)));
       const decision = opts.decisions?.[s.id];
       const isDoubt = opts.doubtIds?.has(s.id) ?? false;
       const focus = s.id === opts.focusId;
-      if (decision && !decision.accept) {
-        const kept = humanizeMasked(s.excerpt);
+      // Pergunta: sem resposta o texto fica fixo, então a folha não presume o campo.
+      if ((decision && !decision.accept) || (!decision && s.question)) {
+        const kept = humanizeMasked(excerpt);
         segments.push({ kind: 'kept', text: kept, focus });
       } else {
         const open = isDoubt && !decision && opts.stage === 'fields';
         segments.push({
           kind: 'field',
-          field: decision?.field ?? s.field,
+          field: decision?.field || s.field,
           tone: open ? 'doubt' : 'ok',
           focus,
         });
       }
-      cursor = at + s.excerpt.length;
+      cursor = at + excerpt.length;
     }
-    if (cursor < p.text.length) segments.push(...withHidden(p.text.slice(cursor)));
+    if (cursor < p.text.length) segments.push(...withFields(p.text.slice(cursor)));
     return { id: p.id, role, segments };
   });
   return {

@@ -6,7 +6,7 @@ import {
   fieldLabel,
   httpErrorMessage,
 } from './contract-ai.messages';
-import { FIELD_KEYS, fieldCode, fieldExample } from '../contract-fields';
+import { FIELD_KEYS, fieldCode, fieldExample, isKnownField } from '../contract-fields';
 
 /**
  * Lista fechada do backend (ContractTemplateService.SUPPORTED_VARIABLES). `companyCity`
@@ -21,7 +21,8 @@ const SUPPORTED_VARIABLES = [
   'vehiclePlate', 'vehicleBrand', 'vehicleModel', 'vehicleYear', 'vehicleColor', 'vehicleChassi',
   'vehicleRenavam', 'vehicleMileage', 'vehicleFuel',
   'rentalId', 'contractDate', 'startDate', 'endDate', 'totalAmount', 'caucaoAmount', 'periodRate',
-  'billingFrequency', 'initialKm', 'pickupDate', 'firstPaymentDate', 'dailyInterest', 'lateFine',
+  'billingFrequency', 'initialKm', 'pickupDate', 'firstPaymentDate', 'dailyInterest',
+  'lateInterestPercent', 'lateInterestTerms', 'lateFine',
   'franchiseKm', 'returnFuelPolicy', 'extraKmPrice', 'lateFineTerms', 'kmTerms',
 ];
 
@@ -52,7 +53,7 @@ describe('contract-ai.messages', () => {
       expect(label, v).not.toBe(v);
       expect(label, v).not.toMatch(/^[a-z]+[A-Z]/);
     }
-    expect(SUPPORTED_VARIABLES.length).toBe(46);
+    expect(SUPPORTED_VARIABLES.length).toBe(48);
   });
 
   it('companyCity («Local e data» do Montar do zero): rótulo, exemplo, código e escolha na lista', () => {
@@ -97,5 +98,42 @@ describe('contract-ai.messages', () => {
     expect(httpErrorMessage(e(413), 'f')).toContain('5 MB');
     expect(httpErrorMessage(e(429), 'f')).toContain('Aguarde');
     expect(httpErrorMessage(e(418), 'fallback')).toBe('fallback');
+  });
+});
+
+describe('contrato que já chega com {{campo}}', () => {
+  const refused = (code: string) =>
+    httpErrorMessage(new HttpErrorResponse({ status: 400, error: { code } }), 'genérico');
+
+  it('token desconhecido é recusado com instrução do que fazer, sem ecoar o nome', () => {
+    const message = refused('TEMPLATE_UNKNOWN_PLACEHOLDER');
+
+    expect(message).not.toBe('genérico');
+    expect(message).toContain('não reconhece');
+    expect(message).toContain('Word');
+  });
+
+  it('token quebrado é recusado com instrução do que fazer, sem ecoar o conteúdo', () => {
+    const message = refused('TEMPLATE_MALFORMED_PLACEHOLDER');
+
+    expect(message).not.toBe('genérico');
+    expect(message).toContain('Word');
+    expect(message).toMatch(/incompleto|escrito errado/);
+  });
+
+  it('tela desatualizada: o backend recusa e a mensagem manda atualizar', () => {
+    expect(refused('QUESTIONS_NOT_REVIEWED')).toContain('Atualize a página');
+    expect(refused('DECISION_NOT_CONFIRMED')).toContain('Atualize a página');
+  });
+
+  it('contrato sem campo nenhum diz o que falta', () => {
+    expect(refused('TEMPLATE_NO_FIELDS')).toContain('pelo menos um');
+  });
+
+  it('isKnownField só reconhece a lista fechada', () => {
+    expect(isKnownField('driverName')).toBe(true);
+    expect(isKnownField('lateInterestTerms')).toBe(true);
+    expect(isKnownField('campoEstranho')).toBe(false);
+    expect(isKnownField('toString')).toBe(false);
   });
 });
