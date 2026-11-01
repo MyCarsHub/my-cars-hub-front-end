@@ -1,0 +1,182 @@
+<app-default-page-layout
+  title="Cupons"
+  description="Descontos por empresa: direto na assinatura ou por código."
+>
+  @if (canManage()) {
+    <button
+      pageActions
+      type="button"
+      class="press w-full md:w-auto min-h-11 shrink-0 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white
+             transition-colors hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+      data-testid="create-coupon"
+      (click)="openSheet()"
+    >
+      Criar cupom
+    </button>
+  }
+
+  @if (error(); as err) {
+    <div class="mb-4">
+      <app-alert-banner variant="error">
+        {{ err }}
+        <button type="button" class="ml-2 underline min-h-11 px-2" data-testid="retry" (click)="load()">Tentar novamente</button>
+      </app-alert-banner>
+    </div>
+  }
+
+  @if (actionError(); as err) {
+    <div class="mb-4" data-testid="action-error">
+      <app-alert-banner variant="error" [message]="err" />
+    </div>
+  }
+
+  <ng-template #rowMenu let-row>
+    <app-actions-menu [label]="'Ações do cupom ' + row.code" [menuWidth]="224">
+      @if (row.coupon.promotionCode; as code) {
+        <button type="button" role="menuitem" data-testid="menu-copy"
+                class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+                (click)="copy(code)">Copiar código</button>
+      }
+      @if (row.canDeactivate) {
+        <button type="button" role="menuitem" data-testid="menu-deactivate"
+                class="w-full text-left text-sm px-4 py-3 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
+                       min-h-[44px]"
+                [class.border-t]="row.coupon.promotionCode"
+                [class.border-edge-soft]="row.coupon.promotionCode"
+                (click)="askDeactivate(row.coupon)">Desativar</button>
+      }
+    </app-actions-menu>
+  </ng-template>
+
+  @if (loading() && rows().length === 0) {
+    <div class="grid gap-3 lg:grid-cols-2" data-testid="skeleton">
+      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+    </div>
+  } @else if (!error() && rows().length === 0) {
+    <div class="py-10 text-center">
+      <p class="text-sm text-fg-subtle" data-testid="empty">Nenhum cupom criado ainda.</p>
+      @if (canManage()) {
+        <button
+          type="button"
+          class="press mt-3 min-h-11 rounded-xl px-4 text-sm font-semibold text-primary-700 dark:text-primary-300
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          data-testid="empty-create"
+          (click)="openSheet()"
+        >
+          Criar o primeiro cupom
+        </button>
+      }
+    </div>
+  } @else if (rows().length > 0) {
+    <ul class="grid gap-3 sm:grid-cols-2 lg:hidden" data-testid="coupons-list">
+      @for (row of rows(); track row.coupon.couponId; let i = $index) {
+        <li
+          class="enter-up rounded-2xl border border-edge bg-surface p-4 flex flex-col gap-3"
+          [style.--stagger-i]="i"
+          data-testid="coupon-card"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-base font-semibold text-fg tabular-nums break-words">{{ row.code }}</p>
+              @if (row.coupon.companyId; as companyId) {
+                <a
+                  [routerLink]="['/admin/companies', companyId]"
+                  class="inline-flex items-center min-h-[44px] text-sm font-semibold text-primary-700 dark:text-primary-300
+                         hover:underline break-words focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+                >{{ row.company }}</a>
+              }
+            </div>
+            <div class="flex shrink-0 items-start gap-1">
+              <app-status-chip class="mt-2.5" [tone]="row.status.tone" size="sm">{{ row.status.label }}</app-status-chip>
+              @if (row.coupon.promotionCode || row.canDeactivate) {
+                <div class="-mr-2">
+                  <ng-container *ngTemplateOutlet="rowMenu; context: { $implicit: row }" />
+                </div>
+              }
+            </div>
+          </div>
+          <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+            <dt class="text-xs text-fg-subtle">Plano</dt>
+            <dd class="text-right text-fg-soft">{{ row.plan }}</dd>
+            <dt class="text-xs text-fg-subtle">Desconto</dt>
+            <dd class="text-right font-semibold tabular-nums text-fg">{{ row.discount }}</dd>
+            <dt class="text-xs text-fg-subtle">Duração</dt>
+            <dd class="text-right text-fg-soft">{{ row.duration }}</dd>
+            <dt class="text-xs text-fg-subtle">Validade</dt>
+            <dd class="text-right tabular-nums text-fg-soft">{{ row.validity }}</dd>
+          </dl>
+        </li>
+      }
+    </ul>
+
+    <!-- Desktop (>=1024px): tabela com colunas, hover por linha e ações à direita. -->
+    <div class="hidden lg:block overflow-x-auto rounded-2xl border border-edge bg-surface" data-testid="coupons-table">
+      <table class="w-full text-sm">
+        <thead class="bg-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+          <tr>
+            <th scope="col" class="px-4 py-3">Código</th>
+            <th scope="col" class="px-4 py-3">Empresa</th>
+            <th scope="col" class="px-4 py-3 text-right">Desconto</th>
+            <th scope="col" class="px-4 py-3">Duração</th>
+            <th scope="col" class="px-4 py-3">Validade</th>
+            <th scope="col" class="px-4 py-3">Situação</th>
+            <th scope="col" class="px-4 py-3 text-right"><span class="sr-only">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.coupon.couponId; let i = $index) {
+            <tr
+              class="enter-up border-t border-edge-soft align-middle transition-colors hover:bg-canvas"
+              [style.--stagger-i]="i"
+              data-testid="coupon-row"
+            >
+              <td class="px-4 py-3 font-semibold tabular-nums text-fg whitespace-nowrap">{{ row.code }}</td>
+              <td class="px-4 py-3">
+                @if (row.coupon.companyId; as companyId) {
+                  <a
+                    [routerLink]="['/admin/companies', companyId]"
+                    class="inline-flex items-center min-h-[44px] font-semibold text-primary-700 dark:text-primary-300 hover:underline rounded-sm
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                  >{{ row.company }}</a>
+                }
+                <span class="block text-xs text-fg-subtle">{{ row.plan }}</span>
+              </td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums text-fg">{{ row.discount }}</td>
+              <td class="px-4 py-3 text-fg-soft whitespace-nowrap">{{ row.duration }}</td>
+              <td class="px-4 py-3 tabular-nums text-fg-soft whitespace-nowrap">{{ row.validity }}</td>
+              <td class="px-4 py-3">
+                <app-status-chip [tone]="row.status.tone" size="sm">{{ row.status.label }}</app-status-chip>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex justify-end">
+                  @if (row.coupon.promotionCode || row.canDeactivate) {
+                    <ng-container *ngTemplateOutlet="rowMenu; context: { $implicit: row }" />
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  <app-back-link link="/admin" label="Voltar para o painel admin" />
+</app-default-page-layout>
+
+@if (sheetOpen()) {
+  <app-coupon-sheet [company]="prefill()" (saved)="onSaved($event)" (listMayHaveChanged)="load()" (closed)="closeSheet()" />
+}
+
+<app-confirm-dialog
+  [open]="deactivating() !== null"
+  title="Desativar cupom"
+  [message]="confirmMessage()"
+  confirmLabel="Desativar"
+  cancelLabel="Manter cupom"
+  variant="danger"
+  [busy]="deactivateBusy()"
+  (confirmed)="confirmDeactivate()"
+  (cancelled)="cancelDeactivate()"
+/>

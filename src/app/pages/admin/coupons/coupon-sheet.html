@@ -1,0 +1,268 @@
+<app-bottom-sheet [title]="title()" [busy]="creating()" (closed)="closed.emit()">
+  <div data-testid="coupon-sheet">
+    @if (created(); as coupon) {
+      <app-painted-card
+        [tone]="coupon.mode === 'APPLIED_TO_SUBSCRIPTION' ? 'green' : 'orange'"
+        data-testid="coupon-done"
+      >
+        @if (coupon.promotionCode; as code) {
+          <div>
+            <p class="text-sm font-semibold">Envie este código ao cliente</p>
+            <p class="mt-1 text-2xl font-bold tracking-wide tabular-nums break-all select-all" data-testid="coupon-created-code">{{ code }}</p>
+          </div>
+          <p class="text-sm">Uso único, só para este cliente. Vale até {{ createdValidity() }}: ele digita no checkout.</p>
+          <button
+            type="button"
+            class="press min-h-12 w-full rounded-xl bg-white px-4 text-base font-semibold text-primary-700
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            data-testid="coupon-copy"
+            (click)="copyCreated()"
+          >
+            Copiar código
+          </button>
+        } @else {
+          <p class="text-sm font-semibold">Aplicado na assinatura. Ninguém precisa digitar nada.</p>
+          <p class="text-xl font-bold leading-snug">{{ preview()?.summary }}</p>
+        }
+      </app-painted-card>
+    } @else {
+      <div class="flex flex-col gap-4">
+        <!-- Empresa -->
+        @if (selected(); as company) {
+          <div class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-fg-muted">Empresa</span>
+            <div class="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-surface-sunken px-3" data-testid="coupon-company-selected">
+              <span class="min-w-0">
+                <span class="block text-base font-medium text-fg break-words">{{ company.name }}</span>
+                @if (company.documentMasked) {
+                  <span class="block text-xs text-fg-subtle tabular-nums">{{ company.documentMasked }}</span>
+                }
+              </span>
+              <button
+                type="button"
+                class="press min-h-11 shrink-0 rounded-lg px-2 text-sm font-semibold text-primary-700 dark:text-primary-300
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                data-testid="coupon-company-change"
+                (click)="changeCompany()"
+              >
+                Trocar
+              </button>
+            </div>
+          </div>
+        } @else {
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-fg-muted">Empresa</span>
+            <input
+              type="search"
+              inputmode="search"
+              autocomplete="off"
+              placeholder="Nome, CPF ou CNPJ"
+              [formControl]="searchControl"
+              data-testid="coupon-company-search"
+              class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
+                     focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+          </label>
+          @if (searchError(); as err) {
+            <app-alert-banner variant="error" [message]="err" />
+          }
+          @if (results().length > 0) {
+            <ul class="-mt-2 flex flex-col">
+              @for (company of results(); track company.id) {
+                <li>
+                  <button
+                    type="button"
+                    class="press w-full min-h-12 rounded-xl px-3 py-2 text-left hover:bg-canvas
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    data-testid="coupon-company-option"
+                    (click)="selectCompany(company)"
+                  >
+                    <span class="block text-base text-fg break-words">{{ company.name }}</span>
+                    @if (company.documentMasked) {
+                      <span class="block text-xs text-fg-subtle tabular-nums">{{ company.documentMasked }}</span>
+                    }
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        }
+
+        <!-- Plano -->
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-fg-muted">Plano</span>
+          <select
+            [formControl]="planControl"
+            data-testid="coupon-plan"
+            class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            <option value="" disabled>Escolha o plano</option>
+            @for (option of planOptions(); track option.code) {
+              <option [value]="option.code">{{ option.label }}</option>
+            }
+          </select>
+        </label>
+        @if (plansError(); as err) {
+          <app-alert-banner variant="error" [message]="err" />
+        }
+
+        <!-- Desconto -->
+        <div class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-fg-muted">Desconto</span>
+          <app-segmented-tabs
+            ariaLabel="Tipo de desconto"
+            [options]="kindOptions"
+            [value]="kind()"
+            (selected)="setKind($event)"
+          />
+          @if (kind() === 'AMOUNT') {
+            <label class="flex flex-col gap-1">
+              <span class="sr-only">Desconto em reais</span>
+              <input
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                placeholder="0,00"
+                [formControl]="amountControl"
+                (input)="onAmountInput($event)"
+                data-testid="coupon-amount"
+                class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums
+                       focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+            </label>
+          } @else {
+            <label class="flex flex-col gap-1">
+              <span class="sr-only">Desconto em percentual</span>
+              <input
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                placeholder="0"
+                [formControl]="percentControl"
+                data-testid="coupon-percent"
+                class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums
+                       focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+            </label>
+          }
+          @if (discountInvalid()) {
+            <p class="text-sm text-rose-700 dark:text-rose-300" data-testid="coupon-discount-error">
+              Informe um valor maior que zero, como 49,90.
+            </p>
+          }
+        </div>
+
+        <!-- Duração -->
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-fg-muted">Por quantos meses</span>
+          <select
+            [formControl]="monthsControl"
+            data-testid="coupon-months"
+            class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            @for (month of monthOptions; track month.value) {
+              <option [ngValue]="month.value">{{ month.label }}</option>
+            }
+          </select>
+        </label>
+
+        <!-- Motivo -->
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-fg-muted">Motivo</span>
+          <textarea
+            rows="2"
+            maxlength="500"
+            [formControl]="reasonControl"
+            data-testid="coupon-reason"
+            class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 py-2 text-base text-fg
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          ></textarea>
+          <span class="text-xs text-fg-subtle">Fica fora da Auditoria: ela guarda só o tamanho do texto.</span>
+        </label>
+
+        <!-- Prévia -->
+        <div aria-live="polite">
+          @if (preview(); as result) {
+            <app-painted-card
+              [tone]="result.mode === 'APPLIED_TO_SUBSCRIPTION' ? 'green' : 'orange'"
+              data-testid="coupon-preview"
+            >
+              <div data-testid="coupon-mode">
+                <p class="text-sm font-semibold">{{ modeView()?.title }}</p>
+                <p class="mt-0.5 text-sm">{{ modeView()?.detail }}</p>
+              </div>
+              @if (!noInvoiceInWindow()) {
+                <p class="text-xl font-bold leading-snug">{{ result.summary }}</p>
+              }
+              @if (invoiceDates().length > 0) {
+                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                  <dt>Com desconto</dt>
+                  <dd class="text-right font-semibold tabular-nums">
+                    @for (date of invoiceDates(); track date) {
+                      <span class="block">{{ date }}</span>
+                    }
+                  </dd>
+                  <dt>Primeira cheia</dt>
+                  <dd class="text-right font-semibold tabular-nums">{{ firstFullDate() }}</dd>
+                </dl>
+              } @else if (noInvoiceInWindow()) {
+                <p class="text-sm font-semibold" data-testid="coupon-no-invoice">
+                  Nenhuma fatura cai dentro destes meses: o desconto não chegaria a ser usado.
+                </p>
+              }
+            </app-painted-card>
+          } @else if (previewLoading()) {
+            <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none" data-testid="coupon-preview-loading"></div>
+          } @else if (previewError(); as err) {
+            <div class="flex flex-col gap-2" data-testid="coupon-preview-error">
+              <app-alert-banner variant="error" [message]="err" />
+              <button
+                type="button"
+                class="press min-h-11 self-start rounded-lg px-2 text-sm font-semibold text-primary-700 dark:text-primary-300
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                data-testid="coupon-preview-retry"
+                (click)="refreshPreview()"
+              >
+                Tentar de novo
+              </button>
+            </div>
+          } @else {
+            <p class="text-sm text-fg-subtle">Preencha empresa, plano e desconto para ver a prévia.</p>
+          }
+        </div>
+
+        @if (createError(); as err) {
+          <div data-testid="coupon-create-error"><app-alert-banner variant="error" [message]="err" /></div>
+        }
+      </div>
+    }
+  </div>
+
+  <div sheetFooter class="pt-3">
+    @if (created()) {
+      <button
+        type="button"
+        class="press w-full min-h-12 rounded-xl bg-surface-sunken px-4 text-base font-semibold text-fg-soft
+               hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        data-testid="coupon-finish"
+        (click)="finish()"
+      >
+        Concluir
+      </button>
+    } @else {
+      <button
+        type="button"
+        class="press w-full min-h-12 rounded-xl bg-primary-500 px-4 text-base font-semibold text-white
+               transition-colors hover:bg-primary-600 disabled:opacity-60
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        [disabled]="!canSubmit()"
+        data-testid="coupon-submit"
+        (click)="submit()"
+      >
+        {{ submitLabel() }}
+      </button>
+    }
+  </div>
+</app-bottom-sheet>

@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, map, of, switchMap, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -8,7 +8,10 @@ import {
   CheckoutResponse,
   DowngradeRequest,
   GatewayOverride,
+  PlanChangePreview,
   PlanResponse,
+  PlanUpgradeResponse,
+  ScheduledPlanChange,
   SubscriptionChangeResponse,
   SubscriptionPix,
   SubscriptionPixStatus,
@@ -17,6 +20,7 @@ import {
 import { BillingAccessService } from './billing-access.service';
 import { TenantResetRegistry } from './tenant-reset.registry';
 import { ApiErrorService } from './api-error.service';
+import { OWNED_HTTP_ERRORS } from './http-errors.context';
 
 const API_BASE = `${environment.apiUrl}/billing`;
 
@@ -147,8 +151,9 @@ export class BillingService {
    *                 The specific row already encodes name + period + gateway;
    *                 no separate billing cycle argument is needed.
    *
-   * Upgrades and first subscriptions ONLY. Downgrades must go through
-   * `downgrade()` — routing them here produced a R$ 0,00 checkout.
+   * First subscriptions and customers with no paid subscription ONLY. A paying
+   * customer moves through `upgrade()` or `schedulePlanChange()`, and the free
+   * plan through `downgrade()`.
    */
   /**
    * Resumo da página Assinatura. Falha NÃO escreve em `error`: a página continua
@@ -216,23 +221,79 @@ export class BillingService {
    * Schedule the move to the FREE plan at the end of the paid period.
    * NEVER hits `/checkout` and never returns a redirect URL.
    *
-   * The backend rejects a PAID `planCode` with 400 ("…exige um novo checkout"),
-   * so paid→paid changes must go through `startCheckout()` instead.
+   * The backend rejects a PAID `planCode` with 400: a cheaper paid plan goes
+   * through `schedulePlanChange()`.
    *
    * @param planCode Target free plan. Omit to let the backend pick it.
    */
   downgrade(planCode?: string): Observable<SubscriptionChangeResponse> {
     const body: DowngradeRequest = planCode ? { planCode } : {};
     return this.mutate(
-      this.http.post<SubscriptionChangeResponse>(`${API_BASE}/downgrade`, body),
+      this.http.post<SubscriptionChangeResponse>(`${API_BASE}/downgrade`, body, {
+        context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+      }),
       'Não foi possível alterar o plano. Tente novamente.',
     );
+  }
+
+  /**
+   * Como este plano pode ser contratado agora. Só lê a Stripe, então funciona
+   * também em "Ver como". A tela traduz cada falha: sem toast genérico.
+   */
+  planChangePreview(planCode: string): Observable<PlanChangePreview> {
+    return this.http.get<PlanChangePreview>(`${API_BASE}/plan-change`, {
+      params: new HttpParams().set('planCode', planCode),
+      context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+    });
+  }
+
+  /**
+   * Upgrade na mesma assinatura: nada é cobrado hoje. Quem chama relê a página
+   * depois do sucesso. A falha fica no diálogo, nunca no banner da página.
+   */
+  upgrade(planCode: string): Observable<PlanUpgradeResponse> {
+    return this.http
+      .post<PlanUpgradeResponse>(
+        `${API_BASE}/upgrade`,
+        { planCode },
+        { context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
+      )
+      .pipe(tap(() => this.access.invalidate()));
+  }
+
+  /**
+   * Plano pago menor ou troca de ciclo: nada é cobrado e nada muda antes da
+   * renovação. A falha fica no diálogo, como no upgrade.
+   */
+  schedulePlanChange(planCode: string): Observable<ScheduledPlanChange> {
+    return this.http
+      .post<ScheduledPlanChange>(
+        `${API_BASE}/plan-change`,
+        { planCode },
+        { context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
+      )
+      .pipe(tap(() => this.access.invalidate()));
+  }
+
+  /** Desfaz o que `schedulePlanChange` agendou, antes da renovação. */
+  undoPlanChange(): Observable<ScheduledPlanChange> {
+    return this.http
+      .post<ScheduledPlanChange>(
+        `${API_BASE}/plan-change/undo`,
+        {},
+        { context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
+      )
+      .pipe(tap(() => this.access.invalidate()));
   }
 
   /** Undo a scheduled cancellation. 400 means the user must pay again. */
   reactivate(): Observable<SubscriptionChangeResponse> {
     return this.mutate(
-      this.http.post<SubscriptionChangeResponse>(`${API_BASE}/reactivate`, {}),
+      this.http.post<SubscriptionChangeResponse>(
+        `${API_BASE}/reactivate`,
+        {},
+        { context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
+      ),
       'Não foi possível reativar a assinatura. Tente novamente.',
     );
   }
@@ -240,7 +301,13 @@ export class BillingService {
   cancel(): Observable<void> {
     this._loading.set(true);
     this._error.set(null);
-    return this.http.post(`${API_BASE}/cancel`, {}, { responseType: 'text' }).pipe(
+    return this.http
+      .post(
+        `${API_BASE}/cancel`,
+        {},
+        { responseType: 'text', context: new HttpContext().set(OWNED_HTTP_ERRORS, true) },
+      )
+      .pipe(
       map(() => void 0),
       // No optimistic `cancelAtPeriodEnd` write here — the backend is the
       // source of truth and the caller re-reads `/subscription`.

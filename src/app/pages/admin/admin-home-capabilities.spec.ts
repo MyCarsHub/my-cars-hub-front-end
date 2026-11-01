@@ -49,6 +49,11 @@ describe('AdminHome — atalhos por capacidade', () => {
     expect(el.querySelector('a[href="/admin/blog"]')).toBeNull();
   });
 
+  it('Cupons entra nas seções para quem lê e fica fora para quem não tem "ver"', () => {
+    expect(render(['ver']).querySelector('a[href="/admin/cupons"]')).not.toBeNull();
+    expect(render(['blog']).querySelector('a[href="/admin/cupons"]')).toBeNull();
+  });
+
   it('o Dono vê o atalho "Admins e papéis"', () => {
     const el = render(['ver', 'admins.gerir', 'blog', 'suporte.atender', 'plataforma.operar', 'cobranca.agir']);
     expect(el.querySelector('a[href="/admin/admins"]')).not.toBeNull();

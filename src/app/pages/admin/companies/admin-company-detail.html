@@ -84,6 +84,19 @@
               Estender teste
             </button>
           }
+          @if (caps.can('cupom.gerir')) {
+            <a
+              routerLink="/admin/cupons"
+              [queryParams]="{ empresa: company.id }"
+              class="inline-flex w-full sm:w-auto min-h-11 items-center justify-center rounded-xl border border-primary-300 dark:border-primary-500/40
+                     bg-surface px-4 py-2.5 text-sm font-semibold text-primary-700 dark:text-primary-300
+                     transition-colors hover:bg-primary-50 dark:hover:bg-primary-500/10
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              data-testid="create-coupon-link"
+            >
+              Criar cupom
+            </a>
+          }
 @if (caps.can('empresa.gerir')) {
           @if (company.active) {
             <button

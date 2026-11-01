@@ -11,6 +11,7 @@ export type BlockReason =
   | 'PAYMENT_FAILED'
   | 'PAST_DUE'
   | 'CANCELED'
+  | 'SUBSCRIPTION_CANCELED'
   | 'NO_SUBSCRIPTION';
 
 import { PlanPeriod } from './billing.types';
