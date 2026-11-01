@@ -16,6 +16,7 @@ describe('PaywallDialog — texto por papel', () => {
     'PAYMENT_FAILED',
     'PAST_DUE',
     'CANCELED',
+    'SUBSCRIPTION_CANCELED',
     'NO_SUBSCRIPTION',
   ];
 
@@ -42,6 +43,43 @@ describe('PaywallDialog — texto por papel', () => {
     TestBed.configureTestingModule({
       imports: [PaywallDialog],
       providers: [provideNoopAnimations()],
+    });
+  });
+
+  describe('assinatura encerrada sem nada devido', () => {
+    function renderOwner(): HTMLElement {
+      fixture = TestBed.createComponent(PaywallDialog);
+      fixture.componentRef.setInput('open', true);
+      fixture.componentRef.setInput('reason', 'SUBSCRIPTION_CANCELED');
+      fixture.componentRef.setInput('canRegularize', true);
+      fixture.componentRef.setInput('planName', 'Starter');
+      fixture.componentRef.setInput('amountDue', 'R$ 79,90');
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('diz que foi cancelada e que nada é devido', () => {
+      const el = renderOwner();
+      expect(title(el)).toBe('Sua assinatura foi cancelada');
+      expect(body(el)).toMatch(/não deve nada/i);
+    });
+
+    it('nunca fala em fatura não paga nem em valor em aberto', () => {
+      const el = renderOwner();
+      expect(el.textContent).not.toMatch(/não foi paga|em aberto|acesso pausado/i);
+      expect(el.textContent).not.toContain('R$ 79,90');
+    });
+
+    it('oferece os planos, não pagamento nem troca de cartão', () => {
+      const el = renderOwner();
+      expect(cta(el)?.textContent?.trim()).toMatch(/planos/i);
+      expect(el.textContent).not.toContain('Trocar cartão');
+    });
+
+    it('quem deve continua lendo o texto de hoje', () => {
+      const el = render('PAYMENT_FAILED', true);
+      expect(title(el)).toBe('Acesso pausado');
+      expect(body(el)).toContain('não foi paga');
     });
   });
 

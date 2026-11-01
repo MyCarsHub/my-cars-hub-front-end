@@ -64,7 +64,7 @@ describe('LandingPricingComponent', () => {
     expect(first('TRIAL')).toBe('Até 3 veículos');
     expect(first('STARTER')).toBe('Até 15 veículos');
     expect(first('PRO')).toBe('Até 25 veículos');
-    expect(first('SCALE')).toBe('Até 75 veículos');
+    expect(first('SCALE')).toBe('Até 90 veículos');
   });
 
   // O ENTERPRISE tem teto real (guarda-corpo da V127) e é vendido como ilimitado.

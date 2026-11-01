@@ -85,6 +85,9 @@ export interface SubscriptionResponse {
   scheduledDowngradePlanCode?: string | null;
   /** ISO datetime when the scheduled downgrade takes effect. */
   scheduledDowngradeAt?: string | null;
+  /** Plano pago menor ou troca de ciclo agendados. `planCode` segue o plano em vigor. */
+  scheduledChangePlanCode?: string | null;
+  scheduledChangeAt?: string | null;
 }
 
 export type GatewayOverride = PlanGateway;
@@ -122,6 +125,68 @@ export interface SubscriptionChangeResponse {
   message: string | null;
 }
 
+/**
+ * `GET /billing/plan-change`: como este plano pode ser contratado por quem já tem
+ * a assinatura. O servidor decide; a página só ramifica.
+ */
+export type PlanChangeMode = 'IN_PLACE' | 'SCHEDULED' | 'CHECKOUT' | 'BLOCKED';
+
+export type PlanChangeReason =
+  | 'NO_PAID_SUBSCRIPTION'
+  | 'NOT_ACTIVE'
+  | 'INTERVAL_CHANGE'
+  | 'LOWER_PLAN'
+  | 'ALREADY_ON_PLAN'
+  | 'PLAN_NOT_AVAILABLE'
+  | 'DOWNGRADE_SCHEDULED'
+  | 'CANCELLATION_SCHEDULED'
+  | 'DOWNGRADE_LOCKED_UNTIL_PAID'
+  | 'PROVIDER_MISMATCH';
+
+export interface PlanChangePreview {
+  mode: PlanChangeMode;
+  reasonCode: PlanChangeReason | null;
+  /** Texto pronto para a tela quando `BLOCKED`. */
+  message: string | null;
+  currentPlanCode: string | null;
+  planCode: string;
+  planName: string;
+  /** Estes, com exceção do preço de tabela, só vêm em `IN_PLACE` e `SCHEDULED`. */
+  amountTodayCents: number | null;
+  listAmountCents: number;
+  nextChargeAt: string | null;
+  nextAmountCents: number | null;
+  /** `null` sem desconto ativo. */
+  discountAfterChange: 'KEPT' | 'LOST' | null;
+  vehicleCount: number | null;
+  /** `null` também quando o plano de destino não tem teto. */
+  targetVehicleLimit: number | null;
+  fleetOverLimit: boolean | null;
+}
+
+/** `POST /billing/plan-change` e `/undo`. O plano em vigor só muda quando a fatura nova é paga. */
+export interface ScheduledPlanChange {
+  outcome: 'SCHEDULED' | 'UNDONE' | 'NO_OP';
+  currentPlanCode: string | null;
+  planCode: string | null;
+  planName: string | null;
+  amountTodayCents: number;
+  effectiveAt: string | null;
+  nextAmountCents: number | null;
+  message: string | null;
+}
+
+/** `APPLIED`, ou `NO_OP` no clique repetido: o plano já é o destino. */
+export interface PlanUpgradeResponse {
+  outcome: 'APPLIED' | 'NO_OP';
+  planCode: string;
+  planName: string;
+  amountTodayCents: number;
+  nextChargeAt: string | null;
+  nextAmountCents: number | null;
+  message: string | null;
+}
+
 /** Estado da página Assinatura, derivado do veredito de acesso no backend. */
 export type BillingState =
   | 'ACTIVE'
@@ -138,6 +203,7 @@ export type BillingAction =
   | 'CHANGE_PLAN'
   | 'CANCEL'
   | 'REACTIVATE'
+  | 'UNDO_PLAN_CHANGE'
   | 'SUBSCRIBE';
 
 /** Datas são LocalDateTime do servidor em UTC, sem sufixo de zona — leia com `parseServerTime`. */
@@ -159,6 +225,14 @@ export interface BillingSummary {
   pendingPlanCode: string | null;
   scheduledDowngradePlanCode: string | null;
   scheduledDowngradeAt: string | null;
+  scheduledChangePlanCode?: string | null;
+  scheduledChangeAt?: string | null;
+  /**
+   * O que a próxima fatura vai cobrar, já com desconto ou mudança agendada. `null`
+   * sem próxima cobrança, ou quando a Stripe não respondeu a tempo: aí não há valor
+   * a afirmar, e o preço do plano não pode se passar por ele.
+   */
+  nextChargeAmountCents?: number | null;
   pastDueSince: string | null;
   graceEndsAt: string | null;
   amountDueCents: number | null;

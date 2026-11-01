@@ -1017,6 +1017,15 @@ export const routes: Routes = [
                                 data: { pageTitle: 'Billing' },
                             },
                             {
+                                // Lista para quem le; criar e desativar exigem cupom.gerir.
+                                path: 'cupons',
+                                loadComponent: () =>
+                                    import('./pages/admin/coupons/admin-coupons').then(
+                                        (m) => m.AdminCoupons,
+                                    ),
+                                data: { pageTitle: 'Cupons' },
+                            },
+                            {
                                 // Admin v2 P0 — so leitura ("atrasado e nossa prova").
                                 path: 'cobrancas',
                                 loadComponent: () =>

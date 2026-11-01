@@ -292,6 +292,9 @@
             <span class="meter" role="progressbar" aria-label="Veículos cadastrados" [attr.aria-valuenow]="u.vehicles"
               aria-valuemin="0" [attr.aria-valuemax]="u.limit"><i [style.transform]="'scaleX(' + u.pct / 100 + ')'"></i></span>
           }
+          @if (scheduledChangeLine(); as line) {
+            <small data-testid="scheduled-change">{{ line }}</small>
+          }
         </span>
         <span class="v">Mudar</span>
         <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
@@ -372,6 +375,10 @@
         <button type="button" appListRow inset class="row" [disabled]="accountActionBusy()" (click)="reactivate()" data-testid="row-reactivate">
           <span class="t"><b class="link">Reativar assinatura</b></span>
         </button>
+      } @else if (canUndoPlanChange()) {
+        <button type="button" appListRow inset class="row" [disabled]="accountActionBusy()" (click)="undoPlanChange()" data-testid="row-undo-plan-change">
+          <span class="t"><b class="link">Desfazer mudança de plano</b></span>
+        </button>
       } @else if (canCancel()) {
         <button type="button" appListRow inset danger class="row" [disabled]="accountActionBusy()" (click)="openCancel()" data-testid="row-cancel">
           <span class="t"><b>Cancelar assinatura</b></span>
@@ -398,6 +405,16 @@
     </p>
   </ng-template>
 
+  <!-- Sem assinatura ou plano atual lidos, não há ação de compra: só o caminho de volta. -->
+  <ng-template #planDataRetry>
+    @if (planRetryVisible()) {
+      <div role="alert" class="notice warn col plan-retry" data-testid="plan-data-retry">
+        <p>Não conseguimos ler sua assinatura agora, então a mudança de plano fica parada. Nada foi cobrado.</p>
+        <button type="button" class="btn tonal" (click)="retryPlanData()" data-testid="plan-data-retry-button">Tentar de novo</button>
+      </div>
+    }
+  </ng-template>
+
   <!-- ====================================================== página -->
   @if (!summaryLoaded() && !subscription()) {
     <div class="skeleton" aria-busy="true" aria-label="Carregando assinatura">
@@ -421,6 +438,7 @@
       }
       <div class="a-pick" id="planos">
         <h2 class="group-h pick-h">Escolha seu plano</h2>
+        <ng-container *ngTemplateOutlet="planDataRetry" />
         <app-plan-grid [columns]="planColumns()" [cycle]="cycle()" [savings]="yearlySavingsBadge()"
           (cycleChange)="setCycle($event)" (choose)="onColumn($event)" />
         <p class="foot-note">Pague com cartão. Cancele quando quiser.</p>
@@ -514,10 +532,48 @@
       <app-bottom-sheet title="Mudar de plano" size="xl"
         [subtitle]="usage() ? 'Você usa ' + usage()!.vehicles + ' de ' + usage()!.limit + ' veículos do ' + planName() + '.' : null"
         (closed)="closeSheet()">
+        <ng-container *ngTemplateOutlet="planDataRetry" />
         <app-plan-grid [columns]="planColumns()" [cycle]="cycle()" [savings]="yearlySavingsBadge()"
           (cycleChange)="setCycle($event)" (choose)="onColumn($event)" />
         <p class="foot-note">Ao trocar de plano, o valor e o que acontece com o período já pago aparecem antes de confirmar.</p>
       </app-bottom-sheet>
+    }
+    @case ('upgrade') {
+      @if (planOffer(); as offer) {
+        <app-bottom-sheet [title]="'Mudar para o ' + offer.copy.planLabel" [busy]="planOfferBusy()" (closed)="closePlanOffer()">
+          <div data-testid="upgrade-sheet">
+            <p class="upgrade-copy" data-testid="upgrade-copy"><b>{{ offer.copy.lead }}</b> {{ offer.copy.rest }}</p>
+            @if (offer.copy.discountNote; as note) {
+              <p class="upgrade-note" data-testid="upgrade-discount">{{ note }}</p>
+            }
+            @if (offer.copy.fleetNote; as note) {
+              <div class="notice warn upgrade-fleet" data-testid="upgrade-fleet"><p>{{ note }}</p></div>
+            }
+            @if (!canManage()) {
+              <p class="note upgrade-readonly">Sessão somente leitura: a mudança não é executada aqui.</p>
+            }
+            @if (sheetError(); as e) {
+              <div data-testid="upgrade-error" class="mt-3"><app-alert-banner variant="error" [message]="e" /></div>
+            }
+            <div class="upgrade-actions">
+              <button type="button" class="btn tonal" [disabled]="planOfferBusy()" (click)="closePlanOffer()" data-testid="upgrade-dismiss">Agora não</button>
+              <button type="button" class="btn primary" [disabled]="planOfferBusy() || planOfferRefused() || !canManage()" (click)="confirmPlanChange()" data-testid="upgrade-confirm">
+                {{ planOfferBusy() ? 'Confirmando…' : offer.kind === 'IN_PLACE' ? 'Confirmar upgrade' : 'Confirmar mudança' }}
+              </button>
+            </div>
+          </div>
+        </app-bottom-sheet>
+      }
+    }
+    @case ('notice') {
+      @if (planNotice(); as notice) {
+        <app-bottom-sheet [title]="notice.title" (closed)="closePlanNotice()">
+          <p class="upgrade-copy" data-testid="plan-notice-message">{{ notice.message }}</p>
+          <div sheetFooter>
+            <button type="button" class="btn primary block" (click)="closePlanNotice()" data-testid="plan-notice-close">Entendi</button>
+          </div>
+        </app-bottom-sheet>
+      }
     }
     @case ('cancel') {
       <app-bottom-sheet title="Cancelar assinatura" subtitle="Os dados da sua conta continuam salvos." [busy]="accountActionBusy()" (closed)="closeSheet()">

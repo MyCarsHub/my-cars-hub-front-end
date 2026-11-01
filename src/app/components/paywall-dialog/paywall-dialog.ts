@@ -130,6 +130,12 @@ export class PaywallDialog {
           cta: CTA_PAY_NOW,
         };
       }
+      case 'SUBSCRIPTION_CANCELED':
+        return {
+          title: 'Sua assinatura foi cancelada',
+          body: 'Você não deve nada. Escolha um plano para voltar a usar a plataforma.',
+          cta: CTA_SEE_PLANS,
+        };
       case 'CANCELED':
         return {
           title: 'Sua assinatura foi cancelada',

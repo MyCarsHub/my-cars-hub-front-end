@@ -55,8 +55,8 @@ export const PLAN_CAPACITY: Readonly<Record<PlanTier, PlanCapacity>> = {
   TRIAL: { vehicles: 3 },
   STARTER: { vehicles: 15 },
   PRO: { vehicles: 25 },
-  /** V127 (decisão do dono, 2026-10-29). */
-  SCALE: { vehicles: 75 },
+  /** V131 (decisão do dono, 2026-10-31). */
+  SCALE: { vehicles: 90 },
   ENTERPRISE: { vehicles: 150 },
 };
 
