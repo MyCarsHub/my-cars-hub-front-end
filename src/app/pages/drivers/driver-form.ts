@@ -652,8 +652,10 @@ export class DriverForm implements OnInit {
       const payload: CreateDriverRequest = {
         name: raw.name.trim(),
         ...(rgDigits ? { rg: rgDigits } : {}),
-        nationality,
-        maritalStatus,
+        // On create a blank field is simply left out (the API stores null), which keeps the
+        // minimum invite payload unchanged. Only the edit sends "" to clear.
+        ...(nationality ? { nationality } : {}),
+        ...(maritalStatus ? { maritalStatus } : {}),
         ...(hasAddress ? { address: addressPayload } : {}),
         contact: contactPayload,
         ...(hasLicense

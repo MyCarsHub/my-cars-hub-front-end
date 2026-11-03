@@ -961,13 +961,13 @@ describe('DriverForm — nacionalidade e estado civil', () => {
     contact: { email: 'joao@empresa.com', phone: '11987654321' },
   };
 
-  it('cadastro em branco manda "" nos dois campos', () => {
+  it('cadastro em branco deixa as duas chaves FORA do corpo', () => {
     const { create, c } = setup(null);
     c.form.patchValue(validCreate);
     c.submit();
     const payload = create.mock.calls[0][0] as CreateDriverRequest;
-    expect(payload.nationality).toBe('');
-    expect(payload.maritalStatus).toBe('');
+    expect('nationality' in payload).toBe(false);
+    expect('maritalStatus' in payload).toBe(false);
   });
 
   it('cadastro com valores manda o texto aparado e o código do estado civil', () => {
