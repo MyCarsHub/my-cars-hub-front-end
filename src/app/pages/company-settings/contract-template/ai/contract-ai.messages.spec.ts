@@ -20,6 +20,8 @@ const SUPPORTED_VARIABLES = [
   'driverLicense', 'driverLicenseCategory', 'driverLicenseExpiry', 'driverAddress', 'driverCep',
   'vehiclePlate', 'vehicleBrand', 'vehicleModel', 'vehicleYear', 'vehicleColor', 'vehicleChassi',
   'vehicleRenavam', 'vehicleMileage', 'vehicleFuel',
+  'driverNationality', 'driverMaritalStatus', 'driverReference1', 'driverReference2',
+  'vehicleFipeValue', 'insurerName', 'policyNumber', 'insuranceDeductible', 'policyValidity',
   'rentalId', 'contractDate', 'startDate', 'endDate', 'totalAmount', 'caucaoAmount', 'periodRate',
   'billingFrequency', 'initialKm', 'pickupDate', 'firstPaymentDate', 'dailyInterest',
   'lateInterestPercent', 'lateInterestTerms', 'lateFine',
@@ -53,7 +55,7 @@ describe('contract-ai.messages', () => {
       expect(label, v).not.toBe(v);
       expect(label, v).not.toMatch(/^[a-z]+[A-Z]/);
     }
-    expect(SUPPORTED_VARIABLES.length).toBe(48);
+    expect(SUPPORTED_VARIABLES.length).toBe(57);
   });
 
   it('companyCity («Local e data» do Montar do zero): rótulo, exemplo, código e escolha na lista', () => {

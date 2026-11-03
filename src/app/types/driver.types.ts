@@ -3,6 +3,26 @@ export type DriverStatus = 'AVAILABLE' | 'WORKING' | 'SUSPENDED';
 export type LicenseCategory =
   | 'A' | 'B' | 'C' | 'D' | 'E' | 'AB' | 'AC' | 'AD' | 'AE';
 
+export type MaritalStatus =
+  | 'SINGLE' | 'MARRIED' | 'DIVORCED' | 'WIDOWED' | 'STABLE_UNION' | 'SEPARATED';
+
+/** Opções do estado civil, na ordem de exibição; rótulos únicos para form e detalhe. */
+export const MARITAL_STATUS_OPTIONS: ReadonlyArray<{ value: MaritalStatus; label: string }> = [
+  { value: 'SINGLE', label: 'Solteiro(a)' },
+  { value: 'MARRIED', label: 'Casado(a)' },
+  { value: 'DIVORCED', label: 'Divorciado(a)' },
+  { value: 'WIDOWED', label: 'Viúvo(a)' },
+  { value: 'STABLE_UNION', label: 'União estável' },
+  { value: 'SEPARATED', label: 'Separado(a)' },
+];
+
+export const MARITAL_STATUS_LABELS: Readonly<Record<MaritalStatus, string>> = Object.fromEntries(
+  MARITAL_STATUS_OPTIONS.map((o) => [o.value, o.label]),
+) as Record<MaritalStatus, string>;
+
+/** Máx. de caracteres da nacionalidade (texto livre) no servidor. */
+export const MAX_NATIONALITY_LENGTH = 60;
+
 export type DocumentType = 'CPF' | 'CNPJ';
 
 export interface AddressPayload {
@@ -84,6 +104,8 @@ export interface DriverResponse {
   userId: string | null;
   name: string;
   rg: string | null;
+  nationality?: string | null;
+  maritalStatus?: MaritalStatus | null;
   document: { type: DocumentType | null; value: string | null };
   /** `null` while the registration is PENDING_ONBOARDING. */
   address: AddressPayload | null;
@@ -127,6 +149,9 @@ export interface DriverResponse {
 export interface CreateDriverRequest {
   name: string;
   rg?: string | null;
+  /** "" limpa o valor guardado; null/omitido o preserva (PUT). No POST, "" vira null. */
+  nationality?: string | null;
+  maritalStatus?: MaritalStatus | '' | null;
   document: DocumentInputPayload;
   address?: AddressPayload;
   contact: ContactPayload;
@@ -141,6 +166,9 @@ export interface CreateDriverRequest {
 export interface UpdateDriverRequest {
   name: string;
   rg?: string | null;
+  /** "" limpa o valor guardado; null/omitido o preserva (PUT). No POST, "" vira null. */
+  nationality?: string | null;
+  maritalStatus?: MaritalStatus | '' | null;
   address: AddressPayload;
   contact: ContactPayload;
   licenseNumber: string;

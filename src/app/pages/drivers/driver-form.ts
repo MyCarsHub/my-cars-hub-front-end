@@ -54,7 +54,10 @@ import {
   DriverResponse,
   DriverStatus,
   LicenseCategory,
+  MARITAL_STATUS_OPTIONS,
+  MAX_NATIONALITY_LENGTH,
   MAX_THIRD_PARTY_CONTACTS,
+  MaritalStatus,
   UpdateDriverRequest,
 } from '../../types/driver.types';
 import { DRIVER_STATUS_META } from '../../utils/status-maps';
@@ -145,6 +148,7 @@ export class DriverForm implements OnInit {
   protected readonly categories = CATEGORIES;
   protected readonly statuses = STATUSES;
   protected readonly ufs = UFS;
+  protected readonly maritalStatuses = MARITAL_STATUS_OPTIONS;
 
   protected readonly editingId = signal<string | null>(null);
   protected readonly isEdit = computed(() => this.editingId() !== null);
@@ -231,6 +235,9 @@ export class DriverForm implements OnInit {
   protected readonly rgMessages: Readonly<Record<string, string>> = {
     required: 'Informe o RG.',
   };
+  protected readonly nationalityMessages: Readonly<Record<string, string>> = {
+    maxlength: 'A nacionalidade deve ter no máximo 60 caracteres.',
+  };
   protected readonly emailMessages: Readonly<Record<string, string>> = {
     required: 'Informe um e-mail válido.',
     email: 'Informe um e-mail válido.',
@@ -284,6 +291,8 @@ export class DriverForm implements OnInit {
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(180)]],
     rg: ['', this.creating ? [Validators.maxLength(10)] : [Validators.required, Validators.maxLength(10)]],
+    nationality: ['', [Validators.maxLength(MAX_NATIONALITY_LENGTH)]],
+    maritalStatus: ['' as MaritalStatus | '', []],
     document: this.fb.nonNullable.group({
       type: ['CPF' as 'CPF' | 'CNPJ', [Validators.required]],
       value: ['', [
@@ -487,6 +496,8 @@ export class DriverForm implements OnInit {
         this.form.patchValue({
           name: driver.name,
           rg: rgDigits,
+          nationality: driver.nationality ?? '',
+          maritalStatus: driver.maritalStatus ?? '',
           document: {
             type: driver.document.type ?? 'CPF',
             value: driver.document.value ?? '',
@@ -614,12 +625,17 @@ export class DriverForm implements OnInit {
       phone: raw.contact.phone.trim(),
     };
     const rgDigits = raw.rg ? raw.rg.replace(/\D/g, '') : '';
+    // PUT: "" limpa o valor guardado, null/omitido o preserva; por isso envia sempre o que o usuário vê.
+    const nationality = raw.nationality.trim();
+    const maritalStatus = raw.maritalStatus;
 
     if (this.isEdit()) {
       // The PUT still requires RG, address and CNH; the validators of the edit mode guarantee them.
       const payload: UpdateDriverRequest = {
         name: raw.name.trim(),
         rg: rgDigits || null,
+        nationality,
+        maritalStatus,
         address: addressPayload,
         contact: contactPayload,
         licenseNumber: raw.licenseNumber.trim(),
@@ -636,6 +652,10 @@ export class DriverForm implements OnInit {
       const payload: CreateDriverRequest = {
         name: raw.name.trim(),
         ...(rgDigits ? { rg: rgDigits } : {}),
+        // On create a blank field is simply left out (the API stores null), which keeps the
+        // minimum invite payload unchanged. Only the edit sends "" to clear.
+        ...(nationality ? { nationality } : {}),
+        ...(maritalStatus ? { maritalStatus } : {}),
         ...(hasAddress ? { address: addressPayload } : {}),
         contact: contactPayload,
         ...(hasLicense
