@@ -21,7 +21,7 @@ import { DriverService } from '../../services/driver.service';
 import { InvitesService } from '../../services/invites.service';
 import { SessionService } from '../../services/session.service';
 import { DriverDocumentsCard } from './driver-documents-card';
-import { DriverResponse, DriverStatus } from '../../types/driver.types';
+import { DriverResponse, DriverStatus, MARITAL_STATUS_LABELS } from '../../types/driver.types';
 import { driverStatusMeta, rentalStatusMeta } from '../../utils/status-maps';
 import { RentalService } from '../rentals/rental.service';
 import { RentalListItemDto } from '../../types/rental.types';
@@ -145,6 +145,11 @@ export class DriverDetail implements OnInit {
     };
   });
   protected readonly recentRentals = computed(() => this.rentals().slice(0, 5));
+
+  protected readonly maritalStatusLabel = computed(() => {
+    const status = this.driver()?.maritalStatus;
+    return status ? (MARITAL_STATUS_LABELS[status] ?? null) : null;
+  });
 
   protected readonly statusInfo = computed(() => {
     const s = this.driver()?.status;

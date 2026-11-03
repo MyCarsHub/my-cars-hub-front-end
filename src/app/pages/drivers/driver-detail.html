@@ -156,6 +156,18 @@
             <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">RG</p>
             <p class="text-fg font-medium break-words">{{ d.rg ?? '—' }}</p>
           </div>
+          @if (d.nationality) {
+            <div>
+              <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Nacionalidade</p>
+              <p class="text-fg font-medium break-words">{{ d.nationality }}</p>
+            </div>
+          }
+          @if (maritalStatusLabel(); as marital) {
+            <div>
+              <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Estado civil</p>
+              <p class="text-fg font-medium break-words">{{ marital }}</p>
+            </div>
+          }
           <div>
             <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Documento</p>
             <p class="text-fg font-medium tabular-nums">

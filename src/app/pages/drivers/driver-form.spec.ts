@@ -894,3 +894,118 @@ describe('DriverForm — erros de campo vindos do backend', () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 });
+
+/** Nacionalidade e estado civil (opcionais): no PUT, "" limpa e null preserva — por isso o form manda sempre o que se vê. */
+describe('DriverForm — nacionalidade e estado civil', () => {
+  const stored = {
+    id: 'drv-3',
+    createdDate: '2025-01-01T00:00:00Z',
+    modifyDate: null,
+    companyId: 'co-1',
+    userId: null,
+    name: 'Fulano',
+    rg: '123456789',
+    nationality: 'brasileiro',
+    maritalStatus: 'MARRIED',
+    document: { type: 'CPF', value: '52998224725' },
+    address: {
+      street: 'Rua A', number: '10', complement: null,
+      district: 'Centro', cep: '01001000', city: 'SP', uf: 'SP',
+    },
+    contact: { email: 'a@b.com', phone: '11987654321' },
+    licenseNumber: 'ABC12345678',
+    licenseCategory: 'B',
+    licenseExpiry: '2030-01-01',
+    status: 'AVAILABLE',
+    isAppDriver: false,
+    thirdPartyContacts: [],
+  } as DriverResponse;
+
+  interface Internals {
+    form: {
+      patchValue: (v: unknown) => void;
+      controls: { nationality: { value: string }; maritalStatus: { value: string } };
+    };
+    submit: () => void;
+  }
+
+  function setup(driver: DriverResponse | null) {
+    const create = vi.fn().mockReturnValue(EMPTY);
+    const update = vi.fn().mockReturnValue(EMPTY);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [DriverForm],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { paramMap: { get: (k: string) => (k === 'id' && driver ? driver.id : null) } },
+          },
+        },
+        {
+          provide: DriverService,
+          useValue: { getOne: vi.fn().mockReturnValue(driver ? of(driver) : EMPTY), create, update },
+        },
+        { provide: CepService, useValue: { lookup: vi.fn().mockReturnValue(of(null)) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(DriverForm);
+    fixture.detectChanges();
+    return { create, update, c: fixture.componentInstance as unknown as Internals, fixture };
+  }
+
+  const validCreate = {
+    name: 'João da Silva',
+    document: { type: 'CPF', value: '52998224725' },
+    contact: { email: 'joao@empresa.com', phone: '11987654321' },
+  };
+
+  it('cadastro em branco manda "" nos dois campos', () => {
+    const { create, c } = setup(null);
+    c.form.patchValue(validCreate);
+    c.submit();
+    const payload = create.mock.calls[0][0] as CreateDriverRequest;
+    expect(payload.nationality).toBe('');
+    expect(payload.maritalStatus).toBe('');
+  });
+
+  it('cadastro com valores manda o texto aparado e o código do estado civil', () => {
+    const { create, c } = setup(null);
+    c.form.patchValue({ ...validCreate, nationality: '  brasileiro ', maritalStatus: 'STABLE_UNION' });
+    c.submit();
+    const payload = create.mock.calls[0][0] as CreateDriverRequest;
+    expect(payload.nationality).toBe('brasileiro');
+    expect(payload.maritalStatus).toBe('STABLE_UNION');
+  });
+
+  it('edição carrega os valores guardados e o PUT leva o valor escolhido', () => {
+    const { update, c } = setup(stored);
+    expect(c.form.controls.nationality.value).toBe('brasileiro');
+    expect(c.form.controls.maritalStatus.value).toBe('MARRIED');
+    c.form.patchValue({ nationality: 'portuguesa', maritalStatus: 'WIDOWED' });
+    c.submit();
+    const payload = update.mock.calls[0][1] as { nationality: string; maritalStatus: string };
+    expect(payload.nationality).toBe('portuguesa');
+    expect(payload.maritalStatus).toBe('WIDOWED');
+  });
+
+  it('edição com os campos esvaziados manda "" (limpar), nunca null', () => {
+    const { update, c } = setup(stored);
+    c.form.patchValue({ nationality: '', maritalStatus: '' });
+    c.submit();
+    const payload = update.mock.calls[0][1] as { nationality: unknown; maritalStatus: unknown };
+    expect(payload.nationality).toBe('');
+    expect(payload.maritalStatus).toBe('');
+  });
+
+  it('o select oferece o vazio e as seis opções com rótulo em português', () => {
+    const { fixture } = setup(null);
+    const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(
+      'select[formControlName="maritalStatus"]',
+    );
+    expect(Array.from(select!.options).map((o) => o.textContent?.trim())).toEqual([
+      '—', 'Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União estável', 'Separado(a)',
+    ]);
+  });
+});
