@@ -41,6 +41,7 @@ import { parsePtBrMoneyCents, parsePtBrNumber } from '../../../utils/ptbr-number
 import { AdminCouponsService } from './admin-coupons.service';
 import {
   copyCouponCode,
+  copyCouponMessage,
   couponDate,
   couponErrorMessage,
   couponPlanLabel,
@@ -48,6 +49,7 @@ import {
   discountLabel,
   durationLabel,
   modeCopy,
+  openCodeMessage,
 } from './coupon-copy';
 
 export const PREVIEW_DEBOUNCE_MS = 350;
@@ -58,6 +60,19 @@ const PERCENT_DECIMALS = 2;
 const STRIPE_GATEWAY = 'stripe';
 
 type DiscountKind = 'AMOUNT' | 'PERCENT';
+type Audience = 'COMPANY' | 'OPEN';
+
+export const DEFAULT_EXPIRES_IN_DAYS = 30;
+export const DEFAULT_MAX_REDEMPTIONS = 1;
+const MAX_DAYS = 365;
+const MAX_USES = 1000;
+/** Letras, números e hífen, de 4 a 30: a mesma regra do servidor. */
+const CODE_PATTERN = /^[A-Za-z0-9-]{4,30}$/;
+
+const AUDIENCE_OPTIONS: readonly SegmentedTabsOption<Audience>[] = [
+  { value: 'COMPANY', label: 'Uma empresa', testId: 'coupon-audience-company' },
+  { value: 'OPEN', label: 'Qualquer pessoa', testId: 'coupon-audience-open' },
+];
 
 const KIND_OPTIONS: readonly SegmentedTabsOption<DiscountKind>[] = [
   { value: 'AMOUNT', label: 'Em R$', testId: 'coupon-kind-amount' },
@@ -88,11 +103,12 @@ export class CouponSheet implements OnInit {
 
   /** Vem preenchida pelo atalho do detalhe da empresa. */
   readonly company = input<CouponCompany | null>(null);
-  readonly saved = output<{ coupon: AdminCoupon; company: CouponCompany }>();
+  readonly saved = output<{ coupon: AdminCoupon; company: CouponCompany | null }>();
   readonly closed = output<void>();
   /** A criação ficou sem resposta: o cupom pode existir, e só a lista sabe. */
   readonly listMayHaveChanged = output<void>();
 
+  protected readonly audienceOptions = AUDIENCE_OPTIONS;
   protected readonly kindOptions = KIND_OPTIONS;
   protected readonly monthOptions = MONTH_OPTIONS;
 
@@ -103,13 +119,22 @@ export class CouponSheet implements OnInit {
   protected readonly percentControl = new FormControl('', { nonNullable: true });
   protected readonly monthsControl = new FormControl(1, { nonNullable: true });
   protected readonly reasonControl = new FormControl('', { nonNullable: true });
+  protected readonly codeControl = new FormControl('', { nonNullable: true });
+  protected readonly daysControl = new FormControl(String(DEFAULT_EXPIRES_IN_DAYS), { nonNullable: true });
+  protected readonly usesControl = new FormControl(String(DEFAULT_MAX_REDEMPTIONS), { nonNullable: true });
+  protected readonly firstPurchaseControl = new FormControl(false, { nonNullable: true });
 
   private readonly planValue = toSignal(this.planControl.valueChanges, { initialValue: '' });
   private readonly amountValue = toSignal(this.amountControl.valueChanges, { initialValue: '' });
   private readonly percentValue = toSignal(this.percentControl.valueChanges, { initialValue: '' });
   private readonly monthsValue = toSignal(this.monthsControl.valueChanges, { initialValue: 1 });
   private readonly reasonValue = toSignal(this.reasonControl.valueChanges, { initialValue: '' });
+  private readonly codeValue = toSignal(this.codeControl.valueChanges, { initialValue: '' });
+  private readonly daysValue = toSignal(this.daysControl.valueChanges, { initialValue: String(DEFAULT_EXPIRES_IN_DAYS) });
+  private readonly usesValue = toSignal(this.usesControl.valueChanges, { initialValue: String(DEFAULT_MAX_REDEMPTIONS) });
+  private readonly firstPurchaseValue = toSignal(this.firstPurchaseControl.valueChanges, { initialValue: false });
 
+  protected readonly audience = signal<Audience>('COMPANY');
   protected readonly selected = signal<CouponCompany | null>(null);
   protected readonly kind = signal<DiscountKind>('AMOUNT');
   protected readonly results = signal<CouponCompany[]>([]);
@@ -160,12 +185,36 @@ export class CouponSheet implements OnInit {
     return raw.trim() !== '' && this.discount() === null;
   });
 
+  protected readonly isOpen = computed(() => this.audience() === 'OPEN');
+
+  private readonly code = computed(() => this.codeValue().trim().toUpperCase());
+  private readonly days = computed(() => wholeNumber(this.daysValue(), 1, MAX_DAYS));
+  private readonly uses = computed(() => wholeNumber(this.usesValue(), 1, MAX_USES));
+
+  protected readonly codeInvalid = computed(() => this.code() !== '' && !CODE_PATTERN.test(this.code()));
+  protected readonly daysInvalid = computed(() => this.days() === null);
+  protected readonly usesInvalid = computed(() => this.uses() === null);
+
   private readonly draft = computed<AdminCouponRequest | null>(() => {
-    const company = this.selected();
     const planCode = this.planValue();
     const discount = this.discount();
-    if (!company || !planCode || !discount) return null;
-    return { companyId: company.id, planCode, ...discount, durationMonths: this.monthsValue(), reason: '' };
+    if (!planCode || !discount) return null;
+    const base = { planCode, ...discount, durationMonths: this.monthsValue(), reason: '' };
+    if (this.isOpen()) {
+      const days = this.days();
+      const uses = this.uses();
+      if (this.codeInvalid() || days === null || uses === null) return null;
+      return {
+        ...base,
+        openCode: true,
+        ...(this.code() !== '' ? { code: this.code() } : {}),
+        maxRedemptions: uses,
+        expiresInDays: days,
+        firstPurchaseOnly: this.firstPurchaseValue(),
+      };
+    }
+    const company = this.selected();
+    return company ? { companyId: company.id, ...base } : null;
   });
 
   protected readonly canSubmit = computed(
@@ -180,7 +229,7 @@ export class CouponSheet implements OnInit {
     if (this.creating()) return 'Criando…';
     const mode = this.preview()?.mode;
     if (mode === 'APPLIED_TO_SUBSCRIPTION') return 'Aplicar na assinatura';
-    return mode === 'PROMOTION_CODE' ? 'Gerar código' : 'Criar cupom';
+    return mode === 'PROMOTION_CODE' || mode === 'OPEN_CODE' ? 'Gerar código' : 'Criar cupom';
   });
 
   protected readonly modeView = computed(() => {
@@ -203,6 +252,19 @@ export class CouponSheet implements OnInit {
     return coupon.mode === 'APPLIED_TO_SUBSCRIPTION' ? 'Desconto aplicado' : 'Código criado';
   });
 
+  /** A frase pronta para o dono mandar; só existe para o código aberto. */
+  protected readonly shareMessage = computed(() => {
+    const coupon = this.created();
+    const preview = this.preview();
+    if (!coupon?.promotionCode || coupon.mode !== 'OPEN_CODE' || !preview) return null;
+    return openCodeMessage(
+      coupon.promotionCode,
+      coupon.planCode ?? this.planValue(),
+      preview,
+      coupon.durationMonths ?? this.monthsValue(),
+    );
+  });
+
   protected readonly createdValidity = computed(() => couponDate(this.created()?.expiresAt ?? null));
 
   constructor() {
@@ -211,6 +273,10 @@ export class CouponSheet implements OnInit {
       this.amountControl.valueChanges,
       this.percentControl.valueChanges,
       this.monthsControl.valueChanges,
+      this.codeControl.valueChanges,
+      this.daysControl.valueChanges,
+      this.usesControl.valueChanges,
+      this.firstPurchaseControl.valueChanges,
     )
       .pipe(takeUntilDestroyed())
       .subscribe(() => this.refreshPreview());
@@ -272,6 +338,18 @@ export class CouponSheet implements OnInit {
     this.refreshPreview();
   }
 
+  protected setAudience(audience: Audience): void {
+    this.audience.set(audience);
+    this.refreshPreview();
+  }
+
+  protected onCodeInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const upper = input.value.toUpperCase();
+    if (upper !== input.value) input.value = upper;
+    this.codeControl.setValue(upper);
+  }
+
   protected setKind(kind: DiscountKind): void {
     this.kind.set(kind);
     this.refreshPreview();
@@ -315,8 +393,8 @@ export class CouponSheet implements OnInit {
 
   protected submit(): void {
     const request = this.draft();
-    const company = this.selected();
-    if (!this.canSubmit() || !request || !company) return;
+    const company = this.isOpen() ? null : this.selected();
+    if (!this.canSubmit() || !request || (!this.isOpen() && !company)) return;
     this.creating.set(true);
     this.createError.set(null);
     this.service.create({ ...request, reason: this.reasonControl.value.trim() }).pipe(timeout(CREATE_TIMEOUT_MS)).subscribe({
@@ -338,7 +416,19 @@ export class CouponSheet implements OnInit {
     if (code) void copyCouponCode(this.doc.defaultView, this.notify, code);
   }
 
+  protected copyMessage(): void {
+    const text = this.shareMessage();
+    if (text) void copyCouponMessage(this.doc.defaultView, this.notify, text);
+  }
+
   protected finish(): void {
     this.sheet().requestClose(true);
   }
+}
+
+/** Inteiro dentro da faixa, ou `null`: `1e2` e `3,5` não passam. */
+function wholeNumber(raw: string, min: number, max: number): number | null {
+  if (!/^\d+$/.test(raw.trim())) return null;
+  const value = Number(raw);
+  return value >= min && value <= max ? value : null;
 }
