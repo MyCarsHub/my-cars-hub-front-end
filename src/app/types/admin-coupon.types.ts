@@ -1,16 +1,24 @@
 /** O servidor escolhe: assinatura ativa recebe direto; o resto recebe um código. */
-export type AdminCouponMode = 'APPLIED_TO_SUBSCRIPTION' | 'PROMOTION_CODE';
+export type AdminCouponMode = 'APPLIED_TO_SUBSCRIPTION' | 'PROMOTION_CODE' | 'OPEN_CODE';
 
 export type AdminCouponStatus = 'ACTIVE' | 'DEACTIVATED';
 
 /** `POST /admin/billing/coupons/preview` e a criação. Exatamente um dos dois descontos. */
 export interface AdminCouponRequest {
-  companyId: string;
+  /** Omitido no código aberto: ele não é de ninguém. */
+  companyId?: string;
   planCode: string;
   amountOffCents: number | null;
   percentOff: number | null;
   durationMonths: number;
   reason: string;
+  /** Os campos abaixo só valem com `openCode: true`. */
+  openCode?: boolean;
+  /** Vazio = o servidor gera `MCH-XXXXXXXX`; a ausência do campo diz isso. */
+  code?: string;
+  maxRedemptions?: number;
+  expiresInDays?: number;
+  firstPurchaseOnly?: boolean;
 }
 
 export interface AdminCouponPreview {
@@ -19,7 +27,7 @@ export interface AdminCouponPreview {
   discountedAmountCents: number;
   /** "Paga R$ 100,00 por 2 meses, depois R$ 149,90". */
   summary: string;
-  /** Nulos em `PROMOTION_CODE`: a janela só começa quando o código é usado. */
+  /** Nulos em `PROMOTION_CODE` e `OPEN_CODE`: a janela só começa quando o código é usado. */
   discountedInvoices: string[] | null;
   firstFullInvoice: string | null;
 }
@@ -38,6 +46,7 @@ export interface AdminCoupon {
   promotionCode: string | null;
   expiresAt: string | null;
   createdAt: string | null;
+  maxRedemptions?: number | null;
 }
 
 /** O que a folha precisa saber da empresa, venha da busca ou do detalhe. */

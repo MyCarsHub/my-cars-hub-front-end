@@ -400,4 +400,37 @@ describe('AdminCoupons', () => {
     expect(el.querySelector('[data-testid="coupon-row"]')?.textContent).toContain('Locadora Teste');
     expect(service['company']).not.toHaveBeenCalled();
   });
+  describe('código para qualquer pessoa', () => {
+    const OPEN: AdminCoupon = {
+      ...CODE,
+      couponId: 'c-open',
+      mode: 'OPEN_CODE',
+      companyId: null,
+      promotionCode: 'MANOLO100OFF',
+      timesRedeemed: 2,
+      maxRedemptions: 5,
+    };
+
+    it('agrupa por espécie e mostra o código, os usos e nenhuma empresa', () => {
+      service['list'].mockReturnValue(of([CODE, APPLIED, OPEN]));
+      const { fixture, el } = render();
+      fixture.detectChanges();
+      const list = el.querySelector('[data-testid="coupons-list"]') as HTMLElement;
+      const order = Array.from(list.querySelectorAll('section')).map((s) => s.getAttribute('data-testid'));
+      expect(order).toEqual(['group-OPEN_CODE', 'group-PROMOTION_CODE', 'group-APPLIED_TO_SUBSCRIPTION']);
+      const open = list.querySelector('[data-testid="group-OPEN_CODE"]') as HTMLElement;
+      expect(open.querySelector('[data-testid="open-code-chip"]')?.textContent).toContain('MANOLO100OFF');
+      expect(open.querySelector('[data-testid="open-code-uses"]')?.textContent).toContain('usos 2/5');
+      expect(open.querySelector('a')).toBeNull();
+    });
+
+    it('copia o código com um toque', async () => {
+      service['list'].mockReturnValue(of([OPEN]));
+      const { fixture, el } = render();
+      fixture.detectChanges();
+      (el.querySelector('[data-testid="coupons-list"] [data-testid="copy-code"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+      expect(writeText).toHaveBeenCalledWith('MANOLO100OFF');
+    });
+  });
 });

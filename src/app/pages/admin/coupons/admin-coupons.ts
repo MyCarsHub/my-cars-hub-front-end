@@ -13,12 +13,15 @@ import { NotificationService } from '../../../services/notification.service';
 import { AdminCoupon, CouponCompany } from '../../../types/admin-coupon.types';
 import { AdminCouponsService } from './admin-coupons.service';
 import {
+  COUPON_KIND_ORDER,
   copyCouponCode,
   couponErrorMessage,
   couponPlanLabel,
   couponStatus,
   discountLabel,
   durationLabel,
+  kindHeading,
+  usesLabel,
   validityLabel,
 } from './coupon-copy';
 import { CouponSheet } from './coupon-sheet';
@@ -87,6 +90,8 @@ export class AdminCoupons implements OnInit {
         coupon,
         status,
         code: coupon.promotionCode ?? 'Direto na assinatura',
+        isOpen: coupon.mode === 'OPEN_CODE',
+        uses: usesLabel(coupon),
         company: this.companyName(coupon.companyId),
         plan: couponPlanLabel(coupon.planCode),
         discount: discountLabel(coupon),
@@ -96,6 +101,15 @@ export class AdminCoupons implements OnInit {
         canDeactivate: this.canManage() && status.live,
       };
     }),
+  );
+
+  /** As três espécies separadas, cada uma com o seu título; vazia não aparece. */
+  protected readonly groups = computed(() =>
+    COUPON_KIND_ORDER.map((mode) => ({
+      mode,
+      heading: kindHeading(mode),
+      rows: this.rows().filter((row) => row.coupon.mode === mode),
+    })).filter((group) => group.rows.length > 0),
   );
 
   protected readonly confirmMessage = computed(() => {
@@ -189,8 +203,8 @@ export class AdminCoupons implements OnInit {
     }
   }
 
-  protected onSaved({ coupon, company }: { coupon: AdminCoupon; company: CouponCompany }): void {
-    this.rememberName(company);
+  protected onSaved({ coupon, company }: { coupon: AdminCoupon; company: CouponCompany | null }): void {
+    if (company) this.rememberName(company);
     this.items.update((list) => [coupon, ...list]);
   }
 

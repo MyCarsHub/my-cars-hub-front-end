@@ -10,6 +10,8 @@ import {
   discountLabel,
   durationLabel,
   modeCopy,
+  openCodeMessage,
+  usesLabel,
   validityLabel,
 } from './coupon-copy';
 
@@ -156,5 +158,28 @@ describe('coupon-copy', () => {
     it('sem rede não mostra texto do navegador', () => {
       expect(couponErrorMessage(new HttpErrorResponse({ status: 0 }), 'load')).toMatch(/conexão/i);
     });
+  });
+  it('traduz os erros do código aberto', () => {
+    expect(couponErrorMessage(apiError(409, 'COUPON_CODE_TAKEN'), 'create')).toContain('Já existe um código');
+    expect(couponErrorMessage(apiError(400, 'COUPON_CODE_INVALID'), 'create')).toContain('4 a 30');
+    expect(couponErrorMessage(apiError(400, 'COUPON_ZEROES_PLAN'), 'preview')).toContain('zera o plano');
+    expect(couponErrorMessage(apiError(400, 'COUPON_NO_INVOICE_IN_WINDOW'), 'preview')).toContain('Nenhuma fatura');
+  });
+
+  it('escreve a mensagem pronta para o cliente', () => {
+    expect(openCodeMessage('MANOLO100OFF', 'SCALE_MONTHLY_STRIPE', { discountedAmountCents: 19900 }, 1)).toBe(
+      'Use o código MANOLO100OFF na hora de assinar o plano Scale e pague R$ 199,00 no primeiro mês.',
+    );
+    expect(openCodeMessage('X-1234', 'PRO_MONTHLY_STRIPE', { discountedAmountCents: 9990 }, 3)).toBe(
+      'Use o código X-1234 na hora de assinar o plano Pro e pague R$ 99,90 nos primeiros 3 meses.',
+    );
+  });
+
+  it('código aberto: usos, esgotado e vencido', () => {
+    expect(usesLabel({ timesRedeemed: 2, maxRedemptions: 5 })).toBe('2/5');
+    const open = { mode: 'OPEN_CODE' as const, status: 'ACTIVE' as const, expiresAt: '2026-12-01T00:00:00', timesRedeemed: 1, maxRedemptions: 5 };
+    expect(couponStatus(open, NOW).label).toBe('Ativo');
+    expect(couponStatus({ ...open, timesRedeemed: 5 }, NOW).label).toBe('Esgotado');
+    expect(couponStatus({ ...open, expiresAt: '2026-10-01T00:00:00' }, NOW).label).toBe('Vencido');
   });
 });
