@@ -49,6 +49,7 @@ import {
   usesSpaced,
 } from './coupon-list';
 import { computeCouponStats, monthlyPriceByPlan } from './coupon-stats';
+import { CouponDetail } from './coupon-detail';
 import { CouponSheet } from './coupon-sheet';
 
 const TYPE_OPTIONS: readonly FilterChipOption<TypeFilter>[] = [
@@ -89,6 +90,7 @@ const plural = (n: number, one: string, many: string): string => (n === 1 ? `1 $
     AlertBanner,
     BackLink,
     ConfirmDialog,
+    CouponDetail,
     CouponSheet,
     DefaultPageLayout,
     KpiCard,
@@ -124,6 +126,9 @@ export class AdminCoupons implements OnInit {
 
   protected readonly sheetOpen = signal(false);
   protected readonly prefill = signal<CouponCompany | null>(null);
+
+  /** Cupom aberto no detalhe; a linha vem de `allRows`, então o nome da empresa chega sozinho. */
+  private readonly detailId = signal<string | null>(null);
 
   protected readonly deactivating = signal<AdminCoupon | null>(null);
   protected readonly deactivateBusy = signal(false);
@@ -237,6 +242,12 @@ export class AdminCoupons implements OnInit {
 
   protected readonly exhaustedCaption = computed(() => plural(this.stats().exhausted, 'esgotado', 'esgotados'));
 
+  protected readonly detail = computed(() => {
+    const id = this.detailId();
+    const row = id ? this.allRows().find((r) => r.coupon.couponId === id) : undefined;
+    return row ? { coupon: row.coupon, company: row.company } : null;
+  });
+
   protected readonly hasAny = computed(() => this.items().length > 0);
 
   protected readonly confirmMessage = computed(() => {
@@ -342,6 +353,29 @@ export class AdminCoupons implements OnInit {
     this.searchControl.setValue('');
     this.setTypeFilter('ALL');
     this.setSituationFilter('ALL');
+  }
+
+  protected openDetail(couponId: string): void {
+    this.detailId.set(couponId);
+  }
+
+  protected closeDetail(): void {
+    this.detailId.set(null);
+  }
+
+  /** Cliques em link, botão de copiar e kebab têm dono próprio e não abrem o detalhe. */
+  protected onRowClick(event: Event, couponId: string): void {
+    const target = event.target;
+    if (target instanceof Element && target.closest('a, button, [role="menuitem"]')) return;
+    this.openDetail(couponId);
+  }
+
+  /** Enter e Espaço na própria linha; nas teclas dos controles de dentro, nada. */
+  protected onRowKey(event: KeyboardEvent, couponId: string): void {
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    this.openDetail(couponId);
   }
 
   protected openSheet(): void {

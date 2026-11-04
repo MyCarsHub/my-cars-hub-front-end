@@ -57,3 +57,32 @@ export interface CouponCompany {
   planCode: string | null;
   planName: string | null;
 }
+
+/** `INVOICE` = fatura paga com o cupom; `APPLIED_NO_INVOICE_YET` = aplicado, ainda sem fatura paga. */
+export type CouponRedemptionSource = 'INVOICE' | 'APPLIED_NO_INVOICE_YET';
+
+/** Um uso do cupom, lido da Stripe. Mais novo primeiro. */
+export interface CouponRedemption {
+  source: CouponRedemptionSource;
+  companyId: string | null;
+  companyName: string | null;
+  planCode: string | null;
+  /** ISO. */
+  redeemedAt: string;
+  amountPaidCents: number;
+  amountWithoutDiscountCents: number;
+  discountCents: number;
+  subscriptionId: string | null;
+  subscriptionStatus: string | null;
+}
+
+/** `GET /admin/billing/coupons/{couponId}/redemptions`. */
+export interface CouponRedemptions {
+  coupon: AdminCoupon;
+  redemptions: CouponRedemption[];
+  uses: number;
+  /** Desconto realmente concedido nas faturas pagas, não estimativa. */
+  totalDiscountCents: number;
+  /** A Stripe devolveu só os usos mais recentes. */
+  truncated: boolean;
+}
