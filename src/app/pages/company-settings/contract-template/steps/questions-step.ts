@@ -151,7 +151,7 @@ const MAX_ANSWERS = 3;
         @if (open()) {
           <div id="contract-ai-certain" class="flex flex-col px-3 pb-2">
             @for (s of certain(); track s.id) {
-              <div class="border-t border-edge py-2.5" (mouseenter)="focused.emit(s.id)">
+              <div class="py-3" (mouseenter)="focused.emit(s.id)">
                 <app-form-field [label]="excerpt(s)">
                   <select
                     appFieldControl

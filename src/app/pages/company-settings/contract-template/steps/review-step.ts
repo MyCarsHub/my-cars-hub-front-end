@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
+import { KpiCard } from '../../../../components/kpi-card/kpi-card';
+import { NotificationService } from '../../../../services/notification.service';
+import {
+  AUTENTIQUE_CLAUSE_TEXT,
+  AUTENTIQUE_NOTICE_NOTE,
+  AUTENTIQUE_NOTICE_TITLE,
+} from '../autentique-clause';
 import { LEGAL_DISCLAIMER } from '../ai/contract-ai.messages';
 import { FieldOption } from '../ai/contract-ai.types';
 import { ContractExistingFields } from '../contract-existing-fields';
@@ -9,7 +17,7 @@ import { ContractIcon } from '../contract-icon';
   selector: 'app-contract-review-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-5' },
-  imports: [ContractIcon, ContractExistingFields],
+  imports: [ContractIcon, ContractExistingFields, KpiCard],
   template: `
     <div class="flex flex-col gap-1.5">
       <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-fg focus:outline-none">
@@ -21,20 +29,14 @@ import { ContractIcon } from '../contract-icon';
         são preenchidas sozinhas em cada aluguel.
       </p>
     </div>
-    <dl class="m-0 grid grid-cols-2 gap-2.5">
-      <div class="flex flex-col gap-1 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3.5">
-        <dt class="order-2 text-[13px] font-medium leading-snug text-emerald-900 dark:text-emerald-200">{{ fields() === 1 ? 'dado preenchido sozinho' : 'dados preenchidos sozinhos' }}</dt>
-        <dd class="order-1 m-0 flex items-center gap-2 text-[28px] font-bold leading-none text-emerald-800 dark:text-emerald-200 tabular-nums">
-          <app-contract-icon name="sparkles" [size]="20" />{{ fields() }}
-        </dd>
-      </div>
-      <div class="flex flex-col gap-1 rounded-2xl border border-edge bg-surface-muted px-4 py-3.5">
-        <dt class="order-2 text-[13px] font-medium leading-snug text-fg-soft">{{ clauses() === 1 ? 'cláusula' : 'cláusulas' }}</dt>
-        <dd class="order-1 m-0 flex items-center gap-2 text-[28px] font-bold leading-none text-fg tabular-nums">
-          <app-contract-icon name="listChecks" [size]="20" class="text-fg-muted" />{{ clauses() }}
-        </dd>
-      </div>
-    </dl>
+    <div class="grid grid-cols-2 gap-2.5" data-testid="review-counts">
+      <div app-kpi-card data-testid="review-fields" variant="emerald" size="compact"
+        [label]="fields() === 1 ? 'Dado preenchido sozinho' : 'Dados preenchidos sozinhos'"
+        [countTo]="fields()" numberFormat="integer" class="enter-up [&>p:first-child]:normal-case [&>p:first-child]:tracking-normal [&>p:first-child]:text-sm [&>p:first-child]:whitespace-normal [&>p:first-child]:overflow-visible [&>p:first-child_.truncate]:whitespace-normal [&>p:first-child_.truncate]:overflow-visible"></div>
+      <div app-kpi-card data-testid="review-clauses" variant="emerald" size="compact"
+        [label]="clauses() === 1 ? 'Cláusula' : 'Cláusulas'"
+        [countTo]="clauses()" numberFormat="integer" class="enter-up [&>p:first-child]:normal-case [&>p:first-child]:tracking-normal [&>p:first-child]:text-sm [&>p:first-child]:whitespace-normal [&>p:first-child]:overflow-visible [&>p:first-child_.truncate]:whitespace-normal [&>p:first-child_.truncate]:overflow-visible" style="--stagger-i: 1"></div>
+    </div>
     <app-contract-existing-fields [fields]="existing()" />
     @if (unanswered().length > 0) {
       <section data-unanswered aria-labelledby="contract-unanswered-title"
@@ -68,8 +70,26 @@ import { ContractIcon } from '../contract-icon';
         <span>Este contrato vai sair sem o nome e o CPF do motorista de cada aluguel.</span>
       </p>
     }
+    @if (esignatureMissing()) {
+      <section data-testid="esignature-notice" aria-labelledby="contract-esign-title"
+        class="enter-up flex flex-col gap-3 rounded-2xl bg-amber-50 dark:bg-amber-500/10 px-4 py-3.5 text-amber-950 dark:text-amber-100">
+        <h4 id="contract-esign-title" class="m-0 flex items-start gap-2.5 text-[15px] font-semibold leading-snug">
+          <app-contract-icon name="info" [size]="16" class="mt-0.5" />{{ noticeTitle }}
+        </h4>
+        <p data-testid="esignature-clause" class="m-0 rounded-xl bg-surface/70 dark:bg-black/20 px-3.5 py-3 text-sm leading-relaxed [overflow-wrap:anywhere]">{{ clauseText }}</p>
+        <button type="button" data-testid="esignature-copy" (click)="copyClause()"
+          class="press inline-flex min-h-[48px] w-full items-center justify-center gap-2 self-start rounded-xl bg-amber-600 px-5 text-base font-semibold text-white hover:bg-amber-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:w-auto">
+          @if (copied()) {
+            <span class="pop inline-flex"><app-contract-icon name="check" [size]="18" [stroke]="2.5" /></span>Copiado
+          } @else {
+            Copiar texto
+          }
+        </button>
+        <p class="m-0 text-sm leading-snug">{{ noticeNote }}</p>
+      </section>
+    }
     <div class="flex flex-col gap-2">
-      <span class="text-[13px] font-semibold uppercase tracking-wide text-fg-muted">Ao salvar</span>
+      <span class="text-sm font-semibold text-fg-muted">Ao salvar</span>
       <ul class="m-0 flex list-none flex-col gap-2 p-0 text-[15px] leading-snug text-fg-body">
         @if (currentName(); as name) {
           <li class="flex items-start gap-2.5">
@@ -105,7 +125,29 @@ export class ContractReviewStep {
   readonly driverMissing = input(false);
   /** Trecho a reler: documento do motorista respondido, nome sem campo. */
   readonly readParagraph = input<string | null>(null);
+  /** O contrato enviado não cita a assinatura eletrônica: sugere a cláusula (não bloqueia). */
+  readonly esignatureMissing = input(false);
   readonly currentName = input<string | null>(null);
   readonly where = input('ao lado');
   protected readonly disclaimer = LEGAL_DISCLAIMER;
+  protected readonly clauseText = AUTENTIQUE_CLAUSE_TEXT;
+  protected readonly noticeTitle = AUTENTIQUE_NOTICE_TITLE;
+  protected readonly noticeNote = AUTENTIQUE_NOTICE_NOTE;
+
+  private readonly doc = inject(DOCUMENT);
+  private readonly notify = inject(NotificationService);
+  protected readonly copied = signal(false);
+
+  /** Nunca finge que copiou: sem área de transferência, avisa. */
+  protected async copyClause(): Promise<void> {
+    try {
+      const clipboard = this.doc.defaultView?.navigator?.clipboard;
+      if (!clipboard?.writeText) throw new Error('sem clipboard');
+      await clipboard.writeText(AUTENTIQUE_CLAUSE_TEXT);
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 2000);
+    } catch {
+      this.notify.warning('Não foi possível copiar. Selecione o texto e copie à mão.');
+    }
+  }
 }

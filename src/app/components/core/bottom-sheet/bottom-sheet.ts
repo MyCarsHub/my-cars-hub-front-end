@@ -42,6 +42,9 @@ let nextId = 0;
   },
   styles: `
     :host { display: contents; }
+    /* quietScroll: o corpo rola sem barra visível (o conteúdo continua rolável). */
+    .quiet { scrollbar-width: none; }
+    .quiet::-webkit-scrollbar { display: none; }
     .backdrop { animation: bs-fade-in 220ms ease-out both; }
     .panel { animation: bs-rise 320ms cubic-bezier(0.32, 0.72, 0, 1) both; will-change: transform; }
     .leaving .backdrop { animation: bs-fade-out ${BOTTOM_SHEET_LEAVE_MS}ms ease-in both; }
@@ -104,7 +107,14 @@ let nextId = 0;
               </button>
             </div>
           </header>
-          <div class="px-5 lg:px-6 py-4 overflow-y-auto overscroll-contain grow">
+          <div
+            #body
+            class="px-5 lg:px-6 py-4 overflow-y-auto overscroll-contain grow"
+            [class.quiet]="quietScroll()"
+            [style.mask-image]="fade() ? 'linear-gradient(to bottom, #000 calc(100% - 32px), transparent)' : null"
+            [style.-webkit-mask-image]="fade() ? 'linear-gradient(to bottom, #000 calc(100% - 32px), transparent)' : null"
+            (scroll)="measure()"
+          >
             <ng-content />
           </div>
           <footer class="px-5 lg:px-6 pb-5 lg:pb-6 shrink-0 empty:hidden">
@@ -127,16 +137,36 @@ export class BottomSheet implements OnInit, OnDestroy {
   readonly size = input<'md' | 'lg' | 'wide' | 'xl'>('md');
   /** Bloqueia Esc/fundo enquanto uma ação está em voo. */
   readonly busy = input(false);
+  /**
+   * Esconde a barra de rolagem do corpo (continua rolável) e desvanece a borda de baixo
+   * enquanto houver mais conteúdo abaixo. Opt-in: as demais folhas não mudam.
+   */
+  readonly quietScroll = input(false);
   readonly closed = output<void>();
 
   protected readonly titleId = `bottom-sheet-title-${++nextId}`;
   protected readonly leaving = signal(false);
   private readonly panel = viewChild.required<ElementRef<HTMLElement>>('panel');
+  private readonly body = viewChild.required<ElementRef<HTMLElement>>('body');
+  /** Há mais conteúdo abaixo da dobra (só mede com `quietScroll`). */
+  protected readonly fade = signal(false);
   private readonly doc = inject(DOCUMENT);
   private opener: HTMLElement | null = null;
+  private observer: ResizeObserver | null = null;
 
   constructor() {
-    afterNextRender(() => this.focusFirst());
+    afterNextRender(() => {
+      this.focusFirst();
+      this.measure();
+      const view = this.doc.defaultView;
+      if (view && 'ResizeObserver' in view) {
+        const ro = new view.ResizeObserver(() => this.measure());
+        ro.observe(this.body().nativeElement);
+        const inner = this.body().nativeElement.firstElementChild;
+        if (inner) ro.observe(inner);
+        this.observer = ro;
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -144,7 +174,17 @@ export class BottomSheet implements OnInit, OnDestroy {
     this.opener = active instanceof HTMLElement ? active : null;
   }
 
+  protected measure(): void {
+    if (!this.quietScroll()) {
+      this.fade.set(false);
+      return;
+    }
+    const el = this.body().nativeElement;
+    this.fade.set(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+  }
+
   ngOnDestroy(): void {
+    this.observer?.disconnect();
     // Devolve o foco a quem abriu, se ele ainda estiver na página.
     if (this.opener && this.doc.contains(this.opener)) this.opener.focus();
   }

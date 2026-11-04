@@ -448,7 +448,7 @@ describe('ContractEsteira', () => {
     );
 
     expect(host.textContent).toContain('Confira e salve');
-    expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('3');
+    expect(host.querySelector('[data-testid="review-fields"] p:nth-of-type(2)')?.textContent?.trim()).toBe('3');
     expect(host.textContent).toContain('3 dados já estão no contrato');
     expect(paperText()).not.toContain('{{');
     expect(host.querySelectorAll('article [class*="emerald"]').length).toBe(3);
@@ -487,7 +487,7 @@ describe('ContractEsteira', () => {
       .flush({ draftId: DRAFT, status: 'READY', acceptedCount: 1, pendingDoubtIds: [] });
     fixture.detectChanges();
 
-    expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('3');
+    expect(host.querySelector('[data-testid="review-fields"] p:nth-of-type(2)')?.textContent?.trim()).toBe('3');
   });
 
   const QUESTION = {
@@ -565,7 +565,7 @@ describe('ContractEsteira', () => {
     put.flush({ draftId: DRAFT, status: 'READY', acceptedCount: 0, pendingDoubtIds: [] });
     fixture.detectChanges();
 
-    expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('0');
+    expect(host.querySelector('[data-testid="review-fields"] p:nth-of-type(2)')?.textContent?.trim()).toBe('0');
     expect(host.querySelectorAll('article [class*="emerald"]').length).toBe(0);
     const left = host.querySelector('[data-unanswered]')?.textContent?.replace(/\s+/g, ' ') ?? '';
     expect(left).toContain('1 pergunta sem resposta');
@@ -682,7 +682,7 @@ describe('ContractEsteira', () => {
     put.flush({ draftId: DRAFT, status: 'READY', acceptedCount: 1, pendingDoubtIds: [] });
     fixture.detectChanges();
 
-    expect(host.querySelector('dl dd')?.textContent?.trim()).toBe('1');
+    expect(host.querySelector('[data-testid="review-fields"] p:nth-of-type(2)')?.textContent?.trim()).toBe('1');
     expect(host.querySelector('[data-unanswered]')).toBeNull();
   });
 

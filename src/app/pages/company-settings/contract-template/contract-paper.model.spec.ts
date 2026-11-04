@@ -43,9 +43,9 @@ function text(doc: PaperDocument): string[] {
 }
 
 describe('catálogo de campos', () => {
-  it('todo campo do app (57: + driverNationality, driverMaritalStatus, driverReference1/2, vehicleFipeValue, insurerName, policyNumber, insuranceDeductible, policyValidity, companyCity, extraKmPrice, lateFineTerms, kmTerms, lateInterestPercent, lateInterestTerms) tem valor de exemplo, e nenhum a mais', () => {
+  it('todo campo do app (59: + driverReference3, insuranceCoverage, driverNationality, driverMaritalStatus, driverReference1/2, vehicleFipeValue, insurerName, policyNumber, insuranceDeductible, policyValidity, companyCity, extraKmPrice, lateFineTerms, kmTerms, lateInterestPercent, lateInterestTerms) tem valor de exemplo, e nenhum a mais', () => {
     const labels = Object.keys(FIELD_LABELS).sort();
-    expect(labels.length).toBe(57);
+    expect(labels.length).toBe(59);
     expect(Object.keys(FIELD_EXAMPLES).sort()).toEqual(labels);
   });
 });
