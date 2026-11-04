@@ -2,181 +2,421 @@
   title="Cupons"
   description="Descontos direto na assinatura, por código de uma empresa ou por código para qualquer pessoa."
 >
-  @if (canManage()) {
-    <button
-      pageActions
-      type="button"
-      class="press inline-flex shrink-0 items-center gap-2 whitespace-nowrap bg-primary-500 hover:bg-primary-600 text-white
-             text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm min-h-[44px]
-             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-      data-testid="create-coupon"
-      (click)="openSheet()"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-      Criar cupom
-    </button>
-  }
+  <div class="space-y-6 lg:space-y-8 pb-[env(safe-area-inset-bottom)]">
+    @if (error(); as err) {
+      <app-alert-banner variant="error">
+        {{ err }}
+        <button type="button" class="ml-2 underline min-h-11 px-2" data-testid="retry" (click)="load()">Tentar novamente</button>
+      </app-alert-banner>
+    }
 
-    <div class="space-y-4">
-      <!-- Search + filters -->
-      <div class="flex flex-col gap-3">
-        <label class="relative block">
-          <span class="sr-only">Buscar cupom</span>
-          <input
-            type="search"
-            inputmode="search"
-            autocomplete="off"
-            [formControl]="searchControl"
-            placeholder="Nome da empresa ou código…"
-            class="w-full text-base border border-edge-field bg-surface rounded-lg pl-10 pr-3 py-2.5
-                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
-            aria-label="Buscar cupom"
-            data-testid="coupon-search"
-          />
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="absolute left-3 top-1/2 -translate-y-1/2 text-fg-faint"
-            width="18" height="18" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
+    @if (actionError(); as err) {
+      <div data-testid="action-error"><app-alert-banner variant="error" [message]="err" /></div>
+    }
+
+    <!-- KPI strip, same cards as Membros. Whole-list numbers: search and filters never change
+         them. The discount is an estimate and is always labelled as one. Numbers count up once;
+         the cards rise in with a 40ms stagger (both off under prefers-reduced-motion). -->
+    @if (hasAny() || (loading() && !error())) {
+      <section
+        class="grid gap-3 grid-cols-2 md:grid-cols-4"
+        aria-label="Resumo dos cupons"
+        [attr.aria-busy]="loading() && !hasAny() ? 'true' : null"
+      >
+        <div app-kpi-card data-kpi="total" variant="primary" label="Cupons" [anchored]="true"
+             class="enter-up lift" style="--stagger-i: 0"
+             [loading]="loading() && !hasAny()" [countTo]="stats().total"
+             [detail]="totalCaption()" [detailCompact]="activeCaption()">
+          <svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 5v2" /><path d="M15 11v2" /><path d="M15 17v2" />
+            <path d="M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7a2 2 0 0 1 2-2" />
           </svg>
-        </label>
-
-        <div class="flex flex-col gap-2">
-          <app-filter-chip-group
-            [options]="typeOptions"
-            [value]="typeFilter()"
-            ariaLabel="Filtrar por tipo"
-            [scrollable]="true"
-            (selectionChange)="setTypeFilter($event)"
-          />
-          <app-filter-chip-group
-            [options]="situationOptions"
-            [value]="situationFilter()"
-            ariaLabel="Filtrar por situação"
-            [scrollable]="true"
-            (selectionChange)="setSituationFilter($event)"
-          />
         </div>
-      </div>
-
-      @if (error(); as err) {
-        <app-alert-banner variant="error">
-          {{ err }}
-          <button type="button" class="ml-2 underline min-h-11 px-2" data-testid="retry" (click)="load()">Tentar novamente</button>
-        </app-alert-banner>
-      }
-
-      @if (actionError(); as err) {
-        <div data-testid="action-error"><app-alert-banner variant="error" [message]="err" /></div>
-      }
-
-      <ng-template #rowMenu let-row>
-        <app-actions-menu [label]="'Ações do cupom ' + row.title" [menuWidth]="224">
-          @if (row.coupon.promotionCode; as code) {
-            <button type="button" role="menuitem" data-testid="menu-copy"
-                    class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
-                    (click)="copy(code)">Copiar código</button>
-          }
-          @if (row.canDeactivate) {
-            <button type="button" role="menuitem" data-testid="menu-deactivate"
-                    class="w-full text-left text-sm px-4 py-3 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
-                           min-h-[44px]"
-                    (click)="askDeactivate(row.coupon)">Desativar</button>
-          }
-        </app-actions-menu>
-      </ng-template>
-
-      @if (loading() && !hasAny()) {
-        <div class="space-y-2" data-testid="skeleton">
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+        <div app-kpi-card data-kpi="discount" variant="emerald-dark" label="Desconto estimado" [anchored]="true"
+             class="enter-up lift" style="--stagger-i: 1"
+             [loading]="loading() && !hasAny()" [countTo]="stats().discountCents"
+             [format]="formatDiscount" [formatCompact]="formatDiscountCompact"
+             [detail]="discountCaption()" [detailCompact]="discountCaptionCompact()">
+          <svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" /><path d="M14.8 9A2 2 0 0 0 13 8h-2a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-2a2 2 0 0 1-1.8-1" /><path d="M12 6v2m0 8v2" />
+          </svg>
         </div>
-      } @else if (!error() && !hasAny()) {
-        <div class="py-10 text-center">
-          <p class="text-sm text-fg-subtle" data-testid="empty">Nenhum cupom criado ainda.</p>
-          @if (canManage()) {
+        <div app-kpi-card data-kpi="uses" variant="emerald" label="Usos" [anchored]="true"
+             class="enter-up lift" style="--stagger-i: 2"
+             [loading]="loading() && !hasAny()" [countTo]="stats().uses"
+             detail="empresas e pessoas que aproveitaram" detailCompact="já aproveitaram">
+          <svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="9" cy="7" r="4" /><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0-3-3.85" />
+          </svg>
+        </div>
+        <div app-kpi-card data-kpi="expiring" variant="white" label="Vencem em 7 dias" [anchored]="true"
+             class="enter-up lift" style="--stagger-i: 3"
+             [loading]="loading() && !hasAny()" [countTo]="stats().expiringSoon"
+             [detail]="expiringCaption()" [detailCompact]="exhaustedCaption()">
+          <svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
+          </svg>
+        </div>
+      </section>
+    }
+
+    <ng-template #menu let-row>
+      <app-actions-menu [label]="'Ações do cupom ' + row.title" [menuWidth]="224">
+        @if (row.coupon.promotionCode; as code) {
+          <button type="button" role="menuitem" data-testid="menu-copy"
+                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+                  (click)="copy(row.coupon.couponId, code)">Copiar código</button>
+        }
+        @if (row.canDeactivate) {
+          <button type="button" role="menuitem" data-testid="menu-deactivate"
+                  class="w-full text-left text-sm px-4 py-3 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
+                         min-h-[44px]"
+                  (click)="askDeactivate(row.coupon)">Desativar</button>
+        }
+      </app-actions-menu>
+    </ng-template>
+
+    <!-- Copy button: the icon swaps to a check with a small pop; the aria-label follows. -->
+    <ng-template #copyButton let-row let-round="round">
+      <button
+        type="button"
+        class="press inline-flex shrink-0 items-center justify-center text-fg-muted hover:text-primary-700
+               dark:hover:text-primary-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        [class]="round ? 'size-11 rounded-full bg-surface-sunken text-fg' : 'size-8 rounded-lg'"
+        [attr.aria-label]="(copiedId() === row.coupon.couponId ? 'Código copiado ' : 'Copiar código ') + row.title"
+        data-testid="copy-code"
+        (click)="copy(row.coupon.couponId, row.title)"
+      >
+        @if (copiedId() === row.coupon.couponId) {
+          <svg class="pop text-emerald-600 dark:text-emerald-400" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12l5 5L20 7" />
+          </svg>
+        } @else {
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+        }
+      </button>
+    </ng-template>
+
+    <ng-template #bar let-row let-i="i">
+      <span class="block h-1.5 w-[70px] rounded-full bg-surface-sunken overflow-hidden mt-1.5" aria-hidden="true">
+        <span class="bar-fill block h-full w-full rounded-full bg-emerald-500"
+              [style.--p]="row.progress" [style.--stagger-i]="i"></span>
+      </span>
+    </ng-template>
+
+    @if (loading() && !hasAny()) {
+      <section class="md:bg-surface md:rounded-2xl md:border md:border-edge md:shadow-sm md:overflow-hidden">
+        <h2 class="py-5 md:px-6 font-semibold text-fg-body">Lista</h2>
+        <div class="md:px-6 md:pb-6 space-y-3" role="status" aria-label="Carregando cupons" data-testid="skeleton">
+          @for (i of [1, 2, 3]; track i) {
+            <div class="h-[150px] md:h-14 rounded-2xl md:rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          }
+        </div>
+      </section>
+    } @else if (!error() || hasAny()) {
+      <!-- One Lista panel. On phones it has no surface of its own: the tickets sit straight on the
+           page, which is what the ticket notches are cut against (bg-canvas). -->
+      <section class="md:bg-surface md:rounded-2xl md:border md:border-edge md:shadow-sm">
+        <div class="py-4 md:px-6 md:py-5 flex items-center justify-between gap-2">
+          <h2 class="font-semibold text-fg-body">Lista</h2>
+          @if (canManage() && hasAny()) {
             <button
               type="button"
-              class="press mt-3 min-h-11 rounded-xl px-4 text-sm font-semibold text-primary-700 dark:text-primary-300
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-              data-testid="empty-create"
+              data-testid="create-coupon"
               (click)="openSheet()"
+              class="press press-soft min-h-[44px] px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
+                     bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
             >
-              Criar o primeiro cupom
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Criar cupom
             </button>
           }
         </div>
-      } @else if (hasAny() && rows().length === 0) {
-        <div class="text-center text-sm text-fg-subtle py-10" data-testid="empty-filtered">
-          Nenhum cupom encontrado com esses filtros.
-        </div>
-      } @else if (rows().length > 0) {
-        <div class="flex flex-col" data-testid="coupons-list">
-          @for (group of groups(); track group.mode) {
-            <app-list-group [heading]="group.heading" [attr.data-testid]="'group-' + group.mode">
-              <span groupNote class="pb-2 px-1.5 text-[13px] text-fg-subtle tabular-nums">{{ group.rows.length }}</span>
-              @for (row of group.rows; track row.coupon.couponId) {
-                <div appListRow class="row enter-up !items-start" data-testid="coupon-card">
-                  <span class="t">
-                    <b class="break-all tabular-nums" data-testid="coupon-title">
-                      @if (!row.isCode && row.coupon.companyId; as companyId) {
-                        <a
-                          [routerLink]="['/admin/companies', companyId]"
-                          class="hover:underline outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                        >{{ row.title }}</a>
-                      } @else {
-                        {{ row.title }}
-                      }
-                    </b>
-                    <small data-testid="coupon-summary">
-                      @if (row.coupon.mode === 'PROMOTION_CODE' && row.coupon.companyId; as companyId) {
-                        <a [routerLink]="['/admin/companies', companyId]" class="font-semibold hover:underline rounded-sm">{{ row.company }}</a>
-                        ·
-                      }
-                      {{ row.plan }}
-                    </small>
-                    <span class="mt-2 flex flex-wrap items-center gap-2">
-                      <app-status-chip [tone]="row.status.tone" size="sm">{{ row.status.label }}</app-status-chip>
-                      <app-status-chip [tone]="row.isOpen ? 'orange' : 'neutral'" size="sm" data-testid="coupon-kind">{{ row.kind }}</app-status-chip>
-                    </span>
-                    <small class="!text-[12.5px] !text-fg-subtle tabular-nums" data-testid="coupon-meta">{{ row.meta }}</small>
+        <div class="md:px-6 md:pb-6 space-y-4">
+          @if (hasAny()) {
+            <div class="space-y-3">
+              <div class="flex flex-col md:flex-row md:items-center gap-3">
+                <div class="relative flex-1 min-w-0">
+                  <label for="coupons-search" class="sr-only">Buscar cupom</label>
+                  <span class="absolute inset-y-0 left-3 flex items-center text-fg-faint" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                      stroke-linejoin="round">
+                      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
                   </span>
-                  <span class="flex shrink-0 items-start -my-2 -mr-2">
-                    @if (row.isCode) {
-                      <button
-                        type="button"
-                        class="press inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg
-                               text-primary-700 dark:text-primary-300
-                               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                        [attr.aria-label]="'Copiar código ' + row.title"
-                        data-testid="copy-code"
-                        (click)="copy(row.title)"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                      </button>
-                    }
-                    @if (row.coupon.promotionCode || row.canDeactivate) {
-                      <ng-container *ngTemplateOutlet="rowMenu; context: { $implicit: row }" />
-                    }
-                  </span>
+                  <input
+                    id="coupons-search"
+                    type="search"
+                    inputmode="search"
+                    autocomplete="off"
+                    [formControl]="searchControl"
+                    placeholder="Nome da empresa ou código…"
+                    data-testid="coupon-search"
+                    class="w-full min-h-[44px] pl-9 pr-3 text-base md:text-sm border border-edge-field rounded-xl
+                           bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  />
+                </div>
+                <label class="sr-only" for="coupons-type">Tipo</label>
+                <select
+                  id="coupons-type"
+                  data-filter-type
+                  (change)="onTypeChange($event)"
+                  class="min-h-[44px] px-3 text-base md:text-sm border border-edge-field rounded-xl bg-surface
+                         text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+                >
+                  @for (opt of typeOptions; track opt.value) {
+                    <option [value]="opt.value" [selected]="opt.value === typeFilter()">Tipo: {{ opt.label }}</option>
+                  }
+                </select>
+              </div>
+              <app-pill-tabs
+                ariaLabel="Situação"
+                [options]="situationTabs()"
+                [value]="situationFilter()"
+                (selected)="setSituationFilter($event)"
+              />
+              @if (anyFilter()) {
+                <div class="flex justify-center md:justify-end">
+                  <button
+                    type="button"
+                    data-clear-filters
+                    (click)="clearFilters()"
+                    class="press min-h-[44px] px-3 text-sm font-semibold text-fg-muted hover:text-primary-700 dark:hover:text-primary-400
+                           rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                  >
+                    Limpar filtros
+                  </button>
                 </div>
               }
-            </app-list-group>
+              <p data-results role="status" aria-live="polite" class="text-xs text-fg-subtle">{{ resultsText() }}</p>
+            </div>
+          }
+
+          @if (!hasAny()) {
+            <div class="rounded-xl border border-dashed border-edge-strong p-5 text-center space-y-3">
+              <p class="text-sm font-semibold text-fg" data-testid="empty">Nenhum cupom criado ainda.</p>
+              @if (canManage()) {
+                <button
+                  type="button"
+                  class="press min-h-12 w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
+                         justify-center gap-2 bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+                         focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                  data-testid="empty-create"
+                  (click)="openSheet()"
+                >
+                  Criar o primeiro cupom
+                </button>
+              }
+            </div>
+          } @else if (rows().length === 0) {
+            <div
+              data-testid="empty-filtered"
+              class="rounded-xl border border-dashed border-edge-strong p-5 text-center space-y-3"
+            >
+              <p class="text-sm font-semibold text-fg">Nenhum resultado.</p>
+              <p class="text-sm text-fg-muted">Nenhum cupom corresponde à busca e aos filtros escolhidos.</p>
+              <button
+                type="button"
+                data-clear-filters
+                (click)="clearFilters()"
+                class="press min-h-[44px] w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
+                       justify-center border border-edge bg-surface text-fg-soft hover:bg-surface-muted
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+              >
+                Limpar filtros
+              </button>
+            </div>
+          } @else {
+            <!-- The epoch changes with type/tab, so the list is rebuilt and the rise-in cascade replays. -->
+            @for (epoch of epochs(); track epoch.id) {
+              @if (wide()) {
+                <div class="overflow-x-auto -mx-2 px-2">
+                  <table class="w-full text-sm" data-testid="coupons-list">
+                    <thead class="text-[11px] text-fg-subtle uppercase tracking-wider">
+                      <tr>
+                        <th scope="col" class="px-3 py-3 font-medium text-left">Código / empresa</th>
+                        <th scope="col" class="px-3 py-3 font-medium text-left hidden lg:table-cell">Tipo</th>
+                        <th scope="col" class="px-3 py-3 font-medium text-left">Desconto</th>
+                        <th scope="col" class="px-3 py-3 font-medium text-left">Usos</th>
+                        <th scope="col" class="px-3 py-3 font-medium text-left whitespace-nowrap">Validade</th>
+                        <th scope="col" class="px-3 py-3 font-medium text-left">Status</th>
+                        <th scope="col" class="px-3 py-3 font-medium text-right"><span class="sr-only">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of rows(); track row.coupon.couponId; let i = $index) {
+                        <tr
+                          class="enter-up align-middle hover:bg-surface-muted transition-colors duration-150
+                                 [&>td:first-child]:rounded-l-xl [&>td:last-child]:rounded-r-xl"
+                          [class.is-leaving]="row.leaving"
+                          [style.--stagger-i]="i"
+                          data-testid="coupon-card"
+                        >
+                          <td class="px-3 py-3.5 min-w-[10rem]">
+                            <div class="cell-collapse min-h-11 flex flex-col justify-center items-start">
+                              <div class="flex items-center gap-1">
+                                <b class="font-semibold text-fg break-all tabular-nums" data-testid="coupon-title">
+                                  @if (!row.isCode && row.coupon.companyId; as companyId) {
+                                    <a [routerLink]="['/admin/companies', companyId]"
+                                       class="hover:underline outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm">{{ row.title }}</a>
+                                  } @else {
+                                    {{ row.title }}
+                                  }
+                                </b>
+                                @if (row.isCode) {
+                                  <ng-container *ngTemplateOutlet="copyButton; context: { $implicit: row, round: false }" />
+                                }
+                              </div>
+                              <small class="block text-xs text-fg-subtle mt-0.5" data-testid="coupon-summary">
+                                @if (row.coupon.mode === 'PROMOTION_CODE' && row.coupon.companyId; as companyId) {
+                                  <a [routerLink]="['/admin/companies', companyId]" class="font-semibold hover:underline rounded-sm">{{ row.company }}</a>
+                                  ·
+                                }
+                                {{ row.plan }}
+                                <span class="lg:hidden">· {{ row.kind.toLocaleLowerCase('pt-BR') }}</span>
+                              </small>
+                            </div>
+                          </td>
+                          <td class="px-3 py-3.5 hidden lg:table-cell">
+                            <div class="cell-collapse min-h-11 flex flex-col justify-center items-start">
+                              <app-status-chip [tone]="row.isOpen ? 'orange' : 'neutral'" size="sm" data-testid="coupon-kind">{{ row.kind }}</app-status-chip>
+                            </div>
+                          </td>
+                          <td class="px-3 py-3.5 text-fg-soft" data-testid="coupon-discount">
+                            <div class="cell-collapse min-h-11 flex flex-col justify-center items-start">
+                              <span class="font-semibold text-fg tabular-nums">{{ row.discount }}</span>
+                              <span class="block text-xs text-fg-subtle">{{ row.duration }}</span>
+                            </div>
+                          </td>
+                          <td class="px-3 py-3.5 text-fg-soft tabular-nums whitespace-nowrap" data-testid="coupon-uses">
+                            <div class="cell-collapse min-h-11 flex flex-col justify-center items-start">
+                              <span class="text-fg">{{ row.uses }}</span>
+                              @if (row.isCode) {
+                                <ng-container *ngTemplateOutlet="bar; context: { $implicit: row, i: i }" />
+                              }
+                            </div>
+                          </td>
+                          <td class="px-3 py-3.5 text-fg-soft tabular-nums whitespace-nowrap" data-testid="coupon-validity">
+                            <div class="cell-collapse min-h-11 flex flex-col justify-center items-start">{{ row.validity }}</div>
+                          </td>
+                          <td class="px-3 py-3.5">
+                            <div class="cell-collapse min-h-11 flex flex-col justify-center items-start">
+                              <app-status-chip [tone]="row.status.tone" size="sm" data-testid="coupon-status">{{ row.status.label }}</app-status-chip>
+                            </div>
+                          </td>
+                          <td class="px-3 py-2 text-right whitespace-nowrap">
+                            <div class="cell-collapse min-h-11 flex flex-col justify-center items-end">
+                              @if (row.coupon.promotionCode || row.canDeactivate) {
+                                <ng-container *ngTemplateOutlet="menu; context: { $implicit: row }" />
+                              }
+                            </div>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              } @else {
+                <ul class="flex flex-col" aria-label="Cupons" data-testid="coupons-list">
+                  @for (row of rows(); track row.coupon.couponId; let i = $index) {
+                    <li class="collapse-row" [class.is-leaving]="row.leaving">
+                      <div class="pb-3">
+                        <article
+                          class="enter-up press press-soft relative rounded-2xl bg-surface border border-edge"
+                          [style.--stagger-i]="i"
+                          data-testid="coupon-card"
+                        >
+                          <div class="px-4 pt-4 pb-3">
+                            <div class="flex items-start justify-between gap-2">
+                              <div class="min-w-0">
+                                <b class="block text-lg font-semibold text-fg break-all tabular-nums leading-tight" data-testid="coupon-title">
+                                  @if (!row.isCode && row.coupon.companyId; as companyId) {
+                                    <a [routerLink]="['/admin/companies', companyId]"
+                                       class="hover:underline outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm">{{ row.title }}</a>
+                                  } @else {
+                                    {{ row.title }}
+                                  }
+                                </b>
+                                <small class="block text-xs text-fg-subtle mt-0.5" data-testid="coupon-summary">
+                                  @if (row.coupon.mode === 'PROMOTION_CODE' && row.coupon.companyId; as companyId) {
+                                    <a [routerLink]="['/admin/companies', companyId]" class="font-semibold hover:underline rounded-sm">{{ row.company }}</a>
+                                    ·
+                                  }
+                                  Plano {{ row.plan }}
+                                  @if (row.isCode) {
+                                    · <span data-testid="coupon-kind">{{ row.kind.toLocaleLowerCase('pt-BR') }}</span>
+                                  } @else {
+                                    <span data-testid="coupon-kind" class="sr-only">{{ row.kind }}</span>
+                                  }
+                                </small>
+                              </div>
+                              <app-status-chip [tone]="row.status.tone" size="sm" data-testid="coupon-status">{{ row.status.label }}</app-status-chip>
+                            </div>
+                            <p class="mt-3 text-2xl font-semibold text-fg tabular-nums tracking-tight" data-testid="coupon-discount">
+                              {{ row.discount }}
+                              <span class="ml-1 text-xs font-normal text-fg-subtle tracking-normal">por {{ row.duration }}</span>
+                            </p>
+                          </div>
+
+                          <!-- Tear line: part of the ticket shape. The two notches are cut against the page background. -->
+                          <div class="relative h-0" aria-hidden="true">
+                            <div class="mx-5 border-t border-dashed border-edge-strong"></div>
+                            <span class="absolute -top-2.5 -left-[11px] size-5 rounded-full bg-canvas border border-edge
+                                         [clip-path:inset(0_0_0_50%)]"></span>
+                            <span class="absolute -top-2.5 -right-[11px] size-5 rounded-full bg-canvas border border-edge
+                                         [clip-path:inset(0_50%_0_0)]"></span>
+                          </div>
+
+                          <div class="flex items-center gap-3 px-4 py-3 text-xs text-fg-subtle">
+                            @if (row.isCode) {
+                              <div class="min-w-0" data-testid="coupon-uses">
+                                Usos
+                                <b class="block text-sm font-semibold text-fg tabular-nums" [attr.aria-label]="'Usos ' + row.usesAria">{{ row.uses }}</b>
+                                <ng-container *ngTemplateOutlet="bar; context: { $implicit: row, i: i }" />
+                              </div>
+                              <div class="min-w-0" data-testid="coupon-validity">
+                                Vale até
+                                <b class="block text-sm font-semibold text-fg tabular-nums">{{ row.validityShort }}</b>
+                              </div>
+                              <span class="flex-1 min-w-0 text-right">
+                                @if (copiedId() === row.coupon.couponId) {
+                                  <span class="pop inline-block font-semibold text-emerald-600 dark:text-emerald-400" role="status">Copiado</span>
+                                }
+                              </span>
+                              <ng-container *ngTemplateOutlet="copyButton; context: { $implicit: row, round: true }" />
+                            } @else {
+                              <span class="flex-1 text-sm font-semibold text-fg" data-testid="coupon-validity">{{ row.validity }}</span>
+                            }
+                            @if (row.coupon.promotionCode || row.canDeactivate) {
+                              <ng-container *ngTemplateOutlet="menu; context: { $implicit: row }" />
+                            }
+                          </div>
+                        </article>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              }
+            }
           }
         </div>
-      }
-    </div>
+      </section>
+    }
+  </div>
 
   <app-back-link link="/admin" label="Voltar para o painel admin" />
 </app-default-page-layout>

@@ -1,5 +1,13 @@
 import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -8,13 +16,16 @@ import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { BackLink } from '../../../components/core/back-link/back-link';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
-import { FilterChipGroup, FilterChipOption } from '../../../components/filter-chip-group/filter-chip-group';
-import { ListGroup, ListRow } from '../../../components/core/list-group/list-group';
+import { PillTabOption, PillTabs } from '../../../components/core/pill-tabs/pill-tabs';
+import { FilterChipOption } from '../../../components/filter-chip-group/filter-chip-group';
+import { KpiCard } from '../../../components/kpi-card/kpi-card';
 import { StatusChip } from '../../../components/core/status-chip/status-chip';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { NotificationService } from '../../../services/notification.service';
 import { AdminCoupon, CouponCompany } from '../../../types/admin-coupon.types';
+import { formatBRL } from '../../../types/dashboard.types';
+import { mediaQuerySignal } from '../../../utils/viewport';
 import { AdminCouponsService } from './admin-coupons.service';
 import {
   copyCouponCode,
@@ -22,14 +33,23 @@ import {
   couponDate,
   couponPlanName,
   couponStatus,
-  discountSummary,
+  discountLabel,
+  durationLabel,
   kindLabel,
   usesLabel,
 } from './coupon-copy';
+import {
+  SituationFilter,
+  TypeFilter,
+  couponSituation,
+  filterCoupons,
+  shortDate,
+  situationCounts,
+  usesProgress,
+  usesSpaced,
+} from './coupon-list';
+import { computeCouponStats, monthlyPriceByPlan } from './coupon-stats';
 import { CouponSheet } from './coupon-sheet';
-
-type TypeFilter = 'ALL' | AdminCoupon['mode'];
-type SituationFilter = 'ALL' | 'ACTIVE' | 'EXHAUSTED' | 'DEACTIVATED';
 
 const TYPE_OPTIONS: readonly FilterChipOption<TypeFilter>[] = [
   { value: 'ALL', label: 'Todos' },
@@ -38,19 +58,10 @@ const TYPE_OPTIONS: readonly FilterChipOption<TypeFilter>[] = [
   { value: 'APPLIED_TO_SUBSCRIPTION', label: 'Direto na assinatura' },
 ];
 
-const SITUATION_OPTIONS: readonly FilterChipOption<SituationFilter>[] = [
-  { value: 'ALL', label: 'Todos' },
-  { value: 'ACTIVE', label: 'Ativos' },
-  { value: 'EXHAUSTED', label: 'Esgotados' },
-  { value: 'DEACTIVATED', label: 'Desativados' },
-];
-
-const GROUP_ORDER: readonly AdminCoupon['mode'][] = ['OPEN_CODE', 'PROMOTION_CODE', 'APPLIED_TO_SUBSCRIPTION'];
-const GROUP_HEADING: Record<AdminCoupon['mode'], string> = {
-  OPEN_CODE: 'Códigos para qualquer pessoa',
-  PROMOTION_CODE: 'Códigos de empresas',
-  APPLIED_TO_SUBSCRIPTION: 'Direto na assinatura',
-};
+/** Quanto a linha leva para encolher (casa com `.collapse-row` em styles.css). */
+const COLLAPSE_MS = 300;
+/** Quanto o "Copiado" fica na tela. */
+const COPIED_MS = 1600;
 
 /** Parâmetro do atalho "Criar cupom" no detalhe da empresa. */
 const COMPANY_PARAM = 'empresa';
@@ -62,6 +73,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Tamanho do id quando o nome da empresa não pôde ser lido. */
 const SHORT_ID_LENGTH = 8;
+
+const plural = (n: number, one: string, many: string): string => (n === 1 ? `1 ${one}` : `${n} ${many}`);
 
 /**
  * Admin > Cupons. A lista mora na Stripe, então uma falha aqui costuma ser dela.
@@ -78,9 +91,8 @@ const SHORT_ID_LENGTH = 8;
     ConfirmDialog,
     CouponSheet,
     DefaultPageLayout,
-    FilterChipGroup,
-    ListGroup,
-    ListRow,
+    KpiCard,
+    PillTabs,
     ReactiveFormsModule,
     NgTemplateOutlet,
     RouterLink,
@@ -95,11 +107,16 @@ export class AdminCoupons implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly doc = inject(DOCUMENT);
+  private readonly destroyRef = inject(DestroyRef);
+  /** `md` do Tailwind: daí para cima é tabela, abaixo é cartão-ingresso. */
+  protected readonly wide = mediaQuerySignal('(min-width: 48rem)');
 
   private readonly now = new Date();
   private readonly requestedNames = new Set<string>();
   private readonly items = signal<AdminCoupon[]>([]);
   private readonly names = signal<Record<string, string>>({});
+  private readonly prices = signal<Record<string, number>>({});
+  private readonly timers = new Set<ReturnType<typeof setTimeout>>();
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -111,10 +128,16 @@ export class AdminCoupons implements OnInit {
   protected readonly deactivating = signal<AdminCoupon | null>(null);
   protected readonly deactivateBusy = signal(false);
 
+  /** Cupons que estão encolhendo antes de sair da lista (desativados fora do filtro atual). */
+  private readonly leaving = signal<ReadonlySet<string>>(new Set());
+  protected readonly copiedId = signal<string | null>(null);
+  /** Troca a cada mudança de tipo/aba: a lista é refeita e a cascata de entrada recomeça. */
+  protected readonly epoch = signal(0);
+  protected readonly epochs = computed(() => [{ id: this.epoch() }]);
+
   protected readonly canManage = computed(() => this.caps.can('cupom.gerir'));
 
   protected readonly typeOptions = TYPE_OPTIONS;
-  protected readonly situationOptions = SITUATION_OPTIONS;
   protected readonly searchControl = new FormControl('', { nonNullable: true });
   private readonly search = toSignal(this.searchControl.valueChanges, { initialValue: '' });
   protected readonly typeFilter = signal<TypeFilter>('ALL');
@@ -125,57 +148,94 @@ export class AdminCoupons implements OnInit {
       const status = couponStatus(coupon, this.now);
       const isCode = coupon.mode !== 'APPLIED_TO_SUBSCRIPTION';
       const company = this.companyName(coupon.companyId);
-      const situation: SituationFilter =
-        coupon.status === 'DEACTIVATED'
-          ? 'DEACTIVATED'
-          : status.label === 'Esgotado' || status.label === 'Usado'
-            ? 'EXHAUSTED'
-            : status.live
-              ? 'ACTIVE'
-              : 'ALL';
+      const expires = coupon.expiresAt ? couponDate(coupon.expiresAt) : '—';
       return {
         coupon,
         status,
-        situation,
+        situation: couponSituation(coupon, this.now),
+        leaving: this.leaving().has(coupon.couponId),
         kind: kindLabel(coupon.mode),
         isCode,
         isOpen: coupon.mode === 'OPEN_CODE',
         // Quem lê procura pelo código; o desconto direto só tem a empresa.
         title: coupon.promotionCode ?? company,
         company,
-        plan: `${couponPlanName(coupon.planCode)} · ${discountSummary(coupon)}`,
-        meta: isCode
-          ? `usos ${usesLabel(coupon)} · vale até ${coupon.expiresAt ? couponDate(coupon.expiresAt) : '—'}`
-          : status.live
-            ? 'nas próximas faturas'
-            : 'desconto encerrado',
+        plan: couponPlanName(coupon.planCode),
+        discount: discountLabel(coupon),
+        duration: durationLabel(coupon.durationMonths),
+        usesAria: usesLabel(coupon),
+        uses: isCode ? usesSpaced(coupon) : '—',
+        progress: isCode ? usesProgress(coupon) : 0,
+        validity: isCode ? expires : status.live ? 'Próximas faturas' : 'Encerrado',
+        validityShort: isCode ? shortDate(expires) : '',
         canDeactivate: this.canManage() && status.live,
       };
     }),
   );
 
-  protected readonly rows = computed(() => {
-    const term = this.search().trim().toLocaleLowerCase('pt-BR');
-    const type = this.typeFilter();
-    const situation = this.situationFilter();
-    return this.allRows().filter(
-      (row) =>
-        (type === 'ALL' || row.coupon.mode === type) &&
-        (situation === 'ALL' || row.situation === situation) &&
-        (term === '' ||
-          row.title.toLocaleLowerCase('pt-BR').includes(term) ||
-          row.company.toLocaleLowerCase('pt-BR').includes(term)),
-    );
+  private readonly filters = computed(() => ({
+    term: this.search(),
+    type: this.typeFilter(),
+    situation: this.situationFilter(),
+  }));
+
+  protected readonly rows = computed(() => filterCoupons(this.allRows(), this.filters()));
+
+  /** As abas contam a lista já filtrada por busca e tipo; cada uma mostra o que aparece ao escolhê-la. */
+  protected readonly situationTabs = computed<readonly PillTabOption<SituationFilter>[]>(() => {
+    const n = situationCounts(this.allRows(), this.filters());
+    return [
+      { value: 'ALL', label: 'Todos', count: n.ALL, testId: 'tab-ALL' },
+      { value: 'ACTIVE', label: 'Ativos', count: n.ACTIVE, testId: 'tab-ACTIVE' },
+      { value: 'EXHAUSTED', label: 'Esgotados', count: n.EXHAUSTED, testId: 'tab-EXHAUSTED' },
+      { value: 'ENDED', label: 'Encerrados', shortLabel: 'Enc.', count: n.ENDED, testId: 'tab-ENDED' },
+    ];
   });
 
-  /** Uma seção por espécie, na ordem do dono; seção sem cupom não aparece. */
-  protected readonly groups = computed(() =>
-    GROUP_ORDER.map((mode) => ({
-      mode,
-      heading: GROUP_HEADING[mode],
-      rows: this.rows().filter((row) => row.coupon.mode === mode),
-    })).filter((group) => group.rows.length > 0),
+  protected readonly anyFilter = computed(
+    () => this.search().trim() !== '' || this.typeFilter() !== 'ALL' || this.situationFilter() !== 'ALL',
   );
+
+  protected readonly resultsText = computed(() => {
+    const n = this.rows().length;
+    return n === 0 ? 'Nenhum resultado' : n === 1 ? '1 resultado' : `${n} resultados`;
+  });
+
+  /** Números do topo: da lista inteira, a busca e os filtros não mexem. O desconto é estimativa. */
+  protected readonly stats = computed(() => computeCouponStats(this.items(), this.now, this.prices()));
+
+  protected readonly activeCaption = computed(() => plural(this.stats().live, 'ativo', 'ativos'));
+
+  protected readonly totalCaption = computed(() => {
+    const { live, exhausted, total } = this.stats();
+    const ended = Math.max(total - live - exhausted, 0);
+    return `${this.activeCaption()} · ${plural(exhausted, 'esgotado', 'esgotados')} · ${plural(ended, 'encerrado', 'encerrados')}`;
+  });
+
+  /** Estimativa contada em centavos e sempre mostrada com o `≈` na frente. */
+  protected readonly formatDiscount = (cents: number): string =>
+    `≈ ${formatBRL(Math.round(cents))}`.replace(new RegExp(String.fromCharCode(160), 'g'), ' ');
+  protected readonly formatDiscountCompact = (cents: number): string =>
+    `≈ R$ ${Math.round(cents / 100).toLocaleString('pt-BR')}`;
+
+  protected readonly discountCaption = computed(() => {
+    const { monthsGranted, skippedNoPrice } = this.stats();
+    const months = monthsGranted === 1 ? 'até 1 mês' : `até ${monthsGranted} meses`;
+    return skippedNoPrice > 0 ? `estimado · ${months} · ${skippedNoPrice} sem preço` : `estimado · ${months}`;
+  });
+
+  protected readonly discountCaptionCompact = computed(() => {
+    const { monthsGranted, skippedNoPrice } = this.stats();
+    if (skippedNoPrice > 0) return `${skippedNoPrice} sem preço`;
+    return monthsGranted === 1 ? 'até 1 mês' : `até ${monthsGranted} meses`;
+  });
+
+  protected readonly expiringCaption = computed(() => {
+    const n = this.stats().activeCodes;
+    return n === 1 ? 'de 1 código ativo' : `de ${n} códigos ativos`;
+  });
+
+  protected readonly exhaustedCaption = computed(() => plural(this.stats().exhausted, 'esgotado', 'esgotados'));
 
   protected readonly hasAny = computed(() => this.items().length > 0);
 
@@ -188,7 +248,12 @@ export class AdminCoupons implements OnInit {
   });
 
   ngOnInit(): void {
+    this.destroyRef.onDestroy(() => this.timers.forEach((timer) => clearTimeout(timer)));
     this.load();
+    this.service.plans().subscribe({
+      next: (plans) => this.prices.set(monthlyPriceByPlan(plans ?? [])),
+      error: () => this.prices.set({}),
+    });
     this.caps.ensureLoaded().subscribe(() => this.openFromShortcut());
   }
 
@@ -258,11 +323,25 @@ export class AdminCoupons implements OnInit {
   }
 
   protected setTypeFilter(value: TypeFilter): void {
+    if (value === this.typeFilter()) return;
     this.typeFilter.set(value);
+    this.epoch.update((n) => n + 1);
   }
 
   protected setSituationFilter(value: SituationFilter): void {
+    if (value === this.situationFilter()) return;
     this.situationFilter.set(value);
+    this.epoch.update((n) => n + 1);
+  }
+
+  protected onTypeChange(event: Event): void {
+    this.setTypeFilter((event.target as HTMLSelectElement).value as TypeFilter);
+  }
+
+  protected clearFilters(): void {
+    this.searchControl.setValue('');
+    this.setTypeFilter('ALL');
+    this.setSituationFilter('ALL');
   }
 
   protected openSheet(): void {
@@ -283,8 +362,26 @@ export class AdminCoupons implements OnInit {
     this.items.update((list) => [coupon, ...list]);
   }
 
-  protected copy(code: string): void {
-    void copyCouponCode(this.doc.defaultView, this.notify, code);
+  protected copy(id: string, code: string): void {
+    void copyCouponCode(this.doc.defaultView, this.notify, code).then((ok) => {
+      if (!ok) return;
+      this.copiedId.set(id);
+      this.later(() => this.copiedId.update((current) => (current === id ? null : current)), COPIED_MS);
+    });
+  }
+
+  private later(fn: () => void, ms: number): void {
+    const timer = setTimeout(() => {
+      this.timers.delete(timer);
+      fn();
+    }, ms);
+    this.timers.add(timer);
+  }
+
+  /** Movimento reduzido (ou sem `matchMedia`, como no jsdom): sem colapso, a troca é na hora. */
+  private motionOk(): boolean {
+    const view = this.doc.defaultView;
+    return typeof view?.matchMedia === 'function' && !view.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
   protected askDeactivate(coupon: AdminCoupon): void {
@@ -304,7 +401,34 @@ export class AdminCoupons implements OnInit {
       next: (updated) => {
         this.deactivateBusy.set(false);
         this.deactivating.set(null);
-        this.items.update((list) => list.map((c) => (c.couponId === updated.couponId ? updated : c)));
+        const commit = (): void =>
+          this.items.update((list) => list.map((c) => (c.couponId === updated.couponId ? updated : c)));
+        const company = this.companyName(updated.companyId);
+        const stays = filterCoupons(
+          [
+            {
+              coupon: updated,
+              situation: couponSituation(updated, this.now),
+              title: updated.promotionCode ?? company,
+              company,
+            },
+          ],
+          this.filters(),
+        ).length;
+        if (stays === 0 && this.motionOk()) {
+          // Sai da lista atual: a altura encolhe e só então os dados trocam.
+          this.leaving.update((set) => new Set(set).add(updated.couponId));
+          this.later(() => {
+            commit();
+            this.leaving.update((set) => {
+              const next = new Set(set);
+              next.delete(updated.couponId);
+              return next;
+            });
+          }, COLLAPSE_MS);
+        } else {
+          commit();
+        }
         this.notify.success('Cupom desativado.');
       },
       error: (err: unknown) => {
