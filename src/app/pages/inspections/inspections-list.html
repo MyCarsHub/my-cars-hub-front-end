@@ -60,13 +60,16 @@
         aria-label="Resumo das vistorias"
         [attr.aria-busy]="summaryState() === 'loading' ? 'true' : null"
       >
-        @for (tile of kpiTiles; track tile.key) {
+        @for (tile of kpiTiles; track tile.key; let i = $index) {
           <div
             app-kpi-card
             [attr.data-kpi]="tile.key"
             [variant]="tile.variant"
             [label]="tile.label"
             [loading]="summaryState() === 'loading'"
+            numberFormat="integer"
+            placeholder="dash"
+            [stagger]="i"
             [value]="kpiValue(tile.key)"
             [detail]="tile.detail"
           ></div>
