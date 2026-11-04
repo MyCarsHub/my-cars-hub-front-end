@@ -14,6 +14,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
@@ -34,6 +35,10 @@ import {
   isLateInterestRequired,
   isRequiredFieldFixedInRental,
 } from '../rental-preflight';
+import {
+  SIGNATURE_REQUEST_CONSENT_NOTICE,
+  SIGNATURE_REQUEST_EMAIL_NOTICE,
+} from './signature-notice';
 import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 
 interface SignatureBadge {
@@ -88,7 +93,7 @@ function isPdfBytes(head: Uint8Array): boolean {
   selector: 'app-rental-contract-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [FormsModule, RouterLink, PageCard, ConfirmDialog, AlertBanner],
+  imports: [FormsModule, RouterLink, PageCard, ConfirmDialog, AlertBanner, BottomSheet],
   template: `
     <app-page-card title="Contrato">
       <div class="p-4 sm:p-6 space-y-4">
@@ -118,10 +123,11 @@ function isPdfBytes(head: Uint8Array): boolean {
           }
         }
         @if (loading()) {
-          <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
+          <div class="h-16 rounded-xl bg-surface-sunken motion-safe:animate-pulse"></div>
         } @else if (contract(); as c) {
           <div
-            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-edge bg-surface p-3"
+            data-testid="contract-file-row"
+            class="enter-up flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl bg-surface-sunken p-4"
           >
             <div class="min-w-0 flex items-center gap-3">
               <span
@@ -140,34 +146,34 @@ function isPdfBytes(head: Uint8Array): boolean {
                        mimeType da linha ainda diz DOCX (o arquivo virou PDF sem o
                        backend atualizar o MIME), e o formato REAL só é conhecido
                        depois de ler os bytes — tarde demais pra rotular o card. -->
-                  <p class="text-sm font-semibold text-fg truncate">Contrato</p>
+                  <p class="text-base font-semibold text-fg truncate">Contrato</p>
                   @if (signatureBadge(); as b) {
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
                       [class]="b.chip"
                       [attr.aria-label]="'Assinatura: ' + b.label">
                       {{ b.label }}
                     </span>
                   }
                 </div>
-                <p class="text-xs text-fg-subtle tabular-nums">
+                <p class="text-sm text-fg-subtle tabular-nums">
                   {{ fileTypeLabel() }} · {{ formatSize(c.sizeBytes) }} · Enviado {{ formatDate(c.createdDate) }}
                 </p>
               </div>
             </div>
             <div class="flex flex-col sm:flex-row flex-wrap gap-2 shrink-0">
               <button type="button" (click)="downloadContract()" [disabled]="downloading()"
-                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl press bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                @if (downloading()) { Baixando… } @else { Baixar Contrato }
+                @if (downloading()) { Baixando… } @else { Baixar contrato }
               </button>
               <button type="button" (click)="openContract()"
-                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl press bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Abrir contrato
               </button>
               @if (canReplaceFile()) {
                 <button type="button" (click)="askDelete()"
-                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-edge hover:bg-surface-muted text-fg-soft text-sm font-medium transition-colors min-h-[44px]"
+                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl press hover:bg-surface-strong text-fg-subtle hover:text-rose-700 dark:hover:text-rose-300 text-sm font-medium transition-colors min-h-[44px]"
                 >
                   Remover
                 </button>
@@ -178,10 +184,10 @@ function isPdfBytes(head: Uint8Array): boolean {
           <!-- Wrapper condicional: dentro da coluna space-y-4, uma div vazia
                ainda conta como filho e deixa um gap fantasma acima do aviso. -->
           @if (canRequestSignature() || canMarkSigned()) {
-            <div class="flex flex-col sm:flex-row gap-2">
+            <div class="enter-up flex flex-col sm:flex-row gap-2" style="--stagger-i: 1">
               @if (canRequestSignature()) {
                 <button type="button" (click)="openSignatureModal()"
-                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px]"
+                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl press bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px]"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -196,7 +202,7 @@ function isPdfBytes(head: Uint8Array): boolean {
               }
               @if (canMarkSigned()) {
                 <button type="button" (click)="askMarkSigned()" [disabled]="markingSigned()"
-                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl press bg-surface-sunken hover:bg-surface-strong text-fg-body text-sm font-semibold transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -209,17 +215,17 @@ function isPdfBytes(head: Uint8Array): boolean {
           }
 
           @if (signatureStatus() === 'PENDING') {
-            <p class="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg p-2">
+            <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-500/10 rounded-xl px-3 py-2.5">
               Aguardando signatários assinarem.
             </p>
           }
 
           @if (uploading()) {
-            <div class="rounded-xl border border-primary-200 dark:border-primary-500/30 bg-primary-50/60 dark:bg-primary-500/10 p-3 space-y-2">
+            <div class="rounded-xl bg-primary-50/60 dark:bg-primary-500/10 p-3 space-y-2">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-xs text-primary-800 dark:text-primary-400 font-medium">Enviando contrato…</p>
+                <p class="text-sm text-primary-800 dark:text-primary-400 font-medium">Enviando contrato…</p>
                 <button type="button" (click)="cancelUpload()"
-                  class="text-xs text-fg-muted hover:text-rose-600 dark:hover:text-rose-300 font-medium min-h-[44px] px-3">
+                  class="press text-sm text-fg-muted hover:text-rose-600 dark:hover:text-rose-300 font-medium min-h-[44px] px-3">
                   Cancelar
                 </button>
               </div>
@@ -230,7 +236,11 @@ function isPdfBytes(head: Uint8Array): boolean {
             </div>
           } @else if (canReplaceFile()) {
             <button type="button" (click)="picker.click()"
-              class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-edge-strong hover:border-primary-400 text-sm font-medium text-fg-muted hover:text-primary-700 dark:hover:text-primary-400 transition-colors min-h-[48px]">
+              class="press inline-flex w-fit items-center gap-2 rounded-xl px-2 text-sm font-semibold text-primary-700 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors min-h-[44px]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
               Substituir contrato
             </button>
           }
@@ -240,11 +250,11 @@ function isPdfBytes(head: Uint8Array): boolean {
               Nenhum contrato enviado ainda. Anexe o contrato (PDF ou DOCX) para este aluguel.
             </p>
             @if (uploading()) {
-              <div class="rounded-xl bg-primary-50/60 dark:bg-primary-500/10 border border-primary-200 dark:border-primary-500/30 p-3 space-y-2">
+              <div class="rounded-xl bg-primary-50/60 dark:bg-primary-500/10 p-3 space-y-2">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-xs text-primary-800 dark:text-primary-400 font-medium">Enviando contrato…</p>
+                  <p class="text-sm text-primary-800 dark:text-primary-400 font-medium">Enviando contrato…</p>
                   <button type="button" (click)="cancelUpload()"
-                    class="text-xs text-fg-muted hover:text-rose-600 dark:hover:text-rose-300 font-medium min-h-[44px] px-3">
+                    class="press text-sm text-fg-muted hover:text-rose-600 dark:hover:text-rose-300 font-medium min-h-[44px] px-3">
                     Cancelar
                   </button>
                 </div>
@@ -255,7 +265,7 @@ function isPdfBytes(head: Uint8Array): boolean {
               </div>
             } @else {
               <button type="button" (click)="picker.click()"
-                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[48px]">
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 press rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[48px]">
                 Enviar contrato (PDF ou DOCX)
               </button>
             }
@@ -287,84 +297,105 @@ function isPdfBytes(head: Uint8Array): boolean {
     />
 
     @if (signatureModalOpen()) {
-      <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
-        (click)="closeSignatureModal()">
-        <div class="w-full max-w-lg bg-surface rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden"
-          (click)="$event.stopPropagation()">
-          <div class="p-4 sm:p-6 border-b border-edge-soft">
-            <h3 class="text-base font-semibold text-fg">Solicitar assinatura eletrônica</h3>
-            <p class="text-xs text-fg-subtle mt-1">
-              Cada signatário receberá um email do Autentique com link direto para assinar.
+      <app-bottom-sheet
+        title="Solicitar assinatura eletrônica"
+        size="lg"
+        [quietScroll]="true"
+        [busy]="requesting()"
+        (closed)="closeSignatureModal()"
+      >
+        <div data-testid="signature-sheet" class="space-y-4 pb-4">
+          <div class="flex items-start gap-3 rounded-2xl bg-surface-sunken px-4 py-3.5 text-sm leading-relaxed text-fg-soft">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="mt-0.5 shrink-0 text-fg-muted" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+            <p class="m-0">
+              <span data-testid="signature-email-notice">{{ emailNotice }}</span>
+              <span data-testid="signature-consent-notice"> {{ consentNotice }}</span>
             </p>
           </div>
-          <div class="p-4 sm:p-6 space-y-3 max-h-[60vh] overflow-y-auto">
-            @for (s of signers(); track $index; let i = $index) {
-              <div class="flex gap-2 items-start">
-                <div class="flex-1 space-y-2">
-                  <div>
-                    <label class="sr-only" [attr.for]="'signer-' + i + '-name'">
-                      Nome do signatário {{ i + 1 }}
-                    </label>
-                    <input type="text" [(ngModel)]="s.name" [name]="'signer-' + i + '-name'"
-                      [id]="'signer-' + i + '-name'"
-                      placeholder="Nome do signatário"
-                      [attr.aria-invalid]="isNameInvalid(s.name) ? 'true' : null"
-                      [attr.aria-describedby]="isNameInvalid(s.name) ? 'signer-' + i + '-name-error' : null"
-                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isNameInvalid(s.name) ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-500/10' : 'border-edge-field')" />
-                    @if (isNameInvalid(s.name)) {
-                      <p class="text-xs text-rose-600 dark:text-rose-300 mt-1" [id]="'signer-' + i + '-name-error'" role="alert">
-                        Informe o nome do signatário.
-                      </p>
-                    }
-                  </div>
-                  <div>
-                    <label class="sr-only" [attr.for]="'signer-' + i + '-email'">
-                      E-mail do signatário {{ i + 1 }}
-                    </label>
-                    <input type="email" [(ngModel)]="s.email" [name]="'signer-' + i + '-email'"
-                      [id]="'signer-' + i + '-email'"
-                      placeholder="email@exemplo.com"
-                      [attr.aria-invalid]="isEmailInvalid(s.email) ? 'true' : null"
-                      [attr.aria-describedby]="isEmailInvalid(s.email) ? 'signer-' + i + '-email-error' : null"
-                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isEmailInvalid(s.email) ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-500/10' : 'border-edge-field')" />
-                    @if (isEmailInvalid(s.email)) {
-                      <p class="text-xs text-rose-600 dark:text-rose-300 mt-1" [id]="'signer-' + i + '-email-error'" role="alert">
-                        Informe um e-mail válido (ex.: nome@empresa.com.br).
-                      </p>
-                    }
-                  </div>
-                </div>
+          @for (s of signers(); track $index; let i = $index) {
+            <section class="enter-up rounded-2xl bg-surface-sunken p-4 space-y-3" [style.--stagger-i]="i"
+              [attr.aria-label]="roleOf(i)">
+              <div class="flex items-center gap-3">
+                <span aria-hidden="true"
+                  class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-500/15 text-sm font-semibold text-primary-700 dark:text-primary-300">
+                  {{ initials(s.name) }}
+                </span>
+                <p class="m-0 min-w-0 flex-1 truncate text-base font-semibold text-fg">{{ roleOf(i) }}</p>
                 @if (signers().length > 1) {
                   <button type="button" (click)="removeSigner(i)"
-                    class="mt-1 p-2 text-fg-faint hover:text-rose-600 dark:hover:text-rose-300 min-h-[44px] min-w-[44px]"
+                    class="press -mr-2 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-fg-subtle hover:bg-surface-strong hover:text-rose-600 dark:hover:text-rose-300"
                     aria-label="Remover signatário">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
                   </button>
                 }
               </div>
-            }
-            @if (signers().length < 6) {
-              <button type="button" (click)="addSigner()"
-                class="w-full py-2 rounded-lg border border-dashed border-edge-strong hover:border-primary-400 text-sm text-fg-muted hover:text-primary-700 dark:hover:text-primary-400 min-h-[44px]">
-                + Adicionar signatário
-              </button>
-            }
-          </div>
-          <div class="p-4 sm:p-6 border-t border-edge-soft flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-            <button type="button" (click)="closeSignatureModal()" [disabled]="requesting()"
-              class="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-edge hover:bg-surface-muted text-sm font-medium min-h-[44px]">
-              Cancelar
+              <div class="grid gap-3 lg:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-fg-soft" [attr.for]="'signer-' + i + '-name'">
+                  Nome<span class="sr-only"> do signatário {{ i + 1 }}</span>
+                </label>
+                <input type="text" [(ngModel)]="s.name" [name]="'signer-' + i + '-name'"
+                  [id]="'signer-' + i + '-name'"
+                  placeholder="Nome completo" autocomplete="off"
+                  (blur)="touch('n' + i)"
+                  [attr.aria-invalid]="showNameError(i, s.name) ? 'true' : null"
+                  [attr.aria-describedby]="showNameError(i, s.name) ? 'signer-' + i + '-name-error' : null"
+                  [class]="'w-full px-4 py-3 rounded-xl border bg-surface text-fg placeholder:text-fg-faint text-base min-h-[48px] ' + (showNameError(i, s.name) ? 'border-rose-400' : 'border-edge-field')" />
+                @if (showNameError(i, s.name)) {
+                  <p class="text-sm text-rose-600 dark:text-rose-300 mt-1" [id]="'signer-' + i + '-name-error'" role="alert">
+                    Informe o nome do signatário.
+                  </p>
+                }
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-fg-soft" [attr.for]="'signer-' + i + '-email'">
+                  E-mail<span class="sr-only"> do signatário {{ i + 1 }}</span>
+                </label>
+                <input type="email" [(ngModel)]="s.email" [name]="'signer-' + i + '-email'"
+                  [id]="'signer-' + i + '-email'"
+                  placeholder="email@exemplo.com" autocomplete="off"
+                  (blur)="touch('e' + i)"
+                  [attr.aria-invalid]="showEmailError(i, s.email) ? 'true' : null"
+                  [attr.aria-describedby]="showEmailError(i, s.email) ? 'signer-' + i + '-email-error' : null"
+                  [class]="'w-full px-4 py-3 rounded-xl border bg-surface text-fg placeholder:text-fg-faint text-base min-h-[48px] ' + (showEmailError(i, s.email) ? 'border-rose-400' : 'border-edge-field')" />
+                @if (showEmailError(i, s.email)) {
+                  <p class="text-sm text-rose-600 dark:text-rose-300 mt-1" [id]="'signer-' + i + '-email-error'" role="alert">
+                    Informe um e-mail válido (ex.: nome@empresa.com.br).
+                  </p>
+                }
+              </div>
+              </div>
+            </section>
+          }
+          @if (signers().length < 6) {
+            <button type="button" (click)="addSigner()"
+              class="press inline-flex min-h-[48px] items-center gap-2 rounded-xl px-2 text-base font-semibold text-primary-700 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Adicionar signatário
             </button>
-            <button type="button" (click)="submitSignature()" [disabled]="requesting() || !canSubmit()"
-              class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">
-              @if (requesting()) { Enviando… } @else { Enviar para assinatura }
-            </button>
-          </div>
+          }
         </div>
-      </div>
+        <div sheetFooter class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+          <button type="button" (click)="closeSignatureModal()" [disabled]="requesting()"
+            class="press w-full sm:w-auto px-5 py-2.5 rounded-xl text-base font-semibold text-fg-soft hover:bg-surface-sunken min-h-[48px] disabled:opacity-60">
+            Cancelar
+          </button>
+          <button type="button" (click)="submitSignature()" [disabled]="requesting()"
+            class="press w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-base font-semibold shadow-sm min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed">
+            @if (requesting()) { Enviando… } @else { Enviar para assinatura }
+          </button>
+        </div>
+      </app-bottom-sheet>
     }
   `,
   // Tailwind não tem token de barra indeterminada; keyframe local (encapsulado
@@ -454,10 +485,17 @@ export class RentalContractCard implements OnInit, OnDestroy {
   protected readonly markSignedOpen = signal(false);
   protected readonly markingSigned = signal(false);
 
+  protected readonly emailNotice = SIGNATURE_REQUEST_EMAIL_NOTICE;
+  protected readonly consentNotice = SIGNATURE_REQUEST_CONSENT_NOTICE;
   protected readonly signatureModalOpen = signal(false);
   protected readonly requesting = signal(false);
   protected readonly prefilling = signal(false);
   protected readonly signers = signal<SignerRequest[]>([]);
+  /** Papel de cada signatário, na mesma ordem de `signers`. Sem papel conhecido: «Signatário N». */
+  private readonly signerRoles = signal<string[]>([]);
+  /** Campos já tocados (blur) e tentativa de envio: o erro só aparece depois de um dos dois. */
+  private readonly touched = signal<ReadonlySet<string>>(new Set());
+  private readonly submitted = signal(false);
 
   private pollHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -830,7 +868,11 @@ export class RentalContractCard implements OnInit, OnDestroy {
     // Seed defensively (driver empty + operator from session) so the modal
     // is usable even se o fetch do driver falhar. O fetch abaixo sobrescreve
     // apenas o signer 1 quando resolve.
-    this.signers.set(this.buildInitialSigners(null));
+    const seed = this.buildInitialSigners(null);
+    this.signers.set(seed);
+    this.signerRoles.set(seed.map((_, i) => (i === 0 ? 'Motorista' : 'Locador')));
+    this.touched.set(new Set());
+    this.submitted.set(false);
     this.signatureModalOpen.set(true);
     this.prefilling.set(true);
 
@@ -882,13 +924,50 @@ export class RentalContractCard implements OnInit, OnDestroy {
   }
   protected addSigner(): void {
     this.signers.update((list) => [...list, { name: '', email: '' }]);
+    this.signerRoles.update((r) => [...r, `Signatário ${this.signers().length}`]);
   }
   protected removeSigner(index: number): void {
     this.signers.update((list) => list.filter((_, i) => i !== index));
+    this.signerRoles.update((r) => r.filter((_, i) => i !== index));
+  }
+
+  protected roleOf(index: number): string {
+    return this.signerRoles()[index] ?? `Signatário ${index + 1}`;
+  }
+
+  /** Iniciais para o avatar: primeira letra das duas primeiras palavras do nome. */
+  protected initials(name: string): string {
+    const letters = name
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w.charAt(0).toUpperCase());
+    return letters.join('') || '?';
+  }
+
+  protected touch(key: string): void {
+    this.touched.update((t) => new Set(t).add(key));
+  }
+  protected showNameError(index: number, name: string): boolean {
+    return (this.submitted() || this.touched().has('n' + index)) && this.isNameInvalid(name);
+  }
+  protected showEmailError(index: number, email: string): boolean {
+    return (this.submitted() || this.touched().has('e' + index)) && this.isEmailInvalid(email);
   }
 
   protected submitSignature(): void {
-    if (!this.canSubmit()) return;
+    if (!this.canSubmit()) {
+      // Sem botão desabilitado: mostra o erro de cada campo e leva o foco ao primeiro inválido.
+      this.submitted.set(true);
+      const list = this.signers();
+      const bad = list.findIndex((x) => this.isNameInvalid(x.name) || this.isEmailInvalid(x.email));
+      if (bad >= 0) {
+        const id = this.isNameInvalid(list[bad].name) ? `signer-${bad}-name` : `signer-${bad}-email`;
+        setTimeout(() => document.getElementById(id)?.focus(), 0);
+      }
+      return;
+    }
     this.error.set(null);
     this.requesting.set(true);
     const payload = this.signers().map((s) => ({ name: s.name.trim(), email: s.email.trim() }));

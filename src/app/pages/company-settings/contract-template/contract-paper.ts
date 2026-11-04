@@ -95,7 +95,7 @@ export type PaperMode = 'example' | 'names';
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
         @if (draft()) {
           <p
-            class="m-0 inline-flex items-center gap-1.5 rounded-full border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-1 text-[13px] font-semibold text-amber-900 dark:text-amber-200"
+            class="m-0 inline-flex items-center gap-1.5 rounded-full bg-amber-50 dark:bg-amber-500/10 px-3 py-1 text-[13px] font-semibold text-amber-900 dark:text-amber-200"
           >
             <app-contract-icon name="pen" [size]="14" />
             Rascunho, aguardando revisão jurídica

@@ -40,6 +40,7 @@ import { formatFileSize, hasZipSignature, isDocxFile } from './contract-dropzone
 import { ContractClausesStep } from './steps/clauses-step';
 import { ContractConsentStep } from './steps/consent-step';
 import { ContractQuestionsStep } from './steps/questions-step';
+import { mentionsESignature } from './autentique-clause';
 import { ContractReviewStep } from './steps/review-step';
 import { ContractUploadStep } from './steps/upload-step';
 import { ContractWordStep } from './steps/word-step';
@@ -108,10 +109,6 @@ const STEPS: Record<EsteiraPath, string[]> = {
   templateUrl: './contract-esteira.html',
   // Entrada de cada etapa e a varredura da leitura: só com movimento liberado pelo sistema.
   styles: `
-    @keyframes step-in {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: none; }
-    }
     @keyframes scan {
       0% { transform: translateY(-2rem); }
       100% { transform: translateY(9rem); }
@@ -122,7 +119,6 @@ const STEPS: Record<EsteiraPath, string[]> = {
       background: linear-gradient(to bottom, transparent, rgb(255 182 153 / 0.6), transparent);
     }
     @media (prefers-reduced-motion: no-preference) {
-      .step-in { animation: step-in 240ms var(--ease-out) both; }
       .scan-line { display: block; animation: scan 1.8s ease-in-out infinite; }
     }
   `,
@@ -280,9 +276,9 @@ export class ContractEsteira {
 
   // ---- classes repetidas (botões e cartões de caminho)
   protected readonly primaryBtn =
-    'inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-6 text-[17px] font-semibold text-white shadow-md transition hover:bg-primary-600 active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
+    'press inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-6 text-[17px] font-semibold text-white shadow-md transition hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
   protected readonly secondaryBtn =
-    'inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-edge-strong bg-surface px-5 text-base font-semibold text-fg-body transition-colors hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2';
+    'press inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-edge-strong bg-surface px-5 text-base font-semibold text-fg-body transition-colors hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2';
   protected readonly cardOn =
     'border-edge shadow-sm hover:-translate-y-0.5 hover:border-edge-strong hover:shadow-lg active:translate-y-0 motion-reduce:hover:translate-y-0';
   // Sem `bg-*` próprio: o `bg-white` estático do card sempre venceu o antigo
@@ -449,6 +445,17 @@ export class ContractEsteira {
       driverMissing: !fields.has('driverName') && !fields.has('driverCpf'),
       driverNamed: fields.has('driverName'),
     };
+  });
+
+  /**
+   * O contrato enviado não cita a assinatura eletrônica. Só no caminho «meu contrato» e só
+   * com o texto lido (sem texto, não se sabe: não avisa). O «montar do zero» já traz a
+   * cláusula fixa no catálogo.
+   */
+  protected readonly esignatureMissing = computed(() => {
+    if (this.path() !== 'mine') return false;
+    const texts = this.maskedParagraphs()?.map((p) => p.text) ?? this.fallbackLines();
+    return !!texts && texts.length > 0 && !mentionsESignature(texts);
   });
 
   /** Documento do motorista respondido sem o nome: o nome ao lado pode ter ficado fixo. */

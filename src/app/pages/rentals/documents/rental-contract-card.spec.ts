@@ -705,7 +705,7 @@ describe('RentalContractCard — upload UX', () => {
         expect(texts(fixture)).toContain('Substituir contrato');
         expect(texts(fixture)).toContain('DOCX');
         expect(texts(fixture)).toMatch(/Solicitar assinatura|Reenviar para assinatura/);
-        expect(texts(fixture)).toContain('Baixar Contrato');
+        expect(texts(fixture)).toContain('Baixar contrato');
       },
     );
 

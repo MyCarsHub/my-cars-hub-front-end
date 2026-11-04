@@ -52,8 +52,8 @@ type LoadState = 'loading' | 'ready' | 'error';
         @switch (state()) {
           @case ('loading') {
             <div aria-hidden="true" class="flex flex-col gap-6">
-              <div class="h-[200px] rounded-2xl bg-surface-sunken animate-pulse"></div>
-              <div class="h-[420px] rounded-2xl bg-surface-sunken animate-pulse"></div>
+              <div class="h-[200px] rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
+              <div class="h-[420px] rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
             </div>
           }
           @case ('error') {
@@ -68,15 +68,14 @@ type LoadState = 'loading' | 'ready' | 'error';
             </app-alert-banner>
           }
           @case ('ready') {
-            <div class="rounded-[20px] transition-shadow duration-700"
+            <div class="enter-up rounded-[20px] transition-shadow duration-700"
               [class]="savedNow() ? 'saved-glow' : ''">
             <app-page-card title="Contrato atual">
               <span cardIcon aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300">
                 <app-contract-icon name="fileText" [size]="18" />
               </span>
               @if (template()) {
-                <span cardActions class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-[13px] font-semibold text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-200 dark:ring-emerald-500/30">
-                  <span aria-hidden="true" class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                <span cardActions class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
                   Em uso
                 </span>
               }
@@ -104,7 +103,7 @@ type LoadState = 'loading' | 'ready' | 'error';
                   <app-alert-banner variant="error" [message]="message" />
                 }
                 @if (template(); as t) {
-                  <div class="flex flex-col gap-4 @md:rounded-2xl @md:border @md:border-edge @md:p-4 @3xl:flex-row @3xl:items-center">
+                  <div class="flex flex-col gap-4 @md:rounded-2xl @md:bg-surface-sunken @md:p-4 @3xl:flex-row @3xl:items-center">
                     <div class="flex min-w-0 flex-1 items-center gap-4">
                       <!-- Miniatura de folha: o contrato em uso, não um ícone genérico. -->
                       <span aria-hidden="true" class="relative flex h-14 w-11 shrink-0 flex-col gap-1 rounded-[3px] bg-surface px-2 py-2.5 shadow-md ring-1 ring-black/5">
@@ -124,17 +123,17 @@ type LoadState = 'loading' | 'ready' | 'error';
                     </div>
                     <div class="grid shrink-0 grid-cols-1 gap-2.5 @md:grid-cols-2 @3xl:flex">
                       <button type="button" (click)="downloadTemplate()" [disabled]="downloading()"
-                        class="inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-700 px-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 @3xl:px-5">
+                        class="press inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-700 px-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 @3xl:px-5">
                         <app-contract-icon name="download" [size]="18" />
                         {{ downloading() ? 'Baixando…' : 'Baixar contrato' }}
                       </button>
                       <button type="button" (click)="openTemplate()"
-                        class="inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary-500 px-4 text-base font-semibold text-white shadow-sm hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @3xl:px-5">
+                        class="press inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary-500 px-4 text-base font-semibold text-white shadow-sm hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @3xl:px-5">
                         <app-contract-icon name="eye" [size]="18" />
                         Abrir contrato
                       </button>
                       <button type="button" (click)="deleteOpen.set(true)"
-                        class="inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-edge-strong bg-surface px-5 text-base font-medium text-fg-body hover:border-rose-300 dark:hover:border-rose-500/40 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-800 dark:hover:text-rose-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @md:col-span-2 @3xl:col-span-1">
+                        class="press inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-edge-strong bg-surface px-5 text-base font-medium text-fg-body hover:border-rose-300 dark:hover:border-rose-500/40 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-800 dark:hover:text-rose-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @md:col-span-2 @3xl:col-span-1">
                         <app-contract-icon name="trash" [size]="18" />
                         Remover
                       </button>
@@ -153,7 +152,7 @@ type LoadState = 'loading' | 'ready' | 'error';
             </app-page-card>
             </div>
 
-            <app-contract-esteira [template]="template()" (saved)="onSaved($event)" />
+            <app-contract-esteira class="enter-up block" style="--stagger-i: 1" [template]="template()" (saved)="onSaved($event)" />
           }
         }
       </div>
