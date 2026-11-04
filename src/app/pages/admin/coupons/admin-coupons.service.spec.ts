@@ -93,6 +93,14 @@ describe('AdminCouponsService', () => {
     expect(planCode).toBeNull();
   });
 
+  it('lê os usos do cupom, com o id escapado e os erros tratados pela tela', () => {
+    service.redemptions('c/1 2').subscribe();
+    const req = http.expectOne(`${BASE}/c%2F1%202/redemptions`);
+    expect(req.request.method).toBe('GET');
+    expect(owned(req.request.context)).toBe(true);
+    req.flush({ coupon: {}, redemptions: [], uses: 0, totalDiscountCents: 0, truncated: false });
+  });
+
   it('busca empresas sem tocar no cache da página Empresas', () => {
     let found = 0;
     service.searchCompanies(' loca ').subscribe((list) => (found = list.length));

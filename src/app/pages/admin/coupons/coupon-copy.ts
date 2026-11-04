@@ -8,7 +8,7 @@ import { planTierOf } from '../../../utils/plan-features';
 import { PLAN_COPY } from '../../../utils/plan-grid-copy';
 import { formatFullDate, parseServerTime } from '../../../utils/server-time';
 
-export type CouponAction = 'load' | 'preview' | 'create' | 'deactivate';
+export type CouponAction = 'load' | 'preview' | 'create' | 'deactivate' | 'detail';
 
 export interface CouponStatusView {
   label: string;
@@ -39,6 +39,7 @@ const STRIPE_DOWN: Record<CouponAction, string> = {
   preview: 'A Stripe não respondeu. Tente de novo para ver a prévia.',
   create: 'A Stripe não respondeu. Confira a lista de cupons antes de tentar de novo.',
   deactivate: 'A Stripe não respondeu. O cupom continua como estava. Tente de novo.',
+  detail: 'A Stripe não respondeu, e os usos do cupom moram lá. Tente de novo.',
 };
 
 const GENERIC: Record<CouponAction, string> = {
@@ -46,6 +47,7 @@ const GENERIC: Record<CouponAction, string> = {
   preview: 'Não foi possível calcular a prévia. Tente de novo.',
   create: 'Não foi possível criar o cupom. Tente de novo.',
   deactivate: 'Não foi possível desativar o cupom. Tente de novo.',
+  detail: 'Não foi possível carregar os usos do cupom. Tente de novo.',
 };
 
 export function discountLabel(coupon: Pick<AdminCoupon, 'amountOffCents' | 'percentOff'>): string {
@@ -150,11 +152,11 @@ export function couponErrorMessage(err: unknown, action: CouponAction): string {
       case 0:
         return 'Sem conexão com o servidor. Tente de novo.';
       case 403:
-        return action === 'load' || action === 'preview'
+        return action === 'load' || action === 'preview' || action === 'detail'
           ? 'Seu papel não acessa os cupons.'
           : 'Só o papel Dono cria e desativa cupons.';
       case 404:
-        return action === 'deactivate'
+        return action === 'deactivate' || action === 'detail'
           ? 'Cupom não encontrado na Stripe.'
           : 'Empresa ou plano não encontrado, ou a empresa ainda não tem assinatura.';
       case 503:
