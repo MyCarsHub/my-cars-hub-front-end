@@ -125,6 +125,7 @@ describe('AdminCoupons', () => {
       searchCompanies: vi.fn(() => of([])),
       preview: vi.fn(() => NEVER),
       create: vi.fn(() => NEVER),
+      redemptions: vi.fn(() => NEVER),
     };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
     writeText = vi.fn(() => Promise.resolve());
@@ -271,10 +272,13 @@ describe('AdminCoupons', () => {
       expect(card.querySelector('[data-testid="menu-deactivate"]')).toBeNull();
     });
 
-    it('leitura de cupom sem código fica sem kebab', () => {
+    it('leitura de cupom sem código só tem "Ver detalhes" no kebab', () => {
       service['list'].mockReturnValue(of([APPLIED]));
-      const { el } = render(LEITURA);
-      expect(el.querySelector('app-actions-menu')).toBeNull();
+      const { el, fixture } = render(LEITURA);
+      const card = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
+      openKebab(card, fixture);
+      const items = Array.from(card.querySelectorAll('[role="menuitem"]')).map((i) => i.getAttribute('data-testid'));
+      expect(items).toEqual(['menu-detail']);
     });
 
     it('lista vazia para leitura não oferece criar', () => {
@@ -360,6 +364,114 @@ describe('AdminCoupons', () => {
       // O nó do diálogo só sai depois da animação de saída: o estado é que prova.
       const c = fixture.componentInstance as unknown as { deactivating(): AdminCoupon | null };
       expect(c.deactivating()).toBeNull();
+    });
+  });
+
+  describe('detalhe do cupom', () => {
+    const redemptions = {
+      coupon: CODE,
+      redemptions: [],
+      uses: 0,
+      totalDiscountCents: 0,
+      truncated: false,
+    };
+    const detail = (el: HTMLElement): HTMLElement | null => el.querySelector('app-coupon-detail');
+    const first = (el: HTMLElement): HTMLElement => el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
+
+    beforeEach(() => {
+      service['redemptions'].mockReturnValue(of(redemptions));
+    });
+
+    it('clicar no ingresso abre o detalhe daquele cupom', () => {
+      const { el, fixture } = render();
+      first(el).click();
+      fixture.detectChanges();
+      expect(detail(el)).not.toBeNull();
+      expect(service['redemptions']).toHaveBeenCalledWith('c-code');
+    });
+
+    it('clicar na linha da tabela abre o detalhe', () => {
+      stubWide(true);
+      const { el, fixture } = render();
+      fixture.detectChanges();
+      const row = el.querySelector('tr[data-testid="coupon-card"]') as HTMLElement;
+      row.click();
+      fixture.detectChanges();
+      expect(detail(el)).not.toBeNull();
+    });
+
+    it('"Ver detalhes" é o primeiro item do kebab e abre o detalhe', () => {
+      const { el, fixture } = render();
+      const card = first(el);
+      openKebab(card, fixture);
+      const items = Array.from(card.querySelectorAll('[role="menuitem"]'));
+      expect(items[0].getAttribute('data-testid')).toBe('menu-detail');
+      (items[0] as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(detail(el)).not.toBeNull();
+    });
+
+    it('copiar o código não abre o detalhe', () => {
+      const { el, fixture } = render();
+      (first(el).querySelector('[data-testid="copy-code"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(detail(el)).toBeNull();
+      expect(service['redemptions']).not.toHaveBeenCalled();
+    });
+
+    it('abrir o kebab não abre o detalhe', () => {
+      const { el, fixture } = render();
+      openKebab(first(el), fixture);
+      expect(detail(el)).toBeNull();
+    });
+
+    it('clicar no link da empresa não abre o detalhe', () => {
+      service['list'].mockReturnValue(of([APPLIED]));
+      const { el, fixture } = render();
+      const link = first(el).querySelector('a') as HTMLAnchorElement;
+      link.addEventListener('click', (e) => e.preventDefault());
+      link.click();
+      fixture.detectChanges();
+      expect(detail(el)).toBeNull();
+    });
+
+    it('Enter e Espaço na linha abrem; outra tecla não', () => {
+      const { el, fixture } = render();
+      const card = first(el);
+      expect(card.getAttribute('tabindex')).toBe('0');
+      card.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+      fixture.detectChanges();
+      expect(detail(el)).toBeNull();
+      card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      fixture.detectChanges();
+      expect(detail(el)).not.toBeNull();
+    });
+
+    it('Espaço abre sem rolar a página', () => {
+      const { el, fixture } = render();
+      const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+      first(el).dispatchEvent(event);
+      fixture.detectChanges();
+      expect(event.defaultPrevented).toBe(true);
+      expect(detail(el)).not.toBeNull();
+    });
+
+    it('Enter no botão de copiar não abre o detalhe', () => {
+      const { el, fixture } = render();
+      const button = first(el).querySelector('[data-testid="copy-code"]') as HTMLButtonElement;
+      button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      fixture.detectChanges();
+      expect(detail(el)).toBeNull();
+    });
+
+    it('fechar o detalhe tira a folha da tela', async () => {
+      const { el, fixture } = render();
+      first(el).click();
+      fixture.detectChanges();
+      (el.querySelector('[data-testid="bottom-sheet-close"]') as HTMLButtonElement).click();
+      await new Promise((resolve) => setTimeout(resolve, 260));
+      fixture.detectChanges();
+      expect(detail(el)).toBeNull();
     });
   });
 
