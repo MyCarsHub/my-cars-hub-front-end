@@ -1,4 +1,19 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  PLATFORM_ID,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
+
+/** Duração da contagem de 0 até o número final. */
+const COUNT_UP_MS = 700;
 
 /** The four looks of the Dashboard KPI strip. Nothing else exists: no new colour, no new radius. */
 export type KpiCardVariant = 'primary' | 'emerald' | 'emerald-dark' | 'white';
@@ -62,17 +77,32 @@ const LOOKS: Record<KpiCardVariant, KpiCardLook> = {
 @Component({
   selector: 'div[app-kpi-card]',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '[class]': 'look().card' },
+  host: { '[class]': 'hostClass()' },
   template: `
-    <p [class]="look().label">{{ label() }}</p>
+    <p [class]="labelClass()">
+      <ng-content select="[kpiIcon]" />
+      <span class="truncate">{{ label() }}</span>
+    </p>
     @if (loading()) {
       <div [class]="look().skeleton"></div>
     } @else {
-      @if (value() !== null) {
-        <p [class]="look().value">{{ value() }}</p>
+      @if (view(); as v) {
+        <p [class]="valueClass()">
+          @if (v.compact !== null) {
+            <span class="md:hidden">{{ v.compact }}</span>
+            <span class="hidden md:inline">{{ v.full }}</span>
+          } @else {
+            {{ v.full }}
+          }
+        </p>
       }
       @if (detail() !== null) {
-        <p data-kpi-detail [class]="look().detail">{{ detail() }}</p>
+        <p data-kpi-detail [class]="detailCompact() !== null ? look().detail + ' hidden md:block' : look().detail">
+          {{ detail() }}
+        </p>
+      }
+      @if (detailCompact() !== null) {
+        <p data-kpi-detail [class]="look().detail + ' md:hidden'">{{ detailCompact() }}</p>
       }
     }
   `,
@@ -85,5 +115,86 @@ export class KpiCard {
   /** Shows a bar where the number goes, keeping the label: the card never changes height. */
   readonly loading = input(false);
 
+  /** Legenda mais curta para telas abaixo de `md`; sem ela, `detail` vale em todas. */
+  readonly detailCompact = input<string | null>(null);
+  /** Número que o cartão CONTA de 0 até aqui (uma vez, na primeira carga); vence `value`. */
+  readonly countTo = input<number | null>(null);
+  /** Como o número vira texto durante e depois da contagem. */
+  readonly format = input<(n: number) => string>((n) => String(Math.round(n)));
+  /** Texto do número abaixo de `md`; sem ele, `format` vale em todas as telas. */
+  readonly formatCompact = input<((n: number) => string) | null>(null);
+  /** Número ancorado no pé do cartão e altura mínima, para uma fileira de cartões iguais. */
+  readonly anchored = input(false);
+
   protected readonly look = computed(() => LOOKS[this.variant()]);
+
+  protected readonly hostClass = computed(
+    () => this.look().card + (this.anchored() ? ' flex! flex-col min-h-[112px]' : ''),
+  );
+  /** Cartão ancorado (com ícone): rótulo em caixa normal, que cabe inteiro em 375px. */
+  protected readonly labelClass = computed(
+    () =>
+      this.look().label +
+      ' flex items-center gap-1.5' +
+      (this.anchored() ? ' normal-case! tracking-normal! text-xs! sm:text-xs!' : ''),
+  );
+  protected readonly valueClass = computed(
+    () => this.look().value + (this.anchored() ? ' mt-auto' : ''),
+  );
+
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly shown = signal<number | null>(null);
+  private counted = false;
+  private frame = 0;
+
+  protected readonly view = computed<{ full: string; compact: string | null } | null>(() => {
+    if (this.countTo() === null) {
+      const v = this.value();
+      return v === null ? null : { full: String(v), compact: null };
+    }
+    const n = this.shown();
+    if (n === null) return null;
+    const compact = this.formatCompact();
+    return { full: this.format()(n), compact: compact ? compact(n) : null };
+  });
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.cancel());
+    effect(() => {
+      const target = this.countTo();
+      if (target === null || this.loading()) return;
+      untracked(() => this.run(target));
+    });
+  }
+
+  /** Sem `requestAnimationFrame`/`matchMedia` (SSR, jsdom) ou com movimento reduzido, salta ao final. */
+  private canAnimate(): boolean {
+    if (!isPlatformBrowser(this.platformId)) return false;
+    if (typeof requestAnimationFrame !== 'function' || typeof matchMedia !== 'function') return false;
+    return !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  private run(target: number): void {
+    this.cancel();
+    if (this.counted || !this.canAnimate() || target <= 0) {
+      this.counted = true;
+      this.shown.set(target);
+      return;
+    }
+    this.counted = true;
+    this.shown.set(0);
+    const start = performance.now();
+    const tick = (now: number): void => {
+      const t = Math.min((now - start) / COUNT_UP_MS, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      this.shown.set(t >= 1 ? target : target * eased);
+      if (t < 1) this.frame = requestAnimationFrame(tick);
+    };
+    this.frame = requestAnimationFrame(tick);
+  }
+
+  private cancel(): void {
+    if (this.frame && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.frame);
+    this.frame = 0;
+  }
 }

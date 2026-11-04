@@ -84,6 +84,19 @@ describe('AdminCoupons', () => {
     return { fixture, el: fixture.nativeElement as HTMLElement };
   };
 
+  /** O jsdom nao tem `matchMedia`: sem ele a tela e a de telefone. Isto liga a de `md` (tabela). */
+  const stubWide = (wide: boolean): void => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        matches: wide && query.includes('min-width'),
+        media: query,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      }),
+    });
+  };
+
   const openKebab = (scope: HTMLElement, fixture: ComponentFixture<AdminCoupons>): void => {
     (scope.querySelector('app-actions-menu button[aria-haspopup="menu"]') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -118,7 +131,10 @@ describe('AdminCoupons', () => {
     Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(window, 'matchMedia');
+  });
 
   it('a rota é lazy e fica sob o adminGuard', () => {
     const find = (list: typeof routes, path: string): (typeof routes)[number] | undefined => {
@@ -139,7 +155,7 @@ describe('AdminCoupons', () => {
     it('mostra código, empresa, desconto, duração, validade e situação', () => {
       const { el } = render();
       const row = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
-      for (const text of ['MCH-7KQ2M9XA', 'Locadora Teste', 'R$ 49,90', '2 meses', 'vale até 29/11/2099', 'Ativo']) {
+      for (const text of ['MCH-7KQ2M9XA', 'Locadora Teste', 'R$ 49,90', '2 meses', '29/11', 'Ativo']) {
         expect(row.textContent).toContain(text);
       }
       expect(row.querySelector('a')?.getAttribute('href')).toBe('/admin/companies/co-1');
@@ -206,7 +222,7 @@ describe('AdminCoupons', () => {
 
     it('chip de situação é só texto: sem bolinha dentro', () => {
       const { el } = render();
-      const chip = el.querySelector('[data-testid="coupon-card"] app-status-chip') as HTMLElement;
+      const chip = el.querySelector('[data-testid="coupon-card"] app-status-chip:not([data-testid="coupon-kind"])') as HTMLElement;
       expect(chip.textContent?.trim()).toBe('Ativo');
       expect(chip.children).toHaveLength(0);
     });
@@ -411,19 +427,92 @@ describe('AdminCoupons', () => {
       maxRedemptions: 5,
     };
 
-    it('agrupa por espécie e mostra o código, os usos e nenhuma empresa', () => {
+    it('mostra o tipo, o código, os usos e nenhuma empresa, em tabela', () => {
+      stubWide(true);
       service['list'].mockReturnValue(of([CODE, APPLIED, OPEN]));
       const { fixture, el } = render();
       fixture.detectChanges();
-      const list = el.querySelector('[data-testid="coupons-list"]') as HTMLElement;
-      const order = Array.from(list.querySelectorAll('app-list-group')).map((s) => s.getAttribute('data-testid'));
-      expect(order).toEqual(['group-OPEN_CODE', 'group-PROMOTION_CODE', 'group-APPLIED_TO_SUBSCRIPTION']);
-      const open = list.querySelector('[data-testid="group-OPEN_CODE"]') as HTMLElement;
-      expect(open.querySelector('h2')?.textContent).toContain('Códigos para qualquer pessoa');
-      expect(open.querySelector('[data-testid="coupon-title"]')?.textContent).toContain('MANOLO100OFF');
+      expect(el.querySelector('table[data-testid="coupons-list"]')).not.toBeNull();
+      const open = Array.from(el.querySelectorAll('[data-testid="coupon-card"]')).find((r) =>
+        r.textContent?.includes('MANOLO100OFF'),
+      ) as HTMLElement;
       expect(open.querySelector('[data-testid="coupon-kind"]')?.textContent).toContain('Qualquer pessoa');
-      expect(open.querySelector('[data-testid="coupon-meta"]')?.textContent).toContain('usos 2/5 · vale até');
+      expect(open.querySelector('[data-testid="coupon-uses"]')?.textContent).toContain('2 / 5');
+      expect(open.querySelector('[data-testid="coupon-validity"]')?.textContent).toContain('29/11/2099');
       expect(open.querySelector('a')).toBeNull();
+    });
+
+    it('a tabela não tem linhas entre os registros nem sublinhado no cabeçalho', () => {
+      stubWide(true);
+      service['list'].mockReturnValue(of([CODE, APPLIED, OPEN]));
+      const { fixture, el } = render();
+      fixture.detectChanges();
+      const lined = Array.from(el.querySelectorAll('table, thead, tbody, tr, th, td')).filter((n) =>
+        /(^|\s)(border(-[btlrxy])?(-\d+)?|divide-\S+)(\s|$)/.test(n.className),
+      );
+      expect(lined).toHaveLength(0);
+    });
+
+    it('no celular vira ingresso: código, desconto, linha tracejada e canhoto com as mesmas ações', () => {
+      service['list'].mockReturnValue(of([OPEN]));
+      const { fixture, el } = render();
+      fixture.detectChanges();
+      expect(el.querySelector('table')).toBeNull();
+      const card = el.querySelector('article[data-testid="coupon-card"]') as HTMLElement;
+      expect(card.querySelector('[data-testid="coupon-title"]')?.textContent).toContain('MANOLO100OFF');
+      expect(card.querySelector('[data-testid="coupon-discount"]')?.textContent).toContain('por 2 meses');
+      expect(card.querySelector('[data-testid="coupon-uses"]')?.textContent).toContain('2 / 5');
+      expect(card.querySelector('[data-testid="coupon-validity"]')?.textContent).toContain('29/11');
+      expect(card.querySelectorAll('.border-dashed')).toHaveLength(1);
+      expect(card.querySelector('[data-testid="copy-code"]')).not.toBeNull();
+      expect(card.querySelector('app-actions-menu')).not.toBeNull();
+    });
+
+    it('desconto direto no ingresso: sem código, sem usos, só o kebab', () => {
+      service['list'].mockReturnValue(of([APPLIED]));
+      const { fixture, el } = render();
+      fixture.detectChanges();
+      const card = el.querySelector('article[data-testid="coupon-card"]') as HTMLElement;
+      expect(card.textContent).toContain('Locadora Teste');
+      expect(card.textContent).toContain('Próximas faturas');
+      expect(card.querySelector('[data-testid="copy-code"]')).toBeNull();
+      expect(card.querySelector('[data-testid="coupon-uses"]')).toBeNull();
+      expect(card.querySelector('app-actions-menu')).not.toBeNull();
+    });
+
+    it('os quatro cartões do topo trazem números da lista, com o desconto marcado como estimado', () => {
+      service['list'].mockReturnValue(of([CODE, APPLIED, OPEN]));
+      const { el } = render();
+      const kpi = (name: string): string => el.querySelector(`[data-kpi="${name}"]`)?.textContent ?? '';
+      expect(kpi('total')).toContain('3');
+      expect(kpi('total')).toContain('ativos');
+      expect(kpi('discount')).toContain('estimado');
+      expect(kpi('discount')).toContain('≈');
+      expect(kpi('uses')).toContain('3');
+      expect(kpi('expiring')).toContain('Vencem em 7 dias');
+      expect(kpi('expiring')).toContain('de 2 códigos ativos');
+    });
+
+    it('as abas mostram a contagem e filtram por Ativos, Esgotados e Encerrados', () => {
+      const EXHAUSTED: AdminCoupon = { ...OPEN, couponId: 'c-ex', promotionCode: 'BLACK15', timesRedeemed: 5 };
+      const ENDED: AdminCoupon = { ...CODE, couponId: 'c-off', promotionCode: 'OLD-1', status: 'DEACTIVATED' };
+      service['list'].mockReturnValue(of([CODE, OPEN, EXHAUSTED, ENDED]));
+      const { fixture, el } = render();
+      const tab = (v: string): HTMLButtonElement => el.querySelector(`[data-testid="tab-${v}"]`) as HTMLButtonElement;
+      const cards = (): number => el.querySelectorAll('[data-testid="coupon-card"]').length;
+      expect(tab('ALL').textContent).toContain('4');
+      expect(tab('ACTIVE').textContent).toContain('2');
+      expect(tab('EXHAUSTED').textContent).toContain('1');
+      expect(tab('ENDED').textContent).toContain('1');
+      expect(tab('ALL').getAttribute('aria-checked')).toBe('true');
+      tab('EXHAUSTED').click();
+      fixture.detectChanges();
+      expect(cards()).toBe(1);
+      expect(el.querySelector('[data-testid="coupon-title"]')?.textContent).toContain('BLACK15');
+      expect(tab('EXHAUSTED').getAttribute('aria-checked')).toBe('true');
+      tab('ENDED').click();
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="coupon-status"]')?.textContent).toContain('Desativado');
     });
 
     it('busca pelo código e filtra por tipo e situação', () => {
@@ -443,18 +532,29 @@ describe('AdminCoupons', () => {
       page.setTypeFilter('APPLIED_TO_SUBSCRIPTION');
       fixture.detectChanges();
       expect(cards()).toBe(1);
-      page.setSituationFilter('DEACTIVATED');
+      page.setSituationFilter('ENDED');
       fixture.detectChanges();
       expect(el.querySelector('[data-testid="empty-filtered"]')).not.toBeNull();
+      const select = el.querySelector('[data-filter-type]') as HTMLSelectElement;
+      select.value = 'ALL';
+      select.dispatchEvent(new Event('change'));
+      (el.querySelector('[data-testid="empty-filtered"] [data-clear-filters]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(cards()).toBe(3);
     });
 
     it('copia o código com um toque', async () => {
       service['list'].mockReturnValue(of([OPEN]));
       const { fixture, el } = render();
       fixture.detectChanges();
-      (el.querySelector('[data-testid="coupons-list"] [data-testid="copy-code"]') as HTMLButtonElement).click();
+      (el.querySelector('[data-testid="coupon-card"] [data-testid="copy-code"]') as HTMLButtonElement).click();
       await Promise.resolve();
       expect(writeText).toHaveBeenCalledWith('MANOLO100OFF');
+      await Promise.resolve();
+      await Promise.resolve();
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="copy-code"] svg.pop')).not.toBeNull();
+      expect(el.textContent).toContain('Copiado');
     });
   });
 });

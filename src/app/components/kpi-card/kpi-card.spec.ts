@@ -13,9 +13,14 @@ import { KpiCard } from './kpi-card';
     <div app-kpi-card data-t="white" label="Veículos" [value]="12" detail="no plano"></div>
     <div app-kpi-card data-t="loading" label="Motoristas" [loading]="true" value="9" detail="x"></div>
     <div app-kpi-card data-t="bare" label="Sem dado"></div>
+    <div app-kpi-card data-t="count" label="Contado" [countTo]="1234" [format]="money" [formatCompact]="short"
+         detail="completa" detailCompact="curta" [anchored]="true"><svg kpiIcon data-icon></svg></div>
   `,
 })
-class Host {}
+class Host {
+  money = (n: number): string => `R$ ${n},00`;
+  short = (n: number): string => `R$ ${n}`;
+}
 
 describe('KpiCard', () => {
   function render(): HTMLElement {
@@ -67,5 +72,20 @@ describe('KpiCard', () => {
     const el = card(render(), 'bare');
     expect(el.querySelectorAll('p')).toHaveLength(1);
     expect(el.querySelector('.animate-pulse')).toBeNull();
+  });
+
+  it('com countTo o numero chega ao valor final (sem requestAnimationFrame o salto e imediato)', () => {
+    const el = card(render(), 'count');
+    expect(el.textContent).toContain('R$ 1234,00');
+    expect(el.textContent).toContain('R$ 1234');
+  });
+
+  it('numero e legenda compactos so valem abaixo de md; o icone entra no rotulo', () => {
+    const el = card(render(), 'count');
+    const detail = Array.from(el.querySelectorAll('[data-kpi-detail]'));
+    expect(detail.map((p) => p.className.includes('md:hidden'))).toEqual([false, true]);
+    expect(detail[0].className).toContain('hidden md:block');
+    expect(el.querySelector('p:first-child [data-icon]')).not.toBeNull();
+    expect(el.className).toContain('flex!');
   });
 });
