@@ -939,7 +939,11 @@ body.has-consent-banner {
   transition: transform 120ms cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 .press:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale, 0.97));
+}
+/* Cartões, pílulas e botões de lista: o toque afunda um pouco menos. */
+.press-soft {
+  --press-scale: 0.98;
 }
 .enter-up {
   /*
@@ -969,5 +973,111 @@ body.has-consent-banner {
   }
   .enter-up {
     animation: none;
+  }
+}
+
+/*
+ * Movimento da lista de cupons (e de qualquer lista que queira o mesmo vocabulário).
+ * Só transform/opacity; a única exceção é a altura do colapso, via grid-template-rows.
+ *
+ * `.bar-fill`: a barra de progresso nasce de 0 até `--p` (0..1) com `scaleX`, na cascata do
+ *   item (`--stagger-i`). O estado final É o `transform` estático: sem animação, a barra
+ *   já está cheia até onde deve.
+ * `.pop`: o ícone de "copiado" entra com um leve estouro.
+ * `.collapse-row`: a linha/cartão encolhe a altura ao sair (`.is-leaving`).
+ * `.pill-thumb`: o polegar do `app-pill-tabs`, com curva de mola (overshoot curto).
+ * `.lift`: elevação de 2px sob o ponteiro; só onde há hover e ponteiro fino.
+ */
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(var(--p, 1));
+  }
+}
+.bar-fill {
+  transform-origin: left center;
+  transform: scaleX(var(--p, 1));
+  animation: bar-grow 600ms var(--ease-out) backwards;
+  animation-delay: calc(120ms + min(var(--stagger-i, 0), 8) * 40ms);
+}
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.pop {
+  animation: pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.collapse-row {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 280ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 200ms ease-out;
+}
+.collapse-row > * {
+  min-height: 0;
+}
+.collapse-row.is-leaving {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+.collapse-row.is-leaving > * {
+  overflow: hidden;
+}
+/* Linha de tabela: `<tr>` não vira grid, então encolhe o conteúdo das células. */
+.cell-collapse {
+  max-height: 4.5rem;
+  transition:
+    max-height 280ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 200ms ease-out;
+}
+tr.is-leaving > td {
+  padding-block: 0;
+  transition: padding 280ms cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+tr.is-leaving .cell-collapse {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+.pill-thumb {
+  transition: transform 420ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.lift {
+  transition: transform 180ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lift:hover {
+    transform: translateY(-2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar-fill,
+  .pop {
+    animation: none;
+  }
+  .collapse-row,
+  .cell-collapse,
+  tr.is-leaving > td,
+  .pill-thumb,
+  .lift {
+    transition: none;
+  }
+  .lift:hover {
+    transform: none;
   }
 }

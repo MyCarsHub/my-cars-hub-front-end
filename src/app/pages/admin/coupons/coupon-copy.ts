@@ -165,14 +165,16 @@ export function couponErrorMessage(err: unknown, action: CouponAction): string {
 }
 
 /** Nunca finge que copiou: sem área de transferência, entrega o código por escrito. */
-export async function copyCouponCode(view: Window | null, notify: NotificationService, code: string): Promise<void> {
+export async function copyCouponCode(view: Window | null, notify: NotificationService, code: string): Promise<boolean> {
   const clipboard = view?.navigator?.clipboard;
   try {
     if (!clipboard?.writeText) throw new Error('sem clipboard');
     await clipboard.writeText(code);
     notify.success('Código copiado.');
+    return true;
   } catch {
     notify.warning(`Não foi possível copiar. O código é ${code}.`);
+    return false;
   }
 }
 
