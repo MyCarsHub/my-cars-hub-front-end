@@ -268,14 +268,18 @@
             app-kpi-card
             variant="emerald-dark"
             label="Utilização"
+            numberFormat="percent"
+            [stagger]="2"
             [loading]="loading() && !summary()"
-            [value]="summary() ? summary()!.fleet.utilizationPct + '%' : null"
+            [value]="summary() ? summary()!.fleet.utilizationPct : null"
             [detail]="summary() ? 'frota rodando' : null"
         ></div>
         <div
             app-kpi-card
             variant="white"
             label="Veículos"
+            numberFormat="integer"
+            [stagger]="3"
             [loading]="loading() && !summary()"
             [value]="summary() ? summary()!.fleet.vehiclesTotal : null"
             [detail]="summary() ? vehiclePlanLabel() : null"
@@ -286,6 +290,8 @@
             app-kpi-card
             variant="white"
             label="Motoristas"
+            numberFormat="integer"
+            [stagger]="4"
             [loading]="loading() && !summary()"
             [value]="summary() ? summary()!.fleet.driversTotal : null"
             [detail]="summary() ? summary()!.fleet.driversActive + ' ativos agora' : null"
@@ -295,6 +301,8 @@
             app-kpi-card
             variant="white"
             label="Alugados agora"
+            numberFormat="integer"
+            [stagger]="5"
             [loading]="loading() && !summary()"
             [value]="summary() ? summary()!.fleet.rentedNow : null"
             [detail]="summary() ? summary()!.fleet.reservedNow + ' reservados' : null"
