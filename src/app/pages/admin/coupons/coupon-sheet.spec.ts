@@ -415,4 +415,132 @@ describe('CouponSheet', () => {
       expect(q('coupon-done')).toBeNull();
     });
   });
+  describe('código para qualquer pessoa', () => {
+    const OPEN_PREVIEW: AdminCouponPreview = {
+      mode: 'OPEN_CODE',
+      listAmountCents: 29900,
+      discountedAmountCents: 19900,
+      summary: 'Paga R$ 199,00 por 1 mês, depois R$ 299,00',
+      discountedInvoices: null,
+      firstFullInvoice: null,
+    };
+    const OPEN_CREATED: AdminCoupon = {
+      ...CREATED,
+      mode: 'OPEN_CODE',
+      companyId: null,
+      planCode: 'PRO_MONTHLY_STRIPE',
+      amountOffCents: 10000,
+      durationMonths: 1,
+      promotionCode: 'MANOLO100OFF',
+      maxRedemptions: 5,
+    };
+
+    const switchToOpen = (): void => {
+      q('coupon-audience-open').click();
+      fixture.detectChanges();
+    };
+    const fillOpen = async (): Promise<void> => {
+      const select = q<HTMLSelectElement>('coupon-plan');
+      select.value = 'PRO_MONTHLY_STRIPE';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      type('coupon-amount', '100,00');
+      await settle();
+    };
+
+    beforeEach(() => service['preview'].mockReturnValue(of(OPEN_PREVIEW)));
+
+    it('não pede empresa e pergunta com openCode, sem companyId e sem code vazio', async () => {
+      render(null);
+      switchToOpen();
+      expect(q('coupon-company-search')).toBeNull();
+      await fillOpen();
+      expect(service['preview']).toHaveBeenLastCalledWith({
+        planCode: 'PRO_MONTHLY_STRIPE',
+        amountOffCents: 10000,
+        percentOff: null,
+        durationMonths: 1,
+        reason: '',
+        openCode: true,
+        maxRedemptions: 1,
+        expiresInDays: 30,
+        firstPurchaseOnly: false,
+      });
+      const body = service['preview'].mock.lastCall?.[0] as Record<string, unknown>;
+      expect('companyId' in body).toBe(false);
+      expect('code' in body).toBe(false);
+    });
+
+    it('manda o código em maiúsculas, validade, usos e primeira compra', async () => {
+      render(null);
+      switchToOpen();
+      type('coupon-code', 'manolo100off');
+      type('coupon-days', '10');
+      type('coupon-uses', '5');
+      q<HTMLInputElement>('coupon-first-purchase').click();
+      await fillOpen();
+      expect(q<HTMLInputElement>('coupon-code').value).toBe('MANOLO100OFF');
+      expect(service['preview']).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          openCode: true,
+          code: 'MANOLO100OFF',
+          expiresInDays: 10,
+          maxRedemptions: 5,
+          firstPurchaseOnly: true,
+        }),
+      );
+    });
+
+    it('código fora da regra e números fora da faixa não perguntam nada', async () => {
+      render(null);
+      switchToOpen();
+      type('coupon-code', 'a_b');
+      await fillOpen();
+      expect(service['preview']).not.toHaveBeenCalled();
+      expect(q('coupon-code-error')).not.toBeNull();
+      type('coupon-code', '');
+      type('coupon-days', '400');
+      await settle();
+      expect(q('coupon-days-error')).not.toBeNull();
+      expect(service['preview']).not.toHaveBeenCalled();
+    });
+
+    it('cria sem companyId, mostra o código e copia código e mensagem', async () => {
+      service['create'].mockReturnValue(of(OPEN_CREATED));
+      const saved = vi.fn();
+      render(null);
+      fixture.componentInstance.saved.subscribe(saved);
+      switchToOpen();
+      type('coupon-reason', 'Parceria');
+      await fillOpen();
+      q('coupon-submit').click();
+      fixture.detectChanges();
+      const body = service['create'].mock.lastCall?.[0] as Record<string, unknown>;
+      expect(body['openCode']).toBe(true);
+      expect('companyId' in body).toBe(false);
+      expect(saved).toHaveBeenCalledWith({ coupon: OPEN_CREATED, company: null });
+      expect(q('coupon-created-code').textContent).toContain('MANOLO100OFF');
+      q('coupon-copy-message').click();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(writeText).toHaveBeenCalledWith(
+        'Use o código MANOLO100OFF na hora de assinar o plano Pro e pague R$ 199,00 no primeiro mês.',
+      );
+    });
+  });
+
+  describe('fluxo da empresa continua igual', () => {
+    it('manda exatamente o corpo de antes, sem campos do código aberto', async () => {
+      render();
+      type('coupon-reason', 'Negociação');
+      await fill();
+      q('coupon-submit').click();
+      expect(service['create']).toHaveBeenCalledWith({
+        companyId: 'co-1',
+        planCode: 'PRO_MONTHLY_STRIPE',
+        amountOffCents: 4990,
+        percentOff: null,
+        durationMonths: 1,
+        reason: 'Negociação',
+      });
+    });
+  });
 });

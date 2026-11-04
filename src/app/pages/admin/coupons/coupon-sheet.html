@@ -5,7 +5,39 @@
         [tone]="coupon.mode === 'APPLIED_TO_SUBSCRIPTION' ? 'green' : 'orange'"
         data-testid="coupon-done"
       >
-        @if (coupon.promotionCode; as code) {
+        @if (coupon.mode === 'OPEN_CODE' && coupon.promotionCode; as code) {
+          <div>
+            <p class="text-sm font-semibold">Código para qualquer pessoa</p>
+            <p class="mt-1 text-3xl font-bold tracking-wide tabular-nums break-all select-all" data-testid="coupon-created-code">{{ code }}</p>
+          </div>
+          @if (shareMessage(); as message) {
+            <p class="text-sm" data-testid="coupon-share-message">{{ message }}</p>
+          }
+          <p class="text-sm">
+            Vale até {{ createdValidity() }}, até {{ coupon.maxRedemptions ?? 1 }}
+            {{ (coupon.maxRedemptions ?? 1) === 1 ? 'uso' : 'usos' }}. Quem receber digita no checkout.
+          </p>
+          <div class="flex flex-col gap-2">
+            <button
+              type="button"
+              class="press min-h-12 w-full rounded-xl bg-white px-4 text-base font-semibold text-primary-700
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              data-testid="coupon-copy"
+              (click)="copyCreated()"
+            >
+              Copiar código
+            </button>
+            <button
+              type="button"
+              class="press min-h-12 w-full rounded-xl bg-white/15 px-4 text-base font-semibold text-white
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              data-testid="coupon-copy-message"
+              (click)="copyMessage()"
+            >
+              Copiar mensagem
+            </button>
+          </div>
+        } @else if (coupon.promotionCode; as code) {
           <div>
             <p class="text-sm font-semibold">Envie este código ao cliente</p>
             <p class="mt-1 text-2xl font-bold tracking-wide tabular-nums break-all select-all" data-testid="coupon-created-code">{{ code }}</p>
@@ -27,8 +59,24 @@
       </app-painted-card>
     } @else {
       <div class="flex flex-col gap-4">
+        <!-- Para quem -->
+        <div class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-fg-muted">Para quem é o desconto</span>
+          <app-segmented-tabs
+            ariaLabel="Para quem é o desconto"
+            [options]="audienceOptions"
+            [value]="audience()"
+            (selected)="setAudience($event)"
+          />
+          <p class="text-xs text-fg-subtle" data-testid="coupon-audience-hint">
+            {{ isOpen() ? 'Um código que qualquer pessoa digita ao assinar, sem ligar a uma empresa.' : 'Aplicado a uma empresa que já paga, ou um código só dela.' }}
+          </p>
+        </div>
+
         <!-- Empresa -->
-        @if (selected(); as company) {
+        @if (isOpen()) {
+          <!-- Código aberto: sem empresa -->
+        } @else if (selected(); as company) {
           <div class="flex flex-col gap-1">
             <span class="text-sm font-medium text-fg-muted">Empresa</span>
             <div class="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-surface-sunken px-3" data-testid="coupon-company-selected">
@@ -168,6 +216,89 @@
           </select>
         </label>
 
+        @if (isOpen()) {
+          <!-- Código -->
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-fg-muted">Código (opcional)</span>
+            <input
+              type="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              maxlength="30"
+              placeholder="MANOLO100OFF"
+              [formControl]="codeControl"
+              (input)="onCodeInput($event)"
+              data-testid="coupon-code"
+              class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base uppercase text-fg tabular-nums
+                     focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+            @if (codeInvalid()) {
+              <span class="text-sm text-rose-700 dark:text-rose-300" data-testid="coupon-code-error">
+                Use só letras, números e hífen, de 4 a 30 caracteres.
+              </span>
+            } @else {
+              <span class="text-xs text-fg-subtle">Vazio gera um código, como MCH-7KQ2M9XA.</span>
+            }
+          </label>
+
+          <!-- Validade e usos -->
+          <div class="grid grid-cols-2 gap-3">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-fg-muted">Validade, em dias</span>
+              <input
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                [formControl]="daysControl"
+                data-testid="coupon-days"
+                class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums
+                       focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+              @if (daysInvalid()) {
+                <span class="text-xs text-rose-700 dark:text-rose-300" data-testid="coupon-days-error">De 1 a 365.</span>
+              }
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-fg-muted">Usos</span>
+              <input
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                [formControl]="usesControl"
+                data-testid="coupon-uses"
+                class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums
+                       focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+              @if (usesInvalid()) {
+                <span class="text-xs text-rose-700 dark:text-rose-300" data-testid="coupon-uses-error">De 1 a 1000.</span>
+              }
+            </label>
+          </div>
+
+          <!-- Só primeira compra -->
+          <label
+            class="flex min-h-[44px] cursor-pointer items-start gap-4 rounded-xl
+                   has-focus-visible:ring-2 has-focus-visible:ring-primary-400 has-focus-visible:ring-offset-2"
+          >
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-semibold text-fg">Só primeira compra</span>
+              <span class="mt-1 block text-xs leading-relaxed text-fg-subtle">Quem já assinou antes não consegue usar o código.</span>
+            </span>
+            <span class="relative inline-flex shrink-0 items-center">
+              <input type="checkbox" role="switch" [formControl]="firstPurchaseControl" data-testid="coupon-first-purchase" class="sr-only peer" />
+              <span
+                aria-hidden="true"
+                class="relative h-7 w-12 rounded-full bg-surface-strong transition-colors motion-reduce:transition-none
+                       peer-checked:bg-emerald-500
+                       after:absolute after:left-0.5 after:top-0.5 after:h-6 after:w-6 after:rounded-full after:bg-surface
+                       after:shadow after:content-[''] after:transition-transform motion-reduce:after:transition-none
+                       peer-checked:after:translate-x-5"
+              ></span>
+            </span>
+          </label>
+        }
+
         <!-- Motivo -->
         <label class="flex flex-col gap-1">
           <span class="text-sm font-medium text-fg-muted">Motivo</span>
@@ -229,7 +360,7 @@
               </button>
             </div>
           } @else {
-            <p class="text-sm text-fg-subtle">Preencha empresa, plano e desconto para ver a prévia.</p>
+            <p class="text-sm text-fg-subtle">{{ isOpen() ? 'Preencha plano e desconto para ver a prévia.' : 'Preencha empresa, plano e desconto para ver a prévia.' }}</p>
           }
         </div>
 
