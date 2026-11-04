@@ -11,6 +11,7 @@ import {
   AdminCouponPreview,
   AdminCouponRequest,
   CouponCompany,
+  CouponRedemptions,
 } from '../../../types/admin-coupon.types';
 
 const BASE = `${environment.apiUrl}/admin/billing/coupons`;
@@ -51,6 +52,13 @@ export class AdminCouponsService {
       {},
       { context: this.context() },
     );
+  }
+
+  /** Quem usou o cupom e quando. Lido da Stripe, então pode levar um ou dois segundos. */
+  redemptions(couponId: string): Observable<CouponRedemptions> {
+    return this.http.get<CouponRedemptions>(`${BASE}/${encodeURIComponent(couponId)}/redemptions`, {
+      context: this.context(),
+    });
   }
 
   /** O item da lista só traz o id: é daqui que sai o nome da empresa. */

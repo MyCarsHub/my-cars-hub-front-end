@@ -67,6 +67,9 @@
 
     <ng-template #menu let-row>
       <app-actions-menu [label]="'Ações do cupom ' + row.title" [menuWidth]="224">
+        <button type="button" role="menuitem" data-testid="menu-detail"
+                class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+                (click)="openDetail(row.coupon.couponId)">Ver detalhes</button>
         @if (row.coupon.promotionCode; as code) {
           <button type="button" role="menuitem" data-testid="menu-copy"
                   class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
@@ -260,10 +263,14 @@
                     <tbody>
                       @for (row of rows(); track row.coupon.couponId; let i = $index) {
                         <tr
-                          class="enter-up align-middle hover:bg-surface-muted transition-colors duration-150
+                          class="enter-up align-middle cursor-pointer hover:bg-surface-muted transition-colors duration-150
+                                 focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-400
                                  [&>td:first-child]:rounded-l-xl [&>td:last-child]:rounded-r-xl"
                           [class.is-leaving]="row.leaving"
                           [style.--stagger-i]="i"
+                          tabindex="0"
+                          (click)="onRowClick($event, row.coupon.couponId)"
+                          (keydown)="onRowKey($event, row.coupon.couponId)"
                           data-testid="coupon-card"
                         >
                           <td class="px-3 py-3.5 min-w-[10rem]">
@@ -320,9 +327,7 @@
                           </td>
                           <td class="px-3 py-2 text-right whitespace-nowrap">
                             <div class="cell-collapse min-h-11 flex flex-col justify-center items-end">
-                              @if (row.coupon.promotionCode || row.canDeactivate) {
-                                <ng-container *ngTemplateOutlet="menu; context: { $implicit: row }" />
-                              }
+                              <ng-container *ngTemplateOutlet="menu; context: { $implicit: row }" />
                             </div>
                           </td>
                         </tr>
@@ -336,8 +341,13 @@
                     <li class="collapse-row" [class.is-leaving]="row.leaving">
                       <div class="pb-3">
                         <article
-                          class="enter-up press press-soft relative rounded-2xl bg-surface border border-edge"
+                          class="enter-up press press-soft relative rounded-2xl bg-surface border border-edge cursor-pointer
+                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                           [style.--stagger-i]="i"
+                          tabindex="0"
+                          [attr.aria-label]="'Ver detalhes do cupom ' + row.title"
+                          (click)="onRowClick($event, row.coupon.couponId)"
+                          (keydown)="onRowKey($event, row.coupon.couponId)"
                           data-testid="coupon-card"
                         >
                           <div class="px-4 pt-4 pb-3">
@@ -401,9 +411,7 @@
                             } @else {
                               <span class="flex-1 text-sm font-semibold text-fg" data-testid="coupon-validity">{{ row.validity }}</span>
                             }
-                            @if (row.coupon.promotionCode || row.canDeactivate) {
-                              <ng-container *ngTemplateOutlet="menu; context: { $implicit: row }" />
-                            }
+                            <ng-container *ngTemplateOutlet="menu; context: { $implicit: row }" />
                           </div>
                         </article>
                       </div>
@@ -423,6 +431,10 @@
 
 @if (sheetOpen()) {
   <app-coupon-sheet [company]="prefill()" (saved)="onSaved($event)" (listMayHaveChanged)="load()" (closed)="closeSheet()" />
+}
+
+@if (detail(); as d) {
+  <app-coupon-detail [coupon]="d.coupon" [company]="d.company" (closed)="closeDetail()" />
 }
 
 <app-confirm-dialog
