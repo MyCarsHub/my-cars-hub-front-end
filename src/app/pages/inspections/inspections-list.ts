@@ -189,10 +189,10 @@ export class InspectionsList implements OnInit {
   protected readonly summary = signal<InspectionSummary | null>(null);
   protected readonly summaryState = signal<'loading' | 'ready' | 'error'>('loading');
 
-  /** O texto de um tile. Falha mostra "—": zero inventado afirmaria "nada a decidir". */
-  protected kpiValue(key: keyof InspectionSummary): string | number {
+  /** O número de um tile. Falha dá `null` (o cartão mostra "—"): zero inventado diria "nada a decidir". */
+  protected kpiValue(key: keyof InspectionSummary): number | null {
     const summary = this.summary();
-    if (this.summaryState() !== 'ready' || summary === null) return '—';
+    if (this.summaryState() !== 'ready' || summary === null) return null;
     return summary[key];
   }
 
