@@ -71,7 +71,7 @@ const CODE_PATTERN = /^[A-Za-z0-9-]{4,30}$/;
 
 const AUDIENCE_OPTIONS: readonly SegmentedTabsOption<Audience>[] = [
   { value: 'COMPANY', label: 'Uma empresa', testId: 'coupon-audience-company' },
-  { value: 'OPEN', label: 'Qualquer pessoa, por código', testId: 'coupon-audience-open' },
+  { value: 'OPEN', label: 'Qualquer pessoa', testId: 'coupon-audience-open' },
 ];
 
 const KIND_OPTIONS: readonly SegmentedTabsOption<DiscountKind>[] = [

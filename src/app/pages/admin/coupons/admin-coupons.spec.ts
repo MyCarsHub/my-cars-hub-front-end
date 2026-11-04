@@ -138,8 +138,8 @@ describe('AdminCoupons', () => {
   describe('lista', () => {
     it('mostra código, empresa, desconto, duração, validade e situação', () => {
       const { el } = render();
-      const row = el.querySelector('[data-testid="coupon-row"]') as HTMLElement;
-      for (const text of ['MCH-7KQ2M9XA', 'Locadora Teste', 'R$ 49,90', '2 meses', 'Até 29/11/2099', 'Ativo']) {
+      const row = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
+      for (const text of ['MCH-7KQ2M9XA', 'Locadora Teste', 'R$ 49,90', '2 meses', 'vale até 29/11/2099', 'Ativo']) {
         expect(row.textContent).toContain(text);
       }
       expect(row.querySelector('a')?.getAttribute('href')).toBe('/admin/companies/co-1');
@@ -149,7 +149,7 @@ describe('AdminCoupons', () => {
 
     it('cupom na assinatura diz que não tem código', () => {
       const { el } = render();
-      const row = el.querySelectorAll('[data-testid="coupon-row"]')[1] as HTMLElement;
+      const row = el.querySelectorAll('[data-testid="coupon-card"]')[1] as HTMLElement;
       expect(row.textContent).toContain('Direto na assinatura');
       expect(row.textContent).toContain('20%');
     });
@@ -162,7 +162,7 @@ describe('AdminCoupons', () => {
     it('falha ao achar o nome não derruba a lista', () => {
       service['company'].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
       const { el } = render();
-      const row = el.querySelector('[data-testid="coupon-row"]') as HTMLElement;
+      const row = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
       expect(row.textContent).toContain('MCH-7KQ2M9XA');
       expect(row.querySelector('a')?.textContent).toContain('co-1');
     });
@@ -199,14 +199,14 @@ describe('AdminCoupons', () => {
     ])('desconto %s não promete as próximas faturas', (_label, over, status) => {
       service['list'].mockReturnValue(of([{ ...APPLIED, ...over }]));
       const { el } = render();
-      const row = el.querySelector('[data-testid="coupon-row"]') as HTMLElement;
+      const row = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
       expect(row.textContent).toContain(status);
       expect(row.textContent).not.toContain('Nas próximas faturas');
     });
 
     it('chip de situação é só texto: sem bolinha dentro', () => {
       const { el } = render();
-      const chip = el.querySelector('[data-testid="coupon-row"] app-status-chip') as HTMLElement;
+      const chip = el.querySelector('[data-testid="coupon-card"] app-status-chip') as HTMLElement;
       expect(chip.textContent?.trim()).toBe('Ativo');
       expect(chip.children).toHaveLength(0);
     });
@@ -225,7 +225,7 @@ describe('AdminCoupons', () => {
       expect(el.querySelector('[data-testid="empty"]')).toBeNull();
       (el.querySelector('[data-testid="retry"]') as HTMLButtonElement).click();
       fixture.detectChanges();
-      expect(el.querySelector('[data-testid="coupon-row"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="coupon-card"]')).not.toBeNull();
     });
 
     it('enquanto carrega mostra o esqueleto, não "nenhum cupom"', () => {
@@ -320,7 +320,7 @@ describe('AdminCoupons', () => {
       pending.next({ ...CODE, status: 'DEACTIVATED' });
       pending.complete();
       fixture.detectChanges();
-      expect(el.querySelector('[data-testid="coupon-row"]')?.textContent).toContain('Desativado');
+      expect(el.querySelector('[data-testid="coupon-card"]')?.textContent).toContain('Desativado');
       expect(notify.success).toHaveBeenCalledTimes(1);
       expect(service['list']).toHaveBeenCalledTimes(1);
     });
@@ -340,7 +340,7 @@ describe('AdminCoupons', () => {
       confirmButton(el).click();
       fixture.detectChanges();
       expect(el.querySelector('[data-testid="action-error"]')?.textContent).toMatch(/continua como estava/i);
-      expect(el.querySelector('[data-testid="coupon-row"]')?.textContent).toContain('Ativo');
+      expect(el.querySelector('[data-testid="coupon-card"]')?.textContent).toContain('Ativo');
       // O nó do diálogo só sai depois da animação de saída: o estado é que prova.
       const c = fixture.componentInstance as unknown as { deactivating(): AdminCoupon | null };
       expect(c.deactivating()).toBeNull();
@@ -397,7 +397,7 @@ describe('AdminCoupons', () => {
       company: COMPANY,
     });
     fixture.detectChanges();
-    expect(el.querySelector('[data-testid="coupon-row"]')?.textContent).toContain('Locadora Teste');
+    expect(el.querySelector('[data-testid="coupon-card"]')?.textContent).toContain('Locadora Teste');
     expect(service['company']).not.toHaveBeenCalled();
   });
   describe('código para qualquer pessoa', () => {
@@ -416,12 +416,36 @@ describe('AdminCoupons', () => {
       const { fixture, el } = render();
       fixture.detectChanges();
       const list = el.querySelector('[data-testid="coupons-list"]') as HTMLElement;
-      const order = Array.from(list.querySelectorAll('section')).map((s) => s.getAttribute('data-testid'));
+      const order = Array.from(list.querySelectorAll('app-list-group')).map((s) => s.getAttribute('data-testid'));
       expect(order).toEqual(['group-OPEN_CODE', 'group-PROMOTION_CODE', 'group-APPLIED_TO_SUBSCRIPTION']);
       const open = list.querySelector('[data-testid="group-OPEN_CODE"]') as HTMLElement;
-      expect(open.querySelector('[data-testid="open-code-chip"]')?.textContent).toContain('MANOLO100OFF');
-      expect(open.querySelector('[data-testid="open-code-uses"]')?.textContent).toContain('usos 2/5');
+      expect(open.querySelector('h2')?.textContent).toContain('Códigos para qualquer pessoa');
+      expect(open.querySelector('[data-testid="coupon-title"]')?.textContent).toContain('MANOLO100OFF');
+      expect(open.querySelector('[data-testid="coupon-kind"]')?.textContent).toContain('Qualquer pessoa');
+      expect(open.querySelector('[data-testid="coupon-meta"]')?.textContent).toContain('usos 2/5 · vale até');
       expect(open.querySelector('a')).toBeNull();
+    });
+
+    it('busca pelo código e filtra por tipo e situação', () => {
+      service['list'].mockReturnValue(of([CODE, APPLIED, OPEN]));
+      const { fixture, el } = render();
+      const page = fixture.componentInstance as unknown as {
+        searchControl: { setValue(v: string): void };
+        setTypeFilter(v: string): void;
+        setSituationFilter(v: string): void;
+      };
+      const cards = (): number => el.querySelectorAll('[data-testid="coupon-card"]').length;
+      expect(cards()).toBe(3);
+      page.searchControl.setValue('manolo');
+      fixture.detectChanges();
+      expect(cards()).toBe(1);
+      page.searchControl.setValue('');
+      page.setTypeFilter('APPLIED_TO_SUBSCRIPTION');
+      fixture.detectChanges();
+      expect(cards()).toBe(1);
+      page.setSituationFilter('DEACTIVATED');
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="empty-filtered"]')).not.toBeNull();
     });
 
     it('copia o código com um toque', async () => {

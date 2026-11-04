@@ -68,6 +68,9 @@
             [value]="audience()"
             (selected)="setAudience($event)"
           />
+          <p class="text-xs text-fg-subtle" data-testid="coupon-audience-hint">
+            {{ isOpen() ? 'Um código que qualquer pessoa digita ao assinar, sem ligar a uma empresa.' : 'Aplicado a uma empresa que já paga, ou um código só dela.' }}
+          </p>
         </div>
 
         <!-- Empresa -->

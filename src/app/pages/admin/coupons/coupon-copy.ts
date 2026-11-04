@@ -185,7 +185,7 @@ export function openCodeMessage(
 ): string {
   const tier = planTierOf((planCode ?? '').split('_')[0]);
   const plan = tier ? PLAN_COPY[tier].name : couponPlanLabel(planCode);
-  const price = formatBRL(preview.discountedAmountCents).replace(/ /g, ' ');
+  const price = formatBRL(preview.discountedAmountCents).replace(/\u00a0/g, ' ');
   const when = durationMonths === 1 ? 'no primeiro mês' : `nos primeiros ${durationMonths} meses`;
   return `Use o código ${code} na hora de assinar o plano ${plan} e pague ${price} ${when}.`;
 }
@@ -195,18 +195,28 @@ export function usesLabel(coupon: Pick<AdminCoupon, 'timesRedeemed' | 'maxRedemp
   return `${coupon.timesRedeemed ?? 0}/${coupon.maxRedemptions ?? 1}`;
 }
 
-/** As três espécies de desconto, na ordem em que a lista as agrupa. */
-export const COUPON_KIND_ORDER: readonly AdminCouponMode[] = ['OPEN_CODE', 'PROMOTION_CODE', 'APPLIED_TO_SUBSCRIPTION'];
-
-export function kindHeading(mode: AdminCouponMode): string {
+export function kindLabel(mode: AdminCouponMode): string {
   switch (mode) {
     case 'OPEN_CODE':
-      return 'Códigos para qualquer pessoa';
+      return 'Qualquer pessoa';
     case 'PROMOTION_CODE':
-      return 'Códigos de uma empresa';
+      return 'Código de empresa';
     default:
       return 'Direto na assinatura';
   }
+}
+
+/** "Scale", sem o período: o que o cliente lê na mensagem e na linha da lista. */
+export function couponPlanName(planCode: string | null): string {
+  if (!planCode) return '—';
+  const [name] = planCode.split('_');
+  const tier = planTierOf(name);
+  return tier ? PLAN_COPY[tier].name : name;
+}
+
+/** "R$ 100,00 de desconto por 1 mês". */
+export function discountSummary(coupon: Pick<AdminCoupon, 'amountOffCents' | 'percentOff' | 'durationMonths'>): string {
+  return `${discountLabel(coupon)} de desconto por ${durationLabel(coupon.durationMonths)}`;
 }
 
 /** Mensagem pronta copiada pelo dono; mesma regra do código: sem clipboard, entrega por escrito. */

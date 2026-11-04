@@ -1,11 +1,15 @@
 import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { EMPTY, catchError, from, mergeMap } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { BackLink } from '../../../components/core/back-link/back-link';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { FilterChipGroup, FilterChipOption } from '../../../components/filter-chip-group/filter-chip-group';
+import { ListGroup, ListRow } from '../../../components/core/list-group/list-group';
 import { StatusChip } from '../../../components/core/status-chip/status-chip';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
@@ -13,18 +17,40 @@ import { NotificationService } from '../../../services/notification.service';
 import { AdminCoupon, CouponCompany } from '../../../types/admin-coupon.types';
 import { AdminCouponsService } from './admin-coupons.service';
 import {
-  COUPON_KIND_ORDER,
   copyCouponCode,
   couponErrorMessage,
-  couponPlanLabel,
+  couponDate,
+  couponPlanName,
   couponStatus,
-  discountLabel,
-  durationLabel,
-  kindHeading,
+  discountSummary,
+  kindLabel,
   usesLabel,
-  validityLabel,
 } from './coupon-copy';
 import { CouponSheet } from './coupon-sheet';
+
+type TypeFilter = 'ALL' | AdminCoupon['mode'];
+type SituationFilter = 'ALL' | 'ACTIVE' | 'EXHAUSTED' | 'DEACTIVATED';
+
+const TYPE_OPTIONS: readonly FilterChipOption<TypeFilter>[] = [
+  { value: 'ALL', label: 'Todos' },
+  { value: 'OPEN_CODE', label: 'Para qualquer pessoa' },
+  { value: 'PROMOTION_CODE', label: 'Código de empresa' },
+  { value: 'APPLIED_TO_SUBSCRIPTION', label: 'Direto na assinatura' },
+];
+
+const SITUATION_OPTIONS: readonly FilterChipOption<SituationFilter>[] = [
+  { value: 'ALL', label: 'Todos' },
+  { value: 'ACTIVE', label: 'Ativos' },
+  { value: 'EXHAUSTED', label: 'Esgotados' },
+  { value: 'DEACTIVATED', label: 'Desativados' },
+];
+
+const GROUP_ORDER: readonly AdminCoupon['mode'][] = ['OPEN_CODE', 'PROMOTION_CODE', 'APPLIED_TO_SUBSCRIPTION'];
+const GROUP_HEADING: Record<AdminCoupon['mode'], string> = {
+  OPEN_CODE: 'Códigos para qualquer pessoa',
+  PROMOTION_CODE: 'Códigos de empresas',
+  APPLIED_TO_SUBSCRIPTION: 'Direto na assinatura',
+};
 
 /** Parâmetro do atalho "Criar cupom" no detalhe da empresa. */
 const COMPANY_PARAM = 'empresa';
@@ -52,6 +78,10 @@ const SHORT_ID_LENGTH = 8;
     ConfirmDialog,
     CouponSheet,
     DefaultPageLayout,
+    FilterChipGroup,
+    ListGroup,
+    ListRow,
+    ReactiveFormsModule,
     NgTemplateOutlet,
     RouterLink,
     StatusChip,
@@ -83,34 +113,71 @@ export class AdminCoupons implements OnInit {
 
   protected readonly canManage = computed(() => this.caps.can('cupom.gerir'));
 
-  protected readonly rows = computed(() =>
+  protected readonly typeOptions = TYPE_OPTIONS;
+  protected readonly situationOptions = SITUATION_OPTIONS;
+  protected readonly searchControl = new FormControl('', { nonNullable: true });
+  private readonly search = toSignal(this.searchControl.valueChanges, { initialValue: '' });
+  protected readonly typeFilter = signal<TypeFilter>('ALL');
+  protected readonly situationFilter = signal<SituationFilter>('ALL');
+
+  private readonly allRows = computed(() =>
     this.items().map((coupon) => {
       const status = couponStatus(coupon, this.now);
+      const isCode = coupon.mode !== 'APPLIED_TO_SUBSCRIPTION';
+      const company = this.companyName(coupon.companyId);
+      const situation: SituationFilter =
+        coupon.status === 'DEACTIVATED'
+          ? 'DEACTIVATED'
+          : status.label === 'Esgotado' || status.label === 'Usado'
+            ? 'EXHAUSTED'
+            : status.live
+              ? 'ACTIVE'
+              : 'ALL';
       return {
         coupon,
         status,
-        code: coupon.promotionCode ?? 'Direto na assinatura',
+        situation,
+        kind: kindLabel(coupon.mode),
+        isCode,
         isOpen: coupon.mode === 'OPEN_CODE',
-        uses: usesLabel(coupon),
-        company: this.companyName(coupon.companyId),
-        plan: couponPlanLabel(coupon.planCode),
-        discount: discountLabel(coupon),
-        duration: durationLabel(coupon.durationMonths),
-        // Desconto que já saiu da assinatura não vale "nas próximas faturas".
-        validity: coupon.mode === 'APPLIED_TO_SUBSCRIPTION' && !status.live ? '—' : validityLabel(coupon),
+        // Quem lê procura pelo código; o desconto direto só tem a empresa.
+        title: coupon.promotionCode ?? company,
+        company,
+        plan: `${couponPlanName(coupon.planCode)} · ${discountSummary(coupon)}`,
+        meta: isCode
+          ? `usos ${usesLabel(coupon)} · vale até ${coupon.expiresAt ? couponDate(coupon.expiresAt) : '—'}`
+          : status.live
+            ? 'nas próximas faturas'
+            : 'desconto encerrado',
         canDeactivate: this.canManage() && status.live,
       };
     }),
   );
 
-  /** As três espécies separadas, cada uma com o seu título; vazia não aparece. */
+  protected readonly rows = computed(() => {
+    const term = this.search().trim().toLocaleLowerCase('pt-BR');
+    const type = this.typeFilter();
+    const situation = this.situationFilter();
+    return this.allRows().filter(
+      (row) =>
+        (type === 'ALL' || row.coupon.mode === type) &&
+        (situation === 'ALL' || row.situation === situation) &&
+        (term === '' ||
+          row.title.toLocaleLowerCase('pt-BR').includes(term) ||
+          row.company.toLocaleLowerCase('pt-BR').includes(term)),
+    );
+  });
+
+  /** Uma seção por espécie, na ordem do dono; seção sem cupom não aparece. */
   protected readonly groups = computed(() =>
-    COUPON_KIND_ORDER.map((mode) => ({
+    GROUP_ORDER.map((mode) => ({
       mode,
-      heading: kindHeading(mode),
+      heading: GROUP_HEADING[mode],
       rows: this.rows().filter((row) => row.coupon.mode === mode),
     })).filter((group) => group.rows.length > 0),
   );
+
+  protected readonly hasAny = computed(() => this.items().length > 0);
 
   protected readonly confirmMessage = computed(() => {
     const coupon = this.deactivating();
@@ -188,6 +255,14 @@ export class AdminCoupons implements OnInit {
       },
       error: () => this.sheetOpen.set(true),
     });
+  }
+
+  protected setTypeFilter(value: TypeFilter): void {
+    this.typeFilter.set(value);
+  }
+
+  protected setSituationFilter(value: SituationFilter): void {
+    this.situationFilter.set(value);
   }
 
   protected openSheet(): void {
