@@ -26,7 +26,7 @@
           (click)="askExit()"
           [disabled]="!canCancel()"
           [attr.aria-describedby]="view() === 'reading' ? 'contract-cancel-wait' : null"
-          class="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl px-3 text-[15px] font-semibold text-fg-soft transition-colors hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+          class="press inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl px-3 text-[15px] font-semibold text-fg-soft transition-colors hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
         >
           <app-contract-icon name="x" [size]="18" />
           Cancelar
@@ -75,10 +75,10 @@
   </div>
 
   <div
-    class="grid border-t border-edge/70"
+    class="grid"
     [class]="split() ? 'grid-cols-[minmax(0,5fr)_minmax(0,7fr)] min-h-[560px]' : 'grid-cols-1'"
   >
-    <div class="flex min-w-0 flex-col gap-5 px-4 py-5 sm:px-6 sm:py-7" [class.border-r]="split()" [class.border-edge]="split()">
+    <div class="flex min-w-0 flex-col gap-5 px-4 py-5 sm:px-6 sm:py-7">
       @if (ai.error(); as msg) {
         @if (path() === 'mine') {
           <app-alert-banner variant="error" [message]="msg" />
@@ -86,12 +86,12 @@
       }
 
       @for (k of [stepKey()]; track k) {
-      <div class="step-in flex flex-col gap-5">
+      <div class="enter-up flex flex-col gap-5">
       @switch (view()) {
         @case ('start') {
           <div class="flex flex-col gap-3">
             <button type="button" (click)="start('mine')" [disabled]="!aiReady()"
-              class="group relative box-border flex min-h-[112px] w-full items-center gap-3.5 overflow-hidden rounded-2xl border bg-surface px-4 py-4 text-left transition duration-200 sm:gap-4 sm:px-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
+              class="press press-soft group relative box-border flex min-h-[112px] w-full items-center gap-3.5 overflow-hidden rounded-2xl border bg-surface px-4 py-4 text-left transition duration-200 sm:gap-4 sm:px-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
               [class]="aiReady() ? cardOn : cardOff"
               [attr.aria-describedby]="aiReady() ? null : 'path-mine-soon'">
               <span aria-hidden="true" class="flex h-12 w-12 shrink-0 items-center justify-center self-start rounded-2xl sm:h-14 sm:w-14 sm:self-center"
@@ -102,7 +102,7 @@
                 <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span class="text-[17px] font-semibold leading-snug" [class]="aiReady() ? 'text-fg' : 'text-fg-muted'">Ajustar o meu contrato</span>
                   @if (aiReady()) {
-                    <span class="inline-flex items-center gap-1 rounded-full bg-primary-50 dark:bg-primary-500/10 px-2 py-0.5 text-[13px] font-semibold text-primary-700 dark:text-primary-400 ring-1 ring-primary-100 dark:ring-primary-500/20">
+                    <span class="inline-flex items-center gap-1 rounded-full bg-primary-50 dark:bg-primary-500/10 px-2 py-0.5 text-[13px] font-semibold text-primary-700 dark:text-primary-400">
                       <app-contract-icon name="sparkles" [size]="12" [stroke]="2.5" />Com IA
                     </span>
                   } @else if (aiPending()) {
@@ -129,7 +129,7 @@
             </button>
 
             <button type="button" (click)="start('zero')" [disabled]="baseState() === 'off'"
-              class="group relative box-border flex min-h-[112px] w-full items-center gap-3.5 overflow-hidden rounded-2xl border bg-surface px-4 py-4 text-left transition duration-200 sm:gap-4 sm:px-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
+              class="press press-soft group relative box-border flex min-h-[112px] w-full items-center gap-3.5 overflow-hidden rounded-2xl border bg-surface px-4 py-4 text-left transition duration-200 sm:gap-4 sm:px-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
               [class]="baseState() === 'off' ? cardOff : cardOn"
               [attr.aria-describedby]="baseState() === 'off' ? 'path-zero-soon' : null">
               <span aria-hidden="true" class="flex h-12 w-12 shrink-0 items-center justify-center self-start rounded-2xl sm:h-14 sm:w-14 sm:self-center"
@@ -161,7 +161,7 @@
             </button>
 
             <button type="button" (click)="start('word')"
-              class="group mt-1 inline-flex min-h-[48px] items-center gap-2.5 self-start rounded-xl px-2 text-left text-[15px] font-semibold text-fg-body transition-colors hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+              class="press group mt-1 inline-flex min-h-[48px] items-center gap-2.5 self-start rounded-xl px-2 text-left text-[15px] font-semibold text-fg-body transition-colors hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
               <span aria-hidden="true" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300">
                 <app-contract-icon name="pen" [size]="16" />
               </span>
@@ -234,7 +234,7 @@
                     @if (i < readingTick()) {
                       <app-contract-icon name="check" [size]="14" [stroke]="3" />
                     } @else if (i === readingTick()) {
-                      <span class="h-2 w-2 rounded-full bg-primary-500 motion-safe:animate-pulse"></span>
+                      <span class="h-3.5 w-3.5 rounded-full border-2 border-primary-500 border-t-transparent motion-safe:animate-spin"></span>
                     }
                   </span>
                   {{ t }}
@@ -244,7 +244,7 @@
             <span class="sr-only">{{ readingText() }}</span>
             @if (ai.pollTimedOut()) {
               <button type="button" (click)="retryReading()"
-                class="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-edge-strong bg-surface px-5 text-base font-semibold text-fg-body hover:bg-surface-muted sm:w-auto sm:self-start">
+                class="press inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-edge-strong bg-surface px-5 text-base font-semibold text-fg-body hover:bg-surface-muted sm:w-auto sm:self-start">
                 <app-contract-icon name="refresh" [size]="18" />
                 Tentar novamente
               </button>
@@ -333,6 +333,7 @@
             [existing]="ai.existingFields()"
             [unanswered]="unanswered()"
             [driverMissing]="path() === 'mine' && reviewCounts().driverMissing && !readParagraph()"
+            [esignatureMissing]="esignatureMissing()"
             [readParagraph]="readParagraph()"
             [currentName]="template()?.filename ?? null"
             [where]="where()"
@@ -372,7 +373,7 @@
 
   @if (showNav() && !split()) {
     <div data-contract-actions
-      class="sticky bottom-0 z-10 rounded-b-2xl border-t border-edge bg-surface px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] footer-lift sm:px-6">
+      class="sticky bottom-0 z-10 rounded-b-2xl bg-surface px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] footer-lift sm:px-6">
       <ng-container [ngTemplateOutlet]="nav" />
     </div>
   }
@@ -380,10 +381,10 @@
 
 <ng-template #nav>
   <div data-contract-actions class="flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center"
-    [class]="split() ? 'border-t border-edge-soft pt-5' : ''">
+    [class]="split() ? 'pt-2' : ''">
     @if (showBack()) {
       <button type="button" (click)="back()" [disabled]="ai.busy() || zeroSaving()"
-        class="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold text-fg-soft transition-colors hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 sm:w-auto"
+        class="press inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold text-fg-soft transition-colors hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 sm:w-auto"
         [class.border]="!split()" [class.border-edge-strong]="!split()">
         <app-contract-icon name="arrowLeft" [size]="18" />
         Voltar

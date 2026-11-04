@@ -21,10 +21,10 @@ import { ContractIcon } from '../contract-icon';
       </p>
     </div>
     <div class="flex flex-col gap-2">
-      <span class="text-[13px] font-semibold uppercase tracking-wide text-fg-muted">Sempre no contrato</span>
+      <span class="text-sm font-semibold text-fg-muted">Sempre no contrato</span>
       <ul class="m-0 flex list-none flex-wrap gap-2 p-0">
         @for (c of fixed(); track c.id) {
-          <li class="flex items-center gap-1.5 rounded-full border border-edge bg-surface-muted px-3 py-1.5 text-sm font-medium text-fg-body">
+          <li class="flex items-center gap-1.5 rounded-full bg-surface-sunken px-3 py-1.5 text-sm font-medium text-fg-body">
             <app-contract-icon name="check" [size]="14" [stroke]="2.5" class="text-emerald-700 dark:text-emerald-300" />
             {{ c.title }}
           </li>
@@ -33,7 +33,7 @@ import { ContractIcon } from '../contract-icon';
     </div>
     <fieldset class="m-0 flex flex-col gap-2 border-0 p-0">
       <legend class="mb-2 flex w-full items-center justify-between gap-3 p-0">
-        <span class="text-[13px] font-semibold uppercase tracking-wide text-fg-muted">Escolha o que mais entra</span>
+        <span class="text-sm font-semibold text-fg-muted">Escolha o que mais entra</span>
         <span class="text-[13px] font-medium text-fg-muted tabular-nums">{{ chosen() }} de {{ optional().length }}</span>
       </legend>
       @for (c of optional(); track c.id) {

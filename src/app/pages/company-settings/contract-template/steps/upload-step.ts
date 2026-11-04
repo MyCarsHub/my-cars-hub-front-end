@@ -34,11 +34,9 @@ import { ContractIcon } from '../contract-icon';
 
     @if (!fileName()) {
       @if (currentName(); as current) {
-        <div class="flex items-center gap-3 text-[13px] font-semibold uppercase tracking-wide text-fg-subtle" aria-hidden="true">
-          <span class="h-px flex-1 bg-surface-strong"></span>ou<span class="h-px flex-1 bg-surface-strong"></span>
-        </div>
+        <div class="py-1 text-center text-sm font-semibold text-fg-subtle" aria-hidden="true">ou</div>
         <button type="button" (click)="useCurrent.emit()" [disabled]="busy()"
-          class="group flex min-h-[64px] w-full items-center gap-3 rounded-2xl border border-edge bg-surface px-4 py-3 text-left shadow-sm transition hover:border-edge-strong hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-60">
+          class="press press-soft group flex min-h-[64px] w-full items-center gap-3 rounded-2xl border border-edge bg-surface px-4 py-3 text-left shadow-sm transition hover:border-edge-strong hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-60">
           <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300">
             <app-contract-icon name="fileText" [size]="20" />
           </span>

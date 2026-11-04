@@ -29,7 +29,7 @@ import { AiProviderView } from '../ai/contract-ai.types';
     }
     @if (providers().length > 0) {
       <div data-ai-route class="flex flex-col gap-1 rounded-xl border border-edge bg-surface px-3.5 py-3">
-        <span class="text-[13px] font-semibold uppercase tracking-wide text-fg-subtle">Quem recebe o texto</span>
+        <span class="text-sm font-semibold text-fg-muted">Quem recebe o texto</span>
         @for (p of providers(); track p.provider) {
           <span class="text-[15px] leading-normal text-fg-body">
             <span class="font-semibold">{{ p.label }}</span>

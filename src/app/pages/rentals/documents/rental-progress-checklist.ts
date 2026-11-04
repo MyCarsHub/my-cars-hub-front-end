@@ -120,7 +120,7 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                       </p>
                       @if (step.badge; as badge) {
                         <span
-                          class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+                          class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
                           [class.bg-surface-sunken]="badge.tone === 'neutral'"
                           [class.text-fg-soft]="badge.tone === 'neutral'"
                           [class.bg-amber-100]="badge.tone === 'amber'" [class.dark:bg-amber-500/15]="badge.tone === 'amber'"
@@ -130,7 +130,7 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                           [class.bg-rose-100]="badge.tone === 'red'" [class.dark:bg-rose-500/15]="badge.tone === 'red'"
                           [class.text-rose-800]="badge.tone === 'red'" [class.dark:text-rose-200]="badge.tone === 'red'"
                         >
-                          {{ badge.label }}
+                          {{ sentence(badge.label) }}
                         </span>
                       }
                     </div>
@@ -182,7 +182,7 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                   [attr.id]="'panel-' + step.key"
                   [attr.aria-labelledby]="'header-' + step.key"
                   role="region"
-                  class="border-t border-edge bg-surface p-3 sm:p-4"
+                  class="bg-surface p-3 sm:p-4"
                 >
                   @switch (step.panel) {
                     @case ('contract') {
@@ -208,6 +208,11 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
   `,
 })
 export class RentalProgressChecklist implements OnInit {
+  /** Rótulo do chip em caixa normal: só a primeira letra maiúscula. */
+  protected sentence(label: string): string {
+    return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+  }
+
   private readonly rentalService = inject(RentalService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
