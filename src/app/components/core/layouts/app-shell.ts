@@ -23,6 +23,8 @@ import { TourSpotlight } from '../../tour/tour-spotlight';
 import { TourService } from '../../tour/tour.service';
 import { DriverTopBar } from '../../sidebar/driver-top-bar';
 import { ThemeToggle } from '../../theme-toggle/theme-toggle';
+import { AdminSidebar } from '../../../pages/admin/shell/admin-sidebar';
+import { isAdminAreaUrl } from '../../../pages/admin/shell/admin-menu';
 import { ThemeService } from '../../../services/theme.service';
 import { PastDueBannerStore } from '../../past-due-banner/past-due-banner';
 import { formatDayMonthTime, parseServerTime } from '../../../utils/server-time';
@@ -33,7 +35,7 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Sidebar, PaywallDialog, NotificationBell, TourSpotlight, DriverTopBar, ThemeToggle],
+  imports: [RouterOutlet, Sidebar, AdminSidebar, PaywallDialog, NotificationBell, TourSpotlight, DriverTopBar, ThemeToggle],
   animations: [
     trigger('contentMargin', [
       state('expanded', style({ marginLeft: '260px' })),
@@ -73,7 +75,11 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
       @if (layout.mobileTopBar()) {
         <app-driver-top-bar />
       }
-      <app-sidebar />
+      @if (adminArea()) {
+        <app-admin-sidebar />
+      } @else {
+        <app-sidebar />
+      }
       <main
         class="relative min-h-0 flex-1 overflow-y-auto transition-none"
         [@contentMargin]="contentState()"
@@ -253,9 +259,15 @@ export class AppShell implements OnInit, OnDestroy {
     });
   }
 
+  /** Em `/admin/**` a mesma casca mostra o menu da administração, de largura fixa. */
+  protected readonly adminArea = computed(() => isAdminAreaUrl(this.currentUrl()));
+
   protected contentState(): string {
     if (this.layout.isMobile()) {
       return 'mobile';
+    }
+    if (this.adminArea()) {
+      return 'expanded';
     }
     return this.layout.isCollapsed() ? 'collapsed' : 'expanded';
   }
