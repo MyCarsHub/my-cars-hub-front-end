@@ -4,7 +4,6 @@ import {
   OnInit,
   computed,
   inject,
-  signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LineChart, LinePoint } from '../../components/charts/line-chart/line-chart';
@@ -14,15 +13,10 @@ import { AdminMetricsService } from '../../services/admin-metrics.service';
 import { AdminCapabilitiesService } from '../../services/admin-capabilities.service';
 import { AdminCapabilityCode } from '../../types/admin-roles.types';
 import { DailyCount } from '../../types/admin-overview.types';
-import { AdminEmailTestDialog } from './components/admin-email-test-dialog';
-import { AdminOpsToolsDialog } from './components/admin-ops-tools-dialog';
 import { ApiErrorService } from '../../services/api-error.service';
-
-type AdminSectionAction = 'openEmailTest' | 'openOpsTools';
 
 interface AdminSection {
   route: string | null;
-  action?: AdminSectionAction;
   title: string;
   description: string;
   icon: string;
@@ -110,22 +104,6 @@ const SECTIONS: AdminSection[] = [
     description: 'Por dia: os motoristas foram avisados das cobranças? E-mail das 05:00 e aviso do Asaas.',
     icon: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0',
   },
-  {
-    route: null,
-    action: 'openEmailTest',
-    capability: 'plataforma.operar',
-    title: 'Testar templates',
-    description: 'Envia todos os 13 templates para um email de validação.',
-    icon: 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6 12 13 2 6',
-  },
-  {
-    route: null,
-    action: 'openOpsTools',
-    capability: 'cobranca.agir',
-    title: 'Ferramentas',
-    description: 'Ações operacionais de suporte, como regenerar o cronograma de um aluguel.',
-    icon: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z',
-  },
 ];
 
 interface StatusBar {
@@ -170,14 +148,7 @@ interface VolumeStat {
 @Component({
   selector: 'app-admin-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    DefaultPageLayout,
-    PageCard,
-    RouterLink,
-    LineChart,
-    AdminEmailTestDialog,
-    AdminOpsToolsDialog,
-  ],
+  imports: [DefaultPageLayout, PageCard, RouterLink, LineChart],
   templateUrl: './admin-home.html',
 })
 export class AdminHome implements OnInit {
@@ -187,8 +158,6 @@ export class AdminHome implements OnInit {
   private readonly caps = inject(AdminCapabilitiesService);
   /** Atalhos que o papel deste admin pode usar; vazio até o papel carregar (falha fechada). */
   protected readonly sections = computed(() => SECTIONS.filter((s) => this.caps.can(s.capability)));
-  protected readonly emailTestOpen = signal(false);
-  protected readonly opsToolsOpen = signal(false);
   protected readonly overview = this.metricsService.overview;
   protected readonly loading = this.metricsService.loading;
   protected readonly error = this.metricsService.error;
@@ -338,36 +307,6 @@ export class AdminHome implements OnInit {
     this.metricsService
       .loadOverview()
       .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
-  }
-
-  /**
-   * Cards sem rota abrem um diálogo; a seção declara qual pela sua `action`.
-   * O `default` atribui a ação a `never`: uma nova entrada em `AdminSectionAction`
-   * sem `case` aqui quebra a COMPILAÇÃO em vez de renderizar um botão inerte.
-   */
-  protected openAction(section: AdminSection): void {
-    switch (section.action) {
-      case 'openEmailTest':
-        this.emailTestOpen.set(true);
-        return;
-      case 'openOpsTools':
-        this.opsToolsOpen.set(true);
-        return;
-      case undefined:
-        return;
-      default: {
-        const unhandled: never = section.action;
-        throw new Error(`Ação administrativa não tratada: ${String(unhandled)}`);
-      }
-    }
-  }
-
-  protected closeEmailTest(): void {
-    this.emailTestOpen.set(false);
-  }
-
-  protected closeOpsTools(): void {
-    this.opsToolsOpen.set(false);
   }
 
   protected formatCurrency(value: number): string {
