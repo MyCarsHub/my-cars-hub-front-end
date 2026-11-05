@@ -1,3 +1,5 @@
+import type { ExpenseBreakdownDto } from './dashboard.types';
+
 export interface GatewayRevenue {
   provider: string;
   amountCents: number;
@@ -16,6 +18,8 @@ export interface FinancialSummary {
   accruedRevenueCents: number;
   revenueByGateway: GatewayRevenue[];
   operatingCostCents: number;
+  /** `operatingCostCents` por categoria. Opcional: backend anterior não envia. */
+  expenseBreakdown?: ExpenseBreakdownDto;
   netProfitCents: number;
   monthlyRevenue: MonthlyPoint[];
 }

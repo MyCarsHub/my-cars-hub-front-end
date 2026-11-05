@@ -26,6 +26,7 @@ import { StatusChip, StatusChipTone } from '../../components/core/status-chip/st
 import { VehicleActionsGroup } from './components/vehicle-actions-group/vehicle-actions-group';
 import { VehicleHistoryGroup } from './components/vehicle-history-group/vehicle-history-group';
 import { VehicleIcon } from './components/vehicle-icon/vehicle-icon';
+import { VehicleIpva } from './components/vehicle-ipva/vehicle-ipva';
 import { VehicleMoneyHero } from './components/vehicle-money-hero/vehicle-money-hero';
 import { VehiclePendencias } from './components/vehicle-pendencias/vehicle-pendencias';
 import { VehicleRentalHero } from './components/vehicle-rental-hero/vehicle-rental-hero';
@@ -79,6 +80,11 @@ function tabFromQuery(value: string | null): VehicleTab {
   return value === 'gerencia' ? 'gerencia' : 'veiculo';
 }
 
+/** `?ipva=AAAA` vem da página IPVA da frota: o ano que a seção de IPVA abre. */
+export function ipvaYearFromQuery(value: string | null): number | null {
+  return value && /^\d{4}$/.test(value) ? Number(value) : null;
+}
+
 @Component({
   selector: 'app-vehicle-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -99,6 +105,7 @@ function tabFromQuery(value: string | null): VehicleTab {
     VehicleDetailPhoto,
     VehicleHistoryGroup,
     VehicleIcon,
+    VehicleIpva,
     VehicleMoneyHero,
     VehiclePendencias,
     VehicleRentalHero,
@@ -130,6 +137,7 @@ export class VehicleDetail implements OnInit {
   protected readonly deleting = signal(false);
 
   protected readonly tab = signal<VehicleTab>('veiculo');
+  protected readonly ipvaFocusYear = signal<number | null>(null);
 
   // Cada leitura carrega sozinha: se uma falha, as outras continuam na tela. A página só
   // LÊ daqui para baixo; quem resolve pendência ou cobrança é a tela de destino.
@@ -331,6 +339,9 @@ export class VehicleDetail implements OnInit {
     this.route.queryParamMap
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((params) => this.tab.set(tabFromQuery(params.get('aba'))));
+
+    // Lido uma vez: é o pedido de quem abriu a página, não um estado da URL.
+    this.ipvaFocusYear.set(ipvaYearFromQuery(this.route.snapshot?.queryParamMap?.get('ipva') ?? null));
 
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) return;

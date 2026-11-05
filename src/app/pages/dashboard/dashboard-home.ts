@@ -11,6 +11,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { KpiCard } from '../../components/kpi-card/kpi-card';
+import { ExpenseBreakdown } from '../../components/expense-breakdown/expense-breakdown';
 import { FleetActivationService } from '../../services/fleet-activation.service';
 import { SessionService } from '../../services/session.service';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
@@ -21,6 +22,7 @@ import { showsAsUnlimited } from '../../utils/plan-limits';
 import {
     CashflowEventDto,
     DashboardSummaryDto,
+    ExpenseBreakdownDto,
     MonthlyPointDto,
     formatBRL,
 } from '../../types/dashboard.types';
@@ -94,6 +96,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
         RouterLink,
         CashAccumulationCard,
         KpiCard,
+        ExpenseBreakdown,
     ],
     templateUrl: './dashboard-home.html',
 })
@@ -344,7 +347,8 @@ export class DashboardHome {
             (a.overdueCharges?.count ?? 0) > 0 ||
             (a.failedCharges?.count ?? 0) > 0 ||
             (a.docsExpiring7d?.count ?? 0) > 0 ||
-            (a.expiringInsurance30d?.count ?? 0) > 0
+            (a.expiringInsurance30d?.count ?? 0) > 0 ||
+            (a.ipva?.count ?? 0) > 0
         );
     });
 
@@ -410,6 +414,22 @@ export class DashboardHome {
     protected readonly overdueChargesLabel = computed(() =>
         formatBRL(this.summary()?.finance?.overdueChargesCents ?? 0),
     );
+
+    /**
+     * Despesa por categoria (STORY-VEHICLE-FINANCE). Backend anterior não manda a quebra:
+     * aí só manutenção e multas existem (os campos antigos) e IPVA/seguro/financiamento
+     * ficam FORA da lista — mostrá-los como R$ 0,00 afirmaria um fato que a tela não sabe.
+     */
+    protected readonly expenseBreakdown = computed<Partial<ExpenseBreakdownDto> | null>(() => {
+        const f = this.summary()?.finance;
+        if (!f) return null;
+        return (
+            f.expenseBreakdown ?? {
+                maintenance: f.maintenanceExpenseCents ?? 0,
+                fines: f.fineExpenseCents ?? 0,
+            }
+        );
+    });
 
     protected readonly hasOverdue = computed(
         () => (this.summary()?.finance?.overdueChargesCents ?? 0) > 0,

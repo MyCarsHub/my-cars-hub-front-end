@@ -2,303 +2,281 @@
   title="Seguros"
   description="Apólices de seguro da frota, com alerta de vencimento próximo."
 >
-  <app-page-card title="Lista">
-    <div class="p-3 sm:p-4 space-y-4">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        @if (!vehicleIdPrefilter()) {
-          <div class="sm:col-span-2">
-            <label class="sr-only" for="seg-vehicle">Veículo</label>
-            <select
-              id="seg-vehicle"
-              [ngModel]="vehicleFilter()"
-              (ngModelChange)="vehicleFilter.set($event); onFilterChange()"
-              class="w-full px-3 min-h-[44px] text-sm border border-edge-field rounded-xl bg-surface
-                     focus:outline-none focus:ring-2 focus:ring-primary-400"
-            >
-              <option value="">Veículo: Todos</option>
-              @for (v of vehicles(); track v.id) {
-                <option [value]="v.id">{{ formatPlate(v.plate) }} · {{ v.brand }} {{ v.model }}</option>
-              }
-            </select>
+  <div class="space-y-6 lg:space-y-8 pb-[env(safe-area-inset-bottom)]">
+    <!-- Frota inteira, do servidor: os filtros da lista não mexem nestes números. Na Gerência de um
+         carro (prefiltro) o topo não aparece. -->
+    @if (!vehicleIdPrefilter()) {
+      @if (summaryError(); as err) {
+        <app-alert-banner variant="error" data-testid="summary-error">
+          {{ err }}
+          <button type="button" class="ml-2 underline font-semibold min-h-11 px-2" (click)="loadSummary()">Tentar novamente</button>
+        </app-alert-banner>
+      } @else {
+        <section
+          class="grid gap-3 grid-cols-2 md:grid-cols-4"
+          aria-label="Resumo dos seguros"
+          [attr.aria-busy]="kpiLoading() ? 'true' : null"
+          data-testid="insurance-kpis"
+        >
+          <div app-kpi-card data-kpi="active" variant="primary" label="Ativas" [anchored]="true"
+               class="enter-up lift" style="--stagger-i: 0"
+               [loading]="kpiLoading()" numberFormat="integer" [countTo]="summary()?.activeCount ?? 0"
+               [detail]="cancelledCaption()">
+          <app-kpi-glyph kpiIcon name="shield" />
+        </div>
+          <div app-kpi-card data-kpi="premium" variant="emerald" label="Prêmio das ativas" [anchored]="true"
+               class="enter-up lift" style="--stagger-i: 1"
+               [loading]="kpiLoading()" numberFormat="brl-cents" [countTo]="summary()?.premiumTotalActive ?? 0"
+               detail="soma das apólices em vigor" detailCompact="em vigor">
+          <app-kpi-glyph kpiIcon name="coin" />
+        </div>
+          <div app-kpi-card data-kpi="expiring" variant="white" [label]="'Vencem em ' + expiringSoonDays + ' dias'" [anchored]="true"
+               class="enter-up lift" style="--stagger-i: 2"
+               [tone]="(summary()?.expiringSoonCount ?? 0) > 0 ? 'warning' : 'default'"
+               [loading]="kpiLoading()" numberFormat="integer" [countTo]="summary()?.expiringSoonCount ?? 0"
+               detail="apólices ativas" detailCompact="ativas">
+          <app-kpi-glyph kpiIcon name="clock" />
+        </div>
+          <div app-kpi-card data-kpi="expired" variant="white" label="Expiradas" [anchored]="true"
+               class="enter-up lift" style="--stagger-i: 3"
+               [tone]="(summary()?.expiredCount ?? 0) > 0 ? 'danger' : 'default'"
+               [loading]="kpiLoading()" numberFormat="integer" [countTo]="summary()?.expiredCount ?? 0"
+               detail="sem cobertura" detailCompact="sem cobertura">
+          <app-kpi-glyph kpiIcon name="alert" />
+        </div>
+        </section>
+      }
+    }
+
+    <section class="md:bg-surface md:rounded-2xl md:border md:border-edge md:shadow-sm">
+      <div class="py-4 md:px-6 md:py-5 flex items-center justify-between gap-2">
+        <h2 class="font-semibold text-fg-body">Lista</h2>
+        @if (!vehicleIdPrefilter() && hasRows()) {
+          <button
+            type="button"
+            data-testid="add-insurance"
+            (click)="openPicker()"
+            class="press press-soft min-h-[44px] px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
+                   bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span class="sm:hidden">Adicionar</span>
+            <span class="hidden sm:inline">Adicionar seguro</span>
+          </button>
+        }
+      </div>
+
+      <div class="md:px-6 md:pb-6 space-y-4">
+        @if (hasRows()) {
+        <div class="space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            @if (!vehicleIdPrefilter()) {
+              <div class="sm:col-span-2">
+                <label class="sr-only" for="seg-vehicle">Veículo</label>
+                <select
+                  id="seg-vehicle"
+                  [ngModel]="vehicleFilter()"
+                  (ngModelChange)="vehicleFilter.set($event); onFilterChange()"
+                  class="w-full px-3 min-h-[44px] text-base border border-edge-field rounded-xl bg-surface
+                         text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+                >
+                  <option value="">Veículo: Todos</option>
+                  @for (v of vehicles(); track v.id) {
+                    <option [value]="v.id">{{ formatPlate(v.plate) }} · {{ v.brand }} {{ v.model }}</option>
+                  }
+                </select>
+              </div>
+            }
+            <div>
+              <label class="sr-only" for="seg-expiring">Janela de vencimento</label>
+              <select
+                id="seg-expiring"
+                [ngModel]="expiringFilter()"
+                (ngModelChange)="onExpiringChange($event)"
+                class="w-full px-3 min-h-[44px] text-base border border-edge-field rounded-xl bg-surface
+                       text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+              >
+                @for (opt of expiringOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label class="sr-only" for="seg-sort">Ordenação</label>
+              <select
+                id="seg-sort"
+                [ngModel]="sort()"
+                (ngModelChange)="sort.set($event); onFilterChange()"
+                class="w-full px-3 min-h-[44px] text-base border border-edge-field rounded-xl bg-surface
+                       text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+              >
+                @for (opt of sortOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          <app-pill-tabs
+            ariaLabel="Status"
+            [options]="statusTabs()"
+            [value]="statusFilter()"
+            (selected)="onStatusChange($event)"
+          />
+          @if (anyFilter()) {
+            <div class="flex justify-center md:justify-end">
+              <button
+                type="button"
+                data-clear-filters
+                (click)="clearFilters()"
+                class="press min-h-[44px] px-3 text-sm font-semibold text-fg-muted hover:text-primary-700 dark:hover:text-primary-400
+                       rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              >
+                Limpar filtros
+              </button>
+            </div>
+          }
+          <p data-results role="status" aria-live="polite" class="text-xs text-fg-subtle">
+            @if (expiringFilter()) {
+              A janela de vencimento considera apenas apólices ativas.
+            } @else {
+              {{ loading() ? 'Carregando…' : resultsText() }}
+            }
+          </p>
+        </div>
+        }
+
+        @if (error(); as listError) {
+          <app-alert-banner variant="error" [message]="listError" />
+        }
+        @if (actionError(); as actionMessage) {
+          <app-alert-banner variant="error" [message]="actionMessage" />
+        }
+
+        @if (loading() && items().length === 0) {
+          <div class="space-y-3" role="status" aria-label="Carregando apólices">
+            @for (n of [1, 2]; track n) {
+              <div class="h-[168px] lg:h-14 rounded-2xl lg:rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            }
           </div>
         }
 
-        <div>
-          <label class="sr-only" for="seg-status">Status</label>
-          <select
-            id="seg-status"
-            [ngModel]="statusFilter()"
-            (ngModelChange)="onStatusChange($event)"
-            class="w-full px-3 min-h-[44px] text-sm border border-edge-field rounded-xl bg-surface
-                   focus:outline-none focus:ring-2 focus:ring-primary-400"
-          >
-            @for (opt of statusOptions; track opt.value) {
-              <option [value]="opt.value">Status: {{ opt.label }}</option>
-            }
-          </select>
-        </div>
-
-        <div>
-          <label class="sr-only" for="seg-expiring">Janela de vencimento</label>
-          <select
-            id="seg-expiring"
-            [ngModel]="expiringFilter()"
-            (ngModelChange)="onExpiringChange($event)"
-            class="w-full px-3 min-h-[44px] text-sm border border-edge-field rounded-xl bg-surface
-                   focus:outline-none focus:ring-2 focus:ring-primary-400"
-          >
-            @for (opt of expiringOptions; track opt.value) {
-              <option [value]="opt.value">{{ opt.label }}</option>
-            }
-          </select>
-        </div>
-
-        <div>
-          <label class="sr-only" for="seg-sort">Ordenação</label>
-          <select
-            id="seg-sort"
-            [ngModel]="sort()"
-            (ngModelChange)="sort.set($event); onFilterChange()"
-            class="w-full px-3 min-h-[44px] text-sm border border-edge-field rounded-xl bg-surface
-                   focus:outline-none focus:ring-2 focus:ring-primary-400"
-          >
-            @for (opt of sortOptions; track opt.value) {
-              <option [value]="opt.value">{{ opt.label }}</option>
-            }
-          </select>
-        </div>
-
-        <div class="lg:col-span-4 flex items-center justify-between gap-3">
-          @if (expiringFilter()) {
-            <p class="text-xs text-fg-subtle">
-              A janela de vencimento considera apenas apólices ativas.
-            </p>
+        @if (!loading() && items().length === 0) {
+          @if (anyFilter()) {
+            <div data-testid="empty-filtered" class="rounded-xl border border-dashed border-edge-strong p-5 text-center space-y-3">
+              <p class="text-sm font-semibold text-fg">Nenhum resultado.</p>
+              <p class="text-sm text-fg-muted">Nenhuma apólice corresponde aos filtros escolhidos.</p>
+              <button
+                type="button"
+                data-clear-filters
+                (click)="clearFilters()"
+                class="press min-h-[44px] w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
+                       justify-center border border-edge bg-surface text-fg-soft hover:bg-surface-muted
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+              >
+                Limpar filtros
+              </button>
+            </div>
           } @else {
-            <span></span>
+            <div class="rounded-xl border border-dashed border-edge-strong p-5 text-center space-y-3">
+              <p class="text-sm font-semibold text-fg" data-testid="empty">Nenhuma apólice cadastrada ainda.</p>
+              @if (vehicleIdPrefilter()) {
+                <p class="text-sm text-fg-muted">Seguros são cadastrados a partir da página do veículo.</p>
+              } @else {
+                <button
+                  type="button"
+                  data-testid="empty-add"
+                  (click)="openPicker()"
+                  class="press min-h-12 w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
+                         justify-center gap-2 bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+                         focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                >
+                  Adicionar o primeiro seguro
+                </button>
+              }
+            </div>
           }
-          <button
-            type="button"
-            (click)="clearFilters()"
-            class="text-sm font-medium text-fg-subtle hover:text-fg-body px-3 min-h-[44px] rounded-lg"
-          >
-            Limpar filtros
-          </button>
-        </div>
-      </div>
+        }
 
-      @if (error(); as listError) {
-        <app-alert-banner variant="error" [message]="listError" />
-      }
-      @if (actionError(); as actionMessage) {
-        <app-alert-banner variant="error" [message]="actionMessage" />
-      }
+        @if (items().length > 0) {
+          @for (epoch of epochs(); track epoch.id) {
+            <!-- Celular: cartões. Só o chip muda de cor; o cartão nunca é tingido. -->
+            <ul class="flex flex-col gap-3 lg:hidden" aria-label="Apólices">
+              @for (i of items(); track i.id; let idx = $index) {
+                <li>
+                  <article
+                    class="enter-up press press-soft rounded-2xl bg-surface border border-edge p-4 cursor-pointer
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    [style.--stagger-i]="idx"
+                    (click)="onRowClick($event, i)"
+                    (keydown)="onRowKey($event, i)"
+                    role="button"
+                    tabindex="0"
+                    [attr.aria-label]="'Abrir apólice do veículo ' + i.vehiclePlate"
+                  >
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="min-w-0 flex-1">
+                        <b class="block text-lg font-semibold text-fg tabular-nums tracking-wider leading-tight">
+                          {{ formatPlate(i.vehiclePlate) }}
+                        </b>
+                        <small class="block text-xs text-fg-subtle mt-0.5 truncate">
+                          {{ i.vehicleBrand }} {{ i.vehicleModel }} · {{ i.insurer }}
+                        </small>
+                      </div>
+                      <app-status-chip [tone]="expiryTone(i)" size="sm">{{ expiryBadge(i).label }}</app-status-chip>
+                    </div>
 
-      @if (loading() && items().length === 0) {
-        <div class="space-y-2">
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
-        </div>
-      }
+                    <!--
+                      FIX-0439 — a franquia fica COLADA no prêmio de propósito: o
+                      prêmio diz quanto custa TER o seguro, a franquia diz quanto
+                      custa USÁ-LO. Lado a lado, os dois números respondem a pergunta inteira.
+                    -->
+                    <div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-xs text-fg-subtle">
+                      <div class="min-w-0">
+                        Prêmio
+                        <b class="block text-base font-semibold text-fg tabular-nums">{{ formatCurrency(i.premiumAmount) }}</b>
+                      </div>
+                      <div class="min-w-0">
+                        Franquia
+                        <b class="block text-base font-semibold text-fg tabular-nums">{{ formatCurrency(i.deductibleAmount) }}</b>
+                      </div>
+                      <div class="min-w-0">
+                        Apólice
+                        <b class="block text-sm font-semibold text-fg tabular-nums truncate">{{ i.policyNumber }}</b>
+                      </div>
+                      <div class="min-w-0">
+                        Cobertura
+                        <b class="block text-sm font-semibold text-fg truncate">{{ coverageLabel(i.coverageType) }}</b>
+                      </div>
+                    </div>
 
-      @if (!loading() && items().length === 0) {
-        <div class="text-center py-12 space-y-3">
-          <div class="w-14 h-14 rounded-full bg-surface-sunken flex items-center justify-center mx-auto"
-            aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="text-fg-faint">
-              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
-            </svg>
-          </div>
-          <p class="text-sm text-fg-subtle">Nenhuma apólice encontrada.</p>
-          <p class="text-xs text-fg-faint">
-            Seguros são cadastrados a partir da página do veículo.
-          </p>
-        </div>
-      }
-
-      @if (items().length > 0) {
-        <div class="space-y-3 lg:hidden">
-          @for (i of items(); track i.id) {
-            <article
-              class="rounded-xl border border-edge p-4 space-y-3 cursor-pointer
-                     hover:border-primary-300 dark:hover:border-primary-500/40 transition-colors"
-              [class]="rowHighlight(i) || 'bg-surface'"
-              (click)="openDetail(i)"
-              (keydown.enter)="openDetail(i)"
-              (keydown.space)="$event.preventDefault(); openDetail(i)"
-              role="button"
-              tabindex="0"
-              [attr.aria-label]="'Abrir apólice do veículo ' + i.vehiclePlate"
-            >
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0 flex-1">
-                  <p class="text-sm font-semibold text-fg tabular-nums tracking-wider">
-                    {{ formatPlate(i.vehiclePlate) }}
-                  </p>
-                  <p class="text-xs text-fg-subtle mt-0.5 truncate">
-                    {{ i.vehicleBrand }} {{ i.vehicleModel }}
-                  </p>
-                </div>
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
-                  [class]="expiryBadge(i).chip">
-                  {{ expiryBadge(i).label }}
-                </span>
-              </div>
-
-              <div class="grid grid-cols-2 gap-2 text-xs text-fg-muted">
-                <div>
-                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Seguradora</span>
-                  <p class="font-semibold text-fg truncate">{{ i.insurer }}</p>
-                </div>
-                <div>
-                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Apólice</span>
-                  <p class="font-medium tabular-nums truncate">{{ i.policyNumber }}</p>
-                </div>
-                <div>
-                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Cobertura</span>
-                  <p>{{ coverageLabel(i.coverageType) }}</p>
-                </div>
-                <div>
-                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Prêmio</span>
-                  <p class="font-medium tabular-nums">{{ formatCurrency(i.premiumAmount) }}</p>
-                </div>
-                <!--
-                  FIX-0439 — a franquia fica COLADA no prêmio de propósito: o
-                  prêmio diz quanto custa TER o seguro, a franquia diz quanto
-                  custa USÁ-LO. A decisão do dia a dia ("vale acionar o seguro
-                  neste sinistro?") depende da segunda, e ela é a que faltava.
-                  Lado a lado, os dois números respondem a pergunta inteira.
-                -->
-                <div>
-                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Franquia</span>
-                  <p class="font-medium tabular-nums">{{ formatCurrency(i.deductibleAmount) }}</p>
-                </div>
-                <div>
-                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Vigência</span>
-                  <p class="tabular-nums">{{ formatDate(i.startDate) }} → {{ formatDate(i.endDate) }}</p>
-                </div>
-                <div>
-                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Status</span>
-                  <p>
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                      [class]="statusInfo(i.status).chip">
-                      {{ statusInfo(i.status).label }}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <div class="flex items-center justify-end gap-2 pt-1 border-t border-edge-faint">
-                <app-actions-menu label="Ações da apólice">
-                  <a
-                    role="menuitem"
-                    [routerLink]="['/seguros', i.id]"
-                    class="flex items-center gap-2 px-3 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]">
-                    Ver detalhes
-                  </a>
-                  @if (canModify(i)) {
-                    <a
-                      role="menuitem"
-                      [routerLink]="['/seguros', i.id, 'editar']"
-                      class="flex items-center gap-2 px-3 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]">
-                      Editar
-                    </a>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      (click)="askAction('cancel', i, $event)"
-                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 min-h-[44px] text-left">
-                      Cancelar apólice
-                    </button>
-                  }
-                  <button
-                    type="button"
-                    role="menuitem"
-                    (click)="askAction('delete', i, $event)"
-                    class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 min-h-[44px] text-left border-t border-edge-soft">
-                    Excluir
-                  </button>
-                </app-actions-menu>
-              </div>
-            </article>
-          }
-        </div>
-
-        <div class="hidden lg:block overflow-x-auto">
-          <table class="min-w-full text-sm">
-            <thead>
-              <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
-                <th class="py-2 pr-4 font-medium">Veículo</th>
-                <th class="py-2 pr-4 font-medium">Seguradora</th>
-                <th class="py-2 pr-4 font-medium">Apólice</th>
-                <th class="py-2 pr-4 font-medium">Cobertura</th>
-                <th class="py-2 pr-4 font-medium">Prêmio</th>
-                <!-- FIX-0439 — ver o comentário no cartão: prêmio = custo de ter,
-                     franquia = custo de usar. -->
-                <th class="py-2 pr-4 font-medium">Franquia</th>
-                <th class="py-2 pr-4 font-medium">Vigência</th>
-                <th class="py-2 pr-4 font-medium">Vencimento</th>
-                <th class="py-2 pr-4 font-medium">Status</th>
-                <th class="py-2 pr-4 font-medium text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (i of items(); track i.id) {
-                <tr class="border-b border-edge-faint hover:bg-surface-muted/60 cursor-pointer"
-                  [class]="rowHighlight(i)"
-                  (click)="openDetail(i)"
-                  (keydown.enter)="openDetail(i)"
-                  (keydown.space)="$event.preventDefault(); openDetail(i)"
-                  tabindex="0"
-                  [attr.aria-label]="'Abrir apólice do veículo ' + i.vehiclePlate">
-                  <td class="py-3 pr-4">
-                    <p class="font-semibold text-fg tabular-nums tracking-wider">
-                      {{ formatPlate(i.vehiclePlate) }}
-                    </p>
-                    <p class="text-xs text-fg-subtle">{{ i.vehicleBrand }} {{ i.vehicleModel }}</p>
-                  </td>
-                  <td class="py-3 pr-4">{{ i.insurer }}</td>
-                  <td class="py-3 pr-4 tabular-nums">{{ i.policyNumber }}</td>
-                  <td class="py-3 pr-4">{{ coverageLabel(i.coverageType) }}</td>
-                  <td class="py-3 pr-4 font-semibold text-fg tabular-nums">{{ formatCurrency(i.premiumAmount) }}</td>
-                  <td class="py-3 pr-4 tabular-nums text-fg-soft">{{ formatCurrency(i.deductibleAmount) }}</td>
-                  <td class="py-3 pr-4 tabular-nums">
-                    {{ formatDate(i.startDate) }} → {{ formatDate(i.endDate) }}
-                  </td>
-                  <td class="py-3 pr-4">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                      [class]="expiryBadge(i).chip">
-                      {{ expiryBadge(i).label }}
-                    </span>
-                  </td>
-                  <td class="py-3 pr-4">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                      [class]="statusInfo(i.status).chip">
-                      {{ statusInfo(i.status).label }}
-                    </span>
-                  </td>
-                  <td class="py-3 pr-4">
-                    <div class="flex items-center justify-end gap-1">
-                      <app-actions-menu label="Ações da apólice" [menuWidth]="208">
+                    <div class="mt-3 flex items-center gap-3 text-xs text-fg-subtle">
+                      <span class="flex-1 min-w-0 tabular-nums">
+                        {{ formatDate(i.startDate) }} → {{ formatDate(i.endDate) }} ·
+                        <span class="font-semibold text-fg-soft">{{ statusInfo(i.status).label }}</span>
+                      </span>
+                      <app-actions-menu label="Ações da apólice">
                         <a
                           role="menuitem"
                           [routerLink]="['/seguros', i.id]"
-                          class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-fg-soft hover:bg-surface-muted text-left">
+                          class="flex items-center gap-2 px-4 py-3 text-sm text-fg-soft hover:bg-canvas min-h-[44px]">
                           Ver detalhes
                         </a>
                         @if (canModify(i)) {
                           <a
                             role="menuitem"
                             [routerLink]="['/seguros', i.id, 'editar']"
-                            class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-fg-soft hover:bg-surface-muted text-left">
+                            class="flex items-center gap-2 px-4 py-3 text-sm text-fg-soft hover:bg-canvas min-h-[44px]">
                             Editar
                           </a>
                           <button
                             type="button"
                             role="menuitem"
                             (click)="askAction('cancel', i, $event)"
-                            class="w-full px-3 py-2 min-h-[44px] text-xs text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-left">
+                            class="w-full flex items-center gap-2 px-4 py-3 text-sm text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 min-h-[44px] text-left">
                             Cancelar apólice
                           </button>
                         }
@@ -306,48 +284,150 @@
                           type="button"
                           role="menuitem"
                           (click)="askAction('delete', i, $event)"
-                          class="w-full px-3 py-2 min-h-[44px] text-xs text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-left border-t border-edge-soft">
+                          class="w-full flex items-center gap-2 px-4 py-3 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 min-h-[44px] text-left">
                           Excluir
                         </button>
                       </app-actions-menu>
                     </div>
-                  </td>
-                </tr>
+                  </article>
+                </li>
               }
-            </tbody>
-          </table>
-        </div>
-      }
+            </ul>
 
-      <!--
-        Paginador ligado a `total()`, não a `items()`: excluir a última linha da
-        última página zera a lista mas não o total, e escondê-lo aqui prendia o
-        usuário numa página vazia sem como voltar.
-      -->
-      @if (total() > 0) {
-        <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-edge-soft text-sm">
-          <p class="text-fg-subtle">
-            {{ total() }} apólice(s) — página {{ pageNumber() }} de {{ totalPages() }}
-          </p>
-          <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <button type="button"
-              class="px-4 min-h-[44px] rounded-lg border border-edge hover:bg-surface-muted disabled:opacity-50"
-              [disabled]="page() === 0 || loading()"
-              (click)="prev()">
-              Anterior
-            </button>
-            <button type="button"
-              class="px-4 min-h-[44px] rounded-lg border border-edge hover:bg-surface-muted disabled:opacity-50"
-              [disabled]="page() + 1 >= totalPages() || loading()"
-              (click)="next()">
-              Próxima
-            </button>
+            <!-- Desktop: tabela sem linhas entre as fileiras; o hover marca a linha, a cor fica no chip. -->
+            <div class="hidden lg:block overflow-x-auto -mx-2 px-2">
+              <table class="w-full text-sm">
+                <thead class="text-[11px] text-fg-subtle uppercase tracking-wider">
+                  <tr>
+                    <th scope="col" class="px-3 py-3 font-medium text-left">Veículo</th>
+                    <th scope="col" class="px-3 py-3 font-medium text-left">Seguradora</th>
+                    <th scope="col" class="px-3 py-3 font-medium text-left">Apólice</th>
+                    <th scope="col" class="px-3 py-3 font-medium text-left">Cobertura</th>
+                    <th scope="col" class="px-3 py-3 font-medium text-left">Prêmio</th>
+                    <!-- FIX-0439 — prêmio = custo de ter, franquia = custo de usar. -->
+                    <th scope="col" class="px-3 py-3 font-medium text-left">Franquia</th>
+                    <th scope="col" class="px-3 py-3 font-medium text-left">Vigência</th>
+                    <th scope="col" class="px-3 py-3 font-medium text-left">Vencimento</th>
+                    <th scope="col" class="px-3 py-3 font-medium text-left">Status</th>
+                    <th scope="col" class="px-3 py-3 font-medium text-right"><span class="sr-only">Ações</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (i of items(); track i.id; let idx = $index) {
+                    <tr
+                      class="enter-up align-middle cursor-pointer hover:bg-surface-muted transition-colors duration-150
+                             focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-400
+                             [&>td:first-child]:rounded-l-xl [&>td:last-child]:rounded-r-xl"
+                      [style.--stagger-i]="idx"
+                      (click)="onRowClick($event, i)"
+                      (keydown)="onRowKey($event, i)"
+                      tabindex="0"
+                      [attr.aria-label]="'Abrir apólice do veículo ' + i.vehiclePlate"
+                    >
+                      <td class="px-3 py-3.5">
+                        <b class="block font-semibold text-fg tabular-nums tracking-wider">{{ formatPlate(i.vehiclePlate) }}</b>
+                        <small class="block text-xs text-fg-subtle">{{ i.vehicleBrand }} {{ i.vehicleModel }}</small>
+                      </td>
+                      <td class="px-3 py-3.5 text-fg-soft">{{ i.insurer }}</td>
+                      <td class="px-3 py-3.5 tabular-nums text-fg-soft">{{ i.policyNumber }}</td>
+                      <td class="px-3 py-3.5 text-fg-soft">{{ coverageLabel(i.coverageType) }}</td>
+                      <td class="px-3 py-3.5 font-semibold text-fg tabular-nums whitespace-nowrap">{{ formatCurrency(i.premiumAmount) }}</td>
+                      <td class="px-3 py-3.5 tabular-nums text-fg-soft whitespace-nowrap">{{ formatCurrency(i.deductibleAmount) }}</td>
+                      <td class="px-3 py-3.5 tabular-nums text-fg-soft whitespace-nowrap">
+                        {{ formatDate(i.startDate) }} → {{ formatDate(i.endDate) }}
+                      </td>
+                      <td class="px-3 py-3.5">
+                        <app-status-chip [tone]="expiryTone(i)" size="sm">{{ expiryBadge(i).label }}</app-status-chip>
+                      </td>
+                      <td class="px-3 py-3.5">
+                        <app-status-chip [tone]="chipTone(i.status)" size="sm">{{ statusInfo(i.status).label }}</app-status-chip>
+                      </td>
+                      <td class="px-3 py-2 text-right whitespace-nowrap">
+                        <app-actions-menu label="Ações da apólice" [menuWidth]="208">
+                          <a
+                            role="menuitem"
+                            [routerLink]="['/seguros', i.id]"
+                            class="flex items-center w-full px-4 py-3 min-h-[44px] text-sm text-fg-soft hover:bg-canvas text-left">
+                            Ver detalhes
+                          </a>
+                          @if (canModify(i)) {
+                            <a
+                              role="menuitem"
+                              [routerLink]="['/seguros', i.id, 'editar']"
+                              class="flex items-center w-full px-4 py-3 min-h-[44px] text-sm text-fg-soft hover:bg-canvas text-left">
+                              Editar
+                            </a>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              (click)="askAction('cancel', i, $event)"
+                              class="w-full px-4 py-3 min-h-[44px] text-sm text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-left">
+                              Cancelar apólice
+                            </button>
+                          }
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="askAction('delete', i, $event)"
+                            class="w-full px-4 py-3 min-h-[44px] text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-left">
+                            Excluir
+                          </button>
+                        </app-actions-menu>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+
+        <!--
+          Paginador ligado a `total()`, não a `items()`: excluir a última linha da
+          última página zera a lista mas não o total, e escondê-lo aqui prendia o
+          usuário numa página vazia sem como voltar.
+        -->
+        @if (total() > 0) {
+          <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 text-sm">
+            <p class="text-fg-subtle">
+              {{ total() }} apólice(s) — página {{ pageNumber() }} de {{ totalPages() }}
+            </p>
+            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button type="button"
+                class="press px-4 min-h-[44px] rounded-xl bg-surface-sunken text-fg-soft font-semibold disabled:opacity-50"
+                [disabled]="page() === 0 || loading()"
+                (click)="prev()">
+                Anterior
+              </button>
+              <button type="button"
+                class="press px-4 min-h-[44px] rounded-xl bg-surface-sunken text-fg-soft font-semibold disabled:opacity-50"
+                [disabled]="page() + 1 >= totalPages() || loading()"
+                (click)="next()">
+                Próxima
+              </button>
+            </div>
           </div>
-        </div>
-      }
-    </div>
-  </app-page-card>
+        }
+      </div>
+    </section>
+  </div>
 </app-default-page-layout>
+
+@if (pickerOpen()) {
+  <app-bottom-sheet
+    title="Adicionar seguro"
+    subtitle="Escolha um veículo sem apólice ativa."
+    (closed)="pickerOpen.set(false)"
+  >
+    <div class="pb-2">
+      <app-vehicle-picker
+        [filter]="pickerFilter"
+        emptyText="Todos os veículos da frota já têm uma apólice ativa."
+        (picked)="onPicked($event)"
+      />
+    </div>
+  </app-bottom-sheet>
+}
 
 <app-confirm-dialog
   [open]="dialogOpen()"

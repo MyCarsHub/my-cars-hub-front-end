@@ -138,22 +138,25 @@
           </p>
           <p class="text-[10px] sm:text-[11px] text-gray-400 dark:text-fg-faint mt-1 truncate">(previsto)</p>
         </div>
-        <div class="rounded-2xl bg-surface border border-gray-200 dark:border-edge p-4 min-w-0">
-          <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">Custo operacional</p>
-          <p class="text-xl sm:text-2xl font-semibold text-rose-700 dark:text-rose-300 mt-1 tabular-nums truncate">
-            {{ formatBRL(r.financial.operatingCostCents) }}
-          </p>
-        </div>
-        <div class="rounded-2xl bg-surface border border-gray-200 dark:border-edge p-4 min-w-0">
-          <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">Lucro líquido</p>
-          <p
-            class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate"
-            [class.text-emerald-700]="netIsPositive()" [class.dark:text-emerald-300]="netIsPositive()"
-            [class.text-rose-700]="!netIsPositive()" [class.dark:text-rose-300]="!netIsPositive()"
-          >
-            {{ formatBRL(r.financial.netProfitCents) }}
-          </p>
-        </div>
+        <!-- STORY-VEHICLE-FINANCE: custo e lucro são o KPI de sempre (app-kpi-card, conta até o valor). -->
+        <div
+          app-kpi-card
+          data-operating-cost-kpi
+          variant="white"
+          label="Custo operacional"
+          numberFormat="brl-cents"
+          tone="danger"
+          [value]="r.financial.operatingCostCents"
+        ></div>
+        <div
+          app-kpi-card
+          data-net-profit-kpi
+          variant="white"
+          label="Lucro líquido"
+          numberFormat="brl-cents"
+          [tone]="netIsPositive() ? 'success' : 'danger'"
+          [value]="r.financial.netProfitCents"
+        ></div>
         <div class="rounded-2xl bg-primary-500 text-white p-4 min-w-0">
           <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Taxa de ocupação</p>
           <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate">
@@ -165,6 +168,17 @@
           </div>
         </div>
       </section>
+
+      <!-- Custo operacional por categoria (STORY-VEHICLE-FINANCE). Só com a quebra do backend. -->
+      @if (r.financial.expenseBreakdown; as breakdown) {
+        <section class="mb-4" data-operating-cost-breakdown>
+          <app-page-card title="Custo operacional por categoria">
+            <div class="p-4 min-w-0">
+              <app-expense-breakdown [breakdown]="breakdown" ariaLabel="Custo operacional por categoria" />
+            </div>
+          </app-page-card>
+        </section>
+      }
     }
 
     <!-- Receita mensal (mesmo padrão do dashboard "Faturamento últimos 6 meses") -->

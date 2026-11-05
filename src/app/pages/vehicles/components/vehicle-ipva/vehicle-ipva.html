@@ -1,0 +1,480 @@
+<section aria-labelledby="vehicle-ipva-heading" data-ipva-section class="block isolate scroll-mt-16">
+  <div class="flex items-end justify-between gap-3">
+    <h2
+      id="vehicle-ipva-heading"
+      class="m-0 pt-6 pb-3 px-1 text-lg font-semibold text-fg"
+    >
+      IPVA
+    </h2>
+  </div>
+
+  @if (loading()) {
+    <div class="space-y-3" role="status" aria-label="Carregando o IPVA">
+      <div class="h-11 w-48 rounded-full bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+    </div>
+  } @else if (loadError(); as failure) {
+    <app-alert-banner variant="error" data-ipva-load-error>
+      {{ failure }}
+      <button
+        type="button"
+        (click)="load()"
+        class="ml-2 underline font-semibold min-h-11 cursor-pointer"
+      >
+        Tentar novamente
+      </button>
+    </app-alert-banner>
+  } @else {
+    <app-pill-tabs
+      ariaLabel="Ano do IPVA"
+      [options]="yearOptions()"
+      [value]="'' + selectedYear()"
+      (selected)="selectYear($event)"
+    />
+
+    @if (actionError(); as opError) {
+      <div class="mt-3">
+        <app-alert-banner variant="error" [message]="opError" />
+      </div>
+    }
+
+    @if (hasInstallments()) {
+      <div class="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-3" data-ipva-kpis>
+        <div
+          app-kpi-card
+          label="Total"
+          variant="primary"
+          size="compact"
+          [anchored]="true"
+          numberFormat="brl-cents"
+          [countTo]="current().totalCents"
+          [detail]="current().installmentsCount + ' parcelas'"
+          [stagger]="0"
+          data-ipva-kpi="total"
+        >
+          <app-kpi-glyph kpiIcon name="receipt" />
+        </div>
+        <div
+          app-kpi-card
+          label="Pago"
+          variant="emerald"
+          size="compact"
+          [anchored]="true"
+          numberFormat="brl-cents"
+          [countTo]="current().paidCents"
+          [detail]="paidDetail()"
+          [progress]="paidProgress()"
+          [stagger]="1"
+          data-ipva-kpi="pago"
+        >
+          <app-kpi-glyph kpiIcon name="check" />
+        </div>
+        <div
+          app-kpi-card
+          class="col-span-2 lg:col-span-1"
+          label="Próximo vencimento"
+          size="compact"
+          [anchored]="true"
+          [tone]="nextDueTone()"
+          [value]="nextDueValue()"
+          [detail]="nextDueDetail()"
+          [stagger]="2"
+          data-ipva-kpi="proximo"
+        >
+          <app-kpi-glyph kpiIcon name="clock" />
+        </div>
+      </div>
+
+      <app-list-group [heading]="'Parcelas de ' + selectedYear()">
+        <span groupNote class="pb-2 px-1.5 text-[13px] text-fg-subtle tabular-nums">
+          {{ paidNote() }}
+        </span>
+        @for (row of installments(); track row.id; let i = $index) {
+          <div
+            appListRow
+            class="enter-up"
+            [style.--stagger-i]="i"
+            [attr.data-ipva-installment]="row.number"
+          >
+            <span
+              class="tile tabular-nums text-[13px] font-semibold"
+              aria-hidden="true"
+            >
+              {{ row.number }}ª
+            </span>
+            <span class="t">
+              <b class="tabular-nums">{{ formatCurrency(row.amountCents) }}</b>
+              <small class="tabular-nums">{{ rowDetail(row) }}</small>
+            </span>
+            <app-status-chip size="sm" [tone]="chipFor(row).tone">
+              {{ chipFor(row).label }}
+            </app-status-chip>
+            <app-actions-menu [label]="'Ações da parcela ' + row.number">
+              @if (row.paid) {
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-ipva-action="unpay"
+                  (click)="askUnpay(row)"
+                  class="w-full text-left text-base px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+                >
+                  Desfazer pagamento
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-ipva-action="pay"
+                  (click)="openPay(row)"
+                  class="w-full text-left text-base px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+                >
+                  Marcar como paga
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-ipva-action="edit"
+                  (click)="openEdit(row)"
+                  class="w-full text-left text-base px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-ipva-action="delete"
+                  [disabled]="sold()"
+                  [attr.title]="sold() ? lockReason() : null"
+                  (click)="askDelete(row)"
+                  class="w-full text-left text-base px-4 py-3 text-rose-700 dark:text-rose-300
+                         hover:bg-canvas min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Excluir
+                </button>
+              }
+            </app-actions-menu>
+          </div>
+        }
+      </app-list-group>
+
+      <button
+        type="button"
+        data-ipva-add
+        [disabled]="sold()"
+        [attr.title]="sold() ? lockReason() : null"
+        (click)="openAdd()"
+        class="press mt-2 inline-flex min-h-[48px] items-center gap-2 rounded-xl px-2 text-base
+               font-semibold text-primary-700 dark:text-primary-400 hover:bg-primary-50
+               dark:hover:bg-primary-500/10 disabled:opacity-50 disabled:cursor-not-allowed
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.25"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        Adicionar parcela
+      </button>
+    } @else {
+        <div class="mt-4 rounded-xl border border-dashed border-edge-strong p-5 text-center space-y-3 enter-up" data-ipva-empty>
+          <p class="m-0 text-sm font-semibold text-fg">
+            Sem IPVA cadastrado para {{ selectedYear() }}
+          </p>
+          <p class="m-0 text-sm text-fg-muted">
+            Informe o valor do ano e em quantas vezes vai pagar.
+          </p>
+          <div class="flex flex-col sm:flex-row sm:justify-center gap-2">
+            <button
+              type="button"
+              data-ipva-generate
+              [disabled]="sold()"
+              [attr.title]="sold() ? lockReason() : null"
+              (click)="openGenerate()"
+              class="press w-full sm:w-auto inline-flex items-center justify-center px-5 rounded-xl
+                     bg-primary-500 hover:bg-primary-700 text-white text-base font-semibold
+                     shadow-sm min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                     focus-visible:ring-offset-2"
+            >
+              Gerar parcelas
+            </button>
+            <button
+              type="button"
+              data-ipva-add
+              [disabled]="sold()"
+              [attr.title]="sold() ? lockReason() : null"
+              (click)="openAdd()"
+              class="press w-full sm:w-auto inline-flex items-center justify-center px-5 rounded-xl
+                     text-base font-semibold text-primary-700 dark:text-primary-400
+                     hover:bg-primary-50 dark:hover:bg-primary-500/10 min-h-[48px]
+                     disabled:opacity-50 disabled:cursor-not-allowed
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            >
+              Adicionar uma parcela
+            </button>
+          </div>
+        </div>
+    }
+  }
+</section>
+
+@if (sheet(); as kind) {
+  <app-bottom-sheet
+    [title]="sheetTitle()"
+    [subtitle]="sheetSubtitle()"
+    [busy]="saving()"
+    (closed)="onSheetClosed()"
+  >
+    <div class="space-y-4 pb-2" [attr.data-ipva-sheet]="kind">
+      @if (sheetError(); as failure) {
+        <app-alert-banner variant="error" [message]="failure" />
+      }
+
+      @switch (kind) {
+        @case ('generate') {
+          <form
+            [formGroup]="generateForm"
+            (ngSubmit)="submitSheet()"
+            id="ipva-sheet-form"
+            class="space-y-4"
+            novalidate
+          >
+            <app-form-field
+              label="Valor total do IPVA (R$)"
+              controlId="ipva-total"
+              [required]="true"
+              [control]="generateForm.controls.totalReais"
+              [messages]="moneyMessages"
+            >
+              <input
+                appFieldControl
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                placeholder="1.200,00"
+                formControlName="totalReais"
+                (input)="onMoneyInput($event, 'total')"
+                class="w-full px-4 py-3 rounded-xl border border-edge-field bg-surface text-fg
+                       placeholder:text-fg-faint text-base tabular-nums min-h-[48px]
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              />
+            </app-form-field>
+
+            <div class="grid grid-cols-2 gap-3">
+              <app-form-field
+                label="Parcelas"
+                controlId="ipva-count"
+                [required]="true"
+                [control]="generateForm.controls.installments"
+                [messages]="countMessages"
+                [hint]="'De 1 a ' + maxInstallments"
+              >
+                <input
+                  appFieldControl
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  [max]="maxInstallments"
+                  step="1"
+                  formControlName="installments"
+                  class="w-full px-4 py-3 rounded-xl border border-edge-field bg-surface text-fg
+                       placeholder:text-fg-faint text-base tabular-nums min-h-[48px]
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+                />
+              </app-form-field>
+              <app-form-field
+                label="1º vencimento"
+                controlId="ipva-first-due"
+                [required]="true"
+                [control]="generateForm.controls.firstDueDate"
+                [messages]="dateMessages"
+              >
+                <input
+                  appFieldControl
+                  type="date"
+                  formControlName="firstDueDate"
+                  class="w-full px-3 py-3 rounded-xl border border-edge-field bg-surface text-fg
+                       placeholder:text-fg-faint text-base min-h-[48px]
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+                />
+              </app-form-field>
+            </div>
+
+            @if (generatePreview(); as preview) {
+              <p
+                class="m-0 rounded-xl bg-surface-sunken px-4 py-3 text-sm text-fg-soft tabular-nums"
+                aria-live="polite"
+                data-ipva-preview
+              >
+                {{ preview }}
+              </p>
+            }
+          </form>
+        }
+        @case ('pay') {
+          <form
+            [formGroup]="payForm"
+            (ngSubmit)="submitSheet()"
+            id="ipva-sheet-form"
+            class="space-y-4"
+            novalidate
+          >
+            <app-form-field
+              label="Data do pagamento"
+              controlId="ipva-paid-date"
+              [required]="true"
+              [control]="payForm.controls.paidDate"
+              [messages]="dateMessages"
+            >
+              <input
+                appFieldControl
+                type="date"
+                [max]="today"
+                formControlName="paidDate"
+                class="w-full px-4 py-3 rounded-xl border border-edge-field bg-surface text-fg
+                       placeholder:text-fg-faint text-base min-h-[48px]
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              />
+            </app-form-field>
+            <app-form-field
+              label="Valor pago (R$)"
+              controlId="ipva-paid-amount"
+              hint="Em branco, vale o valor da parcela."
+              [control]="payForm.controls.paidAmountReais"
+              [messages]="moneyMessages"
+            >
+              <input
+                appFieldControl
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                placeholder="1.200,00"
+                formControlName="paidAmountReais"
+                (input)="onMoneyInput($event, 'paid')"
+                class="w-full px-4 py-3 rounded-xl border border-edge-field bg-surface text-fg
+                       placeholder:text-fg-faint text-base tabular-nums min-h-[48px]
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              />
+            </app-form-field>
+          </form>
+        }
+        @default {
+          <form
+            [formGroup]="installmentForm"
+            (ngSubmit)="submitSheet()"
+            id="ipva-sheet-form"
+            class="space-y-4"
+            novalidate
+          >
+            <app-form-field
+              label="Vencimento"
+              controlId="ipva-due-date"
+              [required]="true"
+              [control]="installmentForm.controls.dueDate"
+              [messages]="dateMessages"
+            >
+              <input
+                appFieldControl
+                type="date"
+                formControlName="dueDate"
+                class="w-full px-4 py-3 rounded-xl border border-edge-field bg-surface text-fg
+                       placeholder:text-fg-faint text-base min-h-[48px]
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              />
+            </app-form-field>
+            <app-form-field
+              label="Valor (R$)"
+              controlId="ipva-amount"
+              [required]="true"
+              [control]="installmentForm.controls.amountReais"
+              [messages]="moneyMessages"
+            >
+              <input
+                appFieldControl
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                placeholder="400,00"
+                formControlName="amountReais"
+                (input)="onMoneyInput($event, 'amount')"
+                class="w-full px-4 py-3 rounded-xl border border-edge-field bg-surface text-fg
+                       placeholder:text-fg-faint text-base tabular-nums min-h-[48px]
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              />
+            </app-form-field>
+          </form>
+        }
+      }
+    </div>
+
+    <div sheetFooter class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="requestCloseSheet()"
+        [disabled]="saving()"
+        class="press w-full sm:w-auto px-5 py-2.5 rounded-xl text-base font-semibold text-fg-soft
+               hover:bg-surface-sunken min-h-[48px] disabled:opacity-60"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        form="ipva-sheet-form"
+        data-ipva-submit
+        [disabled]="saving()"
+        [class]="
+          kind === 'pay'
+            ? 'bg-emerald-700 hover:bg-emerald-800'
+            : 'bg-primary-500 hover:bg-primary-700'
+        "
+        class="press w-full sm:w-auto px-6 py-2.5 rounded-xl text-white text-base font-semibold
+               shadow-sm min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+               focus-visible:ring-offset-2"
+      >
+        @if (saving()) {
+          Salvando…
+        } @else {
+          @switch (kind) {
+            @case ('generate') { Gerar parcelas }
+            @case ('pay') { Marcar como paga }
+            @case ('edit') { Salvar }
+            @default { Adicionar }
+          }
+        }
+      </button>
+    </div>
+  </app-bottom-sheet>
+}
+
+<app-confirm-dialog
+  [open]="unpayTarget() !== null"
+  title="Desfazer o pagamento?"
+  [message]="unpayMessage()"
+  confirmLabel="Desfazer"
+  cancelLabel="Voltar"
+  variant="warning"
+  [busy]="busyId() !== null"
+  (confirmed)="confirmUnpay()"
+  (cancelled)="cancelUnpay()"
+/>
+
+<app-confirm-dialog
+  [open]="deleteTarget() !== null"
+  title="Excluir a parcela?"
+  [message]="deleteMessage()"
+  confirmLabel="Excluir"
+  cancelLabel="Voltar"
+  variant="danger"
+  [busy]="busyId() !== null"
+  (confirmed)="confirmDelete()"
+  (cancelled)="cancelDelete()"
+/>
