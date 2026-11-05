@@ -699,6 +699,15 @@ export const routes: Routes = [
                         ],
                     },
                     {
+                        // STORY-VEHICLE-FINANCE — IPVA da frota inteira, por exercício. Mesmo
+                        // `roleGuard` de Financiamentos e Seguros, e do item "Frota → IPVA".
+                        path: 'ipva',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        loadComponent: () =>
+                            import('./pages/ipva/ipva-fleet').then((m) => m.IpvaFleet),
+                        data: { pageTitle: 'IPVA' },
+                    },
+                    {
                         path: 'relatorios',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         loadComponent: () =>

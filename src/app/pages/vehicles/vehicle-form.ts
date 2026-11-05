@@ -83,6 +83,7 @@ import {
   PendingDocumentsBlock,
   PendingSlotView,
 } from '../../components/documents/pending-documents-block';
+import { OPEN_BLOCK_PARAM } from '../../types/fleet-finance.types';
 
 const PLATE_PATTERN = /^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/;
 
@@ -810,6 +811,9 @@ export class VehicleForm implements OnInit {
           this.form.disable({ emitEvent: false });
           this.financingForm.disable({ emitEvent: false });
           this.insuranceForm.disable({ emitEvent: false });
+        } else {
+          // Só depois de saber se o carro foi vendido: vendido não abre bloco nenhum.
+          this.openBlockFromQuery(this.route.snapshot.queryParamMap.get(OPEN_BLOCK_PARAM));
         }
         this.form.patchValue({
           plate: v.plate,
@@ -994,6 +998,16 @@ export class VehicleForm implements OnInit {
   protected continueWithoutPhoto(): void {
     const id = this.editingId();
     if (id) this.router.navigate(['/veiculos', id]);
+  }
+
+  /**
+   * `?abrir=financiamento|seguro` vem das folhas "Adicionar …" de Financiamentos e Seguros: o
+   * carro já foi escolhido lá, então o bloco chega aberto.
+   * Chamado depois do GET do veículo, só quando ele não foi vendido.
+   */
+  private openBlockFromQuery(value: string | null): void {
+    if (value === 'financiamento') this.showFinancing.set(true);
+    if (value === 'seguro') this.showInsurance.set(true);
   }
 
   protected toggleFinancing(): void {

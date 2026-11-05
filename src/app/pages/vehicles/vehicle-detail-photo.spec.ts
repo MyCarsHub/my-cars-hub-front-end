@@ -11,6 +11,7 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { ImageCompressionService } from '../../services/image-compression.service';
 import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { VehicleIpvaService } from '../../services/vehicle-ipva.service';
 import { RentalService } from '../rentals/rental.service';
 import type { Vehicle, VehicleDocument } from '../../types/vehicle.types';
 
@@ -90,6 +91,8 @@ describe('VehicleDetail — foto do veículo', () => {
       providers: [
         provideRouter([]),
         provideNoopAnimations(),
+        // A seção de IPVA nunca vai à rede neste spec.
+        { provide: VehicleIpvaService, useValue: { listYears: vi.fn(() => of([])) } },
         {
           provide: ActivatedRoute,
           useValue: {
