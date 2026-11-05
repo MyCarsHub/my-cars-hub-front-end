@@ -19,7 +19,7 @@ import {
   exportReportPdf,
   reportToMarkdown,
 } from '../../utils/reports-export';
-import { BarChart, BarDatum } from '../../pages/dashboard/components/bar-chart';
+import { BarChart, BarDatum } from '../../components/charts/bar-chart/bar-chart';
 import { MonthlyBillingChart } from '../../pages/dashboard/components/monthly-billing-chart';
 import { MonthlyPointDto } from '../../types/dashboard.types';
 import {

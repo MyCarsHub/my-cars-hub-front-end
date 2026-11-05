@@ -8,6 +8,11 @@ export interface BarDatum {
     hint?: string;
 }
 
+/** Width of a bar in percent of `max`. Shared with `app-stacked-bar-chart` so both scale the same. */
+export function barPct(value: number, max: number): number {
+    return max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+}
+
 interface RenderedBar {
     label: string;
     hint: string | null;
@@ -102,8 +107,8 @@ export class BarChart {
             return {
                 label: d.label,
                 hint: d.hint ?? null,
-                primaryPct: (d.value / max) * 100,
-                secondaryPct: sec ? (sec.value / max) * 100 : null,
+                primaryPct: barPct(d.value, max),
+                secondaryPct: sec ? barPct(sec.value, max) : null,
                 primaryValue: format(d.value),
                 secondaryValue: sec ? format(sec.value) : null,
                 gapValue: sec && gapCents > 0 ? format(gapCents) : null,

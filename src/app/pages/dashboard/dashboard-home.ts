@@ -36,7 +36,7 @@ import { CashAccumulationResponse } from '../../types/cash-accumulation.types';
 import { ReportsService } from '../../services/reports.service';
 import { aggregateFleetRoi } from '../../types/reports.types';
 import { StatusBarChart, StatusBucketRow } from './components/status-bar-chart';
-import { BarChart, BarDatum } from './components/bar-chart';
+import { BarChart, BarDatum } from '../../components/charts/bar-chart/bar-chart';
 import { QuickActionCard } from './components/quick-action-card';
 
 /** Delta comparativo entre janela atual e imediatamente anterior. */
