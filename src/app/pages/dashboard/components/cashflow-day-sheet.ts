@@ -5,20 +5,68 @@ import {
     input,
     output,
 } from '@angular/core';
-import { CashflowEventDto, formatBRL, formatDate } from '../../../types/dashboard.types';
+import {
+    CashflowEventDto,
+    CashflowKind,
+    formatBRL,
+    formatDate,
+} from '../../../types/dashboard.types';
 
-interface KindMeta {
+/** Desenho do ícone da linha (traço 2, 24x24). */
+export type CashflowIcon = 'rental' | 'maintenance' | 'fine' | 'ipva' | 'insurance' | 'financing';
+
+export interface KindMeta {
     label: string;
+    /** Cor do rótulo do tipo. */
     color: string;
+    /** Fundo + cor do quadradinho do ícone — a única superfície tingida da linha. */
+    chip: string;
+    icon: CashflowIcon;
 }
 
-const KIND_META: Record<CashflowEventDto['kind'], KindMeta> = {
-    RENTAL_RECEIPT: { label: 'Recebimento de aluguel', color: 'text-emerald-700 dark:text-emerald-300' },
-    MAINTENANCE_PAID: { label: 'Manutenção paga', color: 'text-red-700 dark:text-red-300' },
-    MAINTENANCE_SCHEDULED: { label: 'Manutenção agendada', color: 'text-amber-700 dark:text-amber-300' },
-    FINE_PAID: { label: 'Multa paga', color: 'text-red-700 dark:text-red-300' },
-    FINE_DUE: { label: 'Multa a vencer', color: 'text-amber-700 dark:text-amber-300' },
+/*
+ * PAGO = vermelho (o dinheiro saiu), A VENCER = âmbar (ainda vai sair): o mesmo par de
+ * FINE_PAID/FINE_DUE vale para IPVA, seguro e financiamento. Classes por extenso para o
+ * Tailwind achá-las no fonte.
+ */
+const IN_LOOK = {
+    color: 'text-emerald-700 dark:text-emerald-300',
+    chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
 };
+const PAID_LOOK = {
+    color: 'text-red-700 dark:text-red-300',
+    chip: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
+};
+const DUE_LOOK = {
+    color: 'text-amber-700 dark:text-amber-300',
+    chip: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+};
+
+export const CASHFLOW_KIND_META: Record<CashflowKind, KindMeta> = {
+    RENTAL_RECEIPT: { label: 'Recebimento de aluguel', ...IN_LOOK, icon: 'rental' },
+    MAINTENANCE_PAID: { label: 'Manutenção paga', ...PAID_LOOK, icon: 'maintenance' },
+    MAINTENANCE_SCHEDULED: { label: 'Manutenção agendada', ...DUE_LOOK, icon: 'maintenance' },
+    FINE_PAID: { label: 'Multa paga', ...PAID_LOOK, icon: 'fine' },
+    FINE_DUE: { label: 'Multa a vencer', ...DUE_LOOK, icon: 'fine' },
+    IPVA_PAID: { label: 'IPVA pago', ...PAID_LOOK, icon: 'ipva' },
+    IPVA_DUE: { label: 'IPVA a vencer', ...DUE_LOOK, icon: 'ipva' },
+    INSURANCE_PAID: { label: 'Seguro pago', ...PAID_LOOK, icon: 'insurance' },
+    INSURANCE_DUE: { label: 'Seguro a vencer', ...DUE_LOOK, icon: 'insurance' },
+    FINANCING_PAID: { label: 'Parcela de financiamento paga', ...PAID_LOOK, icon: 'financing' },
+    FINANCING_DUE: { label: 'Parcela de financiamento a vencer', ...DUE_LOOK, icon: 'financing' },
+};
+
+/** Meta de um tipo; um tipo desconhecido (backend mais novo) cai num neutro com o nome cru. */
+export function cashflowKindMeta(kind: string): KindMeta {
+    return (
+        CASHFLOW_KIND_META[kind as CashflowKind] ?? {
+            label: kind,
+            color: 'text-gray-700 dark:text-fg-soft',
+            chip: 'bg-gray-100 text-gray-600 dark:bg-surface-sunken dark:text-fg-muted',
+            icon: 'rental',
+        }
+    );
+}
 
 /**
  * Sheet-style panel listing every cashflow event of a single day.
@@ -84,8 +132,43 @@ const KIND_META: Record<CashflowEventDto['kind'], KindMeta> = {
                     <ul class="overflow-y-auto p-4 space-y-3">
                         @for (e of events(); track $index) {
                             <li class="rounded-xl border border-gray-100 dark:border-edge-soft p-3">
-                                <div class="flex items-start justify-between gap-2">
-                                    <div class="min-w-0">
+                                <div class="flex items-start gap-3" [attr.data-cashflow-kind]="e.kind">
+                                    <span
+                                        class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center"
+                                        [class]="kindMeta(e).chip"
+                                        aria-hidden="true"
+                                    >
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" stroke-width="2"
+                                             stroke-linecap="round" stroke-linejoin="round">
+                                            @switch (kindMeta(e).icon) {
+                                                @case ('rental') {
+                                                    <circle cx="12" cy="12" r="9" />
+                                                    <path d="M14.8 9A2 2 0 0 0 13 8h-2a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-2a2 2 0 0 1-1.8-1" />
+                                                    <path d="M12 6v2m0 8v2" />
+                                                }
+                                                @case ('maintenance') {
+                                                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                                                }
+                                                @case ('fine') {
+                                                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                                    <path d="M12 9v4" /><path d="M12 17h.01" />
+                                                }
+                                                @case ('ipva') {
+                                                    <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+                                                    <path d="M8 8h8" /><path d="M8 12h8" /><path d="M8 16h5" />
+                                                }
+                                                @case ('insurance') {
+                                                    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+                                                }
+                                                @case ('financing') {
+                                                    <path d="M3 21h18" /><path d="M5 21V10" /><path d="M19 21V10" />
+                                                    <path d="M9 21v-7" /><path d="M15 21v-7" /><path d="M12 3 3 8h18z" />
+                                                }
+                                            }
+                                        </svg>
+                                    </span>
+                                    <div class="min-w-0 flex-1">
                                         <p
                                             class="text-[11px] font-medium"
                                             [class]="kindMeta(e).color"
@@ -134,7 +217,7 @@ export class CashflowDaySheet {
     );
 
     protected kindMeta(e: CashflowEventDto): KindMeta {
-        return KIND_META[e.kind] ?? { label: e.kind, color: 'text-gray-700 dark:text-fg-soft' };
+        return cashflowKindMeta(e.kind);
     }
 
     protected money(cents: number): string {

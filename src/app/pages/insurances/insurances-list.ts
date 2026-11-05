@@ -12,7 +12,12 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
-import { PageCard } from '../../components/core/page-card/page-card';
+import { BottomSheet } from '../../components/core/bottom-sheet/bottom-sheet';
+import { PillTabOption, PillTabs } from '../../components/core/pill-tabs/pill-tabs';
+import { StatusChip, StatusChipTone } from '../../components/core/status-chip/status-chip';
+import { KpiCard } from '../../components/kpi-card/kpi-card';
+import { KpiGlyph } from '../../components/kpi-card/kpi-glyph';
+import { VehiclePicker } from '../../components/vehicles/vehicle-picker/vehicle-picker';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
@@ -20,6 +25,12 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { InsurancesService } from '../../services/insurances.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { FleetFinanceService } from '../../services/fleet-finance.service';
+import {
+  InsurancesSummary,
+  OPEN_BLOCK_PARAM,
+  VehiclePickerFilter,
+} from '../../types/fleet-finance.types';
 import { VehicleListItem } from '../../types/vehicle.types';
 import { PagedResponse } from '../../types/paged.types';
 import { InsuranceCoverage, InsuranceListItem, InsuranceStatus } from '../../types/insurance.types';
@@ -49,6 +60,19 @@ const SORT_OPTIONS = [
   { value: 'end_date_desc', label: 'Vencimento (mais distante)' },
 ] as const;
 
+/** Janela do KPI "Vencem em breve" e do chip âmbar: a mesma da opção mais larga do filtro. */
+export const EXPIRING_SOON_DAYS = 30;
+/** Abaixo disto o vencimento é urgente: chip vermelho e linha tingida de vermelho. */
+export const EXPIRING_URGENT_DAYS = 7;
+
+/** Tom do chip por status, nas mesmas cores dos chips de antes. */
+const STATUS_TONE: Record<InsuranceStatus, StatusChipTone> = {
+  ACTIVE: 'green',
+  EXPIRED: 'red',
+  CANCELLED: 'neutral',
+  SUSPENDED: 'amber',
+};
+
 /** Ações do menu da linha que atuam sobre a apólice inteira. */
 type PendingAction = 'cancel' | 'delete';
 
@@ -59,10 +83,15 @@ type PendingAction = 'cancel' | 'delete';
     FormsModule,
     RouterLink,
     DefaultPageLayout,
-    PageCard,
+    BottomSheet,
     ConfirmDialog,
     ActionsMenu,
     AlertBanner,
+    KpiCard,
+    KpiGlyph,
+    PillTabs,
+    StatusChip,
+    VehiclePicker,
   ],
   templateUrl: './insurances-list.html',
 })
@@ -72,6 +101,7 @@ export class InsurancesList implements OnInit {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
+  private readonly fleetFinance = inject(FleetFinanceService);
 
   /**
    * When provided, scopes the listing to a single vehicle and hides the vehicle dropdown.
@@ -133,6 +163,56 @@ export class InsurancesList implements OnInit {
 
   protected readonly pageNumber = computed(() => this.page() + 1);
 
+  // ---- topo (KPIs) e "Adicionar seguro" -------------------------------------
+
+  protected readonly expiringSoonDays = EXPIRING_SOON_DAYS;
+  protected readonly summary = signal<InsurancesSummary | null>(null);
+  protected readonly summaryLoading = signal(true);
+  protected readonly summaryError = signal<string | null>(null);
+  protected readonly kpiLoading = computed(() => this.summaryLoading() && !this.summary());
+
+  protected readonly cancelledCaption = computed(() => {
+    const n = this.summary()?.cancelledCount ?? 0;
+    return n === 1 ? '1 cancelada' : `${n} canceladas`;
+  });
+
+  protected readonly pickerOpen = signal(false);
+  protected readonly pickerFilter: VehiclePickerFilter = { kind: 'withoutActiveInsurance' };
+
+  /** Troca a cada filtro: a lista é refeita e a cascata de entrada recomeça. */
+  private readonly epoch = signal(0);
+  protected readonly epochs = computed(() => [{ id: this.epoch() }]);
+
+  protected readonly statusTabs = computed<readonly PillTabOption<InsuranceStatus | ''>[]>(() =>
+    STATUS_OPTIONS.map((o) => ({
+      value: o.value,
+      label: o.label,
+      shortLabel: o.value === 'SUSPENDED' ? 'Susp.' : o.value === 'CANCELLED' ? 'Canc.' : undefined,
+      testId: `status-${o.value || 'ALL'}`,
+    })),
+  );
+
+  protected readonly anyFilter = computed(
+    () =>
+      this.vehicleFilter() !== (this.vehicleIdPrefilter() ?? '') ||
+      this.statusFilter() !== '' ||
+      this.expiringFilter() !== '' ||
+      this.sort() !== 'created_desc',
+  );
+
+  /**
+   * Lista com algo (ou filtrada): mostra filtros e o "Adicionar" do cabeçalho, como em Cupons.
+   * O total conta também a página que ficou vazia depois de excluir a última linha dela.
+   */
+  protected readonly hasRows = computed(
+    () => this.items().length > 0 || this.total() > 0 || this.anyFilter(),
+  );
+
+  protected readonly resultsText = computed(() => {
+    const n = this.total();
+    return n === 0 ? 'Nenhum resultado' : n === 1 ? '1 apólice' : `${n} apólices`;
+  });
+
   /**
    * O prefiltro de veículo é reativo: navegar da gerência de um veículo para a
    * de outro reusa esta instância (mesma configuração de rota), e ler o input
@@ -151,6 +231,7 @@ export class InsurancesList implements OnInit {
   }
 
   ngOnInit(): void {
+    if (!this.vehicleIdPrefilter()) this.loadSummary();
     this.vehiclesService.list({ size: 500, sort: 'plate_asc' }).subscribe({
       next: (res) => this.vehicles.set(res.content ?? []),
       error: () => this.vehicles.set([]),
@@ -158,11 +239,73 @@ export class InsurancesList implements OnInit {
   }
 
   protected onFilterChange(): void {
+    this.epoch.update((n) => n + 1);
     this.reload(0);
+  }
+
+  protected loadSummary(): void {
+    this.summaryLoading.set(true);
+    this.summaryError.set(null);
+    this.fleetFinance.insurancesSummary(EXPIRING_SOON_DAYS).subscribe({
+      next: (s) => {
+        this.summary.set(s);
+        this.summaryLoading.set(false);
+      },
+      error: (err: unknown) => {
+        this.summaryLoading.set(false);
+        this.summaryError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar o resumo dos seguros.'),
+        );
+      },
+    });
+  }
+
+  protected openPicker(): void {
+    this.pickerOpen.set(true);
+  }
+
+  /** O cadastro da apólice continua no formulário do veículo, com o bloco já aberto. */
+  protected onPicked(vehicle: VehicleListItem): void {
+    this.pickerOpen.set(false);
+    void this.router.navigate(['/veiculos', vehicle.id, 'editar'], {
+      queryParams: { [OPEN_BLOCK_PARAM]: 'seguro' },
+    });
+  }
+
+  /** Cliques no kebab e nos itens dele têm dono próprio e não abrem o detalhe. */
+  protected onRowClick(event: Event, i: InsuranceListItem): void {
+    const target = event.target;
+    if (target instanceof Element && target.closest('a, button, [role="menuitem"]')) return;
+    this.openDetail(i);
+  }
+
+  /** Enter e Espaço na própria linha; nas teclas dos controles de dentro, nada. */
+  protected onRowKey(event: KeyboardEvent, i: InsuranceListItem): void {
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    this.openDetail(i);
+  }
+
+  protected chipTone(s: InsuranceStatus): StatusChipTone {
+    return STATUS_TONE[s] ?? 'neutral';
+  }
+
+  /**
+   * Tom do chip de vencimento: vermelho até `EXPIRING_URGENT_DAYS` (e vencida), âmbar até
+   * `EXPIRING_SOON_DAYS`, senão o do status.
+   */
+  protected expiryTone(i: InsuranceListItem): StatusChipTone {
+    const days = i.daysToExpiry;
+    if (i.status !== 'ACTIVE' || days == null || days > EXPIRING_SOON_DAYS) {
+      return this.chipTone(i.status);
+    }
+    return days <= EXPIRING_URGENT_DAYS ? 'red' : 'amber';
   }
 
   /** Escolher uma janela de vencimento zera o status (filtros exclusivos). */
   protected onExpiringChange(value: string): void {
+    this.epoch.update((n) => n + 1);
     this.expiringFilter.set(value);
     if (value) this.statusFilter.set('');
     this.reload(0);
@@ -170,6 +313,7 @@ export class InsurancesList implements OnInit {
 
   /** Escolher um status zera a janela de vencimento (filtros exclusivos). */
   protected onStatusChange(value: InsuranceStatus | ''): void {
+    this.epoch.update((n) => n + 1);
     this.statusFilter.set(value);
     if (value) this.expiringFilter.set('');
     this.reload(0);
@@ -253,22 +397,13 @@ export class InsurancesList implements OnInit {
     if (days < 0) {
       return { label: 'Vencida', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
     }
-    if (days <= 7) {
+    if (days <= EXPIRING_URGENT_DAYS) {
       return { label: `Vence em ${days}d`, chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
     }
-    if (days <= 30) {
+    if (days <= EXPIRING_SOON_DAYS) {
       return { label: `Vence em ${days}d`, chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' };
     }
     return this.statusInfo(i.status);
-  }
-
-  /** Linha destacada quando a apólice ativa vence em ≤ 7 dias. */
-  protected rowHighlight(i: InsuranceListItem): string {
-    const days = i.daysToExpiry;
-    if (i.status !== 'ACTIVE' || days == null) return '';
-    if (days <= 7) return 'bg-rose-50/60 dark:bg-rose-500/10';
-    if (days <= 30) return 'bg-amber-50/50 dark:bg-amber-500/10';
-    return '';
   }
 
   protected formatPlate(plate: string): string {
@@ -325,6 +460,7 @@ export class InsurancesList implements OnInit {
       this.pendingInsurance.set(null);
       this.notifications.success(message);
       this.reload(this.page());
+      if (!this.vehicleIdPrefilter()) this.loadSummary();
     };
 
     // Erros de negócio (409/404) vão pro banner inline: o diálogo fecha e não há

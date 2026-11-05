@@ -22,6 +22,8 @@ import {
 import { BarChart, BarDatum } from '../../pages/dashboard/components/bar-chart';
 import { MonthlyBillingChart } from '../../pages/dashboard/components/monthly-billing-chart';
 import { MonthlyPointDto } from '../../types/dashboard.types';
+import { KpiCard } from '../../components/kpi-card/kpi-card';
+import { ExpenseBreakdown } from '../../components/expense-breakdown/expense-breakdown';
 import {
   FilterChipGroup,
   FilterChipOption,
@@ -55,6 +57,8 @@ function toIso(d: Date): string {
     MonthlyBillingChart,
     AlertBanner,
     FilterChipGroup,
+    KpiCard,
+    ExpenseBreakdown,
   ],
   templateUrl: './relatorios.html',
 })

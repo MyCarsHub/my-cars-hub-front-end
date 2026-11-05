@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { FinancingsList } from './financings-list';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
+import { FleetFinanceService } from '../../services/fleet-finance.service';
 import type { FinancingListItem } from '../../types/vehicle.types';
 
 /**
@@ -75,6 +76,7 @@ describe('FinancingsList — menu de ações', () => {
             deleteFinancing: deleteSpy,
           },
         },
+        { provide: FleetFinanceService, useValue: { financingsSummary: vi.fn().mockReturnValue(of({ activeCount: 1, paidOffCount: 0, overdueInstallments: 0, totalFinancedActive: 6000000, monthlyInstallmentsActive: 150000 })), pickVehicles: vi.fn().mockReturnValue(of({ content: [], page: 0, size: 50, total: 0 })) } },
         { provide: NotificationService, useValue: { success: successSpy, error: vi.fn() } },
       ],
     });

@@ -59,6 +59,11 @@ export interface AlertsDto {
      * foram criadas no Asaas ou precisam de link novo). Opcional: backend anterior não envia.
      */
     failedCharges?: CountAmountDto;
+    /**
+     * STORY-VEHICLE-FINANCE — parcelas de IPVA a vencer. Opcional pelo mesmo motivo de
+     * `expiringInsurance30d`: um backend anterior à entrega do IPVA não o envia.
+     */
+    ipva?: CountDto;
 }
 
 export interface FleetDto {
@@ -100,26 +105,49 @@ export interface RevenueByEntityDto {
 }
 
 /**
- * Cash-flow event on a specific day.
+ * Every kind the backend puts in `finance.cashflow`.
  * - `RENTAL_RECEIPT` (IN): revenue projected per rental billing frequency
  * - `MAINTENANCE_PAID` / `MAINTENANCE_SCHEDULED` (OUT): maintenance costs
- * - `FINE_PAID` (OUT) / `FINE_DUE` (OUT): fine cash effects
+ * - `*_PAID` (OUT) money that left; `*_DUE` (OUT) money still to leave — fines, IPVA
+ *   installments, insurance and financing installments (STORY-VEHICLE-FINANCE)
  */
+export type CashflowKind =
+    | 'RENTAL_RECEIPT'
+    | 'MAINTENANCE_PAID'
+    | 'MAINTENANCE_SCHEDULED'
+    | 'FINE_PAID'
+    | 'FINE_DUE'
+    | 'IPVA_DUE'
+    | 'IPVA_PAID'
+    | 'INSURANCE_DUE'
+    | 'INSURANCE_PAID'
+    | 'FINANCING_DUE'
+    | 'FINANCING_PAID';
+
+/** Cash-flow event on a specific day (kinds: see {@link CashflowKind}). */
 export interface CashflowEventDto {
     /** ISO `yyyy-MM-dd`. */
     date: string;
-    kind:
-        | 'RENTAL_RECEIPT'
-        | 'MAINTENANCE_PAID'
-        | 'MAINTENANCE_SCHEDULED'
-        | 'FINE_PAID'
-        | 'FINE_DUE';
+    kind: CashflowKind;
     direction: 'IN' | 'OUT';
     amountCents: number;
     rentalId?: string | null;
     vehicleId?: string | null;
     driverId?: string | null;
     label: string;
+}
+
+/**
+ * Despesas da janela por categoria (STORY-VEHICLE-FINANCE), na mesma unidade do total ao
+ * lado dela (`expensesCents` no dashboard, `operatingCostCents` nos relatórios): centavos.
+ * A soma das cinco é o total.
+ */
+export interface ExpenseBreakdownDto {
+    maintenance: number;
+    fines: number;
+    ipva: number;
+    insurance: number;
+    financing: number;
 }
 
 export interface FinanceDto {
@@ -153,6 +181,11 @@ export interface FinanceDto {
     maintenanceExpenseCents: number;
     /** Portion of expenses from PAID fines (period). */
     fineExpenseCents: number;
+    /**
+     * `expensesCents` por categoria. Opcional: um backend anterior não o envia, e aí a tela
+     * só tem manutenção e multas (os dois campos acima) para mostrar.
+     */
+    expenseBreakdown?: ExpenseBreakdownDto;
     /** SUM de rental_charges PENDING criadas na janela (proxy "a receber"). */
     pendingChargesCents: number;
     /** SUM de rental_charges FAILED + PENDING vencidas (inadimplência de aluguéis). */

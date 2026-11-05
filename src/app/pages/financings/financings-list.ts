@@ -10,13 +10,24 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
-import { PageCard } from '../../components/core/page-card/page-card';
+import { BottomSheet } from '../../components/core/bottom-sheet/bottom-sheet';
+import { PillTabOption, PillTabs } from '../../components/core/pill-tabs/pill-tabs';
+import { StatusChip, StatusChipTone } from '../../components/core/status-chip/status-chip';
+import { KpiCard } from '../../components/kpi-card/kpi-card';
+import { KpiGlyph } from '../../components/kpi-card/kpi-glyph';
+import { VehiclePicker } from '../../components/vehicles/vehicle-picker/vehicle-picker';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { FleetFinanceService } from '../../services/fleet-finance.service';
+import {
+  FinancingsSummary,
+  OPEN_BLOCK_PARAM,
+  VehiclePickerFilter,
+} from '../../types/fleet-finance.types';
 import {
   FinancingListItem,
   FinancingStatus,
@@ -47,10 +58,15 @@ type PendingAction = 'payOff' | 'delete';
     FormsModule,
     RouterLink,
     DefaultPageLayout,
-    PageCard,
+    BottomSheet,
     ConfirmDialog,
     ActionsMenu,
     AlertBanner,
+    KpiCard,
+    KpiGlyph,
+    PillTabs,
+    StatusChip,
+    VehiclePicker,
   ],
   templateUrl: './financings-list.html',
 })
@@ -59,6 +75,7 @@ export class FinancingsList implements OnInit {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
+  private readonly fleetFinance = inject(FleetFinanceService);
 
   /**
    * When provided, scopes the listing to a single vehicle and hides the vehicle dropdown.
@@ -118,10 +135,56 @@ export class FinancingsList implements OnInit {
 
   protected readonly pageNumber = computed(() => this.page() + 1);
 
+  // ---- topo (KPIs) e "Adicionar financiamento" ------------------------------
+
+  protected readonly summary = signal<FinancingsSummary | null>(null);
+  protected readonly summaryLoading = signal(true);
+  protected readonly summaryError = signal<string | null>(null);
+  protected readonly kpiLoading = computed(() => this.summaryLoading() && !this.summary());
+
+  protected readonly paidOffCaption = computed(() => {
+    const n = this.summary()?.paidOffCount ?? 0;
+    return n === 1 ? '1 quitado' : `${n} quitados`;
+  });
+
+  protected readonly overdueCaption = computed(() =>
+    (this.summary()?.overdueInstallments ?? 0) > 0 ? 'nos contratos ativos' : 'tudo em dia',
+  );
+
+  protected readonly pickerOpen = signal(false);
+  protected readonly pickerFilter: VehiclePickerFilter = { kind: 'withoutActiveFinancing' };
+
+  /** Troca a cada filtro: a lista é refeita e a cascata de entrada recomeça. */
+  private readonly epoch = signal(0);
+  protected readonly epochs = computed(() => [{ id: this.epoch() }]);
+
+  protected readonly statusTabs = computed<readonly PillTabOption<FinancingStatus | ''>[]>(() =>
+    STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label, testId: `status-${o.value || 'ALL'}` })),
+  );
+
+  protected readonly anyFilter = computed(
+    () =>
+      this.vehicleFilter() !== (this.vehicleIdPrefilter() ?? '') ||
+      this.statusFilter() !== '' ||
+      this.sort() !== 'created_desc',
+  );
+
+  /** Lista com algo (ou filtrada): mostra filtros e o "Adicionar" do cabeçalho, como em Cupons. */
+  protected readonly hasRows = computed(
+    () => this.items().length > 0 || this.total() > 0 || this.anyFilter(),
+  );
+
+  protected readonly resultsText = computed(() => {
+    const n = this.total();
+    return n === 0 ? 'Nenhum resultado' : n === 1 ? '1 financiamento' : `${n} financiamentos`;
+  });
+
   ngOnInit(): void {
     const prefilter = this.vehicleIdPrefilter();
     if (prefilter) {
       this.vehicleFilter.set(prefilter);
+    } else {
+      this.loadSummary();
     }
     this.vehiclesService.list({ size: 500, sort: 'plate_asc' }).subscribe({
       next: (res) => this.vehicles.set(res.content ?? []),
@@ -131,7 +194,58 @@ export class FinancingsList implements OnInit {
   }
 
   protected onFilterChange(): void {
+    this.epoch.update((n) => n + 1);
     this.reload(0);
+  }
+
+  protected onStatusTab(value: FinancingStatus | ''): void {
+    if (value === this.statusFilter()) return;
+    this.statusFilter.set(value);
+    this.onFilterChange();
+  }
+
+  protected loadSummary(): void {
+    this.summaryLoading.set(true);
+    this.summaryError.set(null);
+    this.fleetFinance.financingsSummary().subscribe({
+      next: (s) => {
+        this.summary.set(s);
+        this.summaryLoading.set(false);
+      },
+      error: (err: unknown) => {
+        this.summaryLoading.set(false);
+        this.summaryError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar o resumo dos financiamentos.'),
+        );
+      },
+    });
+  }
+
+  protected openPicker(): void {
+    this.pickerOpen.set(true);
+  }
+
+  /** O cadastro do financiamento continua no formulário do veículo, com o bloco já aberto. */
+  protected onPicked(vehicle: VehicleListItem): void {
+    this.pickerOpen.set(false);
+    void this.router.navigate(['/veiculos', vehicle.id, 'editar'], {
+      queryParams: { [OPEN_BLOCK_PARAM]: 'financiamento' },
+    });
+  }
+
+  /** Cliques no kebab e nos itens dele têm dono próprio e não abrem o detalhe. */
+  protected onRowClick(event: Event, f: FinancingListItem): void {
+    const target = event.target;
+    if (target instanceof Element && target.closest('a, button, [role="menuitem"]')) return;
+    this.openDetail(f);
+  }
+
+  /** Enter e Espaço na própria linha; nas teclas dos controles de dentro, nada. */
+  protected onRowKey(event: KeyboardEvent, f: FinancingListItem): void {
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    this.openDetail(f);
   }
 
   protected clearFilters(): void {
@@ -222,6 +336,7 @@ export class FinancingsList implements OnInit {
       this.pendingFinancing.set(null);
       this.notifications.success(message);
       this.reload(this.page());
+      if (!this.vehicleIdPrefilter()) this.loadSummary();
     };
 
     // Erros de negócio (409/404) vão pro banner inline: o diálogo fecha e não há
@@ -251,13 +366,9 @@ export class FinancingsList implements OnInit {
    * Badge derivado do agregado `overdueInstallments` do backend, que consulta
    * `financing_installments` (V24). Substituiu a projeção mensal do client.
    */
-  protected progressBadge(f: FinancingListItem): { label: string; chip: string } {
-    if (f.status === 'PAID_OFF') {
-      return { label: 'Quitado', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' };
-    }
-    if ((f.overdueInstallments ?? 0) > 0) {
-      return { label: 'Atrasado', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
-    }
-    return { label: 'Em dia', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' };
+  protected progressBadge(f: FinancingListItem): { label: string; tone: StatusChipTone } {
+    if (f.status === 'PAID_OFF') return { label: 'Quitado', tone: 'green' };
+    if ((f.overdueInstallments ?? 0) > 0) return { label: 'Atrasado', tone: 'red' };
+    return { label: 'Em dia', tone: 'blue' };
   }
 }
