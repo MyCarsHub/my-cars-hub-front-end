@@ -162,6 +162,7 @@ describe('paridade nav x guard de rota', () => {
     '/sinistros',
     '/financiamentos',
     '/seguros',
+    '/ipva',
     '/motoristas',
     '/relatorios',
     '/alertas',
@@ -188,7 +189,7 @@ describe('paridade nav x guard de rota', () => {
   it('a arvore do menu mantem a forma: 13 itens de topo, 11 filhos', () => {
     const children = NAV_ITEMS.reduce((total, item) => total + (item.children?.length ?? 0), 0);
 
-    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 13, filhos: 11 });
+    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 13, filhos: 12 });
   });
 
   /**

@@ -10,6 +10,7 @@ import { InsurancesList } from './insurances-list';
 import { InsurancesService } from '../../services/insurances.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
+import { FleetFinanceService } from '../../services/fleet-finance.service';
 import type { InsuranceListItem } from '../../types/insurance.types';
 
 /**
@@ -85,6 +86,7 @@ describe('InsurancesList', () => {
           provide: VehiclesService,
           useValue: { list: vi.fn().mockReturnValue(of({ content: [], total: 0 })) },
         },
+        { provide: FleetFinanceService, useValue: { insurancesSummary: vi.fn().mockReturnValue(of({ activeCount: 1, expiringSoonCount: 0, expiredCount: 0, cancelledCount: 0, premiumTotalActive: 240050 })), pickVehicles: vi.fn().mockReturnValue(of({ content: [], page: 0, size: 50, total: 0 })) } },
         { provide: NotificationService, useValue: { success: successSpy, error: vi.fn() } },
       ],
     });
@@ -389,6 +391,7 @@ describe('InsurancesList — paginação', () => {
           provide: VehiclesService,
           useValue: { list: vi.fn().mockReturnValue(of({ content: [], total: 0 })) },
         },
+        { provide: FleetFinanceService, useValue: { insurancesSummary: vi.fn().mockReturnValue(of({ activeCount: 1, expiringSoonCount: 0, expiredCount: 0, cancelledCount: 0, premiumTotalActive: 240050 })), pickVehicles: vi.fn().mockReturnValue(of({ content: [], page: 0, size: 50, total: 0 })) } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn() } },
       ],
     });

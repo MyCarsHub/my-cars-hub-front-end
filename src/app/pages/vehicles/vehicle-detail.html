@@ -302,11 +302,20 @@
           }
         </div>
 
-        <div class="lg:col-span-12 xl:col-span-4 min-w-0 enter-up" style="--stagger-i: 2">
+        <div class="lg:col-span-12 xl:col-span-4 xl:row-span-2 min-w-0 enter-up" style="--stagger-i: 2">
           <app-vehicle-history-group
             [vehicleId]="v.id"
             [financed]="summary()?.finance?.financed ?? null"
             [sold]="sold()"
+          />
+        </div>
+
+        <div class="lg:col-span-12 xl:col-span-8 min-w-0 enter-up" style="--stagger-i: 3">
+          <app-vehicle-ipva
+            [vehicleId]="v.id"
+            [sold]="sold()"
+            [lockReason]="soldLockReason()"
+            [focusYear]="ipvaFocusYear()"
           />
         </div>
       </div>

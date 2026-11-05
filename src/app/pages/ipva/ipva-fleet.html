@@ -1,0 +1,360 @@
+<app-default-page-layout
+  title="IPVA"
+  description="O IPVA da frota por ano: quanto custa, quanto já foi pago e o que vence."
+>
+  <div class="space-y-6 lg:space-y-8 pb-[env(safe-area-inset-bottom)]">
+    <app-pill-tabs
+      ariaLabel="Ano do IPVA"
+      [options]="yearTabs()"
+      [value]="'' + year()"
+      (selected)="selectYear($event)"
+    />
+
+    @if (summaryError(); as err) {
+      <app-alert-banner variant="error" data-testid="summary-error">
+        {{ err }}
+        <button type="button" class="ml-2 underline font-semibold min-h-11 px-2" (click)="reloadAll()">Tentar novamente</button>
+      </app-alert-banner>
+    } @else {
+      <!-- Números do ano inteiro, do servidor: a busca e as abas não mexem neles. -->
+      <section
+        class="grid gap-3 grid-cols-2 md:grid-cols-4"
+        aria-label="Resumo do IPVA"
+        [attr.aria-busy]="kpiLoading() ? 'true' : null"
+        data-testid="ipva-kpis"
+      >
+        <div app-kpi-card data-kpi="total" variant="primary" label="Total" [anchored]="true"
+             class="enter-up lift" style="--stagger-i: 0"
+             [loading]="kpiLoading()" numberFormat="brl-cents" [countTo]="summary()?.totalCents ?? 0"
+             [detail]="totalCaption()">
+          <app-kpi-glyph kpiIcon name="receipt" />
+        </div>
+        <div app-kpi-card data-kpi="paid" variant="emerald" label="Pago" [anchored]="true"
+             class="enter-up lift" style="--stagger-i: 1"
+             [loading]="kpiLoading()" numberFormat="brl-cents" [countTo]="summary()?.paidCents ?? 0"
+             [progress]="paidRatio()" [detail]="paidCaption()">
+          <app-kpi-glyph kpiIcon name="check" />
+        </div>
+        <div app-kpi-card data-kpi="open" variant="white" label="Em aberto" [anchored]="true"
+             class="enter-up lift" style="--stagger-i: 2"
+             [loading]="kpiLoading()" numberFormat="brl-cents" [countTo]="summary()?.openCents ?? 0"
+             [detail]="openCaption()">
+          <app-kpi-glyph kpiIcon name="clock" />
+        </div>
+        <div app-kpi-card data-kpi="overdue" variant="white" label="Vencidas" [anchored]="true"
+             class="enter-up lift" style="--stagger-i: 3"
+             [tone]="(summary()?.overdueCount ?? 0) > 0 ? 'danger' : 'default'"
+             [loading]="kpiLoading()" numberFormat="integer" [countTo]="summary()?.overdueCount ?? 0"
+             [detail]="overdueCaption()">
+          <app-kpi-glyph kpiIcon name="alert" />
+        </div>
+      </section>
+    }
+
+    <section class="md:bg-surface md:rounded-2xl md:border md:border-edge md:shadow-sm">
+      <div class="py-4 md:px-6 md:py-5 flex items-center justify-between gap-2">
+        <h2 class="font-semibold text-fg-body">Lista</h2>
+        @if (hasAny()) {
+          <button
+            type="button"
+            data-testid="add-ipva"
+            (click)="openSheet()"
+            class="press press-soft min-h-[44px] px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
+                   bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Adicionar IPVA
+          </button>
+        }
+      </div>
+
+      <div class="md:px-6 md:pb-6 space-y-4">
+        @if (hasAny()) {
+          <div class="space-y-3">
+            <div class="relative">
+              <label for="ipva-search" class="sr-only">Buscar veículo</label>
+              <span class="absolute inset-y-0 left-3 flex items-center text-fg-faint" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </span>
+              <input
+                id="ipva-search"
+                type="search"
+                inputmode="search"
+                autocomplete="off"
+                [formControl]="searchControl"
+                placeholder="Placa, marca ou modelo…"
+                data-testid="ipva-search"
+                class="w-full min-h-[44px] pl-9 pr-3 text-base border border-edge-field rounded-xl
+                       bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+            </div>
+            <app-pill-tabs
+              ariaLabel="Situação"
+              [options]="statusTabs()"
+              [value]="status()"
+              (selected)="selectStatus($event)"
+            />
+            @if (anyFilter()) {
+              <div class="flex justify-center md:justify-end">
+                <button
+                  type="button"
+                  data-clear-filters
+                  (click)="clearFilters()"
+                  class="press min-h-[44px] px-3 text-sm font-semibold text-fg-muted hover:text-primary-700 dark:hover:text-primary-400
+                         rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                >
+                  Limpar filtros
+                </button>
+              </div>
+            }
+            <p data-results role="status" aria-live="polite" class="text-xs text-fg-subtle">
+              {{ loading() ? 'Carregando…' : resultsText() }}
+            </p>
+          </div>
+        }
+
+        @if (error(); as err) {
+          <app-alert-banner variant="error" data-testid="list-error">
+            {{ err }}
+            <button type="button" class="ml-2 underline font-semibold min-h-11 px-2" (click)="loadList(page())">Tentar novamente</button>
+          </app-alert-banner>
+        } @else if (loading() && rows().length === 0) {
+          <div class="space-y-3" role="status" aria-label="Carregando o IPVA" data-testid="skeleton">
+            @for (i of [1, 2, 3]; track i) {
+              <div class="h-[132px] md:h-14 rounded-2xl md:rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            }
+          </div>
+        } @else if (rows().length === 0 && anyFilter()) {
+          <div data-testid="empty-filtered" class="rounded-xl border border-dashed border-edge-strong p-5 text-center space-y-3">
+            <p class="text-sm font-semibold text-fg">Nenhum resultado.</p>
+            <p class="text-sm text-fg-muted">Nenhum veículo corresponde à busca e à situação escolhidas.</p>
+            <button
+              type="button"
+              data-clear-filters
+              (click)="clearFilters()"
+              class="press min-h-[44px] w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
+                     justify-center border border-edge bg-surface text-fg-soft hover:bg-surface-muted
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            >
+              Limpar filtros
+            </button>
+          </div>
+        } @else if (rows().length === 0) {
+          <div class="rounded-xl border border-dashed border-edge-strong p-5 text-center space-y-3">
+            <p class="text-sm font-semibold text-fg" data-testid="empty">Nenhum IPVA lançado em {{ year() }}.</p>
+            <button
+              type="button"
+              data-testid="empty-add"
+              (click)="openSheet()"
+              class="press min-h-12 w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
+                     justify-center gap-2 bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            >
+              Adicionar o primeiro IPVA
+            </button>
+          </div>
+        } @else {
+          @for (epoch of epochs(); track epoch.id) {
+            @if (wide()) {
+              <div class="overflow-x-auto -mx-2 px-2">
+                <table class="w-full text-sm" data-testid="ipva-list" [attr.aria-busy]="loading() ? 'true' : null">
+                  <thead class="text-[11px] text-fg-subtle uppercase tracking-wider">
+                    <tr>
+                      <th scope="col" class="px-3 py-3 font-medium text-left">Veículo</th>
+                      <th scope="col" class="px-3 py-3 font-medium text-left">Total</th>
+                      <th scope="col" class="px-3 py-3 font-medium text-left">Pago</th>
+                      <th scope="col" class="px-3 py-3 font-medium text-left hidden lg:table-cell">Em aberto</th>
+                      <th scope="col" class="px-3 py-3 font-medium text-left whitespace-nowrap">Próximo vencimento</th>
+                      <th scope="col" class="px-3 py-3 font-medium text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of rows(); track r.row.vehicleId; let i = $index) {
+                      <tr
+                        class="enter-up align-middle cursor-pointer hover:bg-surface-muted transition-colors duration-150
+                               focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-400
+                               [&>td:first-child]:rounded-l-xl [&>td:last-child]:rounded-r-xl"
+                        [style.--stagger-i]="i"
+                        tabindex="0"
+                        [attr.aria-label]="r.aria"
+                        (click)="openRow(r)"
+                        (keydown)="onRowKey($event, r)"
+                        data-testid="ipva-row"
+                      >
+                        <td class="px-3 py-3.5">
+                          <b class="block font-semibold text-fg tabular-nums tracking-wider">{{ r.plate }}</b>
+                          <small class="block text-xs text-fg-subtle">{{ r.model }}</small>
+                        </td>
+                        <td class="px-3 py-3.5 font-semibold text-fg tabular-nums whitespace-nowrap">{{ r.total }}</td>
+                        <td class="px-3 py-3.5 tabular-nums whitespace-nowrap">
+                          <span class="text-fg">{{ r.paid }}</span>
+                          <span class="block h-1.5 w-[70px] rounded-full bg-surface-sunken overflow-hidden mt-1.5" aria-hidden="true">
+                            <span class="bar-fill block h-full w-full rounded-full bg-emerald-500"
+                                  [style.--p]="r.progress" [style.--stagger-i]="i"></span>
+                          </span>
+                          <small class="block text-xs text-fg-subtle mt-1">{{ r.installments }} parcelas</small>
+                        </td>
+                        <td class="px-3 py-3.5 tabular-nums whitespace-nowrap text-fg-soft hidden lg:table-cell">{{ r.open }}</td>
+                        <td class="px-3 py-3.5 tabular-nums whitespace-nowrap text-fg-soft">
+                          {{ r.nextDue }}
+                          @if (r.overdueNote; as note) {
+                            <small class="block text-xs text-fg-subtle">{{ note }}</small>
+                          }
+                        </td>
+                        <td class="px-3 py-3.5">
+                          <app-status-chip [tone]="r.chip.tone" size="sm" data-testid="ipva-status">{{ r.chip.label }}</app-status-chip>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <ul class="flex flex-col gap-3" aria-label="IPVA por veículo" data-testid="ipva-list">
+                @for (r of rows(); track r.row.vehicleId; let i = $index) {
+                  <li>
+                    <article
+                      class="enter-up press press-soft rounded-2xl bg-surface border border-edge p-4 cursor-pointer
+                             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                      [style.--stagger-i]="i"
+                      tabindex="0"
+                      role="link"
+                      [attr.aria-label]="r.aria"
+                      (click)="openRow(r)"
+                      (keydown)="onRowKey($event, r)"
+                      data-testid="ipva-row"
+                    >
+                      <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                          <b class="block text-lg font-semibold text-fg tabular-nums tracking-wider leading-tight">{{ r.plate }}</b>
+                          <small class="block text-xs text-fg-subtle mt-0.5 truncate">{{ r.model }}</small>
+                        </div>
+                        <app-status-chip [tone]="r.chip.tone" size="sm" data-testid="ipva-status">{{ r.chip.label }}</app-status-chip>
+                      </div>
+                      <p class="mt-3 text-2xl font-semibold text-fg tabular-nums tracking-tight">
+                        {{ r.total }}
+                        <span class="ml-1 text-xs font-normal text-fg-subtle tracking-normal">em {{ r.row.installmentsCount }}x</span>
+                      </p>
+                      <div class="mt-3 flex items-end gap-4 text-xs text-fg-subtle">
+                        <div class="min-w-0">
+                          Pago
+                          <b class="block text-sm font-semibold text-fg tabular-nums">{{ r.installments }}</b>
+                          <span class="block h-1.5 w-[70px] rounded-full bg-surface-sunken overflow-hidden mt-1.5" aria-hidden="true">
+                            <span class="bar-fill block h-full w-full rounded-full bg-emerald-500"
+                                  [style.--p]="r.progress" [style.--stagger-i]="i"></span>
+                          </span>
+                        </div>
+                        <div class="min-w-0">
+                          Próximo
+                          <b class="block text-sm font-semibold text-fg tabular-nums">{{ r.nextDueShort }}</b>
+                          <span class="block h-1.5 mt-1.5" aria-hidden="true"></span>
+                        </div>
+                        @if (r.overdueNote; as note) {
+                          <span class="flex-1 min-w-0 text-right text-fg-subtle">{{ note }}</span>
+                        }
+                      </div>
+                    </article>
+                  </li>
+                }
+              </ul>
+            }
+          }
+
+          @if (totalPages() > 1) {
+            <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 text-sm">
+              <p class="text-fg-subtle">Página {{ page() + 1 }} de {{ totalPages() }}</p>
+              <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button type="button"
+                  class="press px-4 min-h-[44px] rounded-xl bg-surface-sunken text-fg-soft font-semibold disabled:opacity-50"
+                  [disabled]="page() === 0 || loading()" (click)="prev()">Anterior</button>
+                <button type="button"
+                  class="press px-4 min-h-[44px] rounded-xl bg-surface-sunken text-fg-soft font-semibold disabled:opacity-50"
+                  [disabled]="page() + 1 >= totalPages() || loading()" (click)="next()">Próxima</button>
+              </div>
+            </div>
+          }
+        }
+      </div>
+    </section>
+  </div>
+</app-default-page-layout>
+
+@if (sheetOpen()) {
+  <app-bottom-sheet
+    [title]="sheetTitle()"
+    [subtitle]="sheetSubtitle()"
+    [busy]="saving()"
+    (closed)="onSheetClosed()"
+  >
+    <div class="pb-2" [attr.data-sheet-step]="step()">
+      @if (step() === 'pick') {
+        <app-vehicle-picker
+          [filter]="pickerFilter()"
+          [emptyText]="'Todos os veículos já têm IPVA em ' + year() + '.'"
+          (picked)="pick($event)"
+        />
+      } @else {
+        <div class="space-y-4 enter-up">
+          @if (sheetError(); as failure) {
+            <app-alert-banner variant="error" [message]="failure" />
+          }
+          <form [formGroup]="generateForm" (ngSubmit)="submitGenerate()" id="ipva-fleet-form" class="space-y-4" novalidate>
+            <app-form-field label="Valor total do IPVA (R$)" controlId="ipva-fleet-total" [required]="true"
+                            [control]="generateForm.controls.totalReais" [messages]="moneyMessages">
+              <input appFieldControl type="text" inputmode="decimal" autocomplete="off" placeholder="1.200,00"
+                     formControlName="totalReais" (input)="onMoneyInput($event)"
+                     class="w-full px-4 py-3 rounded-xl border border-edge-field bg-surface text-fg
+                            placeholder:text-fg-faint text-base tabular-nums min-h-[48px]
+                            focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+            </app-form-field>
+            <div class="grid grid-cols-2 gap-3">
+              <app-form-field label="Parcelas" controlId="ipva-fleet-count" [required]="true"
+                              [control]="generateForm.controls.installments" [messages]="countMessages"
+                              [hint]="'De 1 a ' + maxInstallments">
+                <input appFieldControl type="number" inputmode="numeric" min="1" [max]="maxInstallments" step="1"
+                       formControlName="installments"
+                       class="w-full px-4 py-3 rounded-xl border border-edge-field bg-surface text-fg
+                              placeholder:text-fg-faint text-base tabular-nums min-h-[48px]
+                              focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+              </app-form-field>
+              <app-form-field label="1º vencimento" controlId="ipva-fleet-first-due" [required]="true"
+                              [control]="generateForm.controls.firstDueDate" [messages]="dateMessages">
+                <input appFieldControl type="date" formControlName="firstDueDate"
+                       class="w-full px-3 py-3 rounded-xl border border-edge-field bg-surface text-fg
+                              placeholder:text-fg-faint text-base min-h-[48px]
+                              focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+              </app-form-field>
+            </div>
+            @if (generatePreview(); as preview) {
+              <p class="m-0 rounded-xl bg-surface-sunken px-4 py-3 text-sm text-fg-soft tabular-nums"
+                 aria-live="polite" data-testid="ipva-preview">{{ preview }}</p>
+            }
+          </form>
+        </div>
+      }
+    </div>
+
+    @if (step() === 'generate') {
+      <div sheetFooter class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+        <button type="button" (click)="backToPick()" [disabled]="saving()" data-testid="sheet-back"
+                class="press w-full sm:w-auto px-5 py-2.5 rounded-xl text-base font-semibold text-fg-soft
+                       hover:bg-surface-sunken min-h-[48px] disabled:opacity-60">
+          Trocar veículo
+        </button>
+        <button type="submit" form="ipva-fleet-form" data-testid="sheet-submit" [disabled]="saving()"
+                class="press w-full sm:w-auto px-6 py-2.5 rounded-xl text-white text-base font-semibold
+                       bg-primary-500 hover:bg-primary-700 shadow-sm min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2">
+          {{ saving() ? 'Salvando…' : 'Gerar parcelas' }}
+        </button>
+      </div>
+    }
+  </app-bottom-sheet>
+}

@@ -10,9 +10,11 @@ import { RentalService } from '../rentals/rental.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { VehicleIpvaService } from '../../services/vehicle-ipva.service';
 import type { GerenciaFinanceChunk, GerenciaSummary } from '../../types/gerencia-summary.types';
 import type { RentalChargeDto, RentalListItemDto } from '../../types/rental.types';
 import type { Vehicle } from '../../types/vehicle.types';
+import type { IpvaYear } from '../../types/vehicle-ipva.types';
 import type {
   VehiclePendencia,
   VehiclePendenciaType,
@@ -126,10 +128,14 @@ describe('VehicleDetail, página única', () => {
     rentalFails?: boolean;
     detailFails?: boolean;
     aba?: string;
+    /** `?ipva=` lido do snapshot (vem da página IPVA da frota). */
+    ipva?: string;
+    ipvaYears?: IpvaYear[];
   }
 
   let fixture: ComponentFixture<VehicleDetail>;
   let query: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let ipvaStub: { listYears: ReturnType<typeof vi.fn> };
   let list: ReturnType<typeof vi.fn>;
   let sharedList: ReturnType<typeof vi.fn>;
   let getById: ReturnType<typeof vi.fn>;
@@ -162,7 +168,10 @@ describe('VehicleDetail, página única', () => {
       rentalFails = false,
       detailFails = false,
       aba,
+      ipva,
+      ipvaYears = [],
     } = options;
+    ipvaStub = { listYears: vi.fn(() => of(ipvaYears)) };
 
     query = new BehaviorSubject(convertToParamMap(aba ? { aba } : {}));
     getGerenciaSummary = vi.fn(() => summary);
@@ -190,10 +199,15 @@ describe('VehicleDetail, página única', () => {
       providers: [
         provideRouter([]),
         provideNoopAnimations(),
+        // A seção de IPVA nunca vai à rede neste spec.
+        { provide: VehicleIpvaService, useValue: ipvaStub },
         {
           provide: ActivatedRoute,
           useValue: {
-            snapshot: { paramMap: { get: () => VEHICLE_ID } },
+            snapshot: {
+              paramMap: { get: () => VEHICLE_ID },
+              queryParamMap: convertToParamMap(ipva ? { ipva } : {}),
+            },
             queryParamMap: query.asObservable(),
           },
         },
@@ -246,6 +260,35 @@ describe('VehicleDetail, página única', () => {
     query.next(convertToParamMap({ aba: 'gerencia' }));
     fixture.detectChanges();
     expect(panel('gerencia').hidden).toBe(false);
+  });
+
+  it('?ipva=AAAA (vindo da página IPVA da frota) abre a seção de IPVA naquele ano', async () => {
+    const year: IpvaYear = {
+      vehicleId: VEHICLE_ID,
+      year: 2024,
+      totalCents: 90_000,
+      paidCents: 0,
+      openCents: 90_000,
+      installmentsCount: 1,
+      paidCount: 0,
+      nextDueDate: '2024-03-10',
+      status: 'OVERDUE',
+      installments: [],
+    };
+    await setup({ aba: 'gerencia', ipva: '2024', ipvaYears: [year] });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(ipvaStub.listYears).toHaveBeenCalledWith(VEHICLE_ID);
+    const pill = host().querySelector('[data-testid="ipva-year-2024"]');
+    expect(pill?.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('sem ?ipva= a seção abre no ano corrente', async () => {
+    await setup({ aba: 'gerencia' });
+    const current = new Date().getFullYear();
+    const pill = host().querySelector(`[data-testid="ipva-year-${current}"]`);
+    expect(pill?.getAttribute('aria-checked')).toBe('true');
   });
 
   it('o segmento guarda a aba na URL sem criar entrada no histórico', async () => {
