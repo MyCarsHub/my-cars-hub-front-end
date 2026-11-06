@@ -338,115 +338,67 @@
                         [class.lg:grid-cols-4]="!hasSaleRevenue()"
                         [class.lg:grid-cols-5]="hasSaleRevenue()"
                     >
-                        <!-- Faturamento -->
-                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
-                                Faturamento
-                            </p>
-                            <p class="text-lg sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-300 mt-1 tabular-nums truncate">
-                                {{ billingLabel() }}
-                            </p>
-                            @if (billingDelta().label; as d) {
-                                <p
-                                    class="text-[11px] sm:text-xs mt-1 tabular-nums truncate"
-                                    [class.text-emerald-600]="billingDelta().direction === 'up'" [class.dark:text-emerald-300]="billingDelta().direction === 'up'"
-                                    [class.text-red-600]="billingDelta().direction === 'down'" [class.dark:text-red-300]="billingDelta().direction === 'down'"
-                                    [class.text-gray-500]="billingDelta().direction === 'flat'" [class.dark:text-fg-subtle]="billingDelta().direction === 'flat'"
-                                >
-                                    @if (billingDelta().direction === 'up') { ▲ }
-                                    @else if (billingDelta().direction === 'down') { ▼ }
-                                    {{ d }} vs período anterior
-                                </p>
-                            } @else {
-                                <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
-                                    contratos assinados no período
-                                </p>
-                            }
-                        </div>
+                        <div
+                            app-kpi-card
+                            variant="white"
+                            size="compact"
+                            label="Faturamento"
+                            numberFormat="brl-cents"
+                            tone="success"
+                            [value]="f.revenueCents"
+                            [delta]="billingKpiDelta()"
+                            [detail]="billingKpiDelta() ? null : 'contratos assinados no período'"
+                        ></div>
 
-                        <!-- Venda de veículos (FEAT-0074): categoria PONTUAL.
-                             Só aparece quando houve venda no período; sem ela a
-                             grade volta a ser a de sempre. Sem delta "vs período
-                             anterior" — o backend não manda essa comparação para
-                             venda, e inventá-la seria inventar dado. -->
+                        <!-- Venda de veículos (FEAT-0074): categoria PONTUAL, só quando
+                             houve venda; sem delta (o backend não manda comparação). -->
                         @if (hasSaleRevenue()) {
                             <div
-                                class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col"
+                                app-kpi-card
                                 data-sale-revenue-card
-                            >
-                                <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
-                                    Venda de veículos
-                                </p>
-                                <!-- `primary-700`: NÃO o verde do faturamento
-                                     (leria como aluguel) e NÃO o âmbar do "A
-                                     receber" (leria como dinheiro que ainda não
-                                     entrou). É a única rampa do projeto que já
-                                     não representa um estado financeiro nesta
-                                     grade, e é AA em texto pequeno (5,68:1). A
-                                     MESMA cor vale no hub de gerência. -->
-                                <p class="text-lg sm:text-2xl font-semibold text-primary-700 dark:text-primary-400 mt-1 tabular-nums truncate">
-                                    {{ saleRevenueLabel() }}
-                                </p>
-                                <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
-                                    entrada única no período
-                                </p>
-                            </div>
+                                variant="white"
+                                size="compact"
+                                label="Venda de veículos"
+                                numberFormat="brl-cents"
+                                tone="primary"
+                                [value]="saleRevenueCents()"
+                                detail="entrada única no período"
+                            ></div>
                         }
 
-                        <!-- Recebido -->
-                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
-                                Recebido
-                            </p>
-                            <p class="text-lg sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-300 mt-1 tabular-nums truncate">
-                                {{ receivedLabel() }}
-                            </p>
-                            @if (receivedDelta().label; as d) {
-                                <p
-                                    class="text-[11px] sm:text-xs mt-1 tabular-nums truncate"
-                                    [class.text-emerald-600]="receivedDelta().direction === 'up'" [class.dark:text-emerald-300]="receivedDelta().direction === 'up'"
-                                    [class.text-red-600]="receivedDelta().direction === 'down'" [class.dark:text-red-300]="receivedDelta().direction === 'down'"
-                                    [class.text-gray-500]="receivedDelta().direction === 'flat'" [class.dark:text-fg-subtle]="receivedDelta().direction === 'flat'"
-                                >
-                                    @if (receivedDelta().direction === 'up') { ▲ }
-                                    @else if (receivedDelta().direction === 'down') { ▼ }
-                                    {{ d }} vs anterior
-                                </p>
-                            }
-                            <p class="text-[10px] sm:text-[11px] text-gray-500 dark:text-fg-subtle mt-1 truncate tabular-nums">
-                                de {{ billingLabel() }} faturados
-                            </p>
-                        </div>
+                        <div
+                            app-kpi-card
+                            variant="white"
+                            size="compact"
+                            label="Recebido"
+                            numberFormat="brl-cents"
+                            tone="success"
+                            [value]="f.receivedCents"
+                            [delta]="receivedKpiDelta()"
+                            [detail]="'de ' + billingLabel() + ' faturados'"
+                        ></div>
 
-                        <!-- A receber -->
-                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
-                                A receber
-                            </p>
-                            <p class="text-lg sm:text-2xl font-semibold text-amber-600 dark:text-amber-300 mt-1 tabular-nums truncate">
-                                {{ pendingChargesLabel() }}
-                            </p>
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
-                                cobranças pendentes no período
-                            </p>
-                        </div>
+                        <div
+                            app-kpi-card
+                            variant="white"
+                            size="compact"
+                            label="A receber"
+                            numberFormat="brl-cents"
+                            tone="warning"
+                            [value]="f.pendingChargesCents"
+                            detail="cobranças pendentes no período"
+                        ></div>
 
-                        <!-- Inadimplência aluguel -->
-                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
-                                Inadimplência aluguel
-                            </p>
-                            <p
-                                class="text-lg sm:text-2xl font-semibold mt-1 tabular-nums truncate"
-                                [class.text-red-600]="hasOverdue()" [class.dark:text-red-300]="hasOverdue()"
-                                [class.text-gray-900]="!hasOverdue()" [class.dark:text-fg]="!hasOverdue()"
-                            >
-                                {{ overdueChargesLabel() }}
-                            </p>
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
-                                cobranças vencidas ou falhas
-                            </p>
-                        </div>
+                        <div
+                            app-kpi-card
+                            variant="white"
+                            size="compact"
+                            label="Inadimplência aluguel"
+                            numberFormat="brl-cents"
+                            [tone]="hasOverdue() ? 'danger' : 'default'"
+                            [value]="f.overdueChargesCents"
+                            detail="cobranças vencidas ou falhas"
+                        ></div>
                     </div>
 
                     <!--
@@ -520,6 +472,69 @@
         </section>
     }
 
+    <!-- FEAT-0468 — faturamento x lucro, 6 meses (caixa). Some sem `overview`. -->
+    @if (hasResult()) {
+        <section class="mb-4 min-w-0" data-result-section>
+            <app-page-card title="Faturamento vs lucro">
+                <div class="px-4 pb-4 sm:px-6 min-w-0">
+                    <app-growth-chart
+                        [series]="resultSeries()"
+                        [labels]="resultLabels()"
+                        valueFormat="brl-cents"
+                        ariaLabel="Faturamento e lucro dos últimos 6 meses"
+                    />
+                    <p class="text-xs text-fg-muted mt-3 mb-2">Toque em um mês para ver o detalhe.</p>
+                    <app-pill-tabs
+                        [options]="resultMonthOptions()"
+                        [value]="resultMonthValue()"
+                        ariaLabel="Mês do resultado"
+                        (selected)="onResultMonth($event)"
+                    />
+                </div>
+            </app-page-card>
+        </section>
+
+        <app-detail-dialog
+            [open]="resultDetailOpen()"
+            [title]="resultDetail()?.title ?? ''"
+            subtitle="Resultado do mês (caixa)"
+            (closed)="onResultDetailClosed()"
+        >
+            @if (resultDetail(); as d) {
+                <div class="grid gap-3 grid-cols-1 sm:grid-cols-3 mb-4" data-result-detail>
+                    <div app-kpi-card variant="white" size="compact" label="Faturamento"
+                        numberFormat="brl-cents" tone="success" [countUp]="false" [value]="d.revenueCents"></div>
+                    <div app-kpi-card variant="white" size="compact" label="Custos"
+                        numberFormat="brl-cents" tone="danger" [countUp]="false" [value]="d.costCents"></div>
+                    <div app-kpi-card variant="white" size="compact" label="Lucro"
+                        numberFormat="brl-cents" [tone]="d.profitCents >= 0 ? 'success' : 'danger'"
+                        [countUp]="false" [value]="d.profitCents"></div>
+                </div>
+                <app-expense-breakdown [breakdown]="d.costBreakdown" />
+            }
+        </app-detail-dialog>
+    }
+
+    <!-- FEAT-0468 — para onde vai o dinheiro (custos do período) e atraso por idade. -->
+    @if (overview()) {
+        <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2 items-start" data-money-section>
+            <app-ring-legend-card
+                title="Para onde vai cada centavo"
+                totalLabel="custos do período"
+                valueFormat="brl-cents"
+                [slices]="costSlices()"
+            />
+            @if (hasAging()) {
+                <app-ring-legend-card
+                    title="Atraso por idade"
+                    totalLabel="em atraso"
+                    valueFormat="brl-cents"
+                    [slices]="agingSlices()"
+                />
+            }
+        </section>
+    }
+
     <!--
         Calendario a ESQUERDA ocupando metade, e as duas distribuicoes
         EMPILHADAS a direita (decisao do dono).
@@ -551,65 +566,31 @@
         </div>
 
         <div class="grid gap-4 min-w-0">
-            <app-page-card title="Aluguéis por status">
-                        <div class="p-4 min-w-0">
-                            @if (loading() && !summary()) {
-                                <div class="space-y-3">
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                </div>
-                            } @else {
-                                <app-status-bar-chart [buckets]="rentalsByStatusRows()" />
-                            }
-                        </div>
-                    </app-page-card>
-            <app-page-card title="Veículos por status">
-                        <div class="p-4 min-w-0">
-                            @if (loading() && !summary()) {
-                                <div class="space-y-3">
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                </div>
-                            } @else {
-                                <app-status-bar-chart [buckets]="vehiclesByStatusRows()" />
-                            }
-                        </div>
-                    </app-page-card>
+            <app-ring-legend-card
+                title="Aluguéis por status"
+                totalLabel="aluguéis"
+                [slices]="rentalsByStatusSlices()"
+            />
+            <app-ring-legend-card
+                title="Veículos por status"
+                totalLabel="veículos"
+                [slices]="vehiclesByStatusSlices()"
+            />
         </div>
     </section>
 
     <!-- Top 5 por receita: veículos + motoristas -->
     <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2">
-        <app-page-card title="Top 5 veículos por receita">
-            <div class="p-4 min-w-0">
-                @if (loading() && !summary()) {
-                    <div class="space-y-3">
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                    </div>
-                } @else {
-                    <app-bar-chart [data]="topVehiclesByRevenue()" />
-                }
-            </div>
-        </app-page-card>
-        <app-page-card title="Top 5 motoristas por receita">
-            <div class="p-4 min-w-0">
-                @if (loading() && !summary()) {
-                    <div class="space-y-3">
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                    </div>
-                } @else {
-                    <app-bar-chart [data]="topDriversByRevenue()" />
-                }
-            </div>
-        </app-page-card>
+        <app-ranking-card
+            title="Top 5 veículos por receita"
+            [hero]="true"
+            [items]="topVehiclesByRevenue()"
+        />
+        <app-ranking-card
+            title="Top 5 motoristas por receita"
+            [hero]="true"
+            [items]="topDriversByRevenue()"
+        />
     </section>
 
     <!-- Top offenders -->

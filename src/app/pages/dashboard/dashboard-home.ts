@@ -10,7 +10,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
-import { KpiCard } from '../../components/kpi-card/kpi-card';
+import { KpiCard, KpiDelta } from '../../components/kpi-card/kpi-card';
 import { ExpenseBreakdown } from '../../components/expense-breakdown/expense-breakdown';
 import { FleetActivationService } from '../../services/fleet-activation.service';
 import { SessionService } from '../../services/session.service';
@@ -23,7 +23,7 @@ import {
     CashflowEventDto,
     DashboardSummaryDto,
     ExpenseBreakdownDto,
-    MonthlyPointDto,
+    MonthlyResultDto,
     formatBRL,
 } from '../../types/dashboard.types';
 import { DateRange, DateRangePicker } from '../../components/date-range-picker/date-range-picker';
@@ -37,8 +37,11 @@ import { CashAccumulationCard } from './components/cash-accumulation-card';
 import { CashAccumulationResponse } from '../../types/cash-accumulation.types';
 import { ReportsService } from '../../services/reports.service';
 import { aggregateFleetRoi } from '../../types/reports.types';
-import { StatusBarChart, StatusBucketRow } from './components/status-bar-chart';
-import { BarChart, BarDatum } from '../../components/charts/bar-chart/bar-chart';
+import { GrowthChart, GrowthSeries } from '../../components/charts/growth-chart/growth-chart';
+import { RingLegendCard, RingSlice } from '../../components/charts/ring-legend-card/ring-legend-card';
+import { RankingCard, RankingItem } from '../../components/charts/ranking-card/ranking-card';
+import { PillTabs, PillTabOption } from '../../components/core/pill-tabs/pill-tabs';
+import { DetailDialog } from '../../components/core/detail-dialog/detail-dialog';
 import { QuickActionCard } from './components/quick-action-card';
 
 /** Delta comparativo entre janela atual e imediatamente anterior. */
@@ -67,6 +70,32 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
     INACTIVE: { label: 'Inativos', color: '#9ca3af' },
 };
 
+const COST_CATEGORY_META: Record<string, StatusMeta> = {
+    MAINTENANCE: { label: 'Manutenção', color: '#f59e0b' },
+    FINES: { label: 'Multas', color: '#ef4444' },
+    IPVA: { label: 'IPVA', color: '#6366f1' },
+    INSURANCE: { label: 'Seguro', color: '#0ea5e9' },
+    FINANCING: { label: 'Financiamento', color: '#8b5cf6' },
+};
+
+const MONTH_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const MONTH_LONG = [
+    'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+];
+
+/** `2026-06` -> `jun/26` (pure string work: no Date, no timezone). */
+function monthShort(key: string): string {
+    const [y, m] = key.split('-');
+    return `${MONTH_SHORT[Number(m) - 1] ?? m}/${y.slice(2)}`;
+}
+
+/** `2026-06` -> `junho de 2026`. */
+function monthLong(key: string): string {
+    const [y, m] = key.split('-');
+    return `${MONTH_LONG[Number(m) - 1] ?? m} de ${y}`;
+}
+
 /**
  * Dashboard MVP — foco em ações financeiras diárias.
  *
@@ -89,8 +118,11 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
         TopOffendersTable,
         FinancialCalendar,
         CashflowDaySheet,
-        StatusBarChart,
-        BarChart,
+        GrowthChart,
+        RingLegendCard,
+        RankingCard,
+        PillTabs,
+        DetailDialog,
         QuickActionCard,
         AlertBanner,
         RouterLink,
@@ -445,6 +477,22 @@ export class DashboardHome {
         return this.formatDelta(f?.receivedCents ?? 0, f?.previousReceivedCents ?? 0);
     });
 
+    /** Delta as the KPI card wants it (text + tone); `null` when there is no base to compare. */
+    private kpiDelta(d: DeltaInfo, suffix: string): KpiDelta | null {
+        if (!d.label) return null;
+        const arrow = d.direction === 'up' ? '▲ ' : d.direction === 'down' ? '▼ ' : '';
+        const tone = d.direction === 'up' ? 'good' : d.direction === 'down' ? 'bad' : 'neutral';
+        return { text: `${arrow}${d.label} ${suffix}`, tone };
+    }
+
+    protected readonly billingKpiDelta = computed(() =>
+        this.kpiDelta(this.billingDelta(), 'vs período anterior'),
+    );
+
+    protected readonly receivedKpiDelta = computed(() =>
+        this.kpiDelta(this.receivedDelta(), 'vs anterior'),
+    );
+
     protected readonly monthlyBilling = computed(
         () => this.summary()?.finance?.monthlyBilling ?? [],
     );
@@ -507,26 +555,106 @@ export class DashboardHome {
     });
 
     // ---- Distributions --------------------------------------------------
-    protected readonly rentalsByStatusRows = computed<StatusBucketRow[]>(() =>
-        this.mapStatusRows(this.summary()?.distributions?.rentalsByStatus ?? [], RENTAL_STATUS_META),
+    protected readonly rentalsByStatusSlices = computed<RingSlice[]>(() =>
+        this.mapStatusSlices(this.summary()?.distributions?.rentalsByStatus ?? [], RENTAL_STATUS_META),
     );
 
-    protected readonly vehiclesByStatusRows = computed<StatusBucketRow[]>(() =>
-        this.mapStatusRows(this.summary()?.distributions?.vehiclesByStatus ?? [], VEHICLE_STATUS_META),
+    protected readonly vehiclesByStatusSlices = computed<RingSlice[]>(() =>
+        this.mapStatusSlices(this.summary()?.distributions?.vehiclesByStatus ?? [], VEHICLE_STATUS_META),
     );
+
+    // ---- Overview (FEAT-0467 / FEAT-0468) -------------------------------
+    // Everything below is hidden when the backend does not send `overview`:
+    // no zero is ever drawn in place of a number the screen does not have.
+    protected readonly overview = computed(() => this.summary()?.overview ?? null);
+
+    private readonly monthlyResult = computed<MonthlyResultDto[]>(
+        () => this.overview()?.monthlyResult ?? [],
+    );
+
+    protected readonly hasResult = computed(() => this.monthlyResult().length > 0);
+
+    protected readonly resultSeries = computed<GrowthSeries[]>(() => {
+        const months = this.monthlyResult();
+        return [
+            {
+                key: 'revenue',
+                label: 'Faturamento',
+                color: '#F63B04',
+                values: months.map((m) => m.revenueCents),
+            },
+            {
+                key: 'profit',
+                label: 'Lucro',
+                color: '#059669',
+                values: months.map((m) => m.profitCents),
+            },
+        ];
+    });
+
+    protected readonly resultLabels = computed(() => this.monthlyResult().map((m) => monthShort(m.month)));
+
+    /** Month picked in the pills; the sheet with its numbers opens on tap. */
+    protected readonly resultMonth = signal<string | null>(null);
+    protected readonly resultDetailOpen = signal(false);
+
+    protected readonly resultMonthOptions = computed<PillTabOption<string>[]>(() =>
+        this.monthlyResult().map((m) => ({ value: m.month, label: monthShort(m.month) })),
+    );
+
+    protected readonly resultMonthValue = computed(
+        () => this.resultMonth() ?? this.monthlyResult().at(-1)?.month ?? '',
+    );
+
+    protected readonly resultDetail = computed(() => {
+        const key = this.resultMonth();
+        const m = this.monthlyResult().find((r) => r.month === key);
+        return m ? { ...m, title: monthLong(m.month) } : null;
+    });
+
+    protected onResultMonth(key: string): void {
+        this.resultMonth.set(key);
+        this.resultDetailOpen.set(true);
+    }
+
+    protected onResultDetailClosed(): void {
+        this.resultDetailOpen.set(false);
+    }
+
+    protected readonly costSlices = computed<RingSlice[]>(() =>
+        (this.overview()?.costByCategory ?? []).map((c) => {
+            const meta = COST_CATEGORY_META[c.category] ?? { label: c.category, color: '#9ca3af' };
+            return { label: meta.label, value: c.amountCents, color: meta.color };
+        }),
+    );
+
+    protected readonly agingSlices = computed<RingSlice[]>(() => {
+        const a = this.overview()?.overdueAging;
+        if (!a) return [];
+        return [
+            { label: '1 a 7 dias', value: a.days1To7.amountCents, color: '#f59e0b' },
+            { label: '8 a 30 dias', value: a.days8To30.amountCents, color: '#f97316' },
+            { label: 'Mais de 30 dias', value: a.daysOver30.amountCents, color: '#dc2626' },
+        ];
+    });
+
+    /** The aging card only exists when there is something overdue to age. */
+    protected readonly hasAging = computed(() => this.agingSlices().some((s) => s.value > 0));
 
     // ---- Top 5 by revenue -----------------------------------------------
-    protected readonly topVehiclesByRevenue = computed<BarDatum[]>(() =>
+    protected readonly topVehiclesByRevenue = computed<RankingItem[]>(() =>
         (this.summary()?.finance?.byVehicle ?? []).map((v) => ({
-            label: v.label,
-            value: v.revenueCents,
+            id: v.id,
+            name: v.label,
+            value: formatBRL(v.revenueCents),
         })),
     );
 
-    protected readonly topDriversByRevenue = computed<BarDatum[]>(() =>
+    protected readonly topDriversByRevenue = computed<RankingItem[]>(() =>
         (this.summary()?.finance?.byDriver ?? []).map((d) => ({
-            label: d.label,
-            value: d.revenueCents,
+            id: d.id,
+            name: d.label,
+            value: formatBRL(d.revenueCents),
         })),
     );
 
@@ -651,18 +779,13 @@ export class DashboardHome {
 
     // ---- Internals ------------------------------------------------------
 
-    private mapStatusRows(
+    private mapStatusSlices(
         raw: { status: string; count: number }[],
         meta: Record<string, StatusMeta>,
-    ): StatusBucketRow[] {
+    ): RingSlice[] {
         return raw.map((r) => {
             const m = meta[r.status] ?? { label: r.status, color: '#9ca3af' };
-            return {
-                status: r.status,
-                count: r.count,
-                label: m.label,
-                color: m.color,
-            };
+            return { label: m.label, value: r.count, color: m.color };
         });
     }
 
