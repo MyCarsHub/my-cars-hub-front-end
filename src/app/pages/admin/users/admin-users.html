@@ -1,385 +1,171 @@
 <app-default-page-layout
   title="Usuários"
-  description="Listar, buscar e ativar/desativar contas. Papel de admin: em Admins e papéis."
+  description="Donos, gerenciadores e motoristas de todas as empresas. Papel de admin: em Admins e papéis."
 >
-  <app-page-card title="Contas">
-    <div class="p-3 sm:p-4 space-y-4">
-      <!-- Search + filters -->
-      <div class="flex flex-col gap-3">
-        <label class="relative block">
-          <span class="sr-only">Buscar por nome ou email</span>
-          <input
-            type="search"
-            [formControl]="searchControl"
-            placeholder="Buscar por nome ou email…"
-            class="w-full text-base border border-edge-field rounded-lg pl-10 pr-3 py-2.5
-                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
-            aria-label="Buscar usuário"
-          />
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="absolute left-3 top-1/2 -translate-y-1/2 text-fg-faint"
-            width="18" height="18" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-        </label>
+  <div class="space-y-4 pb-[env(safe-area-inset-bottom)]">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center">
+      <label class="relative block flex-1 min-w-0">
+        <span class="sr-only">Buscar por nome ou email</span>
+        <input
+          type="search"
+          inputmode="search"
+          autocomplete="off"
+          [formControl]="searchControl"
+          placeholder="Buscar por nome, e-mail ou telefone…"
+          data-testid="user-search"
+          class="w-full min-h-[44px] pl-10 pr-3 text-base md:text-sm border border-edge-field rounded-xl
+                 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+        />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="absolute left-3 top-1/2 -translate-y-1/2 text-fg-faint"
+          width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.3-4.3" />
+        </svg>
+      </label>
+      <app-filter-chip-group
+        [options]="presenceOptions"
+        [value]="presenceFilter()"
+        ariaLabel="Filtrar por presença"
+        (selectionChange)="setPresenceFilter($event)"
+      />
+    </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <app-filter-chip-group
-            [options]="statusOptions"
-            [value]="statusFilter()"
-            ariaLabel="Filtrar por situação"
-            (selectionChange)="setStatusFilter($event)"
-          />
-          <span class="w-px bg-surface-strong mx-1 self-stretch" aria-hidden="true"></span>
-          <app-filter-chip-group
-            [options]="roleOptions"
-            [value]="roleFilter()"
-            ariaLabel="Filtrar por papel"
-            (selectionChange)="setRoleFilter($event)"
-          />
-          <span class="w-px bg-surface-strong mx-1 self-stretch" aria-hidden="true"></span>
-          <app-filter-chip-group
-            [options]="presenceOptions"
-            [value]="presenceFilter()"
-            ariaLabel="Filtrar por presença"
-            (selectionChange)="setPresenceFilter($event)"
-          />
+    <app-pill-tabs
+      ariaLabel="Filtrar por papel e situação"
+      [options]="tabOptions"
+      [value]="tab()"
+      (selected)="setTab($event)"
+    />
+
+    @if (roleTabNote(); as note) {
+      <p class="text-xs text-fg-subtle" data-testid="role-note">{{ note }}</p>
+    }
+
+    @if (error(); as err) {
+      <app-alert-banner variant="error" [message]="err" />
+    }
+    @if (actionError(); as err) {
+      <div data-testid="action-error"><app-alert-banner variant="error" [message]="err" /></div>
+    }
+
+    <app-data-list
+      [columns]="columns"
+      [rows]="rows()"
+      [rowId]="rowId"
+      [loading]="loading() && items().length === 0"
+      emptyText="Nenhum usuário encontrado com esses filtros."
+      ariaLabel="Usuários"
+      actionsLabel="Ações do usuário"
+      exportFilename="usuarios.csv"
+    >
+      <ng-template dataListCell="user" let-user>
+        <a
+          [routerLink]="['/admin/users', user.id]"
+          data-testid="user-link"
+          class="block min-h-[44px] content-center rounded-sm outline-none break-words
+                 hover:text-primary-700 dark:hover:text-primary-400 hover:underline
+                 focus-visible:ring-2 focus-visible:ring-primary-400"
+          [attr.aria-label]="'Abrir ' + (user.name ?? user.email)"
+        >
+          {{ user.name ?? '(sem nome)' }}
+          <span class="block text-xs font-normal text-fg-subtle break-all">{{ user.email }}</span>
+        </a>
+      </ng-template>
+
+      <ng-template dataListCell="phone" let-user>
+        <app-contact-actions
+          subjectType="USER"
+          [subjectId]="user.id"
+          [phoneMasked]="user.phoneMasked"
+          [label]="user.name ?? user.email"
+        />
+      </ng-template>
+
+      <ng-template dataListActions let-user>
+        <a
+          role="menuitem"
+          [routerLink]="['/admin/users', user.id]"
+          class="block w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+        >
+          Abrir
+        </a>
+        @if (canResend(user)) {
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="menu-resend-invite"
+            class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] disabled:opacity-50"
+            [disabled]="isPending(user.id)"
+            (click)="resendInvite(user)"
+          >
+            Reenviar convite
+          </button>
+        }
+        @if (canManage()) {
+          @if (user.active) {
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="menu-deactivate"
+              class="w-full text-left text-sm px-4 py-3 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
+                     min-h-[44px] disabled:opacity-50"
+              [disabled]="isPending(user.id)"
+              (click)="requestToggleStatus(user)"
+            >
+              Desativar
+            </button>
+          } @else {
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="menu-activate"
+              class="w-full text-left text-sm px-4 py-3 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10
+                     min-h-[44px] disabled:opacity-50"
+              [disabled]="isPending(user.id)"
+              (click)="requestToggleStatus(user)"
+            >
+              Ativar
+            </button>
+          }
+        }
+      </ng-template>
+    </app-data-list>
+
+    @if (items().length > 0) {
+      <div class="flex items-center justify-between pt-1 gap-3">
+        <p class="text-xs text-fg-subtle tabular-nums">
+          Página {{ currentPage() + 1 }} de {{ totalPages() }} — {{ total() }} usuário(s)
+        </p>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="text-sm px-4 py-2 rounded-xl bg-surface-sunken text-fg-body min-h-[44px]
+                   hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                   disabled:opacity-40 disabled:cursor-not-allowed"
+            (click)="prevPage()"
+            [disabled]="!canPrev() || loading()"
+          >
+            Anterior
+          </button>
+          <button
+            type="button"
+            class="text-sm px-4 py-2 rounded-xl bg-surface-sunken text-fg-body min-h-[44px]
+                   hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                   disabled:opacity-40 disabled:cursor-not-allowed"
+            (click)="nextPage()"
+            [disabled]="!canNext() || loading()"
+          >
+            Próxima
+          </button>
         </div>
       </div>
-
-      <!-- Falha ao carregar a lista -->
-      @if (error(); as err) {
-        <app-alert-banner variant="error" [message]="err" />
-      }
-
-      <!-- Falha de uma ação (ativar/desativar; papel de admin so em Admins e papeis) -->
-      @if (actionError(); as err) {
-        <app-alert-banner variant="error" [message]="err" />
-      }
-
-      <!-- Loading skeleton -->
-      @if (loading() && items().length === 0) {
-        <div class="space-y-2">
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse"></div>
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse"></div>
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse"></div>
-        </div>
-      }
-
-      <!-- Empty state -->
-      @if (!loading() && items().length === 0 && !error()) {
-        <div class="text-center text-sm text-fg-subtle py-10">
-          Nenhum usuário encontrado com esses filtros.
-        </div>
-      }
-
-      @if (items().length > 0) {
-        <!-- ================= MOBILE: CARDS ================= -->
-        <div class="space-y-3 lg:hidden">
-          @for (user of items(); track user.id) {
-            <div class="rounded-xl border border-edge p-4 space-y-3 bg-surface
-                        hover:border-primary-300 dark:hover:border-primary-500/40 transition-colors">
-              <div class="flex items-start justify-between gap-2">
-                <!--
-                  FIX-0422, celular — mesma regra da tabela: o alvo e todo o
-                  conteudo do cartao MENOS o menu de acoes, que fica fora do
-                  ancora (irmao dele, nao filho). Nada e esticado por cima de
-                  nada, entao o menu continua clicavel e o HTML segue valido.
-                -->
-                <div class="min-w-0 flex-1">
-                  <h3 class="font-medium text-fg text-sm break-words">
-                    <a
-                      [routerLink]="['/admin/users', user.id]"
-                      class="inline-flex items-center min-h-[44px] hover:text-primary-700 dark:hover:text-primary-400 hover:underline
-                             outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                      [attr.aria-label]="'Ver detalhes de ' + (user.name ?? user.email)"
-                    >
-                      {{ user.name ?? '(sem nome)' }}
-                    </a>
-                  </h3>
-                  <a
-                    [routerLink]="['/admin/users', user.id]"
-                    tabindex="-1"
-                    class="block"
-                  >
-                    <span class="block text-xs text-fg-subtle mt-0.5 break-words">{{ user.email }}</span>
-                    @if (user.online) {
-                      <span
-                        data-testid="online-badge"
-                        class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium
-                               bg-success-50 text-success-900 dark:bg-success-500/15 dark:text-success-100"
-                      >
-                        <span class="inline-block w-2 h-2 rounded-full bg-success-500" aria-hidden="true"></span>
-                        Online
-                      </span>
-                    } @else if (lastSeenLabel(user); as seen) {
-                      <span class="block text-[11px] text-fg-faint mt-1" data-testid="last-seen">{{ seen }}</span>
-                    }
-                    @if (user.lastCompanyName) {
-                      <span class="block text-[11px] text-fg-faint mt-1">
-                        Empresa mais recente: {{ user.lastCompanyName }}
-                      </span>
-                    }
-                  </a>
-                </div>
-                <div class="shrink-0">
-                  <app-actions-menu [label]="'Ações para ' + user.email">
-                    <a
-                      role="menuitem"
-                      [routerLink]="['/admin/users', user.id]"
-                      class="block w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
-                    >
-                      Ver detalhes
-                    </a>
-                    @if (user.active) {
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="w-full text-left text-sm px-4 py-3 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
-                               min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                        [disabled]="isPending(user.id)"
-                        (click)="requestToggleStatus(user)"
-                      >
-                        Desativar
-                      </button>
-                    } @else {
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="w-full text-left text-sm px-4 py-3 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10
-                               min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                        [disabled]="isPending(user.id)"
-                        (click)="requestToggleStatus(user)"
-                      >
-                        Ativar
-                      </button>
-                    }
-                  </app-actions-menu>
-                </div>
-              </div>
-
-              <a
-                [routerLink]="['/admin/users', user.id]"
-                tabindex="-1"
-                class="flex flex-wrap items-center gap-2"
-                data-testid="card-meta"
-              >
-                <span
-                  class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                         font-medium uppercase tracking-wide"
-                  [class]="statusChip(user.active)"
-                >
-                  {{ user.active ? 'Ativo' : 'Inativo' }}
-                </span>
-                <span
-                  class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                         font-medium uppercase tracking-wide"
-                  [class]="roleChip(user.systemRole)"
-                >
-                  {{ roleLabel(user.systemRole) }}
-                </span>
-                <span class="text-[11px] text-fg-faint">
-                  Desde {{ formatDate(user.createdDate) }}
-                </span>
-              </a>
-
-              <!-- Admin v2 (D1): fora dos ancoras — botao dentro de link seria HTML invalido. -->
-              <app-contact-actions
-                class="pt-1 border-t border-edge-soft"
-                subjectType="USER"
-                [subjectId]="user.id"
-                [phoneMasked]="user.phoneMasked"
-                [label]="user.name ?? user.email"
-              />
-            </div>
-          }
-        </div>
-
-        <!-- ================= DESKTOP: TABLE ================= -->
-        <div class="hidden lg:block overflow-x-auto">
-          <table class="min-w-full text-sm">
-            <thead>
-              <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
-                <th class="py-2 pr-4 font-medium">Nome</th>
-                <th class="py-2 pr-4 font-medium">Email</th>
-                <th class="py-2 pr-4 font-medium">Telefone</th>
-                <th class="py-2 pr-4 font-medium">Status</th>
-                <th class="py-2 pr-4 font-medium">Papel</th>
-                <th class="py-2 pr-4 font-medium">Empresa mais recente</th>
-                <th class="py-2 pr-4 font-medium">Criado em</th>
-                <th class="py-2 pr-4 font-medium text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (user of items(); track user.id) {
-                <tr class="border-b border-gray-50 dark:border-edge-faint hover:bg-canvas/60">
-                  <!--
-                    FIX-0422 — CADA celula de conteudo e um link para o detalhe,
-                    e a coluna de ACOES nao e. Assim a linha inteira vira alvo
-                    sem esticar nada por cima do menu de acoes (que seria o
-                    `<a>` engolindo o botao) e sem aninhar botao dentro de
-                    ancora (que seria HTML invalido). O padding mora no ancora,
-                    nao na celula, para o alvo cobrir a celula toda.
-                    So ESTE ancora e tabulavel; os demais levam tabindex="-1"
-                    para a linha ter UM ponto de foco, e nao sete.
-                  -->
-                  <td class="align-top font-medium text-fg">
-                    <a
-                      [routerLink]="['/admin/users', user.id]"
-                      class="block py-3 pr-4 hover:text-primary-700 dark:hover:text-primary-400 hover:underline outline-none
-                             focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                      [attr.aria-label]="'Ver detalhes de ' + (user.name ?? user.email)"
-                    >
-                      {{ user.name ?? '(sem nome)' }}
-                      @if (user.online) {
-                        <span
-                          data-testid="online-badge"
-                          class="ml-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium align-middle
-                                 bg-success-50 text-success-900 dark:bg-success-500/15 dark:text-success-100"
-                        >
-                          <span class="inline-block w-2 h-2 rounded-full bg-success-500" aria-hidden="true"></span>
-                          Online
-                        </span>
-                      } @else if (lastSeenLabel(user); as seen) {
-                        <span class="block text-[11px] font-normal text-fg-faint mt-0.5" data-testid="last-seen">{{ seen }}</span>
-                      }
-                    </a>
-                  </td>
-                  <td class="align-top text-fg-soft break-all">
-                    <a
-                      [routerLink]="['/admin/users', user.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4"
-                    >{{ user.email }}</a>
-                  </td>
-                  <td class="py-1 pr-4 align-top" data-testid="cell-phone">
-                    <app-contact-actions
-                      subjectType="USER"
-                      [subjectId]="user.id"
-                      [phoneMasked]="user.phoneMasked"
-                      [label]="user.name ?? user.email"
-                    />
-                  </td>
-                  <td class="align-top" data-testid="cell-status">
-                    <a
-                      [routerLink]="['/admin/users', user.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4"
-                    >
-                      <span
-                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                        [class]="statusChip(user.active)"
-                      >
-                        {{ user.active ? 'Ativo' : 'Inativo' }}
-                      </span>
-                    </a>
-                  </td>
-                  <td class="align-top">
-                    <a
-                      [routerLink]="['/admin/users', user.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4"
-                    >
-                      <span
-                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                        [class]="roleChip(user.systemRole)"
-                      >
-                        {{ roleLabel(user.systemRole) }}
-                      </span>
-                    </a>
-                  </td>
-                  <td class="align-top text-fg-muted">
-                    <a
-                      [routerLink]="['/admin/users', user.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4"
-                    >{{ user.lastCompanyName ?? '—' }}</a>
-                  </td>
-                  <td class="align-top text-fg-muted tabular-nums" data-testid="cell-date">
-                    <a
-                      [routerLink]="['/admin/users', user.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4"
-                    >{{ formatDate(user.createdDate) }}</a>
-                  </td>
-                  <td class="py-3 pr-4 align-top">
-                    <div class="flex items-center justify-end">
-                      <app-actions-menu [label]="'Ações para ' + user.email">
-                        <a
-                          role="menuitem"
-                          [routerLink]="['/admin/users', user.id]"
-                          class="block w-full text-left text-xs px-4 py-2 text-fg-soft hover:bg-canvas min-h-[44px]"
-                        >
-                          Ver detalhes
-                        </a>
-                        @if (user.active) {
-                          <button
-                            type="button"
-                            role="menuitem"
-                            class="w-full text-left text-xs px-4 py-2 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
-                                   min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                            [disabled]="isPending(user.id)"
-                            (click)="requestToggleStatus(user)"
-                          >
-                            Desativar
-                          </button>
-                        } @else {
-                          <button
-                            type="button"
-                            role="menuitem"
-                            class="w-full text-left text-xs px-4 py-2 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10
-                                   min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                            [disabled]="isPending(user.id)"
-                            (click)="requestToggleStatus(user)"
-                          >
-                            Ativar
-                          </button>
-                        }
-                      </app-actions-menu>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Pagination -->
-        <div class="flex items-center justify-between pt-2 gap-3">
-          <p class="text-xs text-fg-subtle tabular-nums">
-            Página {{ currentPage() + 1 }} de {{ totalPages() }} — {{ total() }} usuário(s)
-          </p>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              class="text-xs px-3 py-2 rounded-lg border border-edge min-h-[36px]
-                     hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400
-                     disabled:opacity-40 disabled:cursor-not-allowed"
-              (click)="prevPage()"
-              [disabled]="!canPrev() || loading()"
-            >
-              Anterior
-            </button>
-            <button
-              type="button"
-              class="text-xs px-3 py-2 rounded-lg border border-edge min-h-[36px]
-                     hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400
-                     disabled:opacity-40 disabled:cursor-not-allowed"
-              (click)="nextPage()"
-              [disabled]="!canNext() || loading()"
-            >
-              Próxima
-            </button>
-          </div>
-        </div>
-      }
-    </div>
-  </app-page-card>
+    }
+  </div>
 
   <app-back-link link="/admin" label="Voltar para o painel admin" />
 </app-default-page-layout>
