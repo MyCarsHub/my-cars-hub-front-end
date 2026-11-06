@@ -5,6 +5,7 @@ import { environment } from '../../../environments/environment';
 import { PagedResponse } from '../../types/paged.types';
 import {
   AdminUserDetail,
+  AdminUserInviteResend,
   AdminUserListItem,
   AdminUserRoleFilter,
   AdminUserStatusFilter,
@@ -110,6 +111,19 @@ export class AdminUsersService {
       }));
   }
 
+  /**
+   * FEAT-0501 — reenvia o convite PENDING do usuario. Quem chama mostra 404/409/429 inline;
+   * nada aqui avisa o cliente (acesso de suporte nunca notifica).
+   */
+  resendInvite(id: string): Observable<AdminUserInviteResend> {
+    return this.http.post<AdminUserInviteResend>(`${BASE}/${id}/resend-invite`, {});
+  }
+
+  /** O item da ultima lista carregada, se o usuario esta nela (a lista tem `accountStatus`). */
+  listedItem(id: string): AdminUserListItem | undefined {
+    return this._items().find((u) => u.id === id);
+  }
+
   private patchDetail(next: AdminUserListItem): void {
     this._detail.update((cur) =>
       cur && cur.id === next.id
@@ -118,7 +132,17 @@ export class AdminUsersService {
     );
   }
 
+  /**
+   * A resposta do PATCH NAO traz `companyCount` nem `companies` (so o GET da lista traz):
+   * substituir o item inteiro apagaria as empresas da linha. Mescla so o que o PATCH sabe.
+   */
   private replaceItem(next: AdminUserListItem): void {
-    this._items.update((list) => list.map((u) => (u.id === next.id ? next : u)));
+    this._items.update((list) =>
+      list.map((u) =>
+        u.id === next.id
+          ? { ...u, name: next.name, email: next.email, systemRole: next.systemRole, active: next.active }
+          : u,
+      ),
+    );
   }
 }

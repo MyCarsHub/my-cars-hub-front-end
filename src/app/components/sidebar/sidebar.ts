@@ -1,5 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  input,
+  viewChild,
+} from '@angular/core';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
@@ -37,6 +48,19 @@ export interface NavItem {
   tourKey?: string;
   /** Grupo que nasce aberto antes de qualquer clique (menu do motorista: Financeiro). */
   defaultOpen?: boolean;
+  /**
+   * Item de ÁREA (FIX-0864): "Administração" quando já se está dentro dela. Vira a pílula cinza
+   * do topo, sem o realce laranja de rota ativa, porque ele diz em que área a pessoa está.
+   */
+  areaPill?: boolean;
+}
+
+/** Cartão do topo no lugar do seletor de empresa (a área de administração mostra a PESSOA). */
+export interface SidebarHeaderCard {
+  initial: string;
+  name: string;
+  /** Linha laranja sob o nome (papel). */
+  subtitle: string;
 }
 
 const ICON_ADMIN = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>`;
@@ -360,6 +384,7 @@ export const NAV_ITEMS: NavItem[] = [
   selector: 'app-sidebar',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [NgTemplateOutlet, RouterLink, RouterLinkActive, CompanySwitcher],
+  host: { '(document:keydown.escape)': 'onEscape()' },
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css',
   animations: [
@@ -422,7 +447,22 @@ export const NAV_ITEMS: NavItem[] = [
   ],
 })
 export class Sidebar {
+  /**
+   * FIX-0864 — a MESMA sidebar serve a área de administração: quem monta passa o modelo de menu
+   * (já filtrado) no lugar do `NAV_ITEMS`. `null` = menu de empresa, como sempre foi.
+   */
+  readonly navModel = input<readonly NavItem[] | null>(null);
+  /** Cartão do topo no lugar do seletor de empresa; `null` = o da empresa selecionada. */
+  readonly headerCard = input<SidebarHeaderCard | null>(null);
+  /** Gaveta do celular como diálogo modal (Tab preso, Esc fecha, foco volta ao ☰). */
+  readonly modalDrawer = input(false);
+  readonly menuLabel = input('Menu principal');
+
   protected readonly layout = inject(LayoutStore);
+  private readonly doc = inject(DOCUMENT);
+  private readonly injector = inject(Injector);
+  private readonly drawer = viewChild<ElementRef<HTMLElement>>('drawer');
+  private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly sanitizer = inject(DomSanitizer);
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
@@ -465,7 +505,39 @@ export class Sidebar {
    * O MOTORISTA tem um menu próprio, o do protótipo (`driver-nav.ts`); dono e gerente seguem
    * com `NAV_ITEMS`, intocado. Mesmo papel, mesma fonte (o token) que decide o resto do menu.
    */
-  protected readonly isDriverMenu = computed(() => this.menuRole() === 'DRIVER');
+  protected readonly isDriverMenu = computed(
+    () => this.navModel() === null && this.menuRole() === 'DRIVER',
+  );
+
+  /** Quem aparece no cartão do topo: a pessoa passada pela área, ou a empresa selecionada. */
+  protected readonly headerView = computed<SidebarHeaderCard>(() => {
+    const card = this.headerCard();
+    if (card) return card;
+    const tenant = this.layout.selectedTenant();
+    return { initial: tenant.initial, name: tenant.name, subtitle: this.roleLabel(tenant.role) };
+  });
+
+  constructor() {
+    // Gaveta modal aberta: o foco vai para o Fechar; fechada, volta para o ☰ de quem abriu.
+    let wasOpen = false;
+    let opener: HTMLElement | null = null;
+    effect(() => {
+      const open = this.modalDrawer() && this.layout.isMobile() && this.layout.isMobileOpen();
+      if (open && !wasOpen) {
+        // Guarda quem tinha o foco ao abrir (o ☰ que o usuário tocou), sem saber que ele é o
+        // ☰: o Sidebar não depende do marcador de nenhuma barra de topo.
+        const active = this.doc.activeElement;
+        opener = active instanceof HTMLElement && active !== this.doc.body ? active : null;
+        afterNextRender(() => this.closeButton()?.nativeElement.focus(), {
+          injector: this.injector,
+        });
+      } else if (!open && wasOpen) {
+        if (opener?.isConnected) opener.focus();
+        opener = null;
+      }
+      wasOpen = open;
+    });
+  }
 
   /**
    * "Administração" segue o TOKEN, relido a cada troca de tenant — o mesmo gatilho do
@@ -479,6 +551,8 @@ export class Sidebar {
   });
 
   private readonly allowedItems = computed<NavItem[]>(() => {
+    const model = this.navModel();
+    if (model) return [...model];
     if (this.isDriverMenu()) return buildDriverNavItems(this.driverRoutes);
     const role = this.menuRole();
     const isAdmin = this.isPlatformAdmin();
@@ -550,6 +624,39 @@ export class Sidebar {
     });
   }
 
+  protected onEscape(): void {
+    if (this.modalDrawer() && this.layout.isMobile() && this.layout.isMobileOpen()) {
+      this.layout.closeMobile();
+    }
+  }
+
+  /**
+   * Mantém o Tab dentro da gaveta modal. Mesmo algoritmo e seletor do `core/bottom-sheet`
+   * (lá o método é interno ao componente). `(keydown.tab)` não dispara com Shift, por isso o
+   * ouvinte é o `keydown` inteiro e a tecla é conferida aqui.
+   */
+  protected trapTab(event: Event): void {
+    const key = event as KeyboardEvent;
+    if (!this.modalDrawer() || key.key !== 'Tab') return;
+    const panel = this.drawer()?.nativeElement;
+    if (!panel) return;
+    const items = Array.from(
+      panel.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (key.shiftKey && this.doc.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!key.shiftKey && this.doc.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   /** Papel traduzido para exibição; string vazia quando não há papel. */
   protected roleLabel(role: string | undefined): string {
     if (!role) return '';
@@ -557,9 +664,8 @@ export class Sidebar {
   }
 
   /** Tooltip do switcher quando a sidebar está colapsada no desktop: "Empresa · Papel". */
-  protected tenantTitle(tenant: Tenant): string {
-    const role = this.roleLabel(tenant.role);
-    return role ? `${tenant.name} · ${role}` : tenant.name;
+  protected cardTitle(card: SidebarHeaderCard): string {
+    return card.subtitle ? `${card.name} · ${card.subtitle}` : card.name;
   }
 
   protected onSelectTenant(tenant: Tenant): void {
@@ -567,7 +673,8 @@ export class Sidebar {
   }
 
   protected trackByKey(_index: number, item: NavItem): string {
-    return item.route ?? item.label;
+    // Rótulo + rota: a pílula de área e "Visão geral" apontam para a mesma rota.
+    return `${item.label}|${item.route ?? ''}`;
   }
 
   protected trackByTenantId(_index: number, item: Tenant): string {

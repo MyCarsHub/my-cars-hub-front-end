@@ -38,7 +38,6 @@
             ariaLabel="Filtrar por situação"
             (selectionChange)="setStatusFilter($event)"
           />
-          <span class="w-px bg-surface-strong mx-1 self-stretch" aria-hidden="true"></span>
           <app-filter-chip-group
             [options]="planOptions"
             [value]="planFilter()"
@@ -58,361 +57,119 @@
         <app-alert-banner variant="error" [message]="err" />
       }
 
-      <!-- Loading skeleton -->
-      @if (loading() && companies().length === 0) {
-        <div class="space-y-2">
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse"></div>
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse"></div>
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse"></div>
-        </div>
-      }
+      <!-- Lista (kit app-data-list): tabela a partir de lg, cartões abaixo. Sem linhas, ação na kebab. -->
+      <div class="space-y-4">
+        <app-data-list
+          ariaLabel="Empresas"
+          actionsLabel="Ações da empresa"
+          emptyText="Nenhuma empresa encontrada com esses filtros."
+          exportFilename="empresas"
+          [rowTarget]="true"
+          (rowActivate)="openCompany($event)"
+          [columns]="columns"
+          [rows]="companies()"
+          [rowId]="rowId"
+          [loading]="loading() && companies().length === 0"
+        >
+          <ng-template dataListCell="name" let-row>
+            <a
+              [routerLink]="['/admin/companies', row.id]"
+              class="inline-flex flex-col min-h-[44px] justify-center hover:text-primary-700 dark:hover:text-primary-400
+                     hover:underline outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+              [attr.aria-label]="'Abrir ' + row.name"
+              data-testid="company-link"
+            >
+              <span class="break-words">{{ row.name }}</span>
+              <span class="text-xs font-normal text-fg-subtle" data-testid="company-place">{{ place(row) }}</span>
+            </a>
+            <!-- FEAT-0141: empresa interna CONTINUA na lista; só sai da conta das métricas. -->
+            @if (row.internal) {
+              <app-status-chip size="sm" tone="blue" class="ml-2" data-testid="internal-badge">
+                Interna · fora das métricas
+              </app-status-chip>
+            }
+          </ng-template>
 
-      <!-- Empty state -->
-      @if (!loading() && companies().length === 0 && !error()) {
-        <div class="text-center text-sm text-fg-subtle py-10">
-          Nenhuma empresa encontrada com esses filtros.
-        </div>
-      }
+          <ng-template dataListCell="status" let-row>
+            <span class="inline-flex flex-wrap items-center gap-1" data-testid="cell-status">
+              <app-status-chip size="sm" [colorClass]="companyChip(row.status).chip">
+                {{ companyChip(row.status).label }}
+              </app-status-chip>
+              @if (subChip(row); as chip) {
+                <app-status-chip size="sm" [colorClass]="chip.chip" data-testid="cell-sub">
+                  {{ chip.label }}
+                </app-status-chip>
+              }
+            </span>
+          </ng-template>
+
+          <!-- Admin v2 (D1): dono + contato (telefone só mascarado; revelação auditada). -->
+          <ng-template dataListCell="owner" let-row>
+            <span class="flex items-center gap-2 min-w-0" data-testid="cell-owner">
+              <span class="truncate text-fg-soft">{{ row.ownerName ?? '—' }}</span>
+              <app-contact-actions
+                subjectType="COMPANY"
+                [subjectId]="row.id"
+                [phoneMasked]="row.ownerPhoneMasked"
+                [label]="row.ownerName ?? row.name"
+              />
+            </span>
+          </ng-template>
+
+          <ng-template dataListActions let-row>
+            <a
+              role="menuitem"
+              [routerLink]="['/admin/companies', row.id]"
+              data-testid="menu-open"
+              class="block w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+            >
+              Abrir
+            </a>
+            <!-- FEAT-0141: nenhum verbo de exclusão — a empresa não sai da lista. -->
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="internal-menu-item"
+              class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] disabled:opacity-50"
+              [disabled]="isPending(row.id)"
+              (click)="toggleInternal(row)"
+            >
+              {{ row.internal ? 'Desmarcar como interna' : 'Marcar como interna (fora das métricas)' }}
+            </button>
+            @if (row.active) {
+              <button
+                type="button"
+                role="menuitem"
+                class="w-full text-left text-sm px-4 py-3 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
+                       min-h-[44px] disabled:opacity-50"
+                [disabled]="isPending(row.id)"
+                (click)="requestToggleStatus(row)"
+              >
+                Suspender
+              </button>
+            } @else {
+              <button
+                type="button"
+                role="menuitem"
+                class="w-full text-left text-sm px-4 py-3 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10
+                       min-h-[44px] disabled:opacity-50"
+                [disabled]="isPending(row.id)"
+                (click)="requestToggleStatus(row)"
+              >
+                Reativar
+              </button>
+            }
+          </ng-template>
+        </app-data-list>
+
+        <p class="text-xs text-fg-subtle" data-testid="managed-help">
+          Gerenciado = volume das cobranças de aluguel que vencem no mês corrente (mês pelo
+          vencimento, sem canceladas nem estornadas). MRR = preço de tabela do plano vigente.
+        </p>
+
+      </div>
 
       @if (companies().length > 0) {
-        <!-- ================= MOBILE: CARDS ================= -->
-        <div class="space-y-3 lg:hidden">
-          @for (company of companies(); track company.id) {
-            <div class="rounded-xl border border-edge p-4 space-y-3 bg-surface
-                        hover:border-primary-300 dark:hover:border-primary-500/40 transition-colors">
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0 flex-1">
-                  <h3 class="font-medium text-fg text-sm break-words">
-                    <a
-                      [routerLink]="['/admin/companies', company.id]"
-                      class="inline-flex items-center min-h-[44px] hover:text-primary-700 dark:hover:text-primary-400 hover:underline
-                             outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                      [attr.aria-label]="'Ver detalhes de ' + company.name"
-                    >
-                      {{ company.name }}
-                    </a>
-                  </h3>
-                  <!-- FIX-0422, celular: alvo = conteudo do cartao MENOS o menu. -->
-                  <a
-                    [routerLink]="['/admin/companies', company.id]"
-                    tabindex="-1"
-                    class="block text-xs text-fg-subtle mt-0.5 tabular-nums break-words"
-                  >
-                    {{ company.documentMasked ?? '—' }}
-                  </a>
-                </div>
-                <div class="shrink-0">
-                  <app-actions-menu [label]="'Ações para ' + company.name">
-                    <a
-                      role="menuitem"
-                      [routerLink]="['/admin/companies', company.id]"
-                      class="block w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
-                    >
-                      Ver detalhes
-                    </a>
-                    <!-- FEAT-0141: marca/desmarca. Nenhum verbo de exclusao no texto — a empresa
-                         nao sai da lista, so sai da conta das metricas. -->
-                    @if (company.internal) {
-                      <button
-                        type="button"
-                        role="menuitem"
-                        data-testid="internal-menu-item"
-                        class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas
-                               min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                        [disabled]="isPending(company.id)"
-                        (click)="toggleInternal(company)"
-                      >
-                        Desmarcar como interna
-                      </button>
-                    } @else {
-                      <button
-                        type="button"
-                        role="menuitem"
-                        data-testid="internal-menu-item"
-                        class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas
-                               min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                        [disabled]="isPending(company.id)"
-                        (click)="toggleInternal(company)"
-                      >
-                        Marcar como interna (fora das métricas)
-                      </button>
-                    }
-                    @if (company.active) {
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="w-full text-left text-sm px-4 py-3 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
-                               min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                        [disabled]="isPending(company.id)"
-                        (click)="requestToggleStatus(company)"
-                      >
-                        Suspender
-                      </button>
-                    } @else {
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="w-full text-left text-sm px-4 py-3 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10
-                               min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                        [disabled]="isPending(company.id)"
-                        (click)="requestToggleStatus(company)"
-                      >
-                        Reativar
-                      </button>
-                    }
-                  </app-actions-menu>
-                </div>
-              </div>
-
-              <a
-                [routerLink]="['/admin/companies', company.id]"
-                tabindex="-1"
-                class="flex flex-wrap items-center gap-2"
-                data-testid="card-meta"
-              >
-                <span
-                  class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                         font-medium uppercase tracking-wide"
-                  [class]="companyChip(company.status).chip"
-                >
-                  {{ companyChip(company.status).label }}
-                </span>
-                <span class="text-[11px] text-fg-subtle">
-                  {{ company.planName ?? '—' }}
-                </span>
-                @if (subChip(company); as chip) {
-                  <span
-                    class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                           font-medium uppercase tracking-wide"
-                    [class]="chip.chip"
-                  >
-                    {{ chip.label }}
-                  </span>
-                }
-                <!-- FEAT-0141: marca VISIVEL na linha. Empresa interna CONTINUA na lista;
-                     ela sai da CONTA das metricas, nao da lista. -->
-                @if (company.internal) {
-                  <span
-                    class="inline-flex items-center rounded-full bg-indigo-100 dark:bg-indigo-500/15 px-2 py-0.5
-                           text-[10px] font-medium uppercase tracking-wide text-indigo-700 dark:text-indigo-300"
-                    data-testid="internal-badge"
-                  >
-                    Interna · fora das métricas
-                  </span>
-                }
-                <span class="text-[11px] text-fg-faint">
-                  {{ company.memberCount }} membros · {{ formatDate(company.createdAt) }}
-                </span>
-              </a>
-
-              <!-- Admin v2 (D1): dono + contato. Fora dos ancoras (botao em link e HTML invalido). -->
-              <div class="pt-2 border-t border-edge-soft flex items-center justify-between gap-2" data-testid="owner-row">
-                <span class="text-xs text-fg-subtle truncate min-w-0">
-                  Dono: <span class="text-fg-soft font-medium">{{ company.ownerName ?? '—' }}</span>
-                </span>
-                <app-contact-actions
-                  subjectType="COMPANY"
-                  [subjectId]="company.id"
-                  [phoneMasked]="company.ownerPhoneMasked"
-                  [label]="company.ownerName ?? company.name"
-                />
-              </div>
-            </div>
-          }
-        </div>
-
-        <!-- ================= DESKTOP: TABLE ================= -->
-        <div class="hidden lg:block overflow-x-auto">
-          <table class="min-w-full text-sm">
-            <thead>
-              <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
-                <th class="py-2 pr-4 font-medium">Nome</th>
-                <th class="py-2 pr-4 font-medium">CNPJ</th>
-                <th class="py-2 pr-4 font-medium">Dono</th>
-                <th class="py-2 pr-4 font-medium">Plano</th>
-                <th class="py-2 pr-4 font-medium">Status Sub</th>
-                <th class="py-2 pr-4 font-medium">Status</th>
-                <th class="py-2 pr-4 font-medium text-right">Membros</th>
-                <th class="py-2 pr-4 font-medium">Criada em</th>
-                <th class="py-2 pr-4 font-medium text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (company of companies(); track company.id) {
-                <tr class="border-b border-gray-50 dark:border-edge-faint hover:bg-canvas/60">
-                  <!--
-                    FIX-0422 — CADA celula de conteudo e um link; a coluna de
-                    ACOES nao e. Alvo grande SEM esticar nada por cima do menu
-                    e sem aninhar botao em ancora. Padding no ancora, nao na
-                    celula, para o alvo cobrir a celula inteira. So este ancora
-                    e tabulavel (um ponto de foco por linha).
-                  -->
-                  <td class="align-top font-medium text-fg">
-                    <a
-                      [routerLink]="['/admin/companies', company.id]"
-                      class="block py-3 pr-4 hover:text-primary-700 dark:hover:text-primary-400 hover:underline outline-none
-                             focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                      [attr.aria-label]="'Ver detalhes de ' + company.name"
-                    >
-                      {{ company.name }}
-                      <!-- FEAT-0141: mesma marca da versao mobile, mesma linha. -->
-                      @if (company.internal) {
-                        <span
-                          class="ml-2 inline-flex items-center rounded-full bg-indigo-100 dark:bg-indigo-500/15 px-2
-                                 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300"
-                          data-testid="internal-badge"
-                        >
-                          Interna · fora das métricas
-                        </span>
-                      }
-                    </a>
-                  </td>
-                  <td class="align-top text-fg-muted tabular-nums">
-                    <a
-                      [routerLink]="['/admin/companies', company.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4"
-                    >
-                      {{ company.documentMasked ?? '—' }}
-                    </a>
-                  </td>
-                  <td class="py-1 pr-4 align-top" data-testid="cell-owner">
-                    <span class="block text-xs text-fg-soft pt-2 truncate max-w-[12rem]">{{ company.ownerName ?? '—' }}</span>
-                    <app-contact-actions
-                      subjectType="COMPANY"
-                      [subjectId]="company.id"
-                      [phoneMasked]="company.ownerPhoneMasked"
-                      [label]="company.ownerName ?? company.name"
-                    />
-                  </td>
-                  <td class="align-top text-fg-soft">
-                    <a
-                      [routerLink]="['/admin/companies', company.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4"
-                    >
-                      {{ company.planName ?? '—' }}
-                    </a>
-                  </td>
-                  <td class="align-top" data-testid="cell-sub">
-                    <a
-                      [routerLink]="['/admin/companies', company.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4"
-                    >
-                    @if (subChip(company); as chip) {
-                      <span
-                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                        [class]="chip.chip"
-                      >
-                        {{ chip.label }}
-                      </span>
-                    } @else {
-                      <span class="text-xs text-fg-faint">—</span>
-                    }
-                    </a>
-                  </td>
-                  <td class="align-top" data-testid="cell-status">
-                    <a
-                      [routerLink]="['/admin/companies', company.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4"
-                    >
-                      <span
-                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                        [class]="companyChip(company.status).chip"
-                      >
-                        {{ companyChip(company.status).label }}
-                      </span>
-                    </a>
-                  </td>
-                  <td class="align-top text-right tabular-nums">
-                    <a
-                      [routerLink]="['/admin/companies', company.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4 text-right"
-                    >
-                      {{ company.memberCount }}
-                    </a>
-                  </td>
-                  <td class="align-top text-fg-muted tabular-nums" data-testid="cell-date">
-                    <a
-                      [routerLink]="['/admin/companies', company.id]"
-                      tabindex="-1"
-                      class="block py-3 pr-4"
-                    >
-                      {{ formatDate(company.createdAt) }}
-                    </a>
-                  </td>
-                  <td class="py-3 pr-4 align-top">
-                    <div class="flex items-center justify-end">
-                      <app-actions-menu [label]="'Ações para ' + company.name" [menuWidth]="208">
-                        <a
-                          role="menuitem"
-                          [routerLink]="['/admin/companies', company.id]"
-                          class="block w-full text-left text-xs px-4 py-2 text-fg-soft hover:bg-canvas min-h-[44px]"
-                        >
-                          Ver detalhes
-                        </a>
-                        <!-- FEAT-0141: marca/desmarca. Nenhum verbo de exclusao no texto — a empresa
-                             nao sai da lista, so sai da conta das metricas. -->
-                        @if (company.internal) {
-                          <button
-                            type="button"
-                            role="menuitem"
-                            data-testid="internal-menu-item"
-                            class="w-full text-left text-xs px-4 py-2 text-fg-soft hover:bg-canvas
-                                   min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                            [disabled]="isPending(company.id)"
-                            (click)="toggleInternal(company)"
-                          >
-                            Desmarcar como interna
-                          </button>
-                        } @else {
-                          <button
-                            type="button"
-                            role="menuitem"
-                            data-testid="internal-menu-item"
-                            class="w-full text-left text-xs px-4 py-2 text-fg-soft hover:bg-canvas
-                                   min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                            [disabled]="isPending(company.id)"
-                            (click)="toggleInternal(company)"
-                          >
-                            Marcar como interna (fora das métricas)
-                          </button>
-                        }
-                        @if (company.active) {
-                          <button
-                            type="button"
-                            role="menuitem"
-                            class="w-full text-left text-xs px-4 py-2 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
-                                   min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                            [disabled]="isPending(company.id)"
-                            (click)="requestToggleStatus(company)"
-                          >
-                            Suspender
-                          </button>
-                        } @else {
-                          <button
-                            type="button"
-                            role="menuitem"
-                            class="w-full text-left text-xs px-4 py-2 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10
-                                   min-h-[44px] disabled:opacity-50 border-t border-edge-soft"
-                            [disabled]="isPending(company.id)"
-                            (click)="requestToggleStatus(company)"
-                          >
-                            Reativar
-                          </button>
-                        }
-                      </app-actions-menu>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
         <!-- Pagination -->
         <div class="flex items-center justify-between pt-2 gap-3">
           <p class="text-xs text-fg-subtle tabular-nums">

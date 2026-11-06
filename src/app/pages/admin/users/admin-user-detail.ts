@@ -17,11 +17,20 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
+import { StatusChip, StatusChipTone } from '../../../components/core/status-chip/status-chip';
+import { ImpersonationService } from '../../../services/impersonation.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { AdminUsersService } from '../admin-users.service';
 import { AdminUserCompanyLink } from '../../../types/admin-user.types';
+import {
+  RESEND_FALLBACK,
+  detailHasPendingInvite,
+  enterAsTargets,
+  resendRefusal,
+} from './admin-users-view';
 import { companyRoleLabel } from '../../../utils/role-labels';
 import { ContactBar } from '../contact/contact-bar';
 
@@ -40,7 +49,17 @@ const MEMBERSHIP_STATUS_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-admin-user-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BackLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner, RouterLink, ContactBar],
+  imports: [
+    BackLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    AlertBanner,
+    RouterLink,
+    ContactBar,
+    BottomSheet,
+    StatusChip,
+  ],
   templateUrl: './admin-user-detail.html',
 })
 export class AdminUserDetail implements OnInit, OnDestroy {
@@ -51,6 +70,7 @@ export class AdminUserDetail implements OnInit, OnDestroy {
   private readonly notify = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly impersonation = inject(ImpersonationService);
 
   private userId: string | null = null;
 
@@ -64,7 +84,32 @@ export class AdminUserDetail implements OnInit, OnDestroy {
    */
   protected readonly actionError = signal<string | null>(null);
 
-  protected readonly openActionMenu = signal(false);
+  protected readonly resending = signal(false);
+  protected readonly entering = signal(false);
+  protected readonly pickerOpen = signal(false);
+
+  /** Empresas onde "Entrar como" faz sentido (nao motorista, vinculo ativo). */
+  protected readonly enterTargets = computed(() => enterAsTargets(this.detail()?.companies ?? []));
+  protected readonly canEnterAs = computed(
+    () => this.caps.can('ver_como') && this.enterTargets().length > 0,
+  );
+  protected readonly firstName = computed(() => {
+    const name = this.detail()?.name?.trim();
+    return name ? name.split(/\s+/)[0] : 'usuário';
+  });
+
+  /**
+   * O detalhe nao traz `accountStatus`: vale o vinculo INVITED ou a linha da lista que o
+   * admin acabou de abrir. Quando o sinal falha, o 409 do servidor aparece inline.
+   */
+  protected readonly canResend = computed(() => {
+    const u = this.detail();
+    if (!u || !u.active || !this.caps.can('usuario.gerir')) return false;
+    return (
+      detailHasPendingInvite(u.companies) ||
+      this.usersService.listedItem(u.id)?.accountStatus === 'PRE_REGISTERED'
+    );
+  });
   protected readonly pendingAction = signal<PendingAction | null>(null);
   protected readonly updating = signal(false);
 
@@ -161,17 +206,55 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     });
   }
 
-  protected toggleActionMenu(event?: Event): void {
-    event?.stopPropagation();
-    this.openActionMenu.update((v) => !v);
+  /** "Entrar como": uma empresa elegivel abre direto; 2 ou mais pedem a escolha. */
+  protected enterAs(): void {
+    const targets = this.enterTargets();
+    if (targets.length === 1) this.startEnter(targets[0]);
+    else if (targets.length > 1) this.pickerOpen.set(true);
   }
 
-  protected closeActionMenu(): void {
-    this.openActionMenu.set(false);
+  protected closePicker(): void {
+    this.pickerOpen.set(false);
+  }
+
+  protected startEnter(link: AdminUserCompanyLink): void {
+    if (this.entering()) return;
+    this.pickerOpen.set(false);
+    this.actionError.set(null);
+    this.entering.set(true);
+    this.impersonation.start(link.companyId).subscribe({
+      next: (session) => {
+        this.entering.set(false);
+        this.notify.info(`Você está vendo ${session.companyName} em modo somente leitura.`);
+        void this.router.navigate(['/dashboard']);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.entering.set(false);
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível abrir a sessão de leitura.'),
+        );
+      },
+    });
+  }
+
+  protected resendInvite(): void {
+    if (!this.userId || this.resending()) return;
+    this.actionError.set(null);
+    this.resending.set(true);
+    this.usersService.resendInvite(this.userId).subscribe({
+      next: () => {
+        this.resending.set(false);
+        this.notify.success('Convite reenviado.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.resending.set(false);
+        const generic = this.apiErrors.messageFor(err, RESEND_FALLBACK);
+        this.actionError.set(resendRefusal(err) ?? generic);
+      },
+    });
   }
 
   protected requestToggleStatus(): void {
-    this.closeActionMenu();
     const u = this.detail();
     if (!u) return;
     if (u.active) {
@@ -211,32 +294,24 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     return companyRoleLabel(role);
   }
 
-  protected roleChip(role: string): string {
-    return role === 'PLATFORM_ADMIN'
-      ? 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300'
-      : 'bg-surface-sunken text-fg-soft';
+  protected roleTone(role: string): StatusChipTone {
+    return role === 'OWNER' ? 'orange' : role === 'MANAGER' ? 'blue' : role === 'DRIVER' ? 'green' : 'neutral';
   }
 
-  protected statusChip(active: boolean): string {
-    return active
-      ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-      : 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300';
+  protected statusTone(active: boolean): StatusChipTone {
+    return active ? 'green' : 'red';
   }
 
   /**
-   * Situação do vínculo em português. O backend manda o enum cru (ACTIVE, INVITED,
+   * Situacao do vinculo em portugues. O backend manda o enum cru (ACTIVE, INVITED,
    * ONBOARDING...) e a tela o exibia assim (AUDIT 2026-10-25 D2).
    */
   protected linkStatusLabel(status: string): string {
     return MEMBERSHIP_STATUS_LABELS[status] ?? status;
   }
 
-  protected linkStatusChip(status: string): string {
-    if (status === 'ACTIVE')
-      return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
-    if (status === 'INVITED')
-      return 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300';
-    return 'bg-surface-sunken text-fg-soft';
+  protected linkStatusTone(status: string): StatusChipTone {
+    return status === 'ACTIVE' ? 'green' : status === 'INVITED' ? 'blue' : 'neutral';
   }
 
   protected formatDate(iso: string | null): string {

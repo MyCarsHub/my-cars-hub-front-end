@@ -10,6 +10,7 @@ import { AdminUsersService } from '../admin-users.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import type { AdminUserDetail as AdminUserDetailDto } from '../../../types/admin-user.types';
+import { ImpersonationService } from '../../../services/impersonation.service';
 import { AdminContactService } from '../contact/admin-contact.service';
 
 /**
@@ -43,6 +44,7 @@ describe('AdminUserDetail — campo "Último login"', () => {
         { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
+        { provide: ImpersonationService, useValue: { start: vi.fn() } },
         {
           provide: ActivatedRoute,
           useValue: { paramMap: of(convertToParamMap({ id: 'u-1' })) },
@@ -55,6 +57,8 @@ describe('AdminUserDetail — campo "Último login"', () => {
             getDetail: vi.fn().mockReturnValue(of(detail())),
             clearDetail: vi.fn(),
             updateStatus: vi.fn(),
+            listedItem: vi.fn(),
+            resendInvite: vi.fn(),
           },
         },
         {
@@ -151,6 +155,7 @@ describe('AdminUserDetail — situação do vínculo com a empresa', () => {
         { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
+        { provide: ImpersonationService, useValue: { start: vi.fn() } },
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: 'u-1' })) } },
         {
           provide: AdminUsersService,
@@ -160,6 +165,8 @@ describe('AdminUserDetail — situação do vínculo com a empresa', () => {
             getDetail: vi.fn().mockReturnValue(of(detail())),
             clearDetail: vi.fn(),
             updateStatus: vi.fn(),
+            listedItem: vi.fn(),
+            resendInvite: vi.fn(),
           },
         },
         {
@@ -216,6 +223,7 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
         { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
+        { provide: ImpersonationService, useValue: { start: vi.fn() } },
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: user.id })) } },
         {
           provide: AdminUsersService,
@@ -225,6 +233,8 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
             getDetail: vi.fn().mockReturnValue(of(user)),
             clearDetail: vi.fn(),
             updateStatus: vi.fn(),
+            listedItem: vi.fn(),
+            resendInvite: vi.fn(),
           },
         },
         { provide: AdminContactService, useValue: { reveal } },
@@ -249,15 +259,12 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
     expect(el.querySelector('[data-testid="last-seen"]')?.textContent).toMatch(/\d{2}\/\d{2}\/\d{4}/);
   });
 
-  it('o menu Ações não concede nem tira papel de admin (só em "Admins e papéis")', () => {
+  it('as ações não concedem nem tiram papel de admin (só em "Admins e papéis")', () => {
     const reveal = vi.fn().mockReturnValue(of({ available: false }));
     const el = render(USER, reveal);
-    const trigger = el.querySelector<HTMLButtonElement>('[data-testid="user-actions"] button[aria-haspopup="menu"]')!;
-    trigger.click();
-    TestBed.tick();
-    const fixtureText = el.querySelector('[data-testid="user-actions"]')?.textContent ?? '';
-    expect(fixtureText).toContain('Desativar usuário'); // o menu abriu de fato
-    expect(fixtureText).not.toMatch(/admin/i);
+    const actions = el.querySelector('[data-testid="user-actions"]')?.textContent ?? '';
+    expect(actions).toContain('Desativar'); // as ações renderizaram de fato
+    expect(actions).not.toMatch(/admin/i);
     expect(el.querySelector('[data-testid="manage-admin-roles"]')).toBeNull();
   });
 

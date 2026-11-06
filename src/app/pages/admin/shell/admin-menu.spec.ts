@@ -6,6 +6,7 @@ import { AdminCapabilityCode } from '../../../types/admin-roles.types';
 import {
   ADMIN_MENU,
   adminMenuItemForUrl,
+  buildAdminNavItems,
   isAdminAreaUrl,
   visibleAdminMenu,
 } from './admin-menu';
@@ -100,5 +101,59 @@ describe('Menu da administração — sem páginas de empresa', () => {
     for (const t of tenant) expect(items.map((i) => i.route)).not.toContain(t);
     expect(items.map((i) => i.capability)).not.toContain('ver_como');
     expect(items.map((i) => i.label.toLowerCase()).join(' ')).not.toContain('ver como');
+  });
+});
+
+describe('Menu da administração — modelo da sidebar (FIX-0864)', () => {
+  const all = () => visibleAdminMenu(() => true);
+
+  it('Dinheiro e Operação são grupos; o resto sobe solto, na ordem do protótipo', () => {
+    const items = buildAdminNavItems(all());
+    expect(items.map((i) => i.label)).toEqual([
+      'Visão geral',
+      'Usuários',
+      'Empresas',
+      'Administradores',
+      'Dinheiro',
+      'Operação',
+      'Auditoria',
+    ]);
+    const dinheiro = items.find((i) => i.label === 'Dinheiro')!;
+    expect(dinheiro.children!.map((c) => c.label)).toEqual(['Cobranças', 'Billing', 'Cupons']);
+    expect(dinheiro.route).toBeUndefined();
+    const operacao = items.find((i) => i.label === 'Operação')!;
+    expect(operacao.children!.map((c) => c.label)).toEqual([
+      'Suporte',
+      'Feedback',
+      'Notificações',
+      'Blog',
+    ]);
+  });
+
+  it('só Visão geral é exato; ícones no molde de 20px da sidebar de empresa', () => {
+    const items = buildAdminNavItems(all());
+    expect(items.filter((i) => i.exactMatch).map((i) => i.label)).toEqual(['Visão geral']);
+    for (const i of items) expect(i.icon).toContain('width="20"');
+  });
+
+  it('capacidade tira o item e o grupo vazio; grupo com um item vira item', () => {
+    const only = (...codes: AdminCapabilityCode[]) =>
+      buildAdminNavItems(visibleAdminMenu((c) => codes.includes(c)));
+    expect(only().length).toBe(0);
+    const reader = only('ver');
+    expect(reader.find((i) => i.label === 'Administradores')).toBeUndefined();
+    expect(reader.find((i) => i.label === 'Operação')!.children!.map((c) => c.label)).toEqual([
+      'Suporte',
+      'Notificações',
+    ]);
+    const operacao = ADMIN_MENU.find((g) => g.label === 'OPERAÇÃO')!;
+    const single = buildAdminNavItems([{ ...operacao, items: operacao.items.slice(0, 1) }]);
+    expect(single.length).toBe(1);
+    expect(single[0].children).toBeUndefined();
+  });
+
+  it('nenhum item aponta para fora de /admin', () => {
+    const flat = buildAdminNavItems(all()).flatMap((i) => i.children ?? [i]);
+    for (const i of flat) expect(i.route, i.label).toMatch(/^\/admin(\/|$)/);
   });
 });

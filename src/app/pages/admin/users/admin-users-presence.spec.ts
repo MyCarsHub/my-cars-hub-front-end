@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { AdminUsers } from './admin-users';
 import { AdminUsersService } from '../admin-users.service';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import type { AdminUserListItem } from '../../../types/admin-user.types';
@@ -57,6 +58,7 @@ describe('AdminUsers — presença', () => {
       providers: [
         provideRouter([]),
         ApiErrorService,
+        { provide: AdminCapabilitiesService, useValue: { can: () => true, ensureLoaded: () => of(null) } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
@@ -92,30 +94,16 @@ describe('AdminUsers — presença', () => {
     vi.useRealTimers();
   });
 
-  it('marca só o usuário online com o selo, nas duas versões da lista', () => {
+  it('diz "Online agora" só para o usuário online e "Visto há N min" para quem já foi visto', () => {
     configure();
     const fixture = TestBed.createComponent(AdminUsers);
     fixture.detectChanges();
 
-    const badges: HTMLElement[] = Array.from(
-      fixture.nativeElement.querySelectorAll('[data-testid="online-badge"]'),
-    );
-    // Um no cartão (celular) e um na tabela (desktop), ambos do mesmo usuário.
-    expect(badges).toHaveLength(2);
-    for (const badge of badges) {
-      expect(badge.textContent?.trim()).toBe('Online');
-    }
-  });
-
-  it('mostra "Visto há N min" para quem já foi visto e nada para quem nunca foi', () => {
-    configure();
-    const fixture = TestBed.createComponent(AdminUsers);
-    fixture.detectChanges();
-
-    const seen: string[] = Array.from(
-      fixture.nativeElement.querySelectorAll('[data-testid="last-seen"]') as NodeListOf<HTMLElement>,
-    ).map((el) => el.textContent?.trim() ?? '');
-    expect(seen).toEqual(['Visto há 12 min', 'Visto há 12 min']);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    // A lista rende tabela (desktop) e cartões (celular): cada texto aparece nas duas.
+    expect(text.match(/Online agora/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(text).toContain('Visto há 12 min');
+    expect(text).not.toContain('Visto há 1 min'); // o online não vira "visto"
   });
 
   it('sem query param, carrega a lista sem filtro de presença', () => {

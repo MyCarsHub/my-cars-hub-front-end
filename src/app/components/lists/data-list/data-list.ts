@@ -124,7 +124,13 @@ interface RenderedRow {
           </thead>
           <tbody>
             @for (r of rendered(); track r.id) {
-              <tr data-row class="bg-surface-muted">
+              <tr
+                data-row
+                class="bg-surface-muted"
+                [class.cursor-pointer]="rowTarget()"
+                [class.hover:bg-surface-sunken]="rowTarget()"
+                (click)="onRowClick($event, r.row)"
+              >
                 @for (c of r.cells; track c.column.key) {
                   <td
                     class="px-4 py-3 first:rounded-l-xl last:rounded-r-xl text-fg-body"
@@ -155,7 +161,12 @@ interface RenderedRow {
         <!-- Cards: below lg -->
         <ul data-cards class="lg:hidden space-y-2" [attr.aria-label]="ariaLabel()">
           @for (r of rendered(); track r.id) {
-            <li data-card class="rounded-2xl bg-surface-muted p-4 min-w-0">
+            <li
+              data-card
+              class="rounded-2xl bg-surface-muted p-4 min-w-0"
+              [class.cursor-pointer]="rowTarget()"
+              (click)="onRowClick($event, r.row)"
+            >
               <div class="flex items-start justify-between gap-2 min-w-0">
                 <div class="min-w-0 font-semibold text-fg">
                   <ng-container
@@ -214,7 +225,15 @@ export class DataList<T = unknown> {
   /** File name for the CSV; `null` hides the Exportar button. */
   readonly exportFilename = input<string | null>(null);
 
+  /**
+   * The whole row is a pointer target (mouse and touch): a click outside any link, button or menu
+   * item emits `rowActivate`. Keyboard users keep the row's own link (the name) as the ONE tab
+   * stop, so the row itself is deliberately not focusable.
+   */
+  readonly rowTarget = input(false);
+
   readonly exported = output<string>();
+  readonly rowActivate = output<T>();
 
   protected readonly cellDefs = contentChildren(DataListCell);
   protected readonly actions = contentChild(DataListActions);
@@ -240,6 +259,14 @@ export class DataList<T = unknown> {
       };
     });
   });
+
+  protected onRowClick(event: Event, row: unknown): void {
+    if (!this.rowTarget()) return;
+    const target = event.target;
+    // Links, buttons, form controls and kebab items own their clicks.
+    if (target instanceof Element && target.closest('a, button, input, select, textarea, [role="menuitem"]')) return;
+    this.rowActivate.emit(row as T);
+  }
 
   protected tone(column: DataListColumn<unknown>, row: unknown): StatusChipTone {
     return column.tone?.(row) ?? 'neutral';
