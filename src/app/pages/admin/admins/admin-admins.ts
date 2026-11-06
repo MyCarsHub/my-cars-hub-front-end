@@ -12,7 +12,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, of, switchMap, catchError } from 'rxjs';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
-import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
+import {
+  DataList,
+  DataListActions,
+  DataListCell,
+  DataListColumn,
+} from '../../../components/lists/data-list/data-list';
+import { StatusChipTone } from '../../../components/core/status-chip/status-chip';
 import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
 import { ReasonOption, ReasonPicker } from '../../../components/core/reason-picker/reason-picker';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -20,7 +26,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import { AdminUserListItem } from '../../../types/admin-user.types';
 import { AdminMember, AdminRole, AdminRoleReason } from '../../../types/admin-roles.types';
-import { ADMIN_ROLE_LABEL, AdminRoleBadge } from './admin-role-badge';
+import { ADMIN_ROLE_LABEL } from './admin-role-badge';
 import { AdminRolesService } from './admin-roles.service';
 
 export type AdminSheet = 'grant' | 'change' | 'revoke';
@@ -83,10 +89,25 @@ const ROLE_ABILITIES: Record<AdminRole, string[]> = {
 
 export const REVOKE_WORD = 'REMOVER';
 
+const ROLE_TONE: Record<AdminRole | 'NONE', StatusChipTone> = {
+  OWNER: 'orange',
+  SUPPORT: 'blue',
+  READONLY: 'neutral',
+  NONE: 'amber',
+};
+
 @Component({
   selector: 'app-admin-admins',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, AlertBanner, BottomSheet, ReasonPicker, AdminRoleBadge, ActionsMenu],
+  imports: [
+    DefaultPageLayout,
+    AlertBanner,
+    BottomSheet,
+    ReasonPicker,
+    DataList,
+    DataListCell,
+    DataListActions,
+  ],
   templateUrl: './admin-admins.html',
 })
 export class AdminAdmins implements OnInit {
@@ -95,6 +116,26 @@ export class AdminAdmins implements OnInit {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly columns: readonly DataListColumn<AdminMember>[] = [
+    { key: 'name', header: 'Administrador', primary: true, value: (m) => m.name ?? m.email },
+    {
+      key: 'role',
+      header: 'Papel',
+      kind: 'status',
+      value: (m) => (m.adminRole ? ADMIN_ROLE_LABEL[m.adminRole] : 'Sem papel'),
+      tone: (m) => ROLE_TONE[m.adminRole ?? 'NONE'],
+    },
+    {
+      key: 'active',
+      header: 'Situação',
+      kind: 'status',
+      value: (m) => (m.active ? 'Ativo' : 'Desativado'),
+      tone: (m) => (m.active ? 'green' : 'neutral'),
+    },
+    { key: 'lastAccess', header: 'Último acesso', value: (m) => this.lastAccess(m) },
+  ];
+  protected readonly rowId = (m: AdminMember): string => m.id;
 
   protected readonly roleOptions = ROLE_OPTIONS;
   protected readonly grantReasons = GRANT_REASONS;
@@ -249,15 +290,10 @@ export class AdminAdmins implements OnInit {
     return (first + last).toUpperCase();
   }
 
-  protected avatarTone(role: AdminRole | null): string {
-    switch (role) {
-      case 'OWNER':
-        return 'bg-gradient-to-br from-primary-400 to-primary-700';
-      case 'SUPPORT':
-        return 'bg-gradient-to-br from-sky-400 to-sky-700';
-      default:
-        return 'bg-gradient-to-br from-neutral-400 to-neutral-600';
-    }
+  protected countFor(role: string): string {
+    const c = this.counts();
+    const n = role === 'OWNER' ? c.owner : role === 'SUPPORT' ? c.support : c.readonly;
+    return n === 1 ? '1 pessoa' : `${n} pessoas`;
   }
 
   protected lastAccess(m: AdminMember): string {
@@ -265,7 +301,7 @@ export class AdminAdmins implements OnInit {
     if (!iso) return 'Nunca entrou';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return 'Nunca entrou';
-    return `Último acesso: ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+    return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
   }
 
   // ---------- abrir / fechar ----------
