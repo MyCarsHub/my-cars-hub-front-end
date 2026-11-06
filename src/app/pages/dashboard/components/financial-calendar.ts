@@ -28,7 +28,8 @@ export interface DayCell {
  * Financial calendar — mobile-first month grid that plots cashflow events.
  *
  * A single {@link CashflowEventDto} array is grouped by date; each cell shows
- * two dots (green IN / red OUT) and the aggregate amounts. Cells stay a 7-col
+ * only the day number plus a green dot (IN) and/or a red dot (OUT); amounts live in the
+ * month tiles and the day sheet. Cells stay a 7-col
  * grid at every viewport for visual continuity (users compare weekdays), but
  * shrink density on `< sm` while keeping a 44px minimum touch target.
  *
@@ -59,12 +60,24 @@ export class FinancialCalendar implements OnInit {
         this.monthChange.emit(this.monthCursor());
     }
 
-    protected readonly weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    /** Single-letter header (the owner's design); `name` feeds the accessible label. */
+    protected readonly weekdays = [
+        { letter: 'D', name: 'Domingo' },
+        { letter: 'S', name: 'Segunda-feira' },
+        { letter: 'T', name: 'Terça-feira' },
+        { letter: 'Q', name: 'Quarta-feira' },
+        { letter: 'Q', name: 'Quinta-feira' },
+        { letter: 'S', name: 'Sexta-feira' },
+        { letter: 'S', name: 'Sábado' },
+    ];
 
     protected readonly monthLabel = computed(() => {
         const [year, month] = this.monthCursor().split('-').map(Number);
         const d = new Date(year, month - 1, 1);
-        return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        // Only the first letter is upper-cased ("Novembro de 2026"); CSS `capitalize`
+        // would also upper-case the preposition ("Novembro De 2026").
+        const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        return label.charAt(0).toUpperCase() + label.slice(1);
     });
 
     /** Grouped events indexed by ISO date (yyyy-MM-dd). */
@@ -83,7 +96,6 @@ export class FinancialCalendar implements OnInit {
         const first = new Date(year, month - 1, 1);
         const daysInMonth = new Date(year, month, 0).getDate();
         const startPad = first.getDay(); // 0 = Sunday
-        const today = this.buildTodayKey() + '-' + this.pad(new Date().getDate());
         const todayIso = this.buildTodayIso();
 
         const cells: DayCell[] = [];
@@ -177,13 +189,16 @@ export class FinancialCalendar implements OnInit {
         this.daySelect.emit(cell.date);
     }
 
-    protected shortMoney(cents: number): string {
-        if (cents === 0) return '';
-        // Compact display for cells — R$1,2k / R$1,5M
-        const value = cents / 100;
-        if (value >= 1000000) return `R$${(value / 1000000).toFixed(1)}M`;
-        if (value >= 1000) return `R$${(value / 1000).toFixed(1)}k`;
-        return `R$${value.toFixed(0)}`;
+    /** Accessible name of a day cell: the day plus what happens on it. */
+    protected cellLabel(cell: DayCell): string {
+        const parts = [`Dia ${cell.dayOfMonth}`];
+        if (cell.inCount > 0) {
+            parts.push(cell.inCount === 1 ? '1 recebimento' : `${cell.inCount} recebimentos`);
+        }
+        if (cell.outCount > 0) {
+            parts.push(cell.outCount === 1 ? '1 pagamento' : `${cell.outCount} pagamentos`);
+        }
+        return parts.join(', ');
     }
 
     private emptyCell(): DayCell {
