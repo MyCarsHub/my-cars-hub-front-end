@@ -135,3 +135,34 @@ export interface AsaasCustomerSyncResult {
   sentFields: string[];
   asaasName: string | null;
 }
+
+/**
+ * "Cancelar cobrança" (só Dono, `POST /v1/admin/charges/{id}/cancel`). Motivo e confirmação
+ * são obrigatórios apenas quando a cobrança está vencida; o servidor confere de novo.
+ */
+export interface AdminCancelChargeRequest {
+  companyId: string;
+  reason?: AdminActionReason | null;
+  note?: string | null;
+  /** Os 8 primeiros caracteres do id da cobrança (sem diferenciar maiúsculas). */
+  confirmation?: string | null;
+}
+
+export type AdminCancelChargeOutcome =
+  | 'CANCELED_AT_GATEWAY'
+  | 'CANCELED_ALREADY_GONE'
+  | 'CANCELED_NO_GATEWAY_LINK'
+  | 'ALREADY_PAID_AT_GATEWAY'
+  | 'GATEWAY_FAILED';
+
+export interface AdminCancelChargeResult {
+  chargeId: string;
+  outcome: AdminCancelChargeOutcome;
+  status: string | null;
+  /** true só quando a linha local virou CANCELADA. */
+  canceled: boolean;
+  /** true quando o Asaas falhou e a remoção ficou agendada na varredura. */
+  retryQueued: boolean;
+  gatewayFailure: string | null;
+  hint: string | null;
+}

@@ -14,7 +14,7 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
-import { canReceiveCharge, canRetryCharge } from './charge-action-rules';
+import { canCancelCharge, canReceiveCharge, canRetryCharge } from './charge-action-rules';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { ImpersonationService } from '../../../services/impersonation.service';
 import { NotificationService } from '../../../services/notification.service';
@@ -153,9 +153,15 @@ export class AdminCharges implements OnInit {
     return canRetryCharge(item);
   }
 
+  /** FEAT-0553: "Cancelar cobrança" só para o Dono (cobranca.cancelar) e cobrança em aberto; falha fechada. */
+  protected canCancel(item: AdminChargeListItem): boolean {
+    return this.caps.can('cobranca.cancelar') && canCancelCharge(item);
+  }
+
   /** O kebab só aparece se o papel tiver pelo menos uma ação nesta cobrança. */
   protected hasAnyAction(item: AdminChargeListItem): boolean {
     return (
+      this.canCancel(item) ||
       this.caps.can('asaas.comparar') ||
       this.caps.can('ver_como') ||
       (this.caps.can('cobranca.agir') && (canReceiveCharge(item) || canRetryCharge(item) || item.driverId !== null))
