@@ -9,7 +9,6 @@ import { DashboardHome } from './dashboard-home';
 import { BillingAccessService } from '../../services/billing-access.service';
 import { DashboardService } from '../../services/dashboard.service';
 import { FleetActivationService } from '../../services/fleet-activation.service';
-import { ReportsService } from '../../services/reports.service';
 import { SessionService } from '../../services/session.service';
 import type { DashboardSummaryDto, OverviewDto } from '../../types/dashboard.types';
 
@@ -71,17 +70,18 @@ function summary(): DashboardSummaryDto {
   } as unknown as DashboardSummaryDto;
 }
 
-function roiVehicle(id: string, cost: number, returned: number) {
-  return {
-    vehicleId: id, plate: id.toUpperCase(), brand: 'Fiat', model: 'Argo',
-    returnedCents: returned, returnBreakdown: { rentalCents: returned, saleCents: 0 },
-    costCents: cost,
-    costBreakdown: { acquisitionCents: cost, maintenanceCents: 0, insuranceCents: 0, financingCents: 0, ipvaCents: 0, finesCents: 0 },
-    netCents: returned - cost, roiPercent: cost > 0 ? ((returned - cost) / cost) * 100 : null,
-  };
+function cashFixture() {
+  const month = (m: string) => ({
+    month: m,
+    daysInMonth: 30,
+    throughDay: 3,
+    totalCents: 0,
+    points: [1, 2, 3].map((day) => ({ day, cumulativeCents: 0, dayCents: 0 })),
+  });
+  return { current: month('2026-11'), previous: month('2026-10'), previousSameDayCents: 0, deltaCents: 0 };
 }
 
-function render(roiVehicles: unknown[] = []) {
+function render(over: Partial<DashboardSummaryDto> = {}, cash: unknown = null) {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     imports: [DashboardHome],
@@ -91,8 +91,8 @@ function render(roiVehicles: unknown[] = []) {
       {
         provide: DashboardService,
         useValue: {
-          loadOverview: vi.fn().mockReturnValue(of(summary())),
-          loadCashAccumulation: vi.fn().mockReturnValue(of(null)),
+          loadOverview: vi.fn().mockReturnValue(of({ ...summary(), ...over })),
+          loadCashAccumulation: vi.fn().mockReturnValue(of(cash)),
         },
       },
       { provide: BillingAccessService, useValue: { status: signal(null) } },
@@ -100,15 +100,6 @@ function render(roiVehicles: unknown[] = []) {
       {
         provide: SessionService,
         useValue: { getItem: () => 'OWNER', isPlatformAdmin: () => false, getCompanyRoleFromToken: () => 'OWNER' },
-      },
-      {
-        provide: ReportsService,
-        useValue: {
-          loadVehicleRoi: vi.fn().mockReturnValue(of({ vehicles: roiVehicles })),
-          vehicleRoi: signal({ vehicles: roiVehicles }),
-          vehicleRoiLoading: signal(false),
-          vehicleRoiError: signal(null),
-        },
       },
     ],
   });
@@ -120,15 +111,28 @@ function render(roiVehicles: unknown[] = []) {
 const norm = (el: Element | null): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
 describe('DashboardHome — parity with the prototype', () => {
-  it('KPI row has six balanced cards; the ROI card takes a full row instead of orphaning one', () => {
-    const host = render([roiVehicle('a', 10_000_00, 4_000_00)]);
+  it('header greets by name and has the prototype subtitle', () => {
+    const host = render();
+    expect(norm(host)).toContain('Sua frota em detalhes.');
+    expect(norm(host)).not.toContain('Visão consolidada');
+  });
+
+  it('KPI row has six balanced cards with icons, two columns on the phone, and no ROI card', () => {
+    const host = render();
     const grid = host.querySelector('[data-kpi-grid]')!;
     const cards = Array.from(grid.children).filter((c) => c.hasAttribute('app-kpi-card'));
-    const regular = cards.filter((c) => !c.hasAttribute('data-roi-card'));
-    expect(regular.length).toBe(6);
-    expect(grid.className).toContain('md:grid-cols-3');
+    expect(cards.length).toBe(6);
+    expect(grid.className).toContain('grid-cols-2');
     expect(grid.className).toContain('xl:grid-cols-6');
-    expect(host.querySelector('[data-roi-card]')?.className).toContain('col-span-full');
+    expect(grid.querySelectorAll('svg[kpiIcon]').length).toBe(6);
+    expect(host.querySelector('[data-roi-card]')).toBeNull();
+    expect(norm(host)).not.toContain('ROI da frota');
+  });
+
+  it('period pills are the prototype set: no "Próximos" projections, "Mês atual" after "30 dias"', () => {
+    const host = render();
+    const labels = Array.from(host.querySelectorAll('app-date-range-picker [role="radio"], app-date-range-picker button')).map((b) => norm(b));
+    expect(labels).toEqual(['Hoje', '7 dias', '30 dias', 'Mês atual', 'Mês passado', 'Este ano', 'Personalizado']);
   });
 
   it('revenue by month is drawn once: no second chart, no month pills', () => {
@@ -137,8 +141,20 @@ describe('DashboardHome — parity with the prototype', () => {
     expect(host.querySelector('app-monthly-billing-chart')).toBeNull();
     expect(norm(host)).not.toContain('Faturamento últimos 6 meses');
     expect(host.querySelectorAll('app-date-range-picker').length).toBe(1);
-    expect(host.querySelector('[data-result-section] [role="radio"]')).toBeNull();
     expect(host.querySelector('[data-result-section] app-pill-tabs')).toBeNull();
+  });
+
+  it('revenue chart and calendar are two cards of the SAME height: stretched grid, both cards fill', () => {
+    const host = render();
+    const row = host.querySelector('[data-result-section]')!;
+    expect(row.className).toContain('items-stretch');
+    expect(row.className).not.toContain('items-start');
+    const cards = Array.from(row.querySelectorAll('app-page-card'));
+    expect(cards.length).toBe(2);
+    for (const c of cards) {
+      expect(c.className).toContain('h-full');
+      expect(c.querySelector('section')!.className).toContain('h-full');
+    }
   });
 
   it('no card sits inside another card', () => {
@@ -154,19 +170,106 @@ describe('DashboardHome — parity with the prototype', () => {
     expect(host.querySelector('[data-month-bar]')).toBeNull();
   });
 
-  it('ROI with no revenue says so instead of -100% and "no prejuízo"', () => {
-    const host = render([roiVehicle('a', 100_000_00, 0), roiVehicle('b', 27_743_47, 0)]);
-    const roi = norm(host.querySelector('[data-roi-card]'));
-    expect(roi).toContain('—');
-    expect(roi).toContain('ainda sem receita');
-    expect(roi).not.toContain('-100');
-    expect(roi).not.toContain('no prejuízo');
+  it('losses with no revenue are said in words (no tiny strip of bars, no hidden loss)', () => {
+    const months = emptyOverview.monthlyResult.map((m, i) => (i === 3 ? { ...m, profitCents: -45000 } : m));
+    const host = render({ overview: { ...emptyOverview, monthlyResult: months } });
+    expect(host.querySelector('[data-month-bar]')).toBeNull();
+    expect(norm(host.querySelector('[data-losses]'))).toContain('set/26');
+    expect(norm(host.querySelector('[data-losses]'))).toContain('450,00');
   });
 
-  it('distribution cards come in rows with no empty half: cost ring spans the row when nothing is overdue', () => {
+  it('the empty cash chart draws no made-up axis (no R$ 0-100 ticks, no day labels)', () => {
+    const month = (m: string) => ({
+      month: m,
+      daysInMonth: 30,
+      throughDay: 3,
+      totalCents: 0,
+      points: [1, 2, 3].map((day) => ({ day, cumulativeCents: 0, dayCents: 0 })),
+    });
+    const cash = { current: month('2026-11'), previous: month('2026-10'), previousSameDayCents: 0, deltaCents: 0 };
+    const host = render({}, cash);
+    const section = host.querySelector('[data-cash-section]')!;
+    expect(section.querySelector('app-growth-chart [data-empty]')).not.toBeNull();
+    expect(section.querySelector('[data-y-axis]')).toBeNull();
+    expect(section.querySelector('[data-x-axis]')).toBeNull();
+    expect(norm(section)).not.toContain('R$ 100');
+  });
+
+  it('statuses stack on the left, cash chart on the right; the four cards come in one row', () => {
     const host = render();
-    const cost = host.querySelector('[data-money-section]');
-    expect(cost?.className).toContain('lg:col-span-2');
-    expect(host.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(3);
+    expect(host.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(2);
+    const board = host.querySelector('[data-board]')!;
+    expect(board.children.length).toBe(5);
+    expect(board.querySelector(':scope > [data-money-section]')).not.toBeNull();
+    expect(board.querySelectorAll(':scope > app-ranking-card').length).toBe(2);
+  });
+
+  it('alert chips wrap onto several lines on the phone, never cut off', () => {
+    const host = render({
+      alerts: { ...summary().alerts, ipva: { count: 1 }, expiringCnh30d: { count: 1 } },
+    } as Partial<DashboardSummaryDto>);
+    const row = host.querySelector('[data-alert-chips]')!;
+    expect(row.className).toContain('flex-wrap');
+    expect(row.className).not.toContain('overflow-x-auto');
+    expect(row.querySelectorAll('app-alert-chip').length).toBe(2);
+  });
+});
+
+describe('DashboardHome — responsive classes per section (phone 375 / tablet 768 / desktop)', () => {
+  it('KPI grid: 2 columns on the phone, 3 on the tablet, 6 on the desktop', () => {
+    const c = render().querySelector('[data-kpi-grid]')!.className;
+    expect(c).toContain('grid-cols-2');
+    expect(c).toContain('md:grid-cols-3');
+    expect(c).toContain('xl:grid-cols-6');
+  });
+
+  it('chart + calendar: one column until xl, side by side after', () => {
+    const c = render().querySelector('[data-result-section]')!.className;
+    expect(c).toContain('grid-cols-1');
+    expect(c).toContain('xl:grid-cols-[');
+    expect(c).not.toMatch(/(^|\s)lg:grid-cols-\[/);
+  });
+
+  it('board: 1 column on the phone, 2 on the tablet, 20 on the desktop; each card spans what it should', () => {
+    const board = render({}, cashFixture()).querySelector('[data-board]')!;
+    expect(board.className).toContain('grid-cols-1');
+    expect(board.className).toContain('md:grid-cols-2');
+    expect(board.className).toContain('xl:grid-cols-[repeat(20');
+    const spans = Array.from(board.children).map((c) => c.className);
+    expect(spans[0]).toContain('md:col-span-2'); // statuses
+    expect(spans[0]).toContain('xl:col-span-8');
+    expect(spans[1]).toContain('xl:col-span-6'); // costs
+    expect(spans[2]).toContain('xl:col-span-12'); // cash
+    expect(spans[3]).toContain('xl:col-span-5'); // top vehicles
+    expect(spans[4]).toContain('xl:col-span-5'); // top drivers
+    expect(spans[5]).toContain('xl:col-span-4'); // offenders
+    // desktop order: statuses, cash, costs, vehicles, drivers, offenders
+    expect(spans.map((c) => /xl:order-(\d)/.exec(c)?.[1])).toEqual(['1', '3', '2', '4', '5', '6']);
+  });
+
+  it('period pills wrap onto rows on the phone (no carousel)', () => {
+    const host = render();
+    const group = host.querySelector('app-filter-chip-group > div');
+    expect(group?.className).not.toContain('overflow-x-auto');
+  });
+
+  it('touch targets are at least 44px; quick actions are a 2x2 grid on the phone', () => {
+    const host = render({
+      alerts: { ...summary().alerts, ipva: { count: 1 } },
+      topOffenders: {
+        vehicles: [{ vehicleId: 'v', plate: 'ABC1D23', brand: 'F', model: 'A', count: 2, totalAmountCents: 100 }],
+        drivers: [],
+      },
+    } as unknown as Partial<DashboardSummaryDto>);
+    expect(host.querySelector('app-alert-chip button')!.className).toContain('min-h-[44px]');
+    expect(host.querySelector('[data-offender-chips] button')!.className).toContain('min-h-[44px]');
+    expect(host.querySelector('app-quick-action-card a')!.className).toContain('min-h-[64px]');
+    expect(host.querySelector('app-quick-action-card')!.parentElement!.className).toContain('grid-cols-2');
+  });
+
+  it('the chart never forces a width', () => {
+    const host = render();
+    expect(host.querySelector('app-monthly-result-chart')!.className).toContain('min-w-0');
+    expect(host.querySelectorAll('[data-board] app-ring-legend-card [style*="width:"], [data-board] app-ranking-card [style*="width:"]').length).toBe(0);
   });
 });

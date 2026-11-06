@@ -86,7 +86,9 @@ interface DrawnSeries {
   host: { class: 'block min-w-0' },
   template: `
     <div class="flex gap-2 min-w-0">
+      @if (!empty()) {
       <div
+        data-y-axis
         class="flex flex-col justify-between text-right text-[10px] text-fg-muted tabular-nums min-w-9 pb-5"
         aria-hidden="true"
       >
@@ -94,6 +96,7 @@ interface DrawnSeries {
           <span>{{ tick }}</span>
         }
       </div>
+      }
       <div class="flex-1 min-w-0 flex flex-col">
         @if (empty()) {
           <div
@@ -131,11 +134,13 @@ interface DrawnSeries {
           }
         </svg>
         }
-        <div class="flex justify-between text-[11px] text-fg-muted h-5 pt-1" aria-hidden="true">
+        @if (!empty()) {
+        <div data-x-axis class="flex justify-between text-[11px] text-fg-muted h-5 pt-1" aria-hidden="true">
           @for (label of xTicks(); track $index) {
             <span>{{ label }}</span>
           }
         </div>
+        }
       </div>
     </div>
 
