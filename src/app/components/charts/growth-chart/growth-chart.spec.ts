@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
-import { GrowthChart, GrowthSeries, growthAxisTop, growthIsEmpty, smoothPath } from './growth-chart';
+import { GrowthChart, GrowthSeries, endPoint, growthAxisTop, growthIsEmpty, smoothPath } from './growth-chart';
 
 const SERIES: GrowthSeries[] = [
   { key: 'now', label: 'Este mês', color: '#F63B04', values: [2, 6, 12, 20] },
@@ -81,6 +81,12 @@ describe('GrowthChart', () => {
     expect(render([SERIES[0]]).querySelector('ul')).toBeNull();
   });
 
+  it('keeps the accessible table inside a clipping sr-only wrapper (a bare sr-only table widens the page on iOS)', () => {
+    const el = render(SERIES);
+    const wrapper = el.querySelector('table')!.parentElement!;
+    expect(wrapper.className).toContain('sr-only');
+  });
+
   it('repeats the data as text in a table, formatted as pt-BR money', () => {
     const el = render([{ ...SERIES[0], values: [150000, 250000, 0, 100] }], {
       valueFormat: 'brl-cents',
@@ -135,5 +141,110 @@ describe('GrowthChart with all-zero or negative data', () => {
     expect(el.querySelector('[data-y-axis]')).toBeNull();
     expect(el.querySelector('[data-x-axis]')).toBeNull();
     expect((el.textContent ?? '').replace(/\s+/g, ' ')).not.toContain('R$ 100');
+  });
+});
+
+describe('GrowthChart over a full month axis (this month stops at today)', () => {
+  const DAYS = Array.from({ length: 30 }, (_, i) => String(i + 1));
+  const prev = Array.from({ length: 30 }, (_, i) => (i + 1) * 100_000);
+  const now = [0, 500_000, 1_000_000, 1_500_000, 2_000_000, 2_500_000];
+  const SERIES2: GrowthSeries[] = [
+    { key: 'previous', label: 'Mês passado', color: '#a3a3a3', reference: true, values: prev },
+    { key: 'current', label: 'Este mês', color: '#F63B04', values: now },
+  ];
+  function renderMonth(series: GrowthSeries[], extra: Record<string, unknown> = {}) {
+    const fixture = TestBed.createComponent(GrowthChart);
+    fixture.componentRef.setInput('series', series);
+    fixture.componentRef.setInput('labels', DAYS);
+    fixture.componentRef.setInput('ariaLabel', 'Caixa');
+    fixture.componentRef.setInput('valueFormat', 'brl-cents-compact');
+    fixture.componentRef.setInput('axisFloor', 10_000);
+    for (const [k, v] of Object.entries(extra)) fixture.componentRef.setInput(k, v);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('a short series keeps its x scale: the last of 6 points sits at day 6 of 30, not at the right edge', () => {
+    expect(endPoint(now, 1, 30)!.x).toBeCloseTo((5 / 29) * 100, 5);
+    const { line } = smoothPath(now, 3_000_000, 30);
+    expect(line.endsWith(`${((5 / 29) * 100).toFixed(2)} ${(100 - (2_500_000 / 3_000_000) * 100).toFixed(2)}`)).toBe(true);
+  });
+
+  it('draws the dashed previous month across the whole axis and the solid line only up to today', () => {
+    const el = renderMonth(SERIES2, { endDot: true });
+    const lines = el.querySelectorAll('[data-line]');
+    expect(lines[0].getAttribute('stroke-dasharray')).toBe('4 4');
+    const lastX = (d: string) => Number(d.trim().split(' ').slice(-2)[0]);
+    expect(lastX(lines[0].getAttribute('d')!)).toBeCloseTo(100, 1);
+    expect(lastX(lines[1].getAttribute('d')!)).toBeCloseTo((5 / 29) * 100, 1);
+    const dot = el.querySelector('[data-end-dot]') as HTMLElement;
+    expect(dot).not.toBeNull();
+    expect(parseFloat(dot.style.left)).toBeCloseTo((5 / 29) * 100, 1);
+  });
+
+  it('no end dot unless asked, and none on the reference line', () => {
+    expect(renderMonth(SERIES2).querySelector('[data-end-dot]')).toBeNull();
+    expect(renderMonth(SERIES2, { endDot: true }).querySelectorAll('[data-end-dot]')).toHaveLength(1);
+  });
+
+  it('prints the requested day marks and compact money on the y axis', () => {
+    const el = renderMonth(SERIES2, {
+      axisTop: 5_000_000,
+      xTickMarks: [1, 5, 10, 15, 20, 25, 30].map((d) => ({ index: d - 1, text: `dia ${d}` })),
+    });
+    expect([...el.querySelectorAll('[data-x-axis] span')].map((s) => s.textContent!.trim())).toEqual([
+      'dia 1', 'dia 5', 'dia 10', 'dia 15', 'dia 20', 'dia 25', 'dia 30',
+    ]);
+    const y = [...el.querySelectorAll('[data-y-axis] span')].map((s) => s.textContent!.replace(/\s/g, ' ').trim());
+    expect(y[0]).toBe('R$ 50k');
+    expect(y[y.length - 1]).toBe('R$ 0');
+  });
+
+  it('the accessible table keeps the exact money value', () => {
+    const el = renderMonth(SERIES2);
+    expect(el.querySelector('table tbody td')!.textContent).toContain('1.000,00');
+    expect(el.querySelectorAll('table tbody tr')).toHaveLength(30);
+  });
+
+  it('stays honest when both months are zero', () => {
+    const el = renderMonth(SERIES2.map((s) => ({ ...s, values: s.values.map(() => 0) })), { endDot: true });
+    expect(el.querySelector('[data-empty]')).not.toBeNull();
+    expect(el.querySelector('[data-end-dot]')).toBeNull();
+  });
+});
+
+describe('GrowthChart — canvas look', () => {
+  it('legend on top, right-aligned, main series first, instead of under the plot', () => {
+    const el = render(SERIES, { legendTop: true });
+    const legend = el.querySelector('[data-legend-top]')!;
+    expect(legend.className).toContain('justify-end');
+    expect([...legend.querySelectorAll('li')].map((li) => li.textContent!.trim())).toEqual(['Este mês', 'Mês passado']);
+    expect(el.querySelectorAll('ul[aria-label="Legenda"]')).toHaveLength(1);
+    expect(el.querySelector('[data-plot]')).not.toBeNull();
+  });
+
+  it('the area fades out with a gradient, not a flat fill', () => {
+    const el = render(SERIES);
+    const fill = el.querySelector('[data-area]')!.getAttribute('fill')!;
+    expect(fill).toMatch(/^url\(#growth-fill-/);
+    expect(el.querySelector('linearGradient')).not.toBeNull();
+  });
+
+  it('end-point tooltip: label, compact value and the reference value', () => {
+    const el = render(
+      [
+        { key: 'now', label: 'Este mês', color: '#F63B04', values: [100000, 4130000] },
+        { key: 'prev', label: 'Mês passado', color: '#94a3b8', values: [90000, 3820000], reference: true },
+      ],
+      { valueFormat: 'brl-cents-compact', endDot: true, endTooltip: true, tooltipLabelPrefix: 'dia ' },
+    );
+    const tip = el.querySelector('[data-end-tooltip]')!;
+    expect(tip.textContent).toContain('R$ 41,3k');
+    expect(tip.textContent).toContain('mês passado R$ 38,2k');
+  });
+
+  it('yDivisions=5 draws six ticks (R$ 0 .. top in steps of a fifth)', () => {
+    const el = render(SERIES, { yDivisions: 5, axisTop: 50 });
+    expect(el.querySelectorAll('[data-y-axis] span')).toHaveLength(6);
   });
 });

@@ -72,14 +72,15 @@ export function shortBrl(cents: number): string {
                         role="listitem"
                         data-month-bar
                         class="flex-1 min-w-0 flex flex-col justify-end items-center gap-1.5 rounded-xl px-1 pt-1.5 pb-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                        [class.bg-surface-muted]="bar.month === selected()"
+                        [class.bg-gray-100]="bar.month === active()"
+                        [class.dark:bg-white/10]="bar.month === active()"
                         [attr.aria-label]="bar.aria"
-                        [attr.aria-pressed]="bar.month === selected()"
+                        [attr.aria-pressed]="bar.month === active()"
                         (click)="monthSelect.emit(bar.month)"
                     >
                         <div class="flex items-stretch gap-1 w-full flex-1 min-h-0">
                             <div class="flex-1 min-w-0 flex flex-col justify-end items-center gap-1">
-                                <span class="text-[10px] text-fg-muted tabular-nums whitespace-nowrap">{{ bar.revenueText }}</span>
+                                <span class="text-[10px] text-fg-muted tabular-nums whitespace-nowrap" [class.text-fg]="bar.month === active()" [class.font-semibold]="bar.month === active()">{{ bar.revenueText }}</span>
                                 <div
                                     class="w-full rounded-t-lg rounded-b-sm min-h-[2px]"
                                     style="background-color: #F63B04"
@@ -100,7 +101,7 @@ export function shortBrl(cents: number): string {
                                 ></div>
                             </div>
                         </div>
-                        <span class="text-xs text-fg-muted" [class.text-fg]="bar.month === selected()">{{ bar.label }}</span>
+                        <span class="text-xs text-fg-muted" [class.text-fg]="bar.month === active()" [class.font-bold]="bar.month === active()" data-month-label>{{ bar.label }}</span>
                     </button>
                 }
             </div>
@@ -112,6 +113,9 @@ export class MonthlyResultChart {
     /** Month (`yyyy-MM`) whose detail is open; highlighted. */
     readonly selected = input<string | null>(null);
     readonly monthSelect = output<string>();
+
+    /** The tapped month; until one is tapped, the newest month (the period the dashboard opens on). */
+    protected readonly active = computed(() => this.selected() ?? this.months().at(-1)?.month ?? null);
 
     protected readonly empty = computed(() =>
         this.months().every((m) => !(m.revenueCents > 0) && !(m.profitCents > 0)),

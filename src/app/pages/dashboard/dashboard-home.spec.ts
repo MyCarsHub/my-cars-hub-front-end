@@ -151,52 +151,15 @@ describe('DashboardHome — KPIs de frota', () => {
         return cardText(fleet, 'Veículos', planName);
     }
 
-    it('mostra "X de Y do plano" quando vehicleLimit é numérico', () => {
-        const text = vehiclesCardText({ vehiclesTotal: 2, vehicleLimit: 3 });
-
-        expect(text).toContain('2 de 3 do plano');
-    });
-
-    it('mostra "ilimitado" quando vehicleLimit é nulo, sem frase quebrada', () => {
-        const text = vehiclesCardText({ vehiclesTotal: 12, vehicleLimit: null });
-
-        expect(text).toContain('ilimitados');
-        expect(text).not.toContain('de sem limite');
-        expect(text).not.toContain('de null');
-        expect(text).not.toContain('12 de 0');
-    });
-
-    // Maquiagem por PLANO: o ENTERPRISE tem teto real na V59 e a API manda esse
-    // número; a UI precisa dizer "ilimitado" mesmo assim. O teto é guarda-corpo
-    // técnico — existe para que uma entrada absurda não quebre o sistema — e
-    // não limite comercial, então ele não vai para a tela. O valor vem de
-    // `PLAN_CAPACITY` justamente para que o teste continue provando o
-    // NÃO-VAZAMENTO se a migration mudar o número.
-    it('maquia o ENTERPRISE como ilimitado, sem vazar o teto no card de veículos', () => {
+    // The canvas has no capacity subtitle under the vehicles ring; the ENTERPRISE ceiling must
+    // still never reach the screen, which is now true by construction.
+    it('o card de veículos não mostra capacidade do plano (nem o teto do ENTERPRISE)', () => {
         const cap = PLAN_CAPACITY.ENTERPRISE.vehicles;
         const text = vehiclesCardText({ vehiclesTotal: 40, vehicleLimit: cap }, 'ENTERPRISE');
 
-        expect(text).toContain('veículos ilimitados no plano');
-        expect(text).not.toContain(String(cap));
-        expect(text).not.toContain(`de ${cap}`);
-    });
-
-    // O PRO nunca foi maquiado: o teto real é número e aparece.
-    it('mostra o teto real de veículos do PRO em vez de "ilimitado"', () => {
-        const cap = PLAN_CAPACITY.PRO.vehicles;
-        const text = vehiclesCardText({ vehiclesTotal: 7, vehicleLimit: cap }, 'PRO');
-
-        expect(text).toContain(`7 de ${cap} do plano`);
+        expect(text).not.toContain('do plano');
         expect(text).not.toContain('ilimitados');
-    });
-
-    // Sem access-status (admin de plataforma, falha de rede) a maquiagem some,
-    // mas o card não pode quebrar: cai no número real.
-    it('sem plano conhecido, mostra o número real', () => {
-        const cap = PLAN_CAPACITY.PRO.vehicles;
-        const text = vehiclesCardText({ vehiclesTotal: 7, vehicleLimit: cap }, null);
-
-        expect(text).toContain(`7 de ${cap} do plano`);
+        expect(text).not.toContain(String(cap));
     });
 });
 

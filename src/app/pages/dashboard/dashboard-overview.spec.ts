@@ -116,9 +116,8 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
     expect(host.querySelector('[data-result-section] app-monthly-result-chart')).not.toBeNull();
     expect(text(host.querySelector('[data-result-section]'))).toContain('out/26');
     expect(host.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(2);
-    expect(host.querySelectorAll('app-ring-legend-card').length).toBe(4);
+    expect(host.querySelectorAll('app-ring-legend-card').length).toBe(3);
     expect(text(host)).toContain('Para onde vai cada centavo recebido');
-    expect(text(host)).toContain('Atraso por idade');
     expect(host.querySelectorAll('app-ranking-card').length).toBe(2);
     expect(text(host)).toContain('ABC1D23');
     expect(text(host)).toContain('Aluguéis por status');
@@ -165,19 +164,11 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
     expect(host.querySelectorAll('app-ranking-card').length).toBe(2);
   });
 
-  it('hides the aging card when nothing is overdue', () => {
-    const zero = {
-      ...overview,
-      overdueAging: {
-        days1To7: { count: 0, amountCents: 0 },
-        days8To30: { count: 0, amountCents: 0 },
-        daysOver30: { count: 0, amountCents: 0 },
-      },
-    };
-    const { host } = render(summaryWith(zero));
-    expect(host.querySelectorAll('app-ring-legend-card').length).toBe(3);
+  it('never renders the Atraso por idade card, overdue or not (owner removed it)', () => {
+    const { host } = render(summaryWith(overview));
     expect(host.querySelector('[data-aging]')).toBeNull();
     expect(text(host)).not.toContain('Atraso por idade');
+    expect(host.querySelectorAll('app-ring-legend-card').length).toBe(3);
   });
 
   it('the KPI row carries the six prototype cards and no hand-made indicator cards', () => {

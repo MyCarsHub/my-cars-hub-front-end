@@ -150,14 +150,15 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
     document.body.innerHTML = '';
   });
 
-  it('mostra a quantidade e o valor das cobranças em atraso, em rose, como o PRIMEIRO da faixa', () => {
+  it('mostra a quantidade das cobranças em atraso, em rose, como o PRIMEIRO da faixa', () => {
     const { host } = render(summaryWith({ count: 3, amountCents: 123456 }));
 
     const chip = host.querySelector<HTMLElement>(CHIP);
     expect(chip).not.toBeNull();
     expect(chip!.textContent).toContain('cobranças vencidas');
     expect(chip!.textContent).toContain('3');
-    expect(chip!.textContent).toContain('1.234,56');
+    // canvas: the chip is only count + label; the amount lives in the Inadimplência KPI
+    expect(chip!.textContent).not.toContain('1.234,56');
     // rose, com variante escura (tokens do tema)
     const button = chip!.querySelector('button')!;
     expect(button.className).toContain('bg-rose-50');
@@ -170,23 +171,18 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
     expect(button.className).toContain('min-h-[44px]');
   });
 
-  it('diz que o número são COBRANÇAS e quantos ALUGUÉIS elas ocupam (a lista mostra aluguéis)', () => {
+  it('o chip e so quantidade + rotulo (sem aluguéis nem valor), como o canvas', () => {
     const { host } = render(summaryWith({ count: 3, amountCents: 123456, rentals: 2 }));
 
-    const text = host.querySelector<HTMLElement>(CHIP)!.textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('cobranças vencidas');
-    expect(text).toContain('2 aluguéis · ');
-    expect(text).toContain('1.234,56');
+    const text = host.querySelector<HTMLElement>(CHIP)!.textContent!.replace(/\s+/g, '');
+    expect(text).toBe('3cobrançasvencidas');
   });
 
-  it('no singular quando é 1 cobrança em 1 aluguel', () => {
+  it('no singular quando é 1 cobrança', () => {
     const { host } = render(summaryWith({ count: 1, amountCents: 5000, rentals: 1 }));
 
-    const text = host.querySelector<HTMLElement>(CHIP)!.textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('cobrança vencida');
-    expect(text).toContain('1 aluguel · ');
-    expect(text).not.toContain('cobranças');
-    expect(text).not.toContain('aluguéis');
+    const text = host.querySelector<HTMLElement>(CHIP)!.textContent!.replace(/\s+/g, '');
+    expect(text).toBe('1cobrançavencida');
   });
 
   it('backend sem `rentals`: o card segue legível, sem a parte dos aluguéis', () => {

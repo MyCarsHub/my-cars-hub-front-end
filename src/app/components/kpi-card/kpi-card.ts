@@ -38,10 +38,12 @@ export type KpiCardSize = 'regular' | 'compact';
  * - `decimal`: 1.234,5 (see `decimals`, default 1)
  * - `brl`: value in reais  -> R$ 1.234,00
  * - `brl-cents`: value in cents -> R$ 12,34
+ * - `brl-cents-whole`: cents shown as whole reais -> R$ 45.900 (the canvas KPI strip)
+ * - `brl-cents-compact`: cents as an axis label (150000 -> R$ 1,5k; 1000000 -> R$ 10k; 5000 -> R$ 50)
  * - `percent`: value is already in percent points (62.5 -> 62,5%; 50 -> 50%; `decimals` fixes the digits)
  * - `ratio`: value is 0..1 (0.625 -> 63%)
  */
-export type KpiNumberFormat = 'integer' | 'decimal' | 'brl' | 'brl-cents' | 'percent' | 'ratio';
+export type KpiNumberFormat = 'integer' | 'decimal' | 'brl' | 'brl-cents' | 'brl-cents-compact' | 'brl-cents-whole' | 'percent' | 'ratio';
 
 export interface KpiDelta {
   readonly text: string;
@@ -52,11 +54,20 @@ export interface KpiDelta {
 }
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const WHOLE_BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const decimalFormatter = (digits: number, min = digits): Intl.NumberFormat =>
   new Intl.NumberFormat('pt-BR', { minimumFractionDigits: min, maximumFractionDigits: digits });
 /** Percent without `decimals`: up to one decimal, none when whole (50%, 66,7%). */
 const percentText = (n: number, decimals: number | null): string =>
   `${(decimals === null ? decimalFormatter(1, 0) : decimalFormatter(decimals)).format(n)}%`;
+
+/** R$ 10k / R$ 1,5k / R$ 50: one decimal at most, none when whole. */
+function compactBrl(reais: number): string {
+  const abs = Math.abs(reais);
+  const sign = reais < 0 ? '-' : '';
+  if (abs >= 1000) return `${sign}R$ ${decimalFormatter(1, 0).format(Math.round(abs / 100) / 10)}k`;
+  return `${sign}R$ ${decimalFormatter(0).format(Math.round(abs))}`;
+}
 
 /** Pure: the text of `n` in `kind`. Exported so specs and pages share the one rule. */
 export function formatKpiNumber(kind: KpiNumberFormat, n: number, decimals: number | null = null): string {
@@ -69,6 +80,10 @@ export function formatKpiNumber(kind: KpiNumberFormat, n: number, decimals: numb
       return BRL.format(n);
     case 'brl-cents':
       return BRL.format(Math.round(n) / 100);
+    case 'brl-cents-whole':
+      return WHOLE_BRL.format(Math.round(n / 100));
+    case 'brl-cents-compact':
+      return compactBrl(n / 100);
     case 'percent':
       return percentText(n, decimals);
     case 'ratio':
@@ -88,14 +103,14 @@ interface KpiCardLook {
 }
 
 const PAINTED_LABEL = 'text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate';
-const PAINTED_VALUE = 'font-semibold text-white mt-1 tabular-nums truncate';
-const PAINTED_DETAIL = 'text-[11px] sm:text-xs text-white/70 mt-1 truncate';
+const PAINTED_VALUE = 'font-semibold text-white mt-1 tabular-nums break-words';
+const PAINTED_DETAIL = 'text-[11px] sm:text-xs text-white/70 mt-1 break-words';
 const PAINTED_SKELETON = 'h-8 mt-2 w-16 rounded bg-white/20 animate-pulse';
 const PAINTED_BAR = 'mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden';
 const PAINTED_FILL = 'h-full rounded-full bg-white';
 
 const PLAIN_LABEL = 'text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate';
-const PLAIN_DETAIL = 'text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate';
+const PLAIN_DETAIL = 'text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 break-words';
 const PLAIN_SKELETON = 'h-8 mt-2 w-16 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse';
 const PLAIN_BAR = 'mt-2 h-1.5 bg-gray-100 dark:bg-surface-sunken rounded-full overflow-hidden';
 const PLAIN_FILL = 'h-full rounded-full bg-primary-500';
@@ -135,7 +150,7 @@ const LOOKS: Record<KpiCardVariant, KpiCardLook> = {
   white: {
     card: 'block min-w-0 rounded-2xl bg-surface border border-gray-200 dark:border-edge',
     label: PLAIN_LABEL,
-    value: 'font-semibold mt-1 tabular-nums truncate',
+    value: 'font-semibold mt-1 tabular-nums break-words',
     detail: PLAIN_DETAIL,
     skeleton: PLAIN_SKELETON,
     bar: PLAIN_BAR,
@@ -144,7 +159,7 @@ const LOOKS: Record<KpiCardVariant, KpiCardLook> = {
   muted: {
     card: 'block min-w-0 rounded-2xl bg-canvas border border-dashed border-gray-200 dark:border-edge',
     label: PLAIN_LABEL,
-    value: 'font-semibold mt-1 tabular-nums truncate',
+    value: 'font-semibold mt-1 tabular-nums break-words',
     detail: PLAIN_DETAIL,
     skeleton: PLAIN_SKELETON,
     bar: PLAIN_BAR,
@@ -153,8 +168,8 @@ const LOOKS: Record<KpiCardVariant, KpiCardLook> = {
   warning: {
     card: 'block min-w-0 rounded-2xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10',
     label: 'text-[11px] sm:text-xs text-amber-800 dark:text-amber-200 uppercase tracking-wide truncate',
-    value: 'font-semibold mt-1 tabular-nums truncate text-amber-900 dark:text-amber-100',
-    detail: 'text-[11px] sm:text-xs text-amber-800 dark:text-amber-200 mt-1 truncate',
+    value: 'font-semibold mt-1 tabular-nums break-words text-amber-900 dark:text-amber-100',
+    detail: 'text-[11px] sm:text-xs text-amber-800 dark:text-amber-200 mt-1 break-words',
     skeleton: 'h-8 mt-2 w-16 rounded bg-amber-200/60 dark:bg-amber-500/20 animate-pulse',
     bar: 'mt-2 h-1.5 bg-amber-200/60 dark:bg-amber-500/20 rounded-full overflow-hidden',
     barFill: 'h-full rounded-full bg-amber-500',
@@ -244,9 +259,9 @@ const INTERACTIVE =
       }
       @if (delta(); as d) {
         @if (d.chip) {
-          <p data-kpi-delta class="mt-1.5 flex items-center gap-1.5 min-w-0 text-[11px] sm:text-xs" [class]="captionClass(d)">
+          <p data-kpi-delta class="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0 text-[11px] sm:text-xs" [class]="captionClass(d)">
             <span data-kpi-chip class="shrink-0 rounded-full px-2 py-0.5 font-semibold tabular-nums" [class]="chipClass(d)">{{ d.chip }}</span>
-            <span class="truncate">{{ d.text }}</span>
+            <span class="min-w-0">{{ d.text }}</span>
           </p>
         } @else {
           <p data-kpi-delta [class]="deltaClass(d)">{{ d.text }}</p>
@@ -406,7 +421,7 @@ export class KpiCard {
   }
 
   protected deltaClass(d: KpiDelta): string {
-    const base = 'text-[11px] sm:text-xs mt-1 truncate ';
+    const base = 'text-[11px] sm:text-xs mt-1 break-words ';
     return base + (PAINTED.has(this.variant()) ? 'text-white/90' : DELTA_PLAIN[d.tone]);
   }
 

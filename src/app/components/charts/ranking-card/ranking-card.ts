@@ -85,8 +85,8 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
               >
                 <span class="size-9 shrink-0 grid place-items-center rounded-full bg-white/20 text-xs font-bold" aria-hidden="true">{{ rows()[0].initials }}</span>
                 <span class="flex flex-col min-w-0 flex-1">
-                  <span class="text-sm font-semibold truncate">{{ rows()[0].name }}</span>
-                  <span class="text-xs text-white/80 truncate"><span class="sr-only">1º lugar </span>1º{{ rows()[0].sub ? ' · ' + rows()[0].sub : '' }}</span>
+                  <span class="text-sm font-semibold break-words" data-hero-name>{{ rows()[0].name }}</span>
+                  <span class="text-xs text-white/80 break-words"><span class="sr-only">1º lugar </span>1º{{ rows()[0].sub ? ' · ' + rows()[0].sub : '' }}</span>
                 </span>
                 <span class="shrink-0 text-sm font-semibold tabular-nums">{{ rows()[0].value }}</span>
               </div>
@@ -95,8 +95,8 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
                   <li data-rank-row class="flex items-center gap-2 min-w-0 rounded-xl bg-surface-muted px-2.5 py-2 text-xs">
                     <span class="size-6 shrink-0 grid place-items-center rounded-full bg-surface-sunken text-[10px] font-bold text-fg-body" aria-hidden="true">{{ row.initials }}</span>
                     <span class="flex flex-col min-w-0 flex-1">
-                      <span class="truncate font-medium text-fg">{{ row.name }}</span>
-                      <span class="text-fg-muted tabular-nums truncate">{{ row.value }}</span>
+                      <span class="break-words font-medium text-fg">{{ row.name }}</span>
+                      <span class="text-fg-muted tabular-nums break-words">{{ row.value }}</span>
                     </span>
                   </li>
                 }

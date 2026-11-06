@@ -45,20 +45,20 @@ const PALETTES: Record<AlertVariant, Palette> = {
 @Component({
     selector: 'app-alert-chip',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    host: { class: 'shrink-0' },
+    host: { class: 'min-w-0 max-w-full' },
     template: `
         <button
             type="button"
-            class="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-2xl border whitespace-nowrap
+            class="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-2xl border max-w-full
                    text-sm text-left transition-colors hover:brightness-95 focus:outline-none
                    focus:ring-2 focus:ring-primary-400"
             [class]="chipClasses()"
             (click)="chipClick.emit()"
         >
-            <b class="font-semibold tabular-nums" [class]="numberClasses()">{{ count() }}</b>
-            <span class="text-fg-body">{{ label() }}</span>
+            <b class="font-semibold tabular-nums shrink-0" [class]="numberClasses()">{{ count() }}</b>
+            <span class="text-fg-body min-w-0 break-words">{{ label() }}</span>
             @if (amountLabel(); as a) {
-                <span class="text-xs text-fg-muted">{{ a }}</span>
+                <span class="text-xs text-fg-muted shrink-0">{{ a }}</span>
             }
         </button>
     `,
@@ -67,6 +67,7 @@ export class AlertChip {
     readonly variant = input<AlertVariant>('info');
     readonly label = input.required<string>();
     readonly count = input.required<number>();
+    /** Extra detail, only for chips the canvas does not have (fines, failed charges); the canvas chips are count + label. */
     readonly amountLabel = input<string | null>(null);
     /** Kept for call-site compatibility; the prototype chip is text only (coloured number + label). */
     readonly icon = input<string | null>(null);
