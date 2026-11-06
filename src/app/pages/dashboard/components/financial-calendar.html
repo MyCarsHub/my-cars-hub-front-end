@@ -38,6 +38,12 @@
         </div>
     </div>
 
+    <!--
+        Weekday header + day grid share ONE column capped by width: the cells are aspect-square, so
+        without the cap they grew with the card (205px squares when the card took the whole row).
+        23rem = ~49px cells, like the canvas; narrower cards (phones) keep filling their width.
+    -->
+    <div class="mx-auto w-full max-w-[23rem]" data-calendar-board>
     <!-- Weekday header: single letters -->
     <div class="grid grid-cols-7 gap-1 mb-1.5">
         @for (w of weekdays; track $index) {
@@ -80,6 +86,7 @@
                 </button>
             }
         }
+    </div>
     </div>
 
     <!-- Month tiles (they double as the legend): label + value only -->

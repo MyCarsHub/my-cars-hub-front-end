@@ -64,3 +64,11 @@ describe('RingLegendCard', () => {
     expect(html).not.toMatch(/divide-|border-b|border-t/);
   });
 });
+
+describe('RingLegendCard header', () => {
+  it('the title is one truncated line, so the four cards of a row keep aligned headers', () => {
+    const h2 = render(SLICES).querySelector('h2')!;
+    expect(h2.className).toContain('truncate');
+    expect(h2.getAttribute('title')).toBeTruthy();
+  });
+});
