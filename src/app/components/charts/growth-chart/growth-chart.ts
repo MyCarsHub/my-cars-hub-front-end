@@ -20,8 +20,17 @@ export function growthAxisTop(series: readonly GrowthSeries[], floor = GROWTH_AX
   return Math.max(floor, 0, ...series.flatMap((s) => s.values));
 }
 
+/** Pure: true when no series has a value above zero (nothing to draw but the floor). */
+export function growthIsEmpty(series: readonly GrowthSeries[]): boolean {
+  return series.every((s) => s.values.every((v) => !(v > 0)));
+}
+
 /** Keeps a control point inside the axis so a sudden jump cannot draw the curve outside it. */
 const clampY = (y: number): number => Math.min(100, Math.max(0, y));
+
+/** Same, but never beyond the two neighbouring points: a spline may not overshoot the data. */
+const clampBetween = (y: number, a: number, b: number): number =>
+  Math.min(Math.max(a, b), Math.max(Math.min(a, b), y));
 
 /**
  * Pure: smooth Catmull-Rom path through `values` in a 0-100 box (x spread evenly, y inverted
@@ -33,7 +42,11 @@ export function smoothPath(
 ): { line: string; area: string } {
   if (values.length === 0) return { line: '', area: '' };
   const n = values.length;
-  const pts = values.map((v, i) => [n === 1 ? 50 : (i / (n - 1)) * 100, 100 - (v / top) * 100]);
+  // The axis starts at zero: a negative value sits on the floor instead of leaving the box.
+  const pts = values.map((v, i) => [
+    n === 1 ? 50 : (i / (n - 1)) * 100,
+    clampY(100 - (Math.max(0, v) / top) * 100),
+  ]);
   let d = `M${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
   for (let i = 0; i < n - 1; i++) {
     const p0 = pts[i - 1] ?? pts[i];
@@ -41,8 +54,8 @@ export function smoothPath(
     const p2 = pts[i + 1];
     const p3 = pts[i + 2] ?? p2;
     d +=
-      ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(2)} ${clampY(p1[1] + (p2[1] - p0[1]) / 6).toFixed(2)}` +
-      ` ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(2)} ${clampY(p2[1] - (p3[1] - p1[1]) / 6).toFixed(2)}` +
+      ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(2)} ${clampBetween(p1[1] + (p2[1] - p0[1]) / 6, p1[1], p2[1]).toFixed(2)}` +
+      ` ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(2)} ${clampBetween(p2[1] - (p3[1] - p1[1]) / 6, p1[1], p2[1]).toFixed(2)}` +
       ` ${p2[0].toFixed(2)} ${p2[1].toFixed(2)}`;
   }
   const lastX = pts[n - 1][0].toFixed(2);
@@ -82,6 +95,16 @@ interface DrawnSeries {
         }
       </div>
       <div class="flex-1 min-w-0 flex flex-col">
+        @if (empty()) {
+          <div
+            data-empty
+            role="status"
+            class="w-full flex items-center justify-center text-center text-sm text-fg-subtle px-4"
+            [style.height.px]="heightPx()"
+          >
+            {{ emptyText() }}
+          </div>
+        } @else {
         <svg
           data-plot
           class="w-full block overflow-visible"
@@ -107,6 +130,7 @@ interface DrawnSeries {
             />
           }
         </svg>
+        }
         <div class="flex justify-between text-[11px] text-fg-muted h-5 pt-1" aria-hidden="true">
           @for (label of xTicks(); track $index) {
             <span>{{ label }}</span>
@@ -168,6 +192,10 @@ export class GrowthChart {
   readonly axisFloor = input(GROWTH_AXIS_MIN_TOP);
   /** How many x labels to print (evenly picked), so 30 days stay legible at 375px. */
   readonly maxXTicks = input(6);
+  /** Shown instead of the plot when every value is zero. */
+  readonly emptyText = input('Ainda sem movimento neste período.');
+
+  protected readonly empty = computed(() => growthIsEmpty(this.series()));
 
   protected readonly top = computed(() => growthAxisTop(this.series(), this.axisFloor()));
 

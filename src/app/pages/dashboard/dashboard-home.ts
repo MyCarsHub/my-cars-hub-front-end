@@ -22,19 +22,19 @@ import { showsAsUnlimited } from '../../utils/plan-limits';
 import {
     CashflowEventDto,
     DashboardSummaryDto,
-    ExpenseBreakdownDto,
     MonthlyResultDto,
     formatBRL,
 } from '../../types/dashboard.types';
 import { DateRange, DateRangePicker } from '../../components/date-range-picker/date-range-picker';
 import { AlertChip } from './components/alert-chip';
 import { FailedChargeNotices } from './components/failed-charge-notices';
-import { MonthlyBillingChart } from './components/monthly-billing-chart';
+import { MonthlyResultChart } from './components/monthly-result-chart';
 import { OffenderRow, TopOffendersTable } from './components/top-offenders-table';
 import { FinancialCalendar } from './components/financial-calendar';
 import { CashflowDaySheet } from './components/cashflow-day-sheet';
 import { CashAccumulationResponse } from '../../types/cash-accumulation.types';
 import { cashAccumulationView, monthName } from '../../utils/cash-accumulation-view';
+import { MONEY_AXIS_FLOOR_CENTS } from '../../utils/money-axis';
 import { ReportsService } from '../../services/reports.service';
 import { aggregateFleetRoi } from '../../types/reports.types';
 import { GrowthChart, GrowthSeries } from '../../components/charts/growth-chart/growth-chart';
@@ -78,17 +78,10 @@ const COST_CATEGORY_META: Record<string, StatusMeta> = {
     FINANCING: { label: 'Financiamento', color: '#8b5cf6' },
 };
 
-const MONTH_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const MONTH_LONG = [
     'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
     'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
 ];
-
-/** `2026-06` -> `jun/26` (pure string work: no Date, no timezone). */
-function monthShort(key: string): string {
-    const [y, m] = key.split('-');
-    return `${MONTH_SHORT[Number(m) - 1] ?? m}/${y.slice(2)}`;
-}
 
 /** `2026-06` -> `junho de 2026`. */
 function monthLong(key: string): string {
@@ -114,7 +107,7 @@ function monthLong(key: string): string {
         DateRangePicker,
         AlertChip,
         FailedChargeNotices,
-        MonthlyBillingChart,
+        MonthlyResultChart,
         TopOffendersTable,
         FinancialCalendar,
         CashflowDaySheet,
@@ -166,17 +159,49 @@ export class DashboardHome {
      */
     protected readonly cashAccumulation = signal<CashAccumulationResponse | null>(null);
 
-    /** KPI "Já entrou em <mês>" (caixa): total + comparação com o mês passado. */
-    protected readonly cashKpi = computed(() => {
+    /** View of the cash curve: total, comparison sentence and both curves. */
+    protected readonly cashView = computed(() => {
         const response = this.cashAccumulation();
-        if (!response) return null;
-        const view = cashAccumulationView(response);
-        const arrow = view.trend === 'up' ? '▲' : view.trend === 'down' ? '▼' : '=';
-        return {
-            label: `Já entrou em ${monthName(response.current.month)}`,
-            totalCents: view.totalCents,
-            detail: `${arrow} ${view.comparison}`,
-        };
+        return response ? cashAccumulationView(response) : null;
+    });
+
+    protected readonly cashMonthLabel = computed(() => {
+        const response = this.cashAccumulation();
+        return response ? monthName(response.current.month) : '';
+    });
+
+    /** Money axis floor (R$ 100,00 in cents): an empty month gets a real 0..R$ 100 axis, not R$ 0,05. */
+    protected readonly cashAxisFloor = MONEY_AXIS_FLOOR_CENTS;
+
+    /**
+     * Both curves stop at today: the previous month is drawn only up to the same day, so the
+     * chart never promises half a month of data it does not have for the current one.
+     */
+    private readonly cashDays = computed(() => this.cashView()?.current.points.length ?? 0);
+
+    protected readonly cashLabels = computed(() =>
+        (this.cashView()?.current.points ?? []).map((p) => String(p.day)),
+    );
+
+    protected readonly cashSeries = computed<GrowthSeries[]>(() => {
+        const view = this.cashView();
+        if (!view) return [];
+        const days = this.cashDays();
+        return [
+            {
+                key: 'previous',
+                label: 'Mês passado',
+                color: '#a3a3a3',
+                reference: true,
+                values: view.previous.points.slice(0, days).map((p) => p.cents),
+            },
+            {
+                key: 'current',
+                label: 'Este mês',
+                color: '#F63B04',
+                values: view.current.points.map((p) => p.cents),
+            },
+        ];
     });
 
     protected readonly showVehicleRoi = signal(false);
@@ -284,7 +309,24 @@ export class DashboardHome {
      */
     protected readonly roiKpi = computed<{ value: string | null; detail: string | null; link: string | null }>(() => {
         if (this.vehicleRoiError()) return { value: '—', detail: 'não foi possível calcular', link: null };
-        if (this.fleetRoiIndeterminate()) return { value: '0%', detail: this.zeroMoney, link: null };
+        const summary = this.fleetRoi();
+        if (this.fleetRoiIndeterminate()) {
+            // Sem preço de compra em nenhum veículo não há ROI a calcular: caminho para resolver.
+            return {
+                value: '—',
+                detail: summary && summary.total > 0 ? 'informe o preço de compra dos veículos' : 'cadastre veículos para medir o retorno',
+                link: summary && summary.total > 0 ? '/veiculos' : null,
+            };
+        }
+        // Nada devolvido ainda: -100% seria só "ainda não recebi nada", não prejuízo medido.
+        if (summary && summary.returnedCents === 0) {
+            const base = this.fleetRoiBase();
+            return {
+                value: '—',
+                detail: base?.minority ? base.label : 'ainda sem receita para medir o retorno',
+                link: base?.minority ? '/veiculos' : null,
+            };
+        }
         const label = this.fleetRoiPercentLabel();
         if (!label) return { value: null, detail: null, link: null };
         const base = this.fleetRoiBase();
@@ -361,12 +403,6 @@ export class DashboardHome {
 
     /** Currently applied range — used on reload after failure. */
     private readonly currentRange = signal<DateRange | null>(null);
-
-    /**
-     * Set by the monthly-billing bar click. The date-range-picker watches this
-     * via `input()` + `effect()` and switches to that month's full range.
-     */
-    protected readonly jumpToMonth = signal<string | null>(null);
 
     protected readonly offenderMode = signal<'vehicles' | 'drivers'>('vehicles');
     protected readonly offenderModeOptions: PillTabOption<'vehicles' | 'drivers'>[] = [
@@ -481,22 +517,6 @@ export class DashboardHome {
         formatBRL(this.summary()?.finance?.overdueChargesCents ?? 0),
     );
 
-    /**
-     * Despesa por categoria (STORY-VEHICLE-FINANCE). Backend anterior não manda a quebra:
-     * aí só manutenção e multas existem (os campos antigos) e IPVA/seguro/financiamento
-     * ficam FORA da lista — mostrá-los como R$ 0,00 afirmaria um fato que a tela não sabe.
-     */
-    protected readonly expenseBreakdown = computed<Partial<ExpenseBreakdownDto> | null>(() => {
-        const f = this.summary()?.finance;
-        if (!f) return null;
-        return (
-            f.expenseBreakdown ?? {
-                maintenance: f.maintenanceExpenseCents ?? 0,
-                fines: f.fineExpenseCents ?? 0,
-            }
-        );
-    });
-
     protected readonly hasOverdue = computed(
         () => (this.summary()?.finance?.overdueChargesCents ?? 0) > 0,
     );
@@ -527,10 +547,6 @@ export class DashboardHome {
         this.kpiDelta(this.receivedDelta(), 'vs anterior'),
     );
 
-    protected readonly monthlyBilling = computed(
-        () => this.summary()?.finance?.monthlyBilling ?? [],
-    );
-
     // ---- Venda de veículos (FEAT-0074) -----------------------------------
 
     /**
@@ -554,25 +570,6 @@ export class DashboardHome {
     protected readonly hasSaleRevenue = computed(() => this.saleRevenueCents() > 0);
 
     protected readonly saleRevenueLabel = computed(() => formatBRL(this.saleRevenueCents()));
-
-    /**
-     * Legenda de honestidade da série mensal — SÓ quando houve venda.
-     *
-     * A série (`monthlyBilling`) é de ALUGUEL: o backend não manda a venda
-     * quebrada por mês (`saleRevenueCents` é escalar da janela). Distribuir
-     * esse total pelos meses seria inventar dado; então o gráfico continua
-     * plotando o recorrente e DIZ o que ficou de fora, com o valor, para
-     * ninguém comparar gráfico com card e achar que falta dinheiro.
-     *
-     * Sem venda a nota NÃO existe: não há nada fora da série para declarar, e
-     * citar "o card Venda" seria apontar para um card que está oculto nesse
-     * estado. Sem venda, a tela é idêntica à de antes deste nó — invariante.
-     */
-    protected readonly monthlyChartNote = computed(() =>
-        this.hasSaleRevenue()
-            ? `Só aluguel (recorrente). A venda de veículos do período (${this.saleRevenueLabel()}) não entra nesta série.`
-            : null,
-    );
 
     // ---- Cashflow (calendar) ---------------------------------------------
     // Kept separate from the filtered `summary` so the calendar always shows
@@ -602,47 +599,19 @@ export class DashboardHome {
     // no zero is ever drawn in place of a number the screen does not have.
     protected readonly overview = computed(() => this.summary()?.overview ?? null);
 
-    private readonly monthlyResult = computed<MonthlyResultDto[]>(
+    protected readonly monthlyResultMonths = computed<MonthlyResultDto[]>(
         () => this.overview()?.monthlyResult ?? [],
     );
 
-    protected readonly hasResult = computed(() => this.monthlyResult().length > 0);
+    protected readonly hasResult = computed(() => this.monthlyResultMonths().length > 0);
 
-    protected readonly resultSeries = computed<GrowthSeries[]>(() => {
-        const months = this.monthlyResult();
-        return [
-            {
-                key: 'revenue',
-                label: 'Faturamento',
-                color: '#F63B04',
-                values: months.map((m) => m.revenueCents),
-            },
-            {
-                key: 'profit',
-                label: 'Lucro',
-                color: '#059669',
-                values: months.map((m) => m.profitCents),
-            },
-        ];
-    });
-
-    protected readonly resultLabels = computed(() => this.monthlyResult().map((m) => monthShort(m.month)));
-
-    /** Month picked in the pills; the sheet with its numbers opens on tap. */
+    /** Month tapped on the bars; the sheet with its numbers opens on tap. */
     protected readonly resultMonth = signal<string | null>(null);
     protected readonly resultDetailOpen = signal(false);
 
-    protected readonly resultMonthOptions = computed<PillTabOption<string>[]>(() =>
-        this.monthlyResult().map((m) => ({ value: m.month, label: monthShort(m.month) })),
-    );
-
-    protected readonly resultMonthValue = computed(
-        () => this.resultMonth() ?? this.monthlyResult().at(-1)?.month ?? '',
-    );
-
     protected readonly resultDetail = computed(() => {
         const key = this.resultMonth();
-        const m = this.monthlyResult().find((r) => r.month === key);
+        const m = this.monthlyResultMonths().find((r) => r.month === key);
         return m ? { ...m, title: monthLong(m.month) } : null;
     });
 
@@ -734,10 +703,6 @@ export class DashboardHome {
 
     protected onAlertClick(target: string): void {
         this.router.navigateByUrl(target);
-    }
-
-    protected onMonthlyBarClick(monthKey: string): void {
-        this.jumpToMonth.set(monthKey);
     }
 
     protected onDaySelect(iso: string): void {

@@ -113,10 +113,9 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
 
   it('OWNER sees every section fed by overview and the kits', () => {
     const { host } = render(summaryWith(overview, 40000));
-    expect(host.querySelector('[data-result-section] app-growth-chart')).not.toBeNull();
+    expect(host.querySelector('[data-result-section] app-monthly-result-chart')).not.toBeNull();
     expect(text(host.querySelector('[data-result-section]'))).toContain('out/26');
-    const money = host.querySelectorAll('[data-money-section] app-ring-legend-card');
-    expect(money.length).toBe(2);
+    expect(host.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(4);
     expect(text(host)).toContain('Para onde vai cada centavo');
     expect(text(host)).toContain('Atraso por idade');
     expect(host.querySelectorAll('app-ranking-card').length).toBe(2);
@@ -136,7 +135,7 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
     expect(sections(manager)).toEqual(ownerSections);
     expect(manager.querySelector('[data-result-section]')).not.toBeNull();
     expect(manager.querySelector('[data-roi-card]')).not.toBeNull();
-    expect(manager.querySelectorAll('[data-money-section] app-ring-legend-card').length).toBe(2);
+    expect(manager.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(4);
   });
 
   it('a non-operator role does not get the operator-only ROI card', () => {
@@ -147,8 +146,8 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
   it('tapping a month opens the detail with that month cost breakdown', () => {
     const { fixture, host } = render(summaryWith(overview));
     expect(host.querySelector('[data-result-detail]')).toBeNull();
-    const tabs = Array.from(host.querySelectorAll<HTMLElement>('[data-result-section] [role="radio"]'));
-    const oct = tabs.find((t) => t.textContent?.includes('out/26'));
+    const bars = Array.from(host.querySelectorAll<HTMLElement>('[data-result-section] [data-month-bar]'));
+    const oct = bars.find((t) => t.textContent?.includes('out/26'));
     expect(oct).toBeTruthy();
     oct!.click();
     fixture.detectChanges();
@@ -160,7 +159,7 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
 
   it('without overview (older backend) the new blocks are absent, not zero', () => {
     const { host } = render(summaryWith(undefined));
-    expect(host.querySelector('[data-result-section]')).toBeNull();
+    expect(host.querySelector('app-monthly-result-chart')).toBeNull();
     expect(host.querySelector('[data-money-section]')).toBeNull();
     // the kit blocks fed by the old fields stay
     expect(host.querySelectorAll('app-ranking-card').length).toBe(2);
@@ -176,15 +175,17 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
       },
     };
     const { host } = render(summaryWith(zero));
-    expect(host.querySelectorAll('[data-money-section] app-ring-legend-card').length).toBe(1);
+    expect(host.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(3);
     expect(text(host)).not.toContain('Atraso por idade');
+    // sem o card de atraso, o de custos ocupa a linha inteira: nada de metade vazia
+    expect(host.querySelector('[data-money-section]')?.className).toContain('lg:col-span-2');
   });
 
-  it('has no hand-made indicator cards left in the Faturamento block', () => {
+  it('the KPI row carries the six prototype cards and no hand-made indicator cards', () => {
     const { host } = render(summaryWith(overview));
-    expect(host.querySelectorAll('[data-expenses-block]').length).toBe(1);
-    const labels = Array.from(host.querySelectorAll('div[app-kpi-card]')).map((c) => text(c));
-    for (const l of ['Faturamento', 'Recebido', 'A receber', 'Inadimplência aluguel']) {
+    expect(host.querySelectorAll('[data-expenses-block]').length).toBe(0);
+    const labels = Array.from(host.querySelectorAll('[data-kpi-grid] > div[app-kpi-card]')).map((c) => text(c));
+    for (const l of ['Faturado', 'Recebido', 'Despesas', 'Lucro', 'Ocupação', 'Inadimplência']) {
       expect(labels.some((t) => t.startsWith(l))).toBe(true);
     }
   });
