@@ -20,8 +20,11 @@ import { CompareRow, CompareRows } from '../../../components/core/compare-rows/c
 import { DateField, todayInSaoPaulo } from '../../../components/core/date-field/date-field';
 import { ReasonOption, ReasonPicker } from '../../../components/core/reason-picker/reason-picker';
 import { ApiErrorService } from '../../../services/api-error.service';
+import { parseApiError } from '../../../services/api-error';
+import { NotificationService } from '../../../services/notification.service';
 import {
   AdminActionReason,
+  AdminCancelChargeResult,
   AdminChargeActionResult,
   AdminChargeListItem,
   AsaasComparison,
@@ -30,11 +33,18 @@ import {
   DriverNameCorrectionResult,
 } from '../../../types/admin-charges.types';
 import { AdminChargesService } from './admin-charges.service';
-import { canReceiveCharge, canRetryCharge } from './charge-action-rules';
+import {
+  cancelConfirmationCode,
+  cancelConfirmationMatches,
+  canCancelCharge,
+  canReceiveCharge,
+  canRetryCharge,
+  isOverdueCharge,
+} from './charge-action-rules';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 
 
-export type ChargeActionMode = 'menu' | 'compare' | 'received' | 'retry' | 'name' | 'sync';
+export type ChargeActionMode = 'menu' | 'compare' | 'received' | 'retry' | 'name' | 'sync' | 'cancel';
 
 export const ADMIN_ACTION_REASONS: ReasonOption<AdminActionReason>[] = [
   { value: 'PAID_OUTSIDE_GATEWAY', label: 'Pago fora do Asaas', hint: 'Dinheiro ou PIX direto ao dono' },
@@ -77,6 +87,17 @@ const TITLES: Record<ChargeActionMode, string> = {
   retry: 'Tentar de novo',
   name: 'Corrigir nome do motorista',
   sync: 'Atualizar cliente no Asaas',
+  cancel: 'Cancelar cobrança',
+};
+
+/** Recusas estáveis do cancelamento (FEAT-0552) em português claro; o resto cai na mensagem do servidor. */
+const CANCEL_ERROR_BY_CODE: Record<string, string> = {
+  CANCEL_CHARGE_PAID: 'Esta cobrança já foi paga e não pode ser cancelada. Nada foi alterado.',
+  CANCEL_CHARGE_DISPUTED: 'Esta cobrança está em disputa e não pode ser cancelada. Nada foi alterado.',
+  CANCEL_CHARGE_NOT_OPEN:
+    'Só cobrança em aberto (pendente, atrasada ou com falha) pode ser cancelada. Nada foi alterado.',
+  CANCEL_REASON_REQUIRED: 'Cobrança vencida: escolha o motivo do cancelamento.',
+  CANCEL_CONFIRMATION_REQUIRED: 'Cobrança vencida: digite o código da cobrança para confirmar.',
 };
 
 /**
@@ -100,6 +121,7 @@ export class ChargeActionsSheet implements OnInit {
   private readonly service = inject(AdminChargesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly notify = inject(NotificationService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly item = input.required<AdminChargeListItem>();
@@ -122,6 +144,8 @@ export class ChargeActionsSheet implements OnInit {
   protected readonly reason = signal<string | null>(null);
   protected readonly note = signal('');
   protected readonly newName = signal('');
+  /** "Cancelar cobrança": código digitado (cobrança vencida). */
+  protected readonly confirmation = signal('');
   /** "Recebida por fora": dia do recebimento (yyyy-MM-dd), nunca futuro (fuso de São Paulo). */
   protected readonly receivedOn = signal('');
   protected readonly today = signal(todayInSaoPaulo());
@@ -148,6 +172,13 @@ export class ChargeActionsSheet implements OnInit {
   protected readonly isCaucao = computed(() => this.item().kind === 'CAUCAO');
   protected readonly hasDriver = computed(() => this.item().driverId !== null);
   protected readonly isOverdue = computed(() => this.item().daysOverdue > 0);
+  /** Só o Dono (cobranca.cancelar) e cobrança em aberto; o servidor confere de novo. */
+  protected readonly canCancel = computed(
+    () => canCancelCharge(this.item()) && this.caps.can('cobranca.cancelar'),
+  );
+  /** Vencida: motivo e código digitado são obrigatórios. */
+  protected readonly cancelNeedsProof = computed(() => isOverdueCharge(this.item()));
+  protected readonly confirmationCode = computed(() => cancelConfirmationCode(this.item().chargeId));
 
   protected readonly compareRows = computed<CompareRow[]>(() =>
     (this.comparison()?.fields ?? []).map((f) => ({
@@ -160,7 +191,13 @@ export class ChargeActionsSheet implements OnInit {
   );
 
   protected readonly canSubmit = computed(() => {
-    if (this.busy() || !this.reason()) return false;
+    if (this.busy()) return false;
+    if (this.mode() === 'cancel') {
+      if (!this.canCancel()) return false;
+      if (!this.cancelNeedsProof()) return true;
+      return !!this.reason() && cancelConfirmationMatches(this.item().chargeId, this.confirmation());
+    }
+    if (!this.reason()) return false;
     if (this.mode() === 'received') {
       const v = this.receivedOn();
       return /^\d{4}-\d{2}-\d{2}$/.test(v) && v <= this.today() && (this.dateField()?.valid() ?? true);
@@ -174,6 +211,7 @@ export class ChargeActionsSheet implements OnInit {
 
   protected readonly showsForm = computed(() => {
     const m = this.mode();
+    if (m === 'cancel') return true;
     if (m === 'received' || m === 'retry') return this.actionResult() === null;
     if (m === 'name') return this.nameResult() === null;
     if (m === 'sync') return this.syncResult() === null;
@@ -198,6 +236,7 @@ export class ChargeActionsSheet implements OnInit {
     else if (mode === 'name' || mode === 'sync') this.reason.set('DATA_CORRECTION');
     else this.reason.set(null);
     this.note.set('');
+    this.confirmation.set('');
     this.mode.set(mode);
     if (mode === 'compare') this.compare();
   }
@@ -213,6 +252,10 @@ export class ChargeActionsSheet implements OnInit {
 
   protected submit(): void {
     if (!this.canSubmit()) return;
+    if (this.mode() === 'cancel') {
+      this.cancelCharge();
+      return;
+    }
     const body = { reason: this.reason() as AdminActionReason, note: this.note().trim() || null };
     const item = this.item();
     switch (this.mode()) {
@@ -237,6 +280,91 @@ export class ChargeActionsSheet implements OnInit {
         this.run(this.service.syncDriverAsaasCustomer(item.driverId!, body), (r) => this.syncResult.set(r), false);
         break;
     }
+  }
+
+  /**
+   * FEAT-0553: cancela/exclui a cobrança. Decisão do dono (06/11/2026): ação deliberada e auditada,
+   * a única que alcança uma cobrança vencida. Sem atualização otimista: a lista só muda depois da resposta.
+   */
+  private cancelCharge(): void {
+    if (this.busy()) return;
+    const item = this.item();
+    const proof = this.cancelNeedsProof();
+    const note = this.note().trim();
+    this.busy.set(true);
+    this.error.set(null);
+    this.service
+      .cancelCharge(item.chargeId, {
+        companyId: item.companyId,
+        reason: proof ? (this.reason() as AdminActionReason) : null,
+        note: proof && note ? note : null,
+        confirmation: proof ? this.confirmation().trim() : null,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.busy.set(false);
+          this.announceCancel(res);
+          this.changed.emit();
+          this.close();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.busy.set(false);
+          this.error.set(this.cancelErrorText(err));
+          setTimeout(() =>
+            this.host.nativeElement
+              .querySelector('[data-testid="action-error"]')
+              ?.scrollIntoView?.({ block: 'nearest' }),
+          );
+        },
+      });
+  }
+
+  /** Um aviso em português simples por desfecho; o que não mudou diz que não mudou. */
+  protected announceCancel(res: AdminCancelChargeResult): void {
+    switch (res.outcome) {
+      case 'CANCELED_AT_GATEWAY':
+        this.notify.success('Cobrança cancelada no Asaas.');
+        break;
+      case 'CANCELED_ALREADY_GONE':
+        this.notify.success('Já estava removida no Asaas; a cobrança foi cancelada aqui.');
+        break;
+      case 'CANCELED_NO_GATEWAY_LINK':
+        this.notify.success('Cobrança cancelada (sem vínculo no Asaas).');
+        break;
+      case 'ALREADY_PAID_AT_GATEWAY':
+        this.notify.info('O Asaas mostra esta cobrança como paga; nada foi alterado.');
+        break;
+      case 'GATEWAY_FAILED':
+        this.notify.warning(
+          'Não foi possível remover no Asaas agora; a cobrança continua aberta e a remoção foi reagendada.',
+        );
+        break;
+      default:
+        this.notify.info(res.hint ?? 'Cobrança atualizada.');
+    }
+  }
+
+  protected cancelErrorText(err: HttpErrorResponse): string {
+    const parsed = parseApiError(err);
+    const byCode = parsed.code ? CANCEL_ERROR_BY_CODE[parsed.code] : undefined;
+    if (byCode) {
+      this.apiErrors.claim(err);
+      return byCode;
+    }
+    if (parsed.status === 404) {
+      this.apiErrors.claim(err);
+      return 'Cobrança não encontrada nesta empresa. Nada foi alterado.';
+    }
+    if (parsed.status === 403) {
+      this.apiErrors.claim(err);
+      return 'Só o Dono da plataforma pode cancelar cobranças. Nada foi alterado.';
+    }
+    return this.apiErrors.messageFor(err, 'Não foi possível cancelar a cobrança. Nada foi alterado.');
+  }
+
+  protected setConfirmation(event: Event): void {
+    this.confirmation.set((event.target as HTMLInputElement).value);
   }
 
   /** Depois de corrigir o nome: segue direto para o PUT no Asaas, mantendo o motivo. */

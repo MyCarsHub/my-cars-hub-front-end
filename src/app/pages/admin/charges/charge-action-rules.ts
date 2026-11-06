@@ -15,3 +15,25 @@ export function canReceiveCharge(item: AdminChargeListItem): boolean {
 export function canRetryCharge(item: AdminChargeListItem): boolean {
   return item.status === 'FAILED' && item.dueDate !== null && item.daysOverdue <= 0;
 }
+
+/** Quantos caracteres do id o admin digita para confirmar o cancelamento (igual ao servidor). */
+export const CANCEL_CONFIRMATION_LENGTH = 8;
+
+/** Cobrança em aberto (pendente, atrasada ou com falha) pode ser cancelada pelo Dono; paga/estornada/em disputa não. */
+export function canCancelCharge(item: AdminChargeListItem): boolean {
+  return item.status === 'PENDING' || item.status === 'PAST_DUE' || item.status === 'FAILED';
+}
+
+/** Vencida: PAST_DUE ou vencimento estritamente antes de hoje. Pede motivo e confirmação digitada. */
+export function isOverdueCharge(item: AdminChargeListItem): boolean {
+  return item.status === 'PAST_DUE' || (item.dueDate !== null && item.daysOverdue > 0);
+}
+
+/** Código digitado: os primeiros caracteres do id da cobrança, em minúsculas. */
+export function cancelConfirmationCode(chargeId: string): string {
+  return chargeId.slice(0, CANCEL_CONFIRMATION_LENGTH).toLowerCase();
+}
+
+export function cancelConfirmationMatches(chargeId: string, typed: string): boolean {
+  return typed.trim().toLowerCase() === cancelConfirmationCode(chargeId);
+}

@@ -127,6 +127,11 @@
                   [disabled]="opening() === item.chargeId"
                   (click)="openRental(item)">Ver aluguel</button>
                   }
+                  @if (canCancel(item)) {
+                  <button type="button" role="menuitem" data-testid="menu-cancel"
+                  class="w-full text-left text-sm px-4 py-3 text-red-700 dark:text-red-300 hover:bg-canvas min-h-[44px]"
+                  (click)="openActions(item, 'cancel')">Cancelar cobrança</button>
+                  }
                   </app-actions-menu>
                 </div>
               }
@@ -261,6 +266,11 @@
                                 class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
                                 [disabled]="opening() === item.chargeId"
                                 (click)="openRental(item)">Ver aluguel</button>
+                      }
+                      @if (canCancel(item)) {
+                        <button type="button" role="menuitem" data-testid="menu-cancel"
+                                class="w-full text-left text-sm px-4 py-3 text-red-700 dark:text-red-300 hover:bg-canvas min-h-[44px]"
+                                (click)="openActions(item, 'cancel')">Cancelar cobrança</button>
                       }
                     </app-actions-menu>
                   }
