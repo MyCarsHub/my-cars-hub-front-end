@@ -107,9 +107,9 @@ describe('FinancialCalendar — canvas parity', () => {
   it('tiles carry only label and value: no event counts, no long captions', () => {
     const { host } = render();
     const tile = (k: string) => host.querySelector(`[data-tile="${k}"]`)!.textContent!.replace(/\s+/g, ' ').trim();
-    expect(tile('in')).toMatch(/^Recebimentos\s*R\$\s?5\.500,00$/);
-    expect(tile('out')).toMatch(/^Pagamentos\s*R\$\s?1\.200,00$/);
-    expect(tile('balance')).toMatch(/^Saldo projetado\s*R\$\s?4\.300,00$/);
+    expect(tile('in')).toMatch(/^Recebimentos\s*R\$\s?5.500$/);
+    expect(tile('out')).toMatch(/^Pagamentos\s*R\$\s?1\.200$/);
+    expect(tile('balance')).toMatch(/^Saldo projetado\s*R\$\s?4\.300$/);
     expect(host.textContent).not.toContain('evento(s)');
     expect(host.textContent).not.toContain('manutenções');
     expect(host.querySelector('[data-tile="balance"] p:last-child')!.className).toContain('text-fg-body');

@@ -87,20 +87,20 @@
         <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5" data-tile="in">
             <p class="flex items-center gap-1 text-xs text-fg-muted">
                 <span class="shrink-0 size-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
-                <span class="truncate">Recebimentos</span>
+                <span class="min-w-0">Recebimentos</span>
             </p>
-            <p class="text-sm sm:text-base font-semibold text-emerald-600 dark:text-emerald-300 tabular-nums">{{ inLabel() }}</p>
+            <p class="text-sm sm:text-base font-semibold text-emerald-600 dark:text-emerald-300 tabular-nums break-words">{{ inLabel() }}</p>
         </div>
         <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5" data-tile="out">
             <p class="flex items-center gap-1 text-xs text-fg-muted">
                 <span class="shrink-0 size-1.5 rounded-full bg-red-500" aria-hidden="true"></span>
-                <span class="truncate">Pagamentos</span>
+                <span class="min-w-0">Pagamentos</span>
             </p>
-            <p class="text-sm sm:text-base font-semibold text-red-600 dark:text-red-300 tabular-nums">{{ outLabel() }}</p>
+            <p class="text-sm sm:text-base font-semibold text-red-600 dark:text-red-300 tabular-nums break-words">{{ outLabel() }}</p>
         </div>
         <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5" data-tile="balance">
             <p class="text-xs text-fg-muted">Saldo projetado</p>
-            <p class="text-sm sm:text-base font-semibold text-fg-body tabular-nums">{{ balanceLabel() }}</p>
+            <p class="text-sm sm:text-base font-semibold text-fg-body tabular-nums break-words">{{ balanceLabel() }}</p>
         </div>
     </div>
 </div>

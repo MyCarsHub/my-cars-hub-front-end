@@ -106,8 +106,8 @@ describe('DashboardHome — despesas por categoria e alerta de IPVA', () => {
         expenseBreakdown: { maintenance: 10000, fines: 20000, ipva: 30000, insurance: 40000, financing: 50000 },
       }),
     );
-    expect(text(host.querySelector('[data-expenses-kpi]'))).toContain('R$ 1.500,00');
-    expect(text(host.querySelector('[data-result-kpi]'))).toContain('R$ 3.500,00');
+    expect(text(host.querySelector('[data-expenses-kpi]'))).toContain('R$ 1.500');
+    expect(text(host.querySelector('[data-result-kpi]'))).toContain('R$ 3.500');
     // the breakdown no longer lives in a card inside the revenue card: it is the cost ring + the month detail
     expect(host.querySelector('[data-expenses-block]')).toBeNull();
   });

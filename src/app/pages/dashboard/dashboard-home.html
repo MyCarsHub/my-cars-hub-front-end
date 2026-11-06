@@ -172,7 +172,7 @@
             data-billed-card
             variant="primary"
             label="Faturado"
-            numberFormat="brl-cents"
+            numberFormat="brl-cents-whole"
             [anchored]="true"
             [stagger]="0"
             [loading]="loading() && !summary()"
@@ -185,7 +185,7 @@
             data-received-card
             variant="emerald"
             label="Recebido"
-            numberFormat="brl-cents"
+            numberFormat="brl-cents-whole"
             [anchored]="true"
             [stagger]="1"
             [loading]="loading() && !summary()"
@@ -198,8 +198,7 @@
             data-expenses-kpi
             variant="white"
             label="Despesas"
-            numberFormat="brl-cents"
-            tone="danger"
+            numberFormat="brl-cents-whole"
             [anchored]="true"
             [stagger]="2"
             [loading]="loading() && !summary()"
@@ -211,7 +210,7 @@
             data-result-kpi
             variant="emerald-dark"
             label="Lucro"
-            numberFormat="brl-cents"
+            numberFormat="brl-cents-whole"
             [anchored]="true"
             [stagger]="3"
             [loading]="loading() && !summary()"
@@ -235,9 +234,8 @@
             data-overdue-kpi
             variant="white"
             label="Inadimplência"
-            numberFormat="brl-cents"
+            numberFormat="brl-cents-whole"
             [anchored]="true"
-            [tone]="hasOverdue() ? 'danger' : 'default'"
             [stagger]="5"
             [loading]="loading() && !summary()"
             [value]="f ? f.overdueChargesCents : null"
@@ -255,7 +253,7 @@
         }
     </div>
     <div class="mb-4">
-        <app-date-range-picker [presetKeys]="periodPresets" [presetListOrder]="true" [wrapChips]="true" (rangeChange)="onRangeChange($event)" />
+        <app-date-range-picker [presetKeys]="periodPresets" [presetListOrder]="true" [wrapChips]="true" [showRange]="false" (rangeChange)="onRangeChange($event)" />
     </div>
 
     <!--
@@ -350,19 +348,18 @@
                 class="xl:flex-1"
                 title="Veículos por status"
                 totalLabel="veículos"
-                [subtitle]="summary() ? vehiclePlanLabel() : null"
                 [slices]="vehiclesByStatusSlices()"
             />
         </div>
 
         @if (overview()) {
             <app-ring-legend-card
-                class="md:col-span-2 xl:col-span-6 xl:order-3"
+                class="md:col-span-2 xl:col-span-5 xl:order-3"
                 data-money-section
                 layout="bar"
                 title="Para onde vai cada centavo recebido"
                 totalLabel="custos do período"
-                valueFormat="brl-cents"
+                valueFormat="brl-cents-whole"
                 [slices]="costSlices()"
             />
         }
@@ -371,18 +368,19 @@
         @if (cashView(); as cv) {
             <div class="min-w-0 md:col-span-2 xl:col-span-12 xl:order-2" data-cash-section>
                 <app-page-card title="Este mês vs mês passado" [fill]="true">
+                    <span cardActions class="contents">
                     @if (cashLead(); as lead) {
                         <span
-                            cardActions
                             data-cash-lead
                             class="rounded-full px-2.5 py-1 text-xs font-semibold"
                             [class]="lead.up ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' : 'bg-rose-500/15 text-rose-600 dark:text-rose-300'"
                             >{{ lead.text }}</span
                         >
                     }
+                    </span>
                     <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1">
                         <p class="text-xs text-fg-muted mb-1 -mt-3">Quanto já recebi, dia a dia</p>
-                        <p class="text-sm text-fg-body mb-3" data-cash-summary>
+                        <p class="sr-only" data-cash-summary>
                             {{ cv.total }} recebidos em {{ cashMonthLabel() }} · {{ cv.comparison }}
                         </p>
                         <app-growth-chart
@@ -393,6 +391,10 @@
                             [axisTop]="cv.axisTopCents"
                             [xTickMarks]="cashXTicks()"
                             [endDot]="true"
+                            [endTooltip]="true"
+                            [legendTop]="true"
+                            [yDivisions]="5"
+                            tooltipLabelPrefix="dia "
                             [heightPx]="260"
                             emptyText="Nada recebido neste mês ainda."
                             ariaLabel="Dinheiro recebido no mês e no mês passado, dia a dia"
@@ -416,7 +418,7 @@
             layout="podium"
             [items]="topDriversByRevenue()"
         />
-        <div class="min-w-0 md:col-span-2 xl:col-span-4 xl:order-6">
+        <div class="min-w-0 md:col-span-2 xl:col-span-5 xl:order-6">
             <app-page-card title="Top ofensores (multas)" [fill]="true" data-offenders>
                 <div class="px-4 pb-5 sm:px-6 min-w-0 flex-1 flex flex-col gap-3">
                     <p class="text-xs text-fg-muted -mt-3">Quanto maior o selo, mais multas</p>
@@ -447,7 +449,7 @@
                         </ul>
                     }
                     @if (offenderSummary(); as sum) {
-                        <p class="mt-auto text-xs text-fg-muted truncate" data-offender-summary>{{ sum }}</p>
+                        <p class="mt-auto text-xs text-fg-muted break-words" data-offender-summary>{{ sum }}</p>
                     }
                 </div>
             </app-page-card>
@@ -470,7 +472,7 @@
     <section class="mb-4 min-w-0">
         <app-page-card title="Ações rápidas">
             <p class="px-4 sm:px-6 -mt-3 pb-3 text-xs text-fg-muted">Cadastre em um toque</p>
-            <div class="px-4 pb-4 sm:px-6 min-w-0 grid gap-3 grid-cols-2 xl:grid-cols-4">
+            <div class="px-4 pb-4 sm:px-6 min-w-0 grid gap-3 grid-cols-1 min-[440px]:grid-cols-2 xl:grid-cols-4">
                 <app-quick-action-card
                     route="/alugueis/novo"
                     label="Novo aluguel"

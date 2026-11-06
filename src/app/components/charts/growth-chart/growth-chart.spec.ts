@@ -212,3 +212,39 @@ describe('GrowthChart over a full month axis (this month stops at today)', () =>
     expect(el.querySelector('[data-end-dot]')).toBeNull();
   });
 });
+
+describe('GrowthChart — canvas look', () => {
+  it('legend on top, right-aligned, main series first, instead of under the plot', () => {
+    const el = render(SERIES, { legendTop: true });
+    const legend = el.querySelector('[data-legend-top]')!;
+    expect(legend.className).toContain('justify-end');
+    expect([...legend.querySelectorAll('li')].map((li) => li.textContent!.trim())).toEqual(['Este mês', 'Mês passado']);
+    expect(el.querySelectorAll('ul[aria-label="Legenda"]')).toHaveLength(1);
+    expect(el.querySelector('[data-plot]')).not.toBeNull();
+  });
+
+  it('the area fades out with a gradient, not a flat fill', () => {
+    const el = render(SERIES);
+    const fill = el.querySelector('[data-area]')!.getAttribute('fill')!;
+    expect(fill).toMatch(/^url\(#growth-fill-/);
+    expect(el.querySelector('linearGradient')).not.toBeNull();
+  });
+
+  it('end-point tooltip: label, compact value and the reference value', () => {
+    const el = render(
+      [
+        { key: 'now', label: 'Este mês', color: '#F63B04', values: [100000, 4130000] },
+        { key: 'prev', label: 'Mês passado', color: '#94a3b8', values: [90000, 3820000], reference: true },
+      ],
+      { valueFormat: 'brl-cents-compact', endDot: true, endTooltip: true, tooltipLabelPrefix: 'dia ' },
+    );
+    const tip = el.querySelector('[data-end-tooltip]')!;
+    expect(tip.textContent).toContain('R$ 41,3k');
+    expect(tip.textContent).toContain('mês passado R$ 38,2k');
+  });
+
+  it('yDivisions=5 draws six ticks (R$ 0 .. top in steps of a fifth)', () => {
+    const el = render(SERIES, { yDivisions: 5, axisTop: 50 });
+    expect(el.querySelectorAll('[data-y-axis] span')).toHaveLength(6);
+  });
+});

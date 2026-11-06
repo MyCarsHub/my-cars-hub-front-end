@@ -8,7 +8,7 @@ import { RouterLink } from '@angular/router';
     template: `
         <a
             [routerLink]="route()"
-            class="group flex items-center gap-3 p-3 rounded-xl bg-surface-muted
+            class="group flex min-w-0 items-center gap-3 p-3 rounded-xl bg-surface-muted
                    hover:bg-surface-sunken transition-colors min-h-[64px]
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
         >
@@ -31,9 +31,9 @@ import { RouterLink } from '@angular/router';
                 </svg>
             </span>
             <span class="flex-1 min-w-0">
-                <span class="block text-sm font-semibold text-gray-900 dark:text-fg">{{ label() }}</span>
+                <span class="block text-sm font-semibold text-gray-900 dark:text-fg break-words">{{ label() }}</span>
                 @if (description(); as d) {
-                    <span class="block text-xs text-gray-500 dark:text-fg-subtle truncate">{{ d }}</span>
+                    <span class="block text-xs text-gray-500 dark:text-fg-subtle break-words">{{ d }}</span>
                 }
             </span>
         </a>

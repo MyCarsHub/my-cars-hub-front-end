@@ -129,10 +129,10 @@ describe('DashboardHome — parity with the prototype', () => {
     expect(norm(host)).not.toContain('ROI da frota');
   });
 
-  it('period pills are the prototype set: no "Próximos" projections, "Mês atual" after "30 dias"', () => {
+  it('period pills are the prototype set: no "Próximos" projections, "Mês atual" before "30 dias" (canvas order)', () => {
     const host = render();
     const labels = Array.from(host.querySelectorAll('app-date-range-picker [role="radio"], app-date-range-picker button')).map((b) => norm(b));
-    expect(labels).toEqual(['Hoje', '7 dias', '30 dias', 'Mês atual', 'Mês passado', 'Este ano', 'Personalizado']);
+    expect(labels).toEqual(['Hoje', '7 dias', 'Mês atual', '30 dias', 'Mês passado', 'Este ano', 'Personalizado']);
   });
 
   it('revenue by month is drawn once: no second chart, no month pills', () => {
@@ -221,7 +221,7 @@ describe('DashboardHome — parity with the prototype', () => {
     expect(lastX(lines[1])).toBeCloseTo((5 / 30) * 100, 1); // this month: day 6 of 31
     expect(section.querySelectorAll('[data-end-dot]')).toHaveLength(1);
     expect([...section.querySelectorAll('[data-x-axis] span')].map((s) => s.textContent!.trim())).toEqual([
-      'dia 1', 'dia 5', 'dia 10', 'dia 15', 'dia 20', 'dia 25', 'dia 30',
+      'dia 1', '5', '10', '15', '20', '25', '30',
     ]);
     expect(norm(section.querySelector('[data-y-axis]'))).toContain('R$');
     expect(norm(section.querySelector('[data-y-axis]'))).toMatch(/R\$ \d+k/);
@@ -283,11 +283,11 @@ describe('DashboardHome — responsive classes per section (phone 375 / tablet 7
     const spans = Array.from(board.children).map((c) => c.className);
     expect(spans[0]).toContain('md:col-span-2'); // statuses
     expect(spans[0]).toContain('xl:col-span-8');
-    expect(spans[1]).toContain('xl:col-span-6'); // costs
+    expect(spans[1]).toContain('xl:col-span-5'); // costs
     expect(spans[2]).toContain('xl:col-span-12'); // cash
     expect(spans[3]).toContain('xl:col-span-5'); // top vehicles
     expect(spans[4]).toContain('xl:col-span-5'); // top drivers
-    expect(spans[5]).toContain('xl:col-span-4'); // offenders
+    expect(spans[5]).toContain('xl:col-span-5'); // offenders
     // desktop order: statuses, cash, costs, vehicles, drivers, offenders
     expect(spans.map((c) => /xl:order-(\d)/.exec(c)?.[1])).toEqual(['1', '3', '2', '4', '5', '6']);
   });

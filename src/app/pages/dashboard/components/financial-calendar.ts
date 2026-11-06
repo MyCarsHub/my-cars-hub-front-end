@@ -7,7 +7,11 @@ import {
     output,
     signal,
 } from '@angular/core';
-import { CashflowEventDto, formatBRL } from '../../../types/dashboard.types';
+import { CashflowEventDto } from '../../../types/dashboard.types';
+
+/** Whole reais (`R$ 48.200`), the tile format of the canvas; cents live in the day sheet. */
+const WHOLE = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const wholeBRL = (cents: number): string => WHOLE.format(Math.round(cents / 100));
 
 /** Aggregated per-day view used to render each calendar cell. */
 export interface DayCell {
@@ -158,9 +162,9 @@ export class FinancialCalendar implements OnInit {
         return { inCents, outCents, inCount, outCount, balance: inCents - outCents };
     });
 
-    protected readonly inLabel = computed(() => formatBRL(this.monthSummary().inCents));
-    protected readonly outLabel = computed(() => formatBRL(this.monthSummary().outCents));
-    protected readonly balanceLabel = computed(() => formatBRL(this.monthSummary().balance));
+    protected readonly inLabel = computed(() => wholeBRL(this.monthSummary().inCents));
+    protected readonly outLabel = computed(() => wholeBRL(this.monthSummary().outCents));
+    protected readonly balanceLabel = computed(() => wholeBRL(this.monthSummary().balance));
 
     protected prevMonth(): void {
         const [year, month] = this.monthCursor().split('-').map(Number);

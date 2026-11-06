@@ -108,6 +108,16 @@ interface DrawnSeries {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
+    @if (legendTop() && series().length > 1) {
+      <ul data-legend-top class="mb-3 flex flex-wrap justify-end gap-x-4 gap-y-1.5 text-xs text-fg-muted" aria-label="Legenda">
+        @for (s of legendSeries(); track s.key) {
+          <li class="inline-flex items-center gap-1.5">
+            <span class="size-3 rounded-[3px] shrink-0" aria-hidden="true" [style.background-color]="s.color"></span>
+            {{ s.label }}
+          </li>
+        }
+      </ul>
+    }
     <div class="flex gap-2 min-w-0">
       @if (!empty()) {
       <div
@@ -140,9 +150,19 @@ interface DrawnSeries {
           aria-hidden="true"
           [style.height.px]="heightPx()"
         >
+          <defs>
+            @for (s of drawn(); track s.key) {
+              @if (!s.reference && area()) {
+                <linearGradient [attr.id]="gradientId(s.key)" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" [attr.stop-color]="s.color" stop-opacity="0.45" />
+                  <stop offset="1" [attr.stop-color]="s.color" stop-opacity="0" />
+                </linearGradient>
+              }
+            }
+          </defs>
           @for (s of drawn(); track s.key) {
             @if (!s.reference && area()) {
-              <path data-area [attr.d]="s.area" [style.fill]="s.color" fill-opacity="0.12" stroke="none" />
+              <path data-area [attr.d]="s.area" [attr.fill]="'url(#' + gradientId(s.key) + ')'" stroke="none" />
             }
             <path
               data-line
@@ -171,6 +191,22 @@ interface DrawnSeries {
             }
           }
         }
+        @if (endTooltip() && tooltip(); as tip) {
+          <div
+            data-end-tooltip
+            class="absolute hidden sm:block rounded-lg bg-surface-strong px-3 py-2 text-xs leading-snug shadow-lg pointer-events-none whitespace-nowrap"
+            style="transform: translateX(-100%)"
+            aria-hidden="true"
+            [style.left.%]="tip.x"
+            [style.top.%]="tip.y"
+          >
+            <p class="text-fg-muted">{{ tip.title }}</p>
+            <p class="font-semibold text-fg">{{ tip.value }}</p>
+            @if (tip.reference) {
+              <p class="text-fg-muted">{{ tip.reference }}</p>
+            }
+          </div>
+        }
         </div>
         }
         @if (!empty()) {
@@ -196,7 +232,7 @@ interface DrawnSeries {
       </div>
     </div>
 
-    @if (series().length > 1) {
+    @if (series().length > 1 && !legendTop()) {
       <ul class="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-fg-muted" aria-label="Legenda">
         @for (s of series(); track s.key) {
           <li class="inline-flex items-center gap-1.5">
@@ -257,8 +293,47 @@ export class GrowthChart {
   readonly endDot = input(false);
   /** Explicit x marks (by index in `labels`), spread over the FULL label axis; overrides `maxXTicks`. */
   readonly xTickMarks = input<readonly GrowthXTick[] | null>(null);
+  /** Legend above the plot, right-aligned, main series first (instead of under the plot). */
+  readonly legendTop = input(false);
+  /** Gaps between y ticks (4 = five ticks; 5 = six ticks, e.g. R$ 0 .. R$ 50k in tens). */
+  readonly yDivisions = input(4);
+  /** Static tooltip at the last point of the main series: label, value and the reference value. */
+  readonly endTooltip = input(false);
+  /** Prefix of the x label in the tooltip title (`dia ` + `30`). */
+  readonly tooltipLabelPrefix = input('');
   /** Shown instead of the plot when every value is zero. */
   readonly emptyText = input('Ainda sem movimento neste período.');
+
+  private static nextId = 0;
+  private readonly uid = GrowthChart.nextId++;
+  protected gradientId(key: string): string {
+    return `growth-fill-${this.uid}-${key}`;
+  }
+
+  protected readonly legendSeries = computed(() =>
+    [...this.series()].sort((a, b) => Number(!!a.reference) - Number(!!b.reference)),
+  );
+
+  protected readonly tooltip = computed(() => {
+    const main = this.drawn().find((d) => !d.reference && d.end);
+    const series = this.series();
+    const src = series.find((x) => x.key === main?.key);
+    if (!main?.end || !src) return null;
+    const idx = src.values.length - 1;
+    const ref = series.find((x) => x.reference);
+    const refValue = ref?.values[idx];
+    return {
+      x: main.end.x,
+      // below the point, like the prototype; kept inside the plot for points near the floor
+      y: Math.min(main.end.y + 6, 62),
+      title: `${this.tooltipLabelPrefix()}${this.labels()[idx] ?? ''}`,
+      value: formatKpiNumber(this.valueFormat(), src.values[idx]),
+      reference:
+        ref && refValue !== undefined
+          ? `${ref.label.toLowerCase()} ${formatKpiNumber(this.valueFormat(), refValue)}`
+          : null,
+    };
+  });
 
   protected readonly empty = computed(() => growthIsEmpty(this.series()));
 
@@ -299,7 +374,8 @@ export class GrowthChart {
 
   protected readonly yTicks = computed(() => {
     const top = this.top();
-    return [1, 0.75, 0.5, 0.25, 0].map((f) => formatKpiNumber(this.valueFormat(), top * f));
+    const n = Math.max(1, this.yDivisions());
+    return Array.from({ length: n + 1 }, (_, i) => formatKpiNumber(this.valueFormat(), (top * (n - i)) / n));
   });
 
   protected readonly xTicks = computed(() => {

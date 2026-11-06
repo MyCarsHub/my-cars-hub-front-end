@@ -16,14 +16,13 @@ import { FleetActivationService } from '../../services/fleet-activation.service'
 import { SessionService } from '../../services/session.service';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
-import { BillingAccessService } from '../../services/billing-access.service';
 import { DashboardService } from '../../services/dashboard.service';
-import { showsAsUnlimited } from '../../utils/plan-limits';
 import {
     CashflowEventDto,
     DashboardSummaryDto,
     MonthlyResultDto,
     formatBRL,
+    formatBRLWhole,
 } from '../../types/dashboard.types';
 import { DateRange, DateRangePicker, DateRangePresetKey } from '../../components/date-range-picker/date-range-picker';
 import { AlertChip } from './components/alert-chip';
@@ -55,24 +54,24 @@ interface StatusMeta {
 }
 
 const RENTAL_STATUS_META: Record<string, StatusMeta> = {
-    RESERVED: { label: 'Reservados', color: '#f59e0b' },
-    ACTIVE: { label: 'Ativos', color: '#6366f1' },
-    COMPLETED: { label: 'Concluídos', color: '#10b981' },
-    CANCELED: { label: 'Cancelados', color: '#9ca3af' },
+    RESERVED: { label: 'Reservados', color: '#3b82f6' },
+    ACTIVE: { label: 'Ativos', color: '#0a9b62' },
+    COMPLETED: { label: 'Concluídos', color: '#9aa3b2' },
+    CANCELED: { label: 'Cancelados', color: '#fb7185' },
 };
 
 const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
-    AVAILABLE: { label: 'Disponíveis', color: '#10b981' },
-    RENTED: { label: 'Alugados', color: '#6366f1' },
-    MAINTENANCE: { label: 'Manutenção', color: '#f59e0b' },
-    INACTIVE: { label: 'Inativos', color: '#9ca3af' },
+    AVAILABLE: { label: 'Disponíveis', color: '#34d399' },
+    RENTED: { label: 'Alugados', color: '#F63B04' },
+    MAINTENANCE: { label: 'Manutenção', color: '#3b82f6' },
+    INACTIVE: { label: 'Inativos', color: '#9aa3b2' },
 };
 
 const COST_CATEGORY_META: Record<string, StatusMeta> = {
-    MAINTENANCE: { label: 'Manutenção', color: '#f59e0b' },
-    FINES: { label: 'Multas', color: '#ef4444' },
-    IPVA: { label: 'IPVA', color: '#6366f1' },
-    INSURANCE: { label: 'Seguro', color: '#0ea5e9' },
+    MAINTENANCE: { label: 'Manutenção', color: '#3b82f6' },
+    FINES: { label: 'Multas', color: '#9aa3b2' },
+    IPVA: { label: 'IPVA', color: '#ec4899' },
+    INSURANCE: { label: 'Seguro', color: '#f59e0b' },
     FINANCING: { label: 'Financiamento', color: '#8b5cf6' },
 };
 
@@ -125,7 +124,6 @@ export class DashboardHome {
     private readonly service = inject(DashboardService);
     private readonly router = inject(Router);
     private readonly doc = inject(DOCUMENT);
-    private readonly access = inject(BillingAccessService);
     private readonly activation = inject(FleetActivationService);
 
     private readonly session = inject(SessionService);
@@ -178,12 +176,12 @@ export class DashboardHome {
         return Array.from({ length: days }, (_, i) => String(i + 1));
     });
 
-    /** x marks "dia 1, 5, 10, ..." (only the days that exist in the month axis). */
+    /** x marks "dia 1, 5, 10, ..." (only the first carries the word) (only the days that exist in the month axis). */
     protected readonly cashXTicks = computed<GrowthXTick[]>(() => {
         const days = this.cashView()?.axisDays ?? 0;
         return [1, 5, 10, 15, 20, 25, 30]
             .filter((d) => d <= days)
-            .map((d) => ({ index: d - 1, text: `dia ${d}` }));
+            .map((d) => ({ index: d - 1, text: d === 1 ? 'dia 1' : String(d) }));
     });
 
     /** Chip of the cash card: ahead of / behind last month ON THE SAME DAY; null without a base. */
@@ -267,7 +265,7 @@ export class DashboardHome {
 
     /** Period pills of the prototype (no "Próximos" projections here). */
     protected readonly periodPresets: readonly DateRangePresetKey[] = [
-        'today', '7d', '30d', 'monthCurrent', 'monthPast', 'year', 'custom',
+        'today', '7d', 'monthCurrent', '30d', 'monthPast', 'year', 'custom',
     ];
 
     protected readonly summary = signal<DashboardSummaryDto | null>(null);
@@ -329,40 +327,6 @@ export class DashboardHome {
 
     // ---- Fleet ----------------------------------------------------------
 
-    /**
-     * Nome do plano vigente (`TRIAL` / `PRO` / `ENTERPRISE`).
-     *
-     * O resumo do dashboard manda os limites mas não o plano, então vem do
-     * access-status — já carregado pelo `billingAccessGuard`, que é
-     * `canActivateChild` da árvore onde o dashboard mora, logo não há request
-     * extra nem race. Nulo (admin de plataforma, falha de rede) só desliga a
-     * maquiagem: os cards caem no número real, que é o comportamento seguro.
-     */
-    private readonly currentPlanName = computed<string | null>(
-        () => this.access.status()?.plan?.name ?? null,
-    );
-
-    /**
-     * Consumo de veículos contra o limite do plano.
-     *
-     * Dois motivos para a frase virar "ilimitado", ambos decididos em
-     * `utils/plan-limits.ts`: limite nulo (sentinela da coluna, que segue
-     * válido mesmo sem nenhum plano usá-lo depois da V44) e plano maquiado
-     * (ENTERPRISE, com teto real de 500 que a UI não exibe). Nos dois casos
-     * não existe numerador/denominador honesto, então a frase muda inteira —
-     * mesmo tratamento de `driverPlanLabel`, para os dois cards da grade de
-     * KPIs lerem como um conjunto.
-     */
-    protected readonly vehiclePlanLabel = computed(() => {
-        const fleet = this.summary()?.fleet;
-        if (!fleet) return '';
-        const limit = fleet.vehicleLimit;
-        if (showsAsUnlimited(this.currentPlanName(), limit)) {
-            return 'veículos ilimitados no plano';
-        }
-        return `${fleet.vehiclesTotal} de ${limit} do plano`;
-    });
-
     /*
      * NÃO existe legenda de capacidade no card de motoristas (FEAT-0070).
      *
@@ -390,10 +354,6 @@ export class DashboardHome {
         formatBRL(this.summary()?.finance?.overdueChargesCents ?? 0),
     );
 
-    protected readonly hasOverdue = computed(
-        () => (this.summary()?.finance?.overdueChargesCents ?? 0) > 0,
-    );
-
     protected readonly billingDelta = computed<DeltaInfo>(() => {
         const f = this.summary()?.finance;
         return this.formatDelta(f?.revenueCents ?? 0, f?.previousRevenueCents ?? 0);
@@ -412,8 +372,22 @@ export class DashboardHome {
         return { chip: `${arrow}${d.label.replace(/^[+-]/, '')}`, text: caption, tone };
     }
 
+    /**
+     * Caption of a delta. The backend compares with the period of the same length right before; when
+     * the range is a whole calendar month that period is the previous month, so say so.
+     */
+    protected readonly comparisonCaption = computed(() => {
+        const r = this.currentRange();
+        if (r && /^\d{4}-\d{2}-01$/.test(r.from)) {
+            const [y, m] = r.from.split('-').map(Number);
+            const last = new Date(y, m, 0).getDate();
+            if (r.to === `${r.from.slice(0, 8)}${String(last).padStart(2, '0')}`) return 'vs mês passado';
+        }
+        return 'vs período anterior';
+    });
+
     protected readonly billingKpiDelta = computed(() =>
-        this.kpiDelta(this.billingDelta(), 'vs período anterior'),
+        this.kpiDelta(this.billingDelta(), this.comparisonCaption()),
     );
 
     /** Share of the billed amount already received (`90% do faturado`), the caption of the received card. */
@@ -424,7 +398,7 @@ export class DashboardHome {
     });
 
     protected readonly receivedKpiDelta = computed(() =>
-        this.kpiDelta(this.receivedDelta(), this.receivedShareLabel() ?? 'vs período anterior'),
+        this.kpiDelta(this.receivedDelta(), this.receivedShareLabel() ?? this.comparisonCaption()),
     );
 
     /** `margem 40%` of the result over the billed amount; the plain caption when nothing was billed. */
@@ -533,7 +507,8 @@ export class DashboardHome {
             return { label: meta.label, value: c.amountCents, color: meta.color };
         });
         const profit = Math.max(0, this.summary()?.finance?.resultCents ?? 0);
-        return [{ label: 'Lucro', value: profit, color: '#0a9b62' }, ...costs];
+        // Biggest first, like the canvas.
+        return [{ label: 'Lucro', value: profit, color: '#0a9b62' }, ...costs].sort((a, b) => b.value - a.value);
     });
 
     // ---- Top 5 by revenue -----------------------------------------------
@@ -541,7 +516,7 @@ export class DashboardHome {
         (this.summary()?.finance?.byVehicle ?? []).map((v) => ({
             id: v.id,
             name: v.label,
-            value: formatBRL(v.revenueCents),
+            value: formatBRLWhole(v.revenueCents),
             short: shortBrl(v.revenueCents),
             amount: v.revenueCents,
         })),
@@ -551,7 +526,7 @@ export class DashboardHome {
         (this.summary()?.finance?.byDriver ?? []).map((d) => ({
             id: d.id,
             name: d.label,
-            value: formatBRL(d.revenueCents),
+            value: formatBRLWhole(d.revenueCents),
             short: shortBrl(d.revenueCents),
             amount: d.revenueCents,
         })),
@@ -562,9 +537,13 @@ export class DashboardHome {
         const top = this.summary()?.topOffenders;
         if (!top) return [];
         if (this.offenderMode() === 'vehicles') {
+            // The canvas names the car (`Onix 3`); two cars of one model would be indistinguishable,
+            // so the plate is added only for the models that repeat.
+            const modelCount = new Map<string, number>();
+            for (const v of top.vehicles) modelCount.set(v.model, (modelCount.get(v.model) ?? 0) + 1);
             return top.vehicles.map((v) => ({
                 id: v.vehicleId,
-                title: `${v.plate}`,
+                title: v.model && (modelCount.get(v.model) ?? 0) === 1 ? v.model : `${v.model ?? ''} ${v.plate}`.trim(),
                 subtitle: `${v.brand} ${v.model}`,
                 count: v.count,
                 totalAmountCents: v.totalAmountCents,
@@ -585,7 +564,7 @@ export class DashboardHome {
         const n = rows.reduce((t, r) => t + r.count, 0);
         if (n === 0) return null;
         const cents = rows.reduce((t, r) => t + r.totalAmountCents, 0);
-        return `${n} ${n === 1 ? 'multa' : 'multas'} · ${formatBRL(cents)} no período`;
+        return `${n} ${n === 1 ? 'multa' : 'multas'} · ${formatBRLWhole(cents)} no período`;
     });
 
     // The picker fires (rangeChange) on init with the 30d default,
