@@ -36,6 +36,7 @@ import { ContactActions } from '../contact/contact-actions';
 import { subscriptionChip } from './subscription-status-chip';
 import { formatBRL } from '../../../types/dashboard.types';
 import { BarChart, BarDatum } from '../../../components/charts/bar-chart/bar-chart';
+import { KpiCard } from '../../../components/kpi-card/kpi-card';
 import { companyRoleLabel } from '../../../utils/role-labels';
 
 interface ChipStyle {
@@ -145,6 +146,7 @@ export interface SubscriptionRow {
     ContactBar,
     ContactActions,
     BarChart,
+    KpiCard,
   ],
   templateUrl: './admin-company-detail.html',
 })
