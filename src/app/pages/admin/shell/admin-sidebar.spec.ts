@@ -217,13 +217,14 @@ describe('AdminSidebar (FIX-0864: a sidebar do app com o modelo da administraç�
     el.remove();
   });
 
-  it('celular: ao abrir o foco vai ao Fechar; ao fechar volta ao ☰ da barra de topo', () => {
+  it('celular: ao abrir o foco vai ao Fechar; ao fechar volta a quem abriu (o ☰)', () => {
     const { layout, fixture, el } = render(['ver'], { mobile: true });
     const host = document.createElement('div');
     host.innerHTML = '<header data-driver-top-bar><button type="button">☰</button></header>';
     document.body.appendChild(host);
     document.body.appendChild(el);
     const burger = host.querySelector('button') as HTMLElement;
+    burger.focus();
 
     layout.openMobile();
     fixture.detectChanges();
