@@ -106,7 +106,7 @@
           <!-- Admin v2 (D1): dono + contato (telefone só mascarado; revelação auditada). -->
           <ng-template dataListCell="owner" let-row>
             <span class="flex items-center gap-2 min-w-0" data-testid="cell-owner">
-              <span class="truncate text-fg-soft">{{ row.ownerName ?? '—' }}</span>
+              <span class="truncate text-fg-soft">{{ (row.ownerName | personName) || '—' }}</span>
               <app-contact-actions
                 subjectType="COMPANY"
                 [subjectId]="row.id"

@@ -16,6 +16,7 @@ import { TrialConversionItem } from '../../../types/admin-charges.types';
 import { AdminChargesService } from '../charges/admin-charges.service';
 import { ContactActions } from '../contact/contact-actions';
 import { AdminCompaniesTabs } from './admin-companies-tabs';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 const STAGE_LABELS = ['Só cadastro', 'Cadastrou veículo', 'Cadastrou motorista', 'Fez aluguel'];
 
@@ -28,7 +29,7 @@ const STAGE_LABELS = ['Só cadastro', 'Cadastrou veículo', 'Cadastrou motorista
 @Component({
   selector: 'app-admin-trial-conversion',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, AlertBanner, RouterLink, ContactActions, AdminCompaniesTabs],
+  imports: [PersonNamePipe, DefaultPageLayout, AlertBanner, RouterLink, ContactActions, AdminCompaniesTabs],
   templateUrl: './admin-trial-conversion.html',
 })
 export class AdminTrialConversion implements OnInit {

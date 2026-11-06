@@ -86,7 +86,7 @@
                 <span class="ml-1 inline-flex rounded-full bg-indigo-100 dark:bg-indigo-500/15 px-2 py-0.5 text-[10px]
                              font-medium uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Interna</span>
               }
-              <p class="text-sm text-fg break-words">{{ item.driverName ?? 'Motorista não identificado' }}</p>
+              <p class="text-sm text-fg break-words">{{ (item.driverName | personName) || 'Motorista não identificado' }}</p>
             </div>
             <div class="flex shrink-0 items-start gap-1">
               <span
@@ -204,7 +204,7 @@
                                font-medium uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Interna</span>
                 }
                 <div class="mt-0.5 flex flex-wrap items-center gap-2 text-fg">
-                  <span class="break-words">{{ item.driverName ?? 'Motorista não identificado' }}</span>
+                  <span class="break-words">{{ (item.driverName | personName) || 'Motorista não identificado' }}</span>
                   @if (item.driverId) {
 @if (caps.can('contato.ver')) {
                     <app-contact-actions

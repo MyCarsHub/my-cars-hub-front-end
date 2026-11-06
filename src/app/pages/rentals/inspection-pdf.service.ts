@@ -15,6 +15,7 @@ import {
 import { DriverResponse } from '../../types/driver.types';
 import { LoggerService } from '../../services/logger.service';
 import { Vehicle } from '../../types/vehicle.types';
+import { formatPersonName, formatPlate, formatVehicleLabel } from '../../utils/display-format';
 
 /**
  * Response of the client-side inspection PDF upload — matches the new backend
@@ -376,12 +377,12 @@ export class InspectionPdfService {
     if (context.vehicle) {
       lines.push([
         'Veículo',
-        `${context.vehicle.plate} — ${context.vehicle.brand} ${context.vehicle.model} (${context.vehicle.yearModel})`,
+        `${formatPlate(context.vehicle.plate)} — ${formatVehicleLabel(context.vehicle.brand, context.vehicle.model)} (${context.vehicle.yearModel})`,
       ]);
       lines.push(['Hodômetro (cadastro)', String(context.vehicle.hodometer ?? '—')]);
     }
     if (context.driver) {
-      lines.push(['Motorista', context.driver.name]);
+      lines.push(['Motorista', formatPersonName(context.driver.name)]);
     }
     if (context.rental.initialKm != null) {
       lines.push(['Hodômetro inicial (rental)', String(context.rental.initialKm)]);

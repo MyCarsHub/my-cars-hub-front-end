@@ -29,6 +29,7 @@ import {
   DriverNavIcon,
   DriverNavRoutes,
 } from './driver-nav';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 export interface NavItem {
   route?: string;
@@ -378,7 +379,7 @@ export const NAV_ITEMS: NavItem[] = [
 @Component({
   selector: 'app-sidebar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive, CompanySwitcher],
+  imports: [PersonNamePipe, NgTemplateOutlet, RouterLink, RouterLinkActive, CompanySwitcher],
   host: { '(document:keydown.escape)': 'onEscape()' },
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css',

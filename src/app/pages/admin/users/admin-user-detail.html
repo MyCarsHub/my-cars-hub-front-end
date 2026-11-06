@@ -39,7 +39,7 @@
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-3 flex-wrap">
             <h2 class="text-xl sm:text-2xl font-semibold text-fg break-words">
-              {{ user.name ?? '(sem nome)' }}
+              {{ (user.name | personName) || '(sem nome)' }}
             </h2>
             <app-status-chip [tone]="statusTone(user.active)" data-testid="user-status">{{
               user.active ? 'Ativo' : 'Inativo'

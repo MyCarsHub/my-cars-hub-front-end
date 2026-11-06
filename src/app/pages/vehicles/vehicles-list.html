@@ -385,7 +385,7 @@
                   </div>
 
                   <p data-vehicle-model class="text-sm text-fg-muted truncate">
-                    {{ vehicle.brand }} {{ vehicle.model }}
+                    {{ vehicle.brand | vehicleLabel: vehicle.model }}
                   </p>
 
                   <p data-vehicle-meta class="text-[13px] text-fg-subtle tabular-nums">

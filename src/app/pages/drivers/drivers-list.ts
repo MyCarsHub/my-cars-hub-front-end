@@ -26,6 +26,8 @@ import {
   DRIVER_STATUS_FILTER_OPTIONS,
   driverStatusMeta,
 } from '../../utils/status-maps';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
+import { formatPersonName } from '../../utils/display-format';
 
 const STATUS_OPTIONS = DRIVER_STATUS_FILTER_OPTIONS;
 
@@ -50,6 +52,7 @@ const SORT_OPTIONS = [
   selector: 'app-drivers-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
     FormsModule,
     RouterLink,
     DefaultPageLayout,
@@ -271,8 +274,8 @@ export class DriversList implements OnInit {
     const driver = this.togglingStatusDriver();
     if (!driver) return '';
     if (driver.status === 'SUSPENDED') {
-      return `Reativar «${driver.name}»? O motorista voltará a ficar disponível para novos aluguéis.`;
+      return `Reativar «${formatPersonName(driver.name)}»? O motorista voltará a ficar disponível para novos aluguéis.`;
     }
-    return `Suspender «${driver.name}»? O motorista ficará bloqueado para novos aluguéis até ser reativado.`;
+    return `Suspender «${formatPersonName(driver.name)}»? O motorista ficará bloqueado para novos aluguéis até ser reativado.`;
   }
 }

@@ -9,6 +9,7 @@ import type {
   InspectionPhoto,
 } from '../../types/inspection.types';
 import { angleLabel } from './angle-label';
+import { formatVehicleLabel, formatPlate } from '../../utils/display-format';
 
 /**
  * A UNICA porta entre o que o servidor manda e o que as telas de vistoria desenham.
@@ -98,7 +99,7 @@ export function carName(item: {
   vehicleBrand?: string | null;
   vehicleModel?: string | null;
 }): string | null {
-  const name = [item.vehicleBrand, item.vehicleModel].filter(Boolean).join(' ').trim();
+  const name = formatVehicleLabel(item.vehicleBrand, item.vehicleModel).trim();
   return name || null;
 }
 
@@ -138,7 +139,7 @@ export function toCardView(item: InspectionListItem): InspectionCardView {
       : null;
   return {
     id: item.id,
-    plate: item.vehiclePlate?.trim() || 'Veículo não identificado',
+    plate: formatPlate(item.vehiclePlate?.trim(), { hyphen: false, empty: 'Veículo não identificado' }),
     model: carName(item),
     driver: item.driverName?.trim() || null,
     kind: kindLabel(item.kind),
