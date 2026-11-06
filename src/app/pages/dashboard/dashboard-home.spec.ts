@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { signal } from '@angular/core';
 import { of } from 'rxjs';
@@ -802,24 +802,13 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
         expect(card(minoria)?.textContent).toContain('+35%');
       });
 
-      it('a ressalva ganha tratamento de aviso, nao rodape', () => {
+      it('a ressalva vira acao: o cartao inteiro e um link para a frota', () => {
         const el = card(minoria);
 
-        // Afirma a FORMA, nao a paleta: a ressalva tem caixa propria — fundo E
-        // borda —, que e o que a separa de um rodape em texto corrido. Uma
-        // assercao em 'bg-amber-50' quebraria a cada mudanca de cor sem que a
-        // promessa mudasse, e e por isso que ela nao esta aqui.
-        // Localiza a caixa pela FORMA (tem fundo proprio), nao pelo texto: o
-        // texto tem acento e casar acento aqui ja falhou uma vez por causa de
-        // codificacao — o teste caiu sem que a promessa tivesse mudado.
-        const caixa = Array.from(
-          el?.querySelectorAll('div[class*="rounded-lg"]') ?? [],
-        ).find((d) => (d.getAttribute('class') ?? '').includes('bg-'));
-
-        expect(caixa).toBeTruthy();
-        const cls = caixa?.getAttribute('class') ?? '';
-        expect(cls).toContain('bg-');
-        expect(cls).toContain('border');
+        // O KPI e o mesmo KpiCard dos vizinhos; a base em minoria muda o COMPORTAMENTO
+        // (cartao-link), nao a paleta. Base que nao e minoria continua sem link.
+        expect(el?.getAttribute('role')).toBe('link');
+        expect(card(frota)?.getAttribute('role')).toBeNull();
       });
 
       it('o texto diz o que FALTA, nao so a contagem', () => {
@@ -829,10 +818,12 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
       });
 
       it('oferece o caminho para cadastrar', () => {
-        const links = card(minoria)?.querySelectorAll('a[href]') ?? [];
-        const hrefs = Array.from(links).map((a) => a.getAttribute('href'));
+        const el = card(minoria);
+        const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
 
-        expect(hrefs).toContain('/veiculos');
+        el.click();
+
+        expect(navigate).toHaveBeenCalledWith(['/veiculos'], expect.anything());
       });
     });
 
@@ -862,7 +853,7 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
       expect(money(el)).toContain('R$ 0,00');
       expect(el?.textContent).not.toContain('—');
       expect(el?.textContent).not.toContain('preço de compra');
-      expect(el?.querySelector('a[href]')).toBeNull();
+      expect(el?.getAttribute('role')).toBeNull();
     });
 
     it('frota com carros mas nenhum com preco cai no mesmo 0%', () => {
@@ -870,7 +861,7 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
 
       expect(el?.textContent).toContain('0%');
       expect(money(el)).toContain('R$ 0,00');
-      expect(el?.querySelector('a[href]')).toBeNull();
+      expect(el?.getAttribute('role')).toBeNull();
     });
 
     /** Zero nao e lucro nem prejuizo — nem verde, nem rose. */

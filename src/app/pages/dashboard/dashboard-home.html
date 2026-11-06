@@ -169,105 +169,34 @@
 
     <!-- Fleet KPI grid: 2x2 on mobile, 5x1 on lg -->
     <section class="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-4">
-        <!--
-            Dinheiro que JA ENTROU no mes. Primeiro da fileira e pintado de
-            laranja de proposito: e o numero que faz o dono abrir a tela, e ele
-            precisa achar antes de procurar.
-
-            Era um cartao com grafico de linha e virou KPI: a curva ocupava
-            meia tela para dizer o que o total ja dizia. O valor ficou, o
-            desenho saiu.
-        -->
-        @if (cashAccumulation(); as cash) {
-            <div class="rounded-2xl bg-primary-500 text-white p-4 min-w-0">
-                <app-cash-accumulation-card [data]="cash" [compact]="true" />
-            </div>
+        <!-- Dinheiro que JA ENTROU no mes: primeiro da fileira, pintado de laranja (KpiCard). -->
+        @if (cashKpi(); as cash) {
+            <div
+                app-kpi-card
+                data-cash-card
+                variant="primary"
+                [label]="cash.label"
+                numberFormat="brl-cents"
+                [stagger]="0"
+                [value]="cash.totalCents"
+                [detail]="cash.detail"
+            ></div>
         }
 
-        <!--
-            FIX-0420 — ROI da frota. Mesma estrutura dos KPIs vizinhos: rotulo
-            pequeno em maiusculas, numero grande, legenda pequena.
-
-            SEM col-span: o dono pediu um card PEQUENO, do mesmo tamanho dos
-            vizinhos. O span de 2 colunas fazia dele o unico card de largura
-            cheia da fileira, e no celular isso o tornava o elemento mais
-            pesado da tela — o oposto do que um KPI discreto deve ser.
-            Ele fica sozinho na terceira linha ocupando meia largura, e isso
-            e aceito: fileira irregular incomoda menos que card gigante.
-        -->
+        <!-- ROI da frota (FIX-0420): mesmo KpiCard dos vizinhos, so o dono/gerente ve. -->
         @if (showVehicleRoi()) {
-            <div data-roi-card class="rounded-2xl bg-emerald-600 text-white p-4 min-w-0">
-                <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">
-                    ROI
-                </p>
-                @if (vehicleRoiLoading() && !vehicleRoi()) {
-                    <div class="h-8 mt-2 w-16 rounded bg-white/20 animate-pulse"></div>
-                } @else if (vehicleRoiError()) {
-                    <p class="text-xl sm:text-2xl font-semibold text-white/60 mt-1 truncate">—</p>
-                    <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
-                        não foi possível calcular
-                    </p>
-                } @else if (fleetRoiIndeterminate()) {
-                    <!--
-                        Sem base para calcular: o card fica IGUAL aos vizinhos —
-                        0% no numero grande e o valor embaixo, sem link e sem
-                        pedido de acao (decisao do dono, 2026-09-17).
-                        POR QUE NAO O TRAVESSAO COM "informe o preco de compra":
-                        numa empresa de frota VAZIA o card pedia o preco de um
-                        carro que nao existe — tarefa impossivel na primeira tela
-                        que um usuario novo ve. Sem carro nao ha retorno e nao ha
-                        custo, entao zero e FATO.
-                        Tom NEUTRO: zero nao e lucro nem prejuizo.
-                    -->
-                    <p class="text-xl sm:text-2xl font-semibold text-white mt-1 tabular-nums truncate">
-                        0%
-                    </p>
-                    <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
-                        {{ zeroMoney }}
-                    </p>
-                } @else if (fleetRoiPercentLabel(); as roiLabel) {
-                    <!--
-                        BRANCO SEMPRE, inclusive no prejuizo (decisao do dono).
-
-                        Eu tinha pintado o prejuizo de rose-200 por conta propria.
-                        Era redundante: o SINAL DE MENOS e a palavra "prejuizo"
-                        logo abaixo ja dizem a mesma coisa, e com mais precisao
-                        do que uma cor. O cartao tem UMA cor, como os do admin.
-                    -->
-                    <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate text-white">
-                        {{ roiLabel }}
-                    </p>
-                    <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
-                        {{ fleetRoiNetLabel() }}
-                    </p>
-                    @if (fleetRoiBase(); as base) {
-                        @if (base.minority) {
-                            <!--
-                                Base em MINORIA: a ressalva deixa de ser rodape.
-                                Ambar, o mesmo peso do estado indeterminado, e com
-                                o caminho para resolver — dizer o que FALTA, nao
-                                so contar. O percentual continua na tela.
-                            -->
-                            <div class="mt-2 rounded-lg bg-white/15 border border-white/30 px-2 py-1.5">
-                                <p class="text-[11px] sm:text-xs text-white">{{ base.label }}</p>
-                                <a
-                                    routerLink="/veiculos"
-                                    class="inline-flex items-center min-h-[44px] text-[11px] sm:text-xs
-                                           font-semibold text-white underline hover:no-underline
-                                           outline-none focus-visible:ring-2 focus-visible:ring-amber-500
-                                           rounded-sm"
-                                >
-                                    informar preço de compra
-                                </a>
-                            </div>
-                        } @else {
-                            <p class="text-[11px] sm:text-xs text-white/60 mt-0.5 truncate">
-                                {{ base.label }}
-                            </p>
-                        }
-                    }
-                }
-            </div>
+            <div
+                app-kpi-card
+                data-roi-card
+                variant="emerald"
+                label="ROI"
+                [stagger]="1"
+                [loading]="vehicleRoiLoading() && !vehicleRoi()"
+                [value]="roiKpi().value"
+                [detail]="roiKpi().detail"
+                [link]="roiKpi().link"
+                [ariaLabel]="roiKpi().link ? 'ROI da frota: informar preço de compra dos veículos' : null"
+            ></div>
         }
 
         <!--
@@ -338,115 +267,67 @@
                         [class.lg:grid-cols-4]="!hasSaleRevenue()"
                         [class.lg:grid-cols-5]="hasSaleRevenue()"
                     >
-                        <!-- Faturamento -->
-                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
-                                Faturamento
-                            </p>
-                            <p class="text-lg sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-300 mt-1 tabular-nums truncate">
-                                {{ billingLabel() }}
-                            </p>
-                            @if (billingDelta().label; as d) {
-                                <p
-                                    class="text-[11px] sm:text-xs mt-1 tabular-nums truncate"
-                                    [class.text-emerald-600]="billingDelta().direction === 'up'" [class.dark:text-emerald-300]="billingDelta().direction === 'up'"
-                                    [class.text-red-600]="billingDelta().direction === 'down'" [class.dark:text-red-300]="billingDelta().direction === 'down'"
-                                    [class.text-gray-500]="billingDelta().direction === 'flat'" [class.dark:text-fg-subtle]="billingDelta().direction === 'flat'"
-                                >
-                                    @if (billingDelta().direction === 'up') { ▲ }
-                                    @else if (billingDelta().direction === 'down') { ▼ }
-                                    {{ d }} vs período anterior
-                                </p>
-                            } @else {
-                                <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
-                                    contratos assinados no período
-                                </p>
-                            }
-                        </div>
+                        <div
+                            app-kpi-card
+                            variant="white"
+                            size="compact"
+                            label="Faturamento"
+                            numberFormat="brl-cents"
+                            tone="success"
+                            [value]="f.revenueCents"
+                            [delta]="billingKpiDelta()"
+                            [detail]="billingKpiDelta() ? null : 'contratos assinados no período'"
+                        ></div>
 
-                        <!-- Venda de veículos (FEAT-0074): categoria PONTUAL.
-                             Só aparece quando houve venda no período; sem ela a
-                             grade volta a ser a de sempre. Sem delta "vs período
-                             anterior" — o backend não manda essa comparação para
-                             venda, e inventá-la seria inventar dado. -->
+                        <!-- Venda de veículos (FEAT-0074): categoria PONTUAL, só quando
+                             houve venda; sem delta (o backend não manda comparação). -->
                         @if (hasSaleRevenue()) {
                             <div
-                                class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col"
+                                app-kpi-card
                                 data-sale-revenue-card
-                            >
-                                <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
-                                    Venda de veículos
-                                </p>
-                                <!-- `primary-700`: NÃO o verde do faturamento
-                                     (leria como aluguel) e NÃO o âmbar do "A
-                                     receber" (leria como dinheiro que ainda não
-                                     entrou). É a única rampa do projeto que já
-                                     não representa um estado financeiro nesta
-                                     grade, e é AA em texto pequeno (5,68:1). A
-                                     MESMA cor vale no hub de gerência. -->
-                                <p class="text-lg sm:text-2xl font-semibold text-primary-700 dark:text-primary-400 mt-1 tabular-nums truncate">
-                                    {{ saleRevenueLabel() }}
-                                </p>
-                                <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
-                                    entrada única no período
-                                </p>
-                            </div>
+                                variant="white"
+                                size="compact"
+                                label="Venda de veículos"
+                                numberFormat="brl-cents"
+                                tone="primary"
+                                [value]="saleRevenueCents()"
+                                detail="entrada única no período"
+                            ></div>
                         }
 
-                        <!-- Recebido -->
-                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
-                                Recebido
-                            </p>
-                            <p class="text-lg sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-300 mt-1 tabular-nums truncate">
-                                {{ receivedLabel() }}
-                            </p>
-                            @if (receivedDelta().label; as d) {
-                                <p
-                                    class="text-[11px] sm:text-xs mt-1 tabular-nums truncate"
-                                    [class.text-emerald-600]="receivedDelta().direction === 'up'" [class.dark:text-emerald-300]="receivedDelta().direction === 'up'"
-                                    [class.text-red-600]="receivedDelta().direction === 'down'" [class.dark:text-red-300]="receivedDelta().direction === 'down'"
-                                    [class.text-gray-500]="receivedDelta().direction === 'flat'" [class.dark:text-fg-subtle]="receivedDelta().direction === 'flat'"
-                                >
-                                    @if (receivedDelta().direction === 'up') { ▲ }
-                                    @else if (receivedDelta().direction === 'down') { ▼ }
-                                    {{ d }} vs anterior
-                                </p>
-                            }
-                            <p class="text-[10px] sm:text-[11px] text-gray-500 dark:text-fg-subtle mt-1 truncate tabular-nums">
-                                de {{ billingLabel() }} faturados
-                            </p>
-                        </div>
+                        <div
+                            app-kpi-card
+                            variant="white"
+                            size="compact"
+                            label="Recebido"
+                            numberFormat="brl-cents"
+                            tone="success"
+                            [value]="f.receivedCents"
+                            [delta]="receivedKpiDelta()"
+                            [detail]="'de ' + billingLabel() + ' faturados'"
+                        ></div>
 
-                        <!-- A receber -->
-                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
-                                A receber
-                            </p>
-                            <p class="text-lg sm:text-2xl font-semibold text-amber-600 dark:text-amber-300 mt-1 tabular-nums truncate">
-                                {{ pendingChargesLabel() }}
-                            </p>
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
-                                cobranças pendentes no período
-                            </p>
-                        </div>
+                        <div
+                            app-kpi-card
+                            variant="white"
+                            size="compact"
+                            label="A receber"
+                            numberFormat="brl-cents"
+                            tone="warning"
+                            [value]="f.pendingChargesCents"
+                            detail="cobranças pendentes no período"
+                        ></div>
 
-                        <!-- Inadimplência aluguel -->
-                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
-                                Inadimplência aluguel
-                            </p>
-                            <p
-                                class="text-lg sm:text-2xl font-semibold mt-1 tabular-nums truncate"
-                                [class.text-red-600]="hasOverdue()" [class.dark:text-red-300]="hasOverdue()"
-                                [class.text-gray-900]="!hasOverdue()" [class.dark:text-fg]="!hasOverdue()"
-                            >
-                                {{ overdueChargesLabel() }}
-                            </p>
-                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
-                                cobranças vencidas ou falhas
-                            </p>
-                        </div>
+                        <div
+                            app-kpi-card
+                            variant="white"
+                            size="compact"
+                            label="Inadimplência aluguel"
+                            numberFormat="brl-cents"
+                            [tone]="hasOverdue() ? 'danger' : 'default'"
+                            [value]="f.overdueChargesCents"
+                            detail="cobranças vencidas ou falhas"
+                        ></div>
                     </div>
 
                     <!--
@@ -520,6 +401,69 @@
         </section>
     }
 
+    <!-- FEAT-0468 — faturamento x lucro, 6 meses (caixa). Some sem `overview`. -->
+    @if (hasResult()) {
+        <section class="mb-4 min-w-0" data-result-section>
+            <app-page-card title="Faturamento vs lucro">
+                <div class="px-4 pb-4 sm:px-6 min-w-0">
+                    <app-growth-chart
+                        [series]="resultSeries()"
+                        [labels]="resultLabels()"
+                        valueFormat="brl-cents"
+                        ariaLabel="Faturamento e lucro dos últimos 6 meses"
+                    />
+                    <p class="text-xs text-fg-muted mt-3 mb-2">Toque em um mês para ver o detalhe.</p>
+                    <app-pill-tabs
+                        [options]="resultMonthOptions()"
+                        [value]="resultMonthValue()"
+                        ariaLabel="Mês do resultado"
+                        (selected)="onResultMonth($event)"
+                    />
+                </div>
+            </app-page-card>
+        </section>
+
+        <app-detail-dialog
+            [open]="resultDetailOpen()"
+            [title]="resultDetail()?.title ?? ''"
+            subtitle="Resultado do mês (caixa)"
+            (closed)="onResultDetailClosed()"
+        >
+            @if (resultDetail(); as d) {
+                <div class="grid gap-3 grid-cols-1 sm:grid-cols-3 mb-4" data-result-detail>
+                    <div app-kpi-card variant="white" size="compact" label="Faturamento"
+                        numberFormat="brl-cents" tone="success" [countUp]="false" [value]="d.revenueCents"></div>
+                    <div app-kpi-card variant="white" size="compact" label="Custos"
+                        numberFormat="brl-cents" tone="danger" [countUp]="false" [value]="d.costCents"></div>
+                    <div app-kpi-card variant="white" size="compact" label="Lucro"
+                        numberFormat="brl-cents" [tone]="d.profitCents >= 0 ? 'success' : 'danger'"
+                        [countUp]="false" [value]="d.profitCents"></div>
+                </div>
+                <app-expense-breakdown [breakdown]="d.costBreakdown" />
+            }
+        </app-detail-dialog>
+    }
+
+    <!-- FEAT-0468 — para onde vai o dinheiro (custos do período) e atraso por idade. -->
+    @if (overview()) {
+        <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2 items-start" data-money-section>
+            <app-ring-legend-card
+                title="Para onde vai cada centavo"
+                totalLabel="custos do período"
+                valueFormat="brl-cents"
+                [slices]="costSlices()"
+            />
+            @if (hasAging()) {
+                <app-ring-legend-card
+                    title="Atraso por idade"
+                    totalLabel="em atraso"
+                    valueFormat="brl-cents"
+                    [slices]="agingSlices()"
+                />
+            }
+        </section>
+    }
+
     <!--
         Calendario a ESQUERDA ocupando metade, e as duas distribuicoes
         EMPILHADAS a direita (decisao do dono).
@@ -551,98 +495,44 @@
         </div>
 
         <div class="grid gap-4 min-w-0">
-            <app-page-card title="Aluguéis por status">
-                        <div class="p-4 min-w-0">
-                            @if (loading() && !summary()) {
-                                <div class="space-y-3">
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                </div>
-                            } @else {
-                                <app-status-bar-chart [buckets]="rentalsByStatusRows()" />
-                            }
-                        </div>
-                    </app-page-card>
-            <app-page-card title="Veículos por status">
-                        <div class="p-4 min-w-0">
-                            @if (loading() && !summary()) {
-                                <div class="space-y-3">
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                                </div>
-                            } @else {
-                                <app-status-bar-chart [buckets]="vehiclesByStatusRows()" />
-                            }
-                        </div>
-                    </app-page-card>
+            <app-ring-legend-card
+                title="Aluguéis por status"
+                totalLabel="aluguéis"
+                [slices]="rentalsByStatusSlices()"
+            />
+            <app-ring-legend-card
+                title="Veículos por status"
+                totalLabel="veículos"
+                [slices]="vehiclesByStatusSlices()"
+            />
         </div>
     </section>
 
     <!-- Top 5 por receita: veículos + motoristas -->
     <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2">
-        <app-page-card title="Top 5 veículos por receita">
-            <div class="p-4 min-w-0">
-                @if (loading() && !summary()) {
-                    <div class="space-y-3">
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                    </div>
-                } @else {
-                    <app-bar-chart [data]="topVehiclesByRevenue()" />
-                }
-            </div>
-        </app-page-card>
-        <app-page-card title="Top 5 motoristas por receita">
-            <div class="p-4 min-w-0">
-                @if (loading() && !summary()) {
-                    <div class="space-y-3">
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                    </div>
-                } @else {
-                    <app-bar-chart [data]="topDriversByRevenue()" />
-                }
-            </div>
-        </app-page-card>
+        <app-ranking-card
+            title="Top 5 veículos por receita"
+            [hero]="true"
+            [items]="topVehiclesByRevenue()"
+        />
+        <app-ranking-card
+            title="Top 5 motoristas por receita"
+            [hero]="true"
+            [items]="topDriversByRevenue()"
+        />
     </section>
 
     <!-- Top offenders -->
     <section class="mb-4 min-w-0">
         <app-page-card title="Top ofensores (multas)">
             <div class="p-4 min-w-0">
-                <div class="flex gap-2 mb-3 flex-wrap">
-                    <button
-                        type="button"
-                        class="min-h-[44px] px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
-                        [class.bg-gray-900]="offenderMode() === 'vehicles'" [class.dark:bg-neutral-700]="offenderMode() === 'vehicles'"
-                        [class.text-white]="offenderMode() === 'vehicles'"
-                        [class.border-gray-900]="offenderMode() === 'vehicles'" [class.dark:border-neutral-200]="offenderMode() === 'vehicles'"
-                        [class.bg-surface]="offenderMode() !== 'vehicles'"
-                        [class.text-gray-600]="offenderMode() !== 'vehicles'" [class.dark:text-fg-muted]="offenderMode() !== 'vehicles'"
-                        [class.border-gray-200]="offenderMode() !== 'vehicles'" [class.dark:border-edge]="offenderMode() !== 'vehicles'"
-                        (click)="setOffenderMode('vehicles')"
-                    >
-                        Veículos
-                    </button>
-                    <button
-                        type="button"
-                        class="min-h-[44px] px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
-                        [class.bg-gray-900]="offenderMode() === 'drivers'" [class.dark:bg-neutral-700]="offenderMode() === 'drivers'"
-                        [class.text-white]="offenderMode() === 'drivers'"
-                        [class.border-gray-900]="offenderMode() === 'drivers'" [class.dark:border-neutral-200]="offenderMode() === 'drivers'"
-                        [class.bg-surface]="offenderMode() !== 'drivers'"
-                        [class.text-gray-600]="offenderMode() !== 'drivers'" [class.dark:text-fg-muted]="offenderMode() !== 'drivers'"
-                        [class.border-gray-200]="offenderMode() !== 'drivers'" [class.dark:border-edge]="offenderMode() !== 'drivers'"
-                        (click)="setOffenderMode('drivers')"
-                    >
-                        Motoristas
-                    </button>
+                <div class="mb-3">
+                    <app-pill-tabs
+                        [options]="offenderModeOptions"
+                        [value]="offenderMode()"
+                        ariaLabel="Top ofensores por"
+                        (selected)="setOffenderMode($event)"
+                    />
                 </div>
                 @if (loading() && !summary()) {
                     <div class="space-y-2">
