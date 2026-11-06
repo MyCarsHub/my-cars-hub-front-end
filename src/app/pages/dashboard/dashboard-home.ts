@@ -531,19 +531,6 @@ export class DashboardHome {
         return [{ label: 'Lucro', value: profit, color: '#0a9b62' }, ...costs];
     });
 
-    protected readonly agingSlices = computed<RingSlice[]>(() => {
-        const a = this.overview()?.overdueAging;
-        if (!a) return [];
-        return [
-            { label: '1 a 7 dias', value: a.days1To7.amountCents, color: '#f59e0b' },
-            { label: '8 a 30 dias', value: a.days8To30.amountCents, color: '#f97316' },
-            { label: 'Mais de 30 dias', value: a.daysOver30.amountCents, color: '#dc2626' },
-        ];
-    });
-
-    /** The aging card only exists when there is something overdue to age. */
-    protected readonly hasAging = computed(() => this.agingSlices().some((s) => s.value > 0));
-
     // ---- Top 5 by revenue -----------------------------------------------
     protected readonly topVehiclesByRevenue = computed<RankingItem[]>(() =>
         (this.summary()?.finance?.byVehicle ?? []).map((v) => ({

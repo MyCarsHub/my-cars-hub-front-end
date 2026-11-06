@@ -452,17 +452,6 @@
         </div>
     </section>
 
-    @if (overview() && hasAging()) {
-        <section class="mb-4" data-aging>
-            <app-ring-legend-card
-                title="Atraso por idade"
-                totalLabel="em atraso"
-                valueFormat="brl-cents"
-                [slices]="agingSlices()"
-            />
-        </section>
-    }
-
     <!--
         Ações rápidas.
 
