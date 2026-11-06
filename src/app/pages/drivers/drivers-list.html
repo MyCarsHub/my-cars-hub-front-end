@@ -156,11 +156,11 @@
               (click)="openDetail(driver)"
               (keydown.enter)="openDetail(driver)"
               tabindex="0"
-              [attr.aria-label]="'Ver detalhes de ' + driver.name"
+              [attr.aria-label]="'Ver detalhes de ' + (driver.name | personName)"
             >
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0 flex-1">
-                  <h3 class="text-sm font-semibold text-fg break-words">{{ driver.name }}</h3>
+                  <h3 class="text-sm font-semibold text-fg break-words">{{ driver.name | personName }}</h3>
                   <p class="text-xs text-fg-subtle mt-0.5 break-all">{{ driver.email ?? '—' }}</p>
                 </div>
                 <div class="flex flex-col items-end gap-1 shrink-0">
@@ -211,7 +211,7 @@
                     (click)="askToggleStatus(driver, $event)"
                     [disabled]="!canToggleStatus(driver)"
                     [attr.title]="toggleStatusTooltip(driver)"
-                    [attr.aria-label]="toggleStatusLabel(driver) + ' motorista ' + driver.name"
+                    [attr.aria-label]="toggleStatusLabel(driver) + ' motorista ' + (driver.name | personName)"
                     class="w-full flex items-center gap-2 px-3 py-3 text-sm hover:bg-surface-muted min-h-[44px]
                            disabled:opacity-40 disabled:cursor-not-allowed text-left"
                     [class.text-amber-800]="driver.status !== 'SUSPENDED'" [class.dark:text-amber-200]="driver.status !== 'SUSPENDED'"
@@ -255,8 +255,8 @@
                   (click)="openDetail(driver)"
                   (keydown.enter)="openDetail(driver)"
                   tabindex="0"
-                  [attr.aria-label]="'Ver detalhes de ' + driver.name">
-                  <td class="py-3 pr-4 font-medium text-fg">{{ driver.name }}</td>
+                  [attr.aria-label]="'Ver detalhes de ' + (driver.name | personName)">
+                  <td class="py-3 pr-4 font-medium text-fg">{{ driver.name | personName }}</td>
                   <td class="py-3 pr-4 text-fg-soft tabular-nums">{{ driver.licenseNumber ?? '—' }}</td>
                   <td class="py-3 pr-4 text-fg-soft">{{ driver.licenseCategory ?? '—' }}</td>
                   <td class="py-3 pr-4">
@@ -293,7 +293,7 @@
                           (click)="askToggleStatus(driver, $event)"
                           [disabled]="!canToggleStatus(driver)"
                           [attr.title]="toggleStatusTooltip(driver)"
-                          [attr.aria-label]="toggleStatusLabel(driver) + ' motorista ' + driver.name"
+                          [attr.aria-label]="toggleStatusLabel(driver) + ' motorista ' + (driver.name | personName)"
                           class="w-full px-3 py-2 min-h-[44px] text-xs hover:bg-surface-muted
                                  disabled:opacity-40 disabled:cursor-not-allowed text-left"
                           [class.text-amber-800]="driver.status !== 'SUSPENDED'" [class.dark:text-amber-200]="driver.status !== 'SUSPENDED'"

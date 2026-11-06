@@ -85,7 +85,7 @@
                 >
                   <option value="">Veículo: Todos</option>
                   @for (v of vehicles(); track v.id) {
-                    <option [value]="v.id">{{ formatPlate(v.plate) }} · {{ v.brand }} {{ v.model }}</option>
+                    <option [value]="v.id">{{ formatPlate(v.plate) }} · {{ v.brand | vehicleLabel: v.model }}</option>
                   }
                 </select>
               </div>
@@ -203,7 +203,7 @@
                           {{ formatPlate(f.vehiclePlate) }}
                         </b>
                         <small class="block text-xs text-fg-subtle mt-0.5 truncate">
-                          {{ f.vehicleBrand }} {{ f.vehicleModel }}
+                          {{ f.vehicleBrand | vehicleLabel: f.vehicleModel }}
                         </small>
                       </div>
                       <app-status-chip [tone]="progressBadge(f).tone" size="sm">{{ progressBadge(f).label }}</app-status-chip>
@@ -285,7 +285,7 @@
                     >
                       <td class="px-3 py-3.5">
                         <b class="block font-semibold text-fg tabular-nums tracking-wider">{{ formatPlate(f.vehiclePlate) }}</b>
-                        <small class="block text-xs text-fg-subtle">{{ f.vehicleBrand }} {{ f.vehicleModel }}</small>
+                        <small class="block text-xs text-fg-subtle">{{ f.vehicleBrand | vehicleLabel: f.vehicleModel }}</small>
                       </td>
                       <td class="px-3 py-3.5 tabular-nums whitespace-nowrap text-fg-soft">{{ formatDate(f.contractDate) }}</td>
                       <td class="px-3 py-3.5 font-semibold text-fg tabular-nums whitespace-nowrap">{{ formatCurrency(f.purchasePrice) }}</td>

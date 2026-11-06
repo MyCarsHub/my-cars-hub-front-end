@@ -36,6 +36,7 @@ import {
   DriverInspectionItem,
   DriverInspectionsHome,
 } from './driver/driver-inspections-home';
+import { formatVehicleLabel, formatPlate, formatModel } from '../../utils/display-format';
 
 /** O que cada filtro oferece. `ALL` nao vai para a query. */
 const STATUS_OPTIONS: ReadonlyArray<{ value: InspectionStatus | 'ALL'; label: string }> = [
@@ -295,7 +296,7 @@ export class InspectionsList implements OnInit {
     const toOptions = (items: VehicleListItem[]) =>
       items.map((v) => ({
         id: v.id,
-        label: [v.plate, v.model].filter(Boolean).join(' · '),
+        label: [formatPlate(v.plate, { hyphen: false, empty: '' }), formatModel(v.model)].filter(Boolean).join(' · '),
       }));
     const fetchPage = (page: number) =>
       this.vehicles.list({ page, size: VEHICLE_PAGE_SIZE, sort: 'plate_asc' });
@@ -326,10 +327,10 @@ export class InspectionsList implements OnInit {
         for (const rental of res.content ?? []) {
           if (seen.has(rental.vehicleId)) continue;
           seen.add(rental.vehicleId);
-          const car = [rental.vehicleBrand, rental.vehicleModel].filter(Boolean).join(' ');
+          const car = formatVehicleLabel(rental.vehicleBrand, rental.vehicleModel);
           found.push({
             vehicleId: rental.vehicleId,
-            plate: rental.vehiclePlate?.trim() || null,
+            plate: formatPlate(rental.vehiclePlate?.trim(), { hyphen: false, empty: '' }) || null,
             label: [rental.vehiclePlate, car].filter(Boolean).join(' · ') || 'Veículo do aluguel',
           });
         }

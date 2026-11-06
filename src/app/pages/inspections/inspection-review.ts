@@ -47,6 +47,8 @@ import {
 } from './inspection-view';
 import { INSPECTIONS_ROOT } from './driver/driver-inspection-guide';
 import { DetailField, DriverInspectionDetail } from './driver/driver-inspection-detail';
+import { formatPlate } from '../../utils/display-format';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 /** Motivo em branco e motivo vazio sao a mesma coisa para quem vai ler. */
 function notBlank(control: AbstractControl): ValidationErrors | null {
@@ -78,6 +80,7 @@ function notBlank(control: AbstractControl): ValidationErrors | null {
   selector: 'app-inspection-review',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
     ReactiveFormsModule,
     RouterLink,
     DefaultPageLayout,
@@ -153,7 +156,7 @@ export class InspectionReview implements OnInit {
     return `${kindLabel(current.kind)} realizada${when ? ` em ${when}` : ''}.`;
   });
 
-  protected readonly plate = computed(() => this.inspection()?.vehiclePlate?.trim() || null);
+  protected readonly plate = computed(() => formatPlate(this.inspection()?.vehiclePlate?.trim(), { hyphen: false, empty: '' }) || null);
   protected readonly vehicle = computed(() => {
     const current = this.inspection();
     return current ? carName(current) : null;

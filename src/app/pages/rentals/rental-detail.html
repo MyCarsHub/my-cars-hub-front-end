@@ -98,7 +98,7 @@
             </p>
             <p class="text-sm text-fg-subtle truncate">{{ vehicleLabel() }}</p>
             <p class="mt-2 text-xs uppercase tracking-wide text-fg-faint font-semibold">Motorista</p>
-            <p class="text-sm text-fg-body">{{ driverNameSig() }}</p>
+            <p class="text-sm text-fg-body">{{ driverNameSig() | personName }}</p>
           </div>
           <div class="shrink-0 flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
             @if (statusInfo(); as s) {

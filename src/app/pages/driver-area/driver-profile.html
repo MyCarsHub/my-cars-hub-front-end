@@ -362,7 +362,7 @@
                 Aluguel ativo
               </h2>
               <span class="font-mono text-2xl font-bold tracking-wide text-white break-all">
-                {{ rental.plate ?? 'Veículo' }}
+                {{ rental.plate ? (rental.plate | plate: false) : 'Veículo' }}
               </span>
             </div>
             <dl class="relative flex flex-col gap-2.5 text-sm">

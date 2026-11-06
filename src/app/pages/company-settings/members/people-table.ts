@@ -10,6 +10,7 @@ import {
   validityTextTone,
 } from './members.model';
 import { MembersIcon } from './members-icon';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 const CHIP =
   'whitespace-nowrap inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium';
@@ -18,7 +19,7 @@ const CHIP =
 @Component({
   selector: 'app-people-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, ActionsMenu, MembersIcon],
+  imports: [PersonNamePipe, DatePipe, ActionsMenu, MembersIcon],
   host: { class: 'block' },
   template: `
     <table class="w-full text-sm">
@@ -56,7 +57,7 @@ const CHIP =
                   {{ row.initial }}
                 </div>
                 <p class="font-medium text-fg break-words min-w-0">
-                  {{ row.name }}
+                  {{ row.name | personName }}
                   @if (row.isSelf) {
                     <span class="font-normal text-fg-subtle">(você)</span>
                   }
@@ -105,7 +106,7 @@ const CHIP =
                 @if (member.canRemove) {
                   <app-actions-menu
                     data-member-actions
-                    [label]="'Ações para ' + member.name"
+                    [label]="'Ações para ' + (member.name | personName)"
                     [menuWidth]="256"
                   >
                     <button

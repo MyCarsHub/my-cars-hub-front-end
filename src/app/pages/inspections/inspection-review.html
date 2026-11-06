@@ -163,7 +163,7 @@
           <div class="min-w-0 flex flex-col gap-0.5">
             <dt class="text-xs uppercase tracking-wide text-fg-subtle">Motorista</dt>
             <dd data-field="driver" class="text-sm font-medium text-fg break-words">
-              {{ driverName() ?? '—' }}
+              {{ (driverName() | personName) || '—' }}
             </dd>
           </div>
 

@@ -25,11 +25,14 @@ import { DriverResponse, DriverStatus, MARITAL_STATUS_LABELS } from '../../types
 import { driverStatusMeta, rentalStatusMeta } from '../../utils/status-maps';
 import { RentalService } from '../rentals/rental.service';
 import { RentalListItemDto } from '../../types/rental.types';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
+import { formatPersonName } from '../../utils/display-format';
 
 @Component({
   selector: 'app-driver-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
     BackLink,
     RouterLink,
     DefaultPageLayout,
@@ -319,8 +322,8 @@ export class DriverDetail implements OnInit {
     const d = this.driver();
     if (!d) return '';
     return d.status === 'SUSPENDED'
-      ? `Reativar «${d.name}»? O motorista voltará a ficar disponível para novos aluguéis.`
-      : `Suspender «${d.name}»? O motorista ficará bloqueado para novos aluguéis até ser reativado.`;
+      ? `Reativar «${formatPersonName(d.name)}»? O motorista voltará a ficar disponível para novos aluguéis.`
+      : `Suspender «${formatPersonName(d.name)}»? O motorista ficará bloqueado para novos aluguéis até ser reativado.`;
   }
 
   protected askDelete(): void {

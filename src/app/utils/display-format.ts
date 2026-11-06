@@ -87,7 +87,7 @@ function personWord(word: string, index: number, previous: string | null): strin
 /** "JOÃO DA SILVA" / "joão da silva" -> "João da Silva". Mixed-case input is left as typed. */
 export function formatPersonName(value: string | null | undefined): string {
   const text = collapse(value);
-  if (!text || !isUniformCase(text)) return text;
+  if (!text || text.includes('@') || !isUniformCase(text)) return text;
   const words = text.split(' ');
   return words.map((w, i) => personWord(w, i, i > 0 ? words[i - 1] : null)).join(' ');
 }

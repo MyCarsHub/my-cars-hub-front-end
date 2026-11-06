@@ -35,6 +35,9 @@ import { VehicleListItem } from '../../types/vehicle.types';
 import { ExpensePaidBy, EXPENSE_PAID_BY_DEFAULT, paidByOrDefault } from '../../types/expense-paid-by.types';
 import { PaidByField } from '../../components/paid-by/paid-by-field';
 import { DriverListItem } from '../../types/driver.types';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
+import { PlatePipe } from '../../pipes/plate.pipe';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 const SEVERITY_VALUES: FineSeverity[] = ['LEVE', 'MEDIA', 'GRAVE', 'GRAVISSIMA'];
 const STATUS_VALUES: FineStatus[] = ['PENDING', 'PAID', 'CONTESTED', 'CANCELED'];
@@ -42,7 +45,7 @@ const STATUS_VALUES: FineStatus[] = ['PENDING', 'PAID', 'CONTESTED', 'CANCELED']
 @Component({
   selector: 'app-fine-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl, PaidByField],
+  imports: [PersonNamePipe, PlatePipe, VehicleLabelPipe, ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl, PaidByField],
   templateUrl: './fine-form.html',
 })
 export class FineForm implements OnInit {

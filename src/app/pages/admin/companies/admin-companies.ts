@@ -39,6 +39,7 @@ import {
   AdminCompanyStatus,
 } from '../../../types/admin-company.types';
 import { subscriptionChip } from './subscription-status-chip';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 type StatusFilter = 'ALL' | 'ACTIVE' | 'SUSPENDED';
 type PlanFilter = 'ALL' | 'TRIAL_MONTHLY' | 'PRO_MONTHLY';
@@ -95,6 +96,7 @@ const PLAN_OPTIONS: readonly FilterChipOption<PlanFilter>[] = [
   selector: 'app-admin-companies',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
     AdminCompaniesTabs,
     ContactActions,
     BackLink,

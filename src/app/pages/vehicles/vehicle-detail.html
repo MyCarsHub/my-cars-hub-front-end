@@ -162,7 +162,7 @@
               <div appListRow>
                 <span class="tile" aria-hidden="true"><app-vehicle-icon name="car" /></span>
                 <span class="t">
-                  <b class="[overflow-wrap:anywhere]">{{ v.brand }} {{ v.model }}</b>
+                  <b class="[overflow-wrap:anywhere]">{{ v.brand | vehicleLabel: v.model }}</b>
                   <small>{{ v.yearManufacture }} / {{ v.yearModel }}{{ v.color ? ', ' + v.color : '' }}</small>
                 </span>
               </div>

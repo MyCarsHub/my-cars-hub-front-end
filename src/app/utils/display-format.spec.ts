@@ -67,6 +67,10 @@ describe('formatPersonName (FEAT-0556)', () => {
     expect(personInitial(null)).toBe('');
   });
 
+  it('never touches an e-mail address used as a fallback name', () => {
+    expect(formatPersonName('joao@example.com')).toBe('joao@example.com');
+  });
+
   it('leaves digits-only text untouched', () => {
     expect(formatPersonName('123')).toBe('123');
   });

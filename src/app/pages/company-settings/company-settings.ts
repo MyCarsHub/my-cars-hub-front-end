@@ -32,6 +32,7 @@ import {
 } from '../../utils/document-mask';
 import { LayoutStore } from '../../components/core/layouts/layout.store';
 import { UserCompanies } from '../../types/user-companies';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 const SAVE_FALLBACK = 'Não foi possível salvar os dados da empresa.';
 
@@ -126,6 +127,7 @@ function centre(element: HTMLElement | null): void {
 @Component({
   selector: 'app-company-settings',
   imports: [
+    PersonNamePipe,
     RouterLink,
     ReactiveFormsModule,
     DefaultPageLayout,

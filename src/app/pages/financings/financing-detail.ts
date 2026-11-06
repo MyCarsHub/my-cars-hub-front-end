@@ -21,11 +21,14 @@ import {
   FinancingDetail as FinancingDetailDto,
   FinancingInstallment,
 } from '../../types/vehicle.types';
+import { formatPlate } from '../../utils/display-format';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
 
 @Component({
   selector: 'app-financing-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    VehicleLabelPipe,
     BackLink,
     RouterLink,
     DefaultPageLayout,
@@ -281,9 +284,7 @@ export class FinancingDetail implements OnInit {
   }
 
   protected formatPlate(plate: string | undefined | null): string {
-    const p = (plate ?? '').toUpperCase();
-    if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
-    return p || '—';
+    return formatPlate(plate);
   }
 
   protected formatDate(iso: string | null | undefined): string {

@@ -78,11 +78,14 @@ import {
 import { EndRentalDialog, EndRentalDialogPayload } from './components/end-rental-dialog/end-rental-dialog';
 import { RENTAL_STATUS_META } from '../../utils/status-maps';
 import { todayInBusinessTz } from '../../utils/business-clock';
+import { formatPlate, formatVehicleLabel } from '../../utils/display-format';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 @Component({
   selector: 'app-rental-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
     BackLink,
     DefaultPageLayout,
     PageCard,
@@ -594,7 +597,7 @@ export class RentalDetail implements OnInit {
     const row = this.rentalService.items().find((item) => item.id === rentalId);
     if (!row) return;
     if (row.vehiclePlate) this.vehiclePlate.set(this.formatPlate(row.vehiclePlate));
-    const car = [row.vehicleBrand, row.vehicleModel].filter(Boolean).join(' ');
+    const car = formatVehicleLabel(row.vehicleBrand, row.vehicleModel);
     if (car) this.vehicleLabel.set(car);
     if (row.driverName) this.driverNameSig.set(row.driverName);
   }
@@ -603,7 +606,7 @@ export class RentalDetail implements OnInit {
     this.vehiclesService.getOne(id).subscribe({
       next: (v) => {
         this.vehiclePlate.set(this.formatPlate(v.plate));
-        this.vehicleLabel.set(`${v.brand} ${v.model}`);
+        this.vehicleLabel.set(formatVehicleLabel(v.brand, v.model));
       },
       error: () => {
         this.vehiclePlate.set('—');
@@ -1622,9 +1625,7 @@ export class RentalDetail implements OnInit {
   }
 
   protected formatPlate(plate: string): string {
-    const p = (plate ?? '').toUpperCase();
-    if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
-    return p || '—';
+    return formatPlate(plate);
   }
 
   protected formatDate(iso: string | null): string {

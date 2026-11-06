@@ -68,6 +68,8 @@ import {
   parsePtBrMoneyCents,
   parsePtBrNumber,
 } from '../../utils/ptbr-number';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
+import { PlatePipe } from '../../pipes/plate.pipe';
 
 /** Uma linha de peça do `FormArray`. */
 type ItemGroup = FormGroup<{
@@ -193,6 +195,8 @@ function hodometerValidator(required: boolean): ValidatorFn {
   selector: 'app-maintenance-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PlatePipe,
+    VehicleLabelPipe,
     ReactiveFormsModule,
     DefaultPageLayout,
     PageCard,
