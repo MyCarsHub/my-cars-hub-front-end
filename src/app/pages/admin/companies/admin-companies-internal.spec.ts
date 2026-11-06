@@ -86,8 +86,8 @@ describe('AdminCompanies — marca de empresa interna', () => {
   ): HTMLElement[] {
     const host = fixture.nativeElement as HTMLElement;
     const menus = Array.from(host.querySelectorAll('app-actions-menu'));
-    // os cards mobile vêm antes da tabela desktop: um menu por empresa em cada
-    const container = scope === 'mobile' ? menus[index] : menus[totalCompanies + index];
+    // app-data-list: a tabela (desktop) vem antes dos cartões (mobile): um menu por empresa em cada
+    const container = scope === 'desktop' ? menus[index] : menus[totalCompanies + index];
     container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')?.click();
     fixture.detectChanges();
     return Array.from(container.querySelectorAll<HTMLElement>('[role="menuitem"]'));
@@ -109,11 +109,11 @@ describe('AdminCompanies — marca de empresa interna', () => {
       expect(menus.length).toBe(4);
 
       // e o nome da interna está escrito na tela, nos dois layouts
-      const names = Array.from(host.querySelectorAll('a[aria-label^="Ver detalhes de"]')).map(
+      const names = Array.from(host.querySelectorAll('a[aria-label^="Abrir "]')).map(
         (el) => el.getAttribute('aria-label'),
       );
-      expect(names.filter((n) => n === 'Ver detalhes de Teste do Dono').length).toBe(2);
-      expect(names.filter((n) => n === 'Ver detalhes de Locadora Alpha').length).toBe(2);
+      expect(names.filter((n) => n === 'Abrir Teste do Dono').length).toBe(2);
+      expect(names.filter((n) => n === 'Abrir Locadora Alpha').length).toBe(2);
 
       // o menu da interna existe e oferece a volta atrás
       const labels = openMenuItems(fixture, scope, 1, 2).map((el) => el.textContent?.trim());

@@ -46,6 +46,16 @@ export interface AdminCompanyListItem {
    * ("(11) •••••-4321"); nulo = sem telefone. O numero inteiro so pela revelacao auditada.
    */
   ownerPhoneMasked?: string | null;
+  /** FEAT-0480 — cidade/UF do cadastro; nulos quando não preenchidos. */
+  city?: string | null;
+  uf?: string | null;
+  /**
+   * FEAT-0480 — valor GERIDO no mês corrente, em centavos: volume das cobranças de
+   * ALUGUEL que vencem no mês (mês pelo vencimento). 0 = empresa sem cobrança.
+   */
+  managedMonthCents?: number | null;
+  /** FEAT-0480 — MRR de tabela, em centavos; 0 sem assinatura vigente. */
+  mrrCents?: number | null;
 }
 
 export interface AdminCompanySubscriptionSnapshot {
@@ -61,6 +71,14 @@ export interface AdminCompanySubscriptionSnapshot {
   currentPeriodEnd: string | null;
   nextBillingDate: string | null;
   cancelAtPeriodEnd: boolean | null;
+  /** FEAT-0480 — preço de tabela no ciclo (centavos); nulo sem plano. */
+  listPriceCents?: number | null;
+  /** FEAT-0480 — cobrado no último pagamento confirmado; nulo sem pagamento. Zero é cupom de 100%. */
+  chargedCents?: number | null;
+  /** FEAT-0480 — tabela menos cobrado (mín. 0); nulo se um dos dois é nulo. */
+  discountCents?: number | null;
+  /** FEAT-0480 — DERIVADO, só Stripe; nulo nos demais casos. */
+  paymentMethod?: 'PIX' | 'CARD' | null;
 }
 
 export interface AdminCompanyMember {
@@ -71,6 +89,26 @@ export interface AdminCompanyMember {
   status: string;
   /** Admin v2 (D1) — so mascarado; nulo = sem telefone. */
   phoneMasked?: string | null;
+  /** FEAT-0480 — última requisição autenticada; esparso: nulo = sem registro, não "nunca acessou". */
+  lastSeenAt?: string | null;
+}
+
+export interface AdminCompanyMonthlyManaged {
+  /** `yyyy-MM`. */
+  month: string;
+  managedCents: number;
+}
+
+/**
+ * FEAT-0480 — financeiro do mês (centavos; só cobranças de ALUGUEL, mês pelo vencimento,
+ * sem canceladas/estornadas/liberadas) e série de 6 meses, do mais antigo ao corrente.
+ */
+export interface AdminCompanyFinance {
+  month: string;
+  managedMonthCents: number;
+  receivedMonthCents: number;
+  overdueMonthCents: number;
+  managedSeries: AdminCompanyMonthlyManaged[];
 }
 
 export interface AdminCompanyChargeIntegrationSnapshot {
@@ -241,4 +279,5 @@ export interface AdminCompanyDetail {
   operations: AdminCompanyOperations;
   /** Empresa INTERNA — fora das metricas da plataforma. */
   internal: boolean;
+  finance?: AdminCompanyFinance | null;
 }

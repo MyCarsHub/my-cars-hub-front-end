@@ -23,7 +23,7 @@ import { SupportEditStatus } from '../../../types/impersonation.types';
 const STATUS_URL = `${environment.apiUrl}/admin/impersonation/edit/status`;
 
 /**
- * Entrada do modo edição de suporte, ao lado de "Ver como empresa (leitura)".
+ * Entrada do modo edição de suporte, ao lado de "Ver como dono".
  *
  * Botão SEPARADO e confirmado: abrir uma sessão que ESCREVE nos dados do
  * cliente nunca é um clique só. A chave do servidor (`GET /status`) decide se o
@@ -108,7 +108,7 @@ export class SupportEditEntry implements OnInit {
     const window = minutes ? ` A sessão dura ${minutes} minutos e pode ser estendida.` : '';
     return (
       `Você vai poder alterar aluguéis e cancelar cobranças de caução de ${name}, ` +
-      `como se fosse a própria empresa. Tudo é registrado e visível para a empresa.${window}`
+      `como se fosse a própria empresa. Tudo fica no registro de auditoria, sem aviso ao cliente. Cobrança vencida continua valendo como prova.${window}`
     );
   });
 
