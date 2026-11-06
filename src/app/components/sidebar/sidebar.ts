@@ -520,14 +520,20 @@ export class Sidebar {
   constructor() {
     // Gaveta modal aberta: o foco vai para o Fechar; fechada, volta para o ☰ de quem abriu.
     let wasOpen = false;
+    let opener: HTMLElement | null = null;
     effect(() => {
       const open = this.modalDrawer() && this.layout.isMobile() && this.layout.isMobileOpen();
       if (open && !wasOpen) {
+        // Guarda quem tinha o foco ao abrir (o ☰ que o usuário tocou), sem saber que ele é o
+        // ☰: o Sidebar não depende do marcador de nenhuma barra de topo.
+        const active = this.doc.activeElement;
+        opener = active instanceof HTMLElement && active !== this.doc.body ? active : null;
         afterNextRender(() => this.closeButton()?.nativeElement.focus(), {
           injector: this.injector,
         });
       } else if (!open && wasOpen) {
-        this.doc.querySelector<HTMLElement>('[data-driver-top-bar] button')?.focus();
+        if (opener?.isConnected) opener.focus();
+        opener = null;
       }
       wasOpen = open;
     });
