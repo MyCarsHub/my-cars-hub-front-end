@@ -266,9 +266,6 @@ export class AppShell implements OnInit, OnDestroy {
     if (this.layout.isMobile()) {
       return 'mobile';
     }
-    if (this.adminArea()) {
-      return 'expanded';
-    }
     return this.layout.isCollapsed() ? 'collapsed' : 'expanded';
   }
 
