@@ -33,8 +33,8 @@ import { MonthlyBillingChart } from './components/monthly-billing-chart';
 import { OffenderRow, TopOffendersTable } from './components/top-offenders-table';
 import { FinancialCalendar } from './components/financial-calendar';
 import { CashflowDaySheet } from './components/cashflow-day-sheet';
-import { CashAccumulationCard } from './components/cash-accumulation-card';
 import { CashAccumulationResponse } from '../../types/cash-accumulation.types';
+import { cashAccumulationView, monthName } from '../../utils/cash-accumulation-view';
 import { ReportsService } from '../../services/reports.service';
 import { aggregateFleetRoi } from '../../types/reports.types';
 import { GrowthChart, GrowthSeries } from '../../components/charts/growth-chart/growth-chart';
@@ -126,7 +126,6 @@ function monthLong(key: string): string {
         QuickActionCard,
         AlertBanner,
         RouterLink,
-        CashAccumulationCard,
         KpiCard,
         ExpenseBreakdown,
     ],
@@ -166,6 +165,19 @@ export class DashboardHome {
      * porque um cartão de dinheiro sem dado não tem o que dizer.
      */
     protected readonly cashAccumulation = signal<CashAccumulationResponse | null>(null);
+
+    /** KPI "Já entrou em <mês>" (caixa): total + comparação com o mês passado. */
+    protected readonly cashKpi = computed(() => {
+        const response = this.cashAccumulation();
+        if (!response) return null;
+        const view = cashAccumulationView(response);
+        const arrow = view.trend === 'up' ? '▲' : view.trend === 'down' ? '▼' : '=';
+        return {
+            label: `Já entrou em ${monthName(response.current.month)}`,
+            totalCents: view.totalCents,
+            detail: `${arrow} ${view.comparison}`,
+        };
+    });
 
     protected readonly showVehicleRoi = signal(false);
     protected readonly vehicleRoi = this.reports.vehicleRoi;
@@ -267,6 +279,24 @@ export class DashboardHome {
     protected readonly vehicleRoiError = this.reports.vehicleRoiError;
 
     /**
+     * Conteúdo do KPI de ROI. Erro vira travessão + aviso; sem base é 0% (fato, não tarefa);
+     * base em minoria leva o cartão inteiro para a frota, onde o preço de compra se informa.
+     */
+    protected readonly roiKpi = computed<{ value: string | null; detail: string | null; link: string | null }>(() => {
+        if (this.vehicleRoiError()) return { value: '—', detail: 'não foi possível calcular', link: null };
+        if (this.fleetRoiIndeterminate()) return { value: '0%', detail: this.zeroMoney, link: null };
+        const label = this.fleetRoiPercentLabel();
+        if (!label) return { value: null, detail: null, link: null };
+        const base = this.fleetRoiBase();
+        const net = this.fleetRoiNetLabel();
+        return {
+            value: label,
+            detail: base ? `${net} · ${base.label}` : net,
+            link: base?.minority ? '/veiculos' : null,
+        };
+    });
+
+    /**
      * OPERADOR da empresa: quem o `roleGuard` aceita nas rotas de frota
      * (`/alugueis`, `/veiculos`, `/manutencoes`, `/multas`, `/seguros`,
      * `/motoristas` — todas `roleGuard(['OWNER', 'MANAGER'])`).
@@ -339,6 +369,10 @@ export class DashboardHome {
     protected readonly jumpToMonth = signal<string | null>(null);
 
     protected readonly offenderMode = signal<'vehicles' | 'drivers'>('vehicles');
+    protected readonly offenderModeOptions: PillTabOption<'vehicles' | 'drivers'>[] = [
+        { value: 'vehicles', label: 'Veículos' },
+        { value: 'drivers', label: 'Motoristas' },
+    ];
 
     /** Currently selected day in the calendar — drives the detail sheet. */
     protected readonly selectedDay = signal<string | null>(null);

@@ -124,11 +124,24 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
     expect(text(host)).toContain('Aluguéis por status');
   });
 
-  it('MANAGER sees the same page, with no subscription/billing block', () => {
-    const { host } = render(summaryWith(overview, 40000), 'MANAGER');
-    expect(host.querySelector('[data-result-section]')).not.toBeNull();
-    expect(host.querySelectorAll('[data-money-section] app-ring-legend-card').length).toBe(2);
-    expect(text(host)).not.toMatch(/assinatura|plano pro|fatura da assinatura/i);
+  it('MANAGER gets the same sections as the OWNER, in the same order', () => {
+    const sections = (host: HTMLElement): string[] =>
+      Array.from(host.querySelectorAll('section, [data-expenses-block]'))
+        .map((el) => text(el.querySelector('h2, h3, [data-testid]') ?? el).slice(0, 40) + '|' + el.getAttribute('aria-label'));
+    const owner = render(summaryWith(overview, 40000), 'OWNER').host;
+    const ownerSections = sections(owner);
+    const manager = render(summaryWith(overview, 40000), 'MANAGER').host;
+
+    expect(ownerSections.length).toBeGreaterThan(5);
+    expect(sections(manager)).toEqual(ownerSections);
+    expect(manager.querySelector('[data-result-section]')).not.toBeNull();
+    expect(manager.querySelector('[data-roi-card]')).not.toBeNull();
+    expect(manager.querySelectorAll('[data-money-section] app-ring-legend-card').length).toBe(2);
+  });
+
+  it('a non-operator role does not get the operator-only ROI card', () => {
+    const { host } = render(summaryWith(overview, 40000), 'DRIVER');
+    expect(host.querySelector('[data-roi-card]')).toBeNull();
   });
 
   it('tapping a month opens the detail with that month cost breakdown', () => {
