@@ -122,26 +122,6 @@
                   decisão deliberada do Dono e fica registrada na auditoria.
                 }
               </p>
-              @if (cancelNeedsProof()) {
-                <label class="flex flex-col gap-1">
-                  <span class="text-sm font-medium text-fg-muted">
-                    Digite <strong class="font-mono text-fg" data-testid="cancel-code">{{ confirmationCode() }}</strong> para confirmar
-                  </span>
-                  <input
-                    type="text"
-                    maxlength="64"
-                    autocomplete="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    data-testid="cancel-confirmation"
-                    class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base font-mono text-fg
-                           focus:outline-none focus:ring-2 focus:ring-primary-400"
-                    [value]="confirmation()"
-                    (input)="setConfirmation($event)"
-                  />
-                  <span class="text-xs text-fg-subtle">Os 8 primeiros caracteres do código da cobrança.</span>
-                </label>
-              }
             }
             @if (mode() === 'retry') {
               <p class="text-base text-fg-soft">
@@ -180,6 +160,26 @@
                 [noteCounter]="mode() === 'cancel'"
                 [noteHint]="mode() === 'cancel' ? 'Fica só no registro do cancelamento, não vai para o cliente.' : 'Não vai para o cliente nem para a trilha de auditoria.'"
               />
+            }
+            @if (mode() === 'cancel' && cancelNeedsProof()) {
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-fg-muted">
+                  Digite <strong class="font-mono text-fg" data-testid="cancel-code">{{ confirmationCode() }}</strong> para confirmar
+                </span>
+                <input
+                  type="text"
+                  maxlength="64"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  data-testid="cancel-confirmation"
+                  class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base font-mono text-fg
+                         focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  [value]="confirmation()"
+                  (input)="setConfirmation($event)"
+                />
+                <span class="text-xs text-fg-subtle">Os 8 primeiros caracteres do código da cobrança.</span>
+              </label>
             }
           </form>
         } @else {
