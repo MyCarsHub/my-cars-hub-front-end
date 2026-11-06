@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AdminUsers } from './admin-users';
 import { AdminUsersService } from '../admin-users.service';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import type { AdminUserListItem } from '../../../types/admin-user.types';
@@ -50,6 +51,7 @@ describe('AdminUsers — menu de ações', () => {
         provideRouter([]),
         provideNoopAnimations(),
         ApiErrorService,
+        { provide: AdminCapabilitiesService, useValue: { can: () => true, ensureLoaded: () => of(null) } },
         {
           provide: AdminUsersService,
           useValue: {
@@ -71,14 +73,14 @@ describe('AdminUsers — menu de ações', () => {
   });
 
   it.each(['mobile', 'desktop'] as const)(
-    'expõe Ver detalhes e Desativar no menu, sem nenhum item de papel de admin (%s)',
+    'expõe Abrir e Desativar no menu, sem nenhum item de papel de admin (%s)',
     (scope) => {
       const fixture = TestBed.createComponent(AdminUsers);
       fixture.detectChanges();
 
       const labels = openMenuItems(fixture, scope).map((el) => el.textContent?.trim());
 
-      expect(labels).toContain('Ver detalhes');
+      expect(labels).toContain('Abrir');
       // Lote 2A (dono, 29/10): conceder ou tirar papel de admin SO em "Admins e papeis".
       expect(labels.some((l) => /admin/i.test(l ?? ''))).toBe(false);
       expect(labels).toContain('Desativar');
