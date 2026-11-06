@@ -31,7 +31,7 @@ export function shortBrl(cents: number): string {
 }
 
 /**
- * Revenue x profit, one pair of bars per month (the dashboard prototype's "Faturamento vs lucro").
+ * Received x profit, one pair of bars per month (the dashboard prototype's "Recebido vs lucro").
  * The ONLY place the dashboard draws revenue by month: the tap on a month is the month selector,
  * so there are no pills under it. Both bars share one money axis anchored at zero; a negative
  * profit draws no bar (the axis starts at zero) but keeps its signed text, so a loss is never
@@ -46,7 +46,7 @@ export function shortBrl(cents: number): string {
         <ul class="flex gap-3 text-xs text-fg-muted mb-3 sm:hidden" aria-label="Legenda">
             <li class="inline-flex items-center gap-1.5">
                 <span class="size-2.5 rounded-[3px]" aria-hidden="true" style="background-color: #F63B04"></span>
-                Faturamento
+                Recebido
             </li>
             <li class="inline-flex items-center gap-1.5">
                 <span class="size-2.5 rounded-[3px]" aria-hidden="true" style="background-color: #0a9b62"></span>
@@ -61,7 +61,7 @@ export function shortBrl(cents: number): string {
             -->
             <p data-active-readout class="sm:hidden mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-fg-muted tabular-nums" aria-hidden="true">
                 <b class="font-semibold text-fg">{{ ab.label }}</b>
-                <span>Faturamento <b class="font-semibold text-fg">{{ ab.revenueText }}</b></span>
+                <span>Recebido <b class="font-semibold text-fg">{{ ab.revenueText }}</b></span>
                 <span>Lucro <b class="font-semibold" [class.text-fg]="!ab.profitNegative" [class.text-rose-500]="ab.profitNegative">{{ ab.profitText }}</b></span>
             </p>
         }
@@ -71,7 +71,7 @@ export function shortBrl(cents: number): string {
                 role="status"
                 class="flex-1 min-h-44 flex flex-col items-center justify-center gap-2 text-center text-sm text-fg-subtle px-4"
             >
-                <p>Ainda sem faturamento nos últimos 6 meses. Os números aparecem aqui assim que houver cobranças.</p>
+                <p>Ainda sem recebimentos nos últimos 6 meses. Os números aparecem aqui assim que houver pagamentos.</p>
                 @if (losses().length) {
                     <p data-losses class="text-xs text-rose-500">Resultado negativo: {{ losses().join(' · ') }}</p>
                 }
@@ -158,7 +158,7 @@ export class MonthlyResultChart {
                 revenuePct: (Math.max(0, m.revenueCents) / top) * 100,
                 profitPct: (Math.max(0, m.profitCents) / top) * 100,
                 profitNegative: m.profitCents < 0,
-                aria: `${label}: faturamento ${formatBRL(m.revenueCents)}, lucro ${formatBRL(m.profitCents)}`,
+                aria: `${label}: recebido ${formatBRL(m.revenueCents)}, lucro ${formatBRL(m.profitCents)}`,
             };
         });
     });

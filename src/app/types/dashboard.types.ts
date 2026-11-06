@@ -152,14 +152,14 @@ export interface ExpenseBreakdownDto {
 
 export interface FinanceDto {
     /**
-     * Revenue derived from the rental contract itself (ACTIVE + COMPLETED
-     * rentals intersecting the window, pro-rata). Independent of Asaas.
+     * FATURADO: cobranças de aluguel com vencimento na janela (sem caução, sem canceladas).
+     * O nome do campo é o mesmo de antes; o significado mudou.
      */
     revenueCents: number;
     /**
-     * Cash actually collected through the automatic-charge pipeline (Asaas)
-     * in the window. May legitimately be 0 when the tenant uses manual
-     * billing — revenue can still be > 0 in that case.
+     * RECEBIDO: caixa do dia (São Paulo) do pagamento, pelo valor efetivamente pago, sem caução;
+     * estornos subtraem. Pode passar do Faturado (caixa sobre competência): nunca exibir como
+     * percentual do faturado.
      */
     receivedCents: number;
     expensesCents: number;
@@ -186,11 +186,24 @@ export interface FinanceDto {
      * só tem manutenção e multas (os dois campos acima) para mostrar.
      */
     expenseBreakdown?: ExpenseBreakdownDto;
-    /** SUM de rental_charges PENDING criadas na janela (proxy "a receber"). */
+    /**
+     * A receber: parte do Faturado do período ainda PENDENTE com vencimento de hoje em diante.
+     * (Antes: PENDING criadas na janela.)
+     */
     pendingChargesCents: number;
-    /** SUM de rental_charges FAILED + PENDING vencidas (inadimplência de aluguéis). */
+    /** Em atraso (R$): SUM de rental_charges FAILED + PENDING vencidas. */
     overdueChargesCents: number;
-    /** Faturamento pro-rata na janela imediatamente anterior. */
+    /**
+     * Em atraso DO período: parte do Faturado do período que já venceu sem pagar. Opcional: um
+     * backend anterior não o envia, e aí a tela não mostra o percentual.
+     */
+    overdueInPeriodCents?: number | null;
+    /**
+     * Em atraso do período sobre o Faturado, em pontos-base (10000 = 100%). `null` quando o
+     * Faturado é zero; ausente num backend anterior. Nos dois casos a tela esconde o percentual.
+     */
+    overdueRateBp?: number | null;
+    /** Faturado do período imediatamente anterior. */
     previousRevenueCents: number;
     /** Recebido na janela imediatamente anterior. */
     previousReceivedCents: number;
@@ -284,7 +297,13 @@ export interface OverviewDto {
 export interface MonthlyResultDto {
     /** ISO `yyyy-MM`. */
     month: string;
+    /** RECEBIDO do mês (caixa). O nome do campo é herdado; o significado mudou. */
     revenueCents: number;
+    /**
+     * Venda de veículos do mês (entra no lucro, fica fora do Recebido). Opcional: ausente num
+     * backend anterior, e aí vale zero.
+     */
+    saleRevenueCents?: number | null;
     costCents: number;
     profitCents: number;
     costBreakdown: ExpenseBreakdownDto;

@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { ReportsOverviewResponse } from '../types/reports.types';
+import { REPORT_LABELS, ReportsOverviewResponse } from '../types/reports.types';
 import { PDF_TABLE_TOP_MARGIN, stampLogoOnEveryPage } from './report-pdf-logo';
 import { formatPlate, formatPersonName } from './display-format';
 
@@ -60,8 +60,8 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
     startY: 90,
     head: [['Financeiro', 'Valor']],
     body: [
-      ['Receita recebida', centsToBRL(report.financial.grossRevenueCents)],
-      ['Receita a receber (previsto)', centsToBRL(report.financial.accruedRevenueCents)],
+      [`${REPORT_LABELS.received} (${REPORT_LABELS.receivedHint})`, centsToBRL(report.financial.grossRevenueCents)],
+      [`${REPORT_LABELS.receivable} (${REPORT_LABELS.receivableHint})`, centsToBRL(report.financial.accruedRevenueCents)],
       ['Custo operacional', centsToBRL(report.financial.operatingCostCents)],
       ['Lucro líquido', centsToBRL(report.financial.netProfitCents)],
     ],
@@ -188,8 +188,8 @@ export function exportReportExcel(report: ReportsOverviewResponse): void {
     ['Período', `${fmtDate(report.from)} — ${fmtDate(report.to)}`],
     [],
     ['Financeiro', 'Valor (R$)'],
-    ['Receita recebida', (report.financial.grossRevenueCents ?? 0) / 100],
-    ['Receita a receber (previsto)', (report.financial.accruedRevenueCents ?? 0) / 100],
+    [`${REPORT_LABELS.received} (${REPORT_LABELS.receivedHint})`, (report.financial.grossRevenueCents ?? 0) / 100],
+    [`${REPORT_LABELS.receivable} (${REPORT_LABELS.receivableHint})`, (report.financial.accruedRevenueCents ?? 0) / 100],
     ['Custo operacional', (report.financial.operatingCostCents ?? 0) / 100],
     ['Lucro líquido', (report.financial.netProfitCents ?? 0) / 100],
     [],
@@ -262,8 +262,8 @@ export function reportToMarkdown(report: ReportsOverviewResponse): string {
   lines.push('');
   lines.push(`## Financeiro`);
   lines.push('');
-  lines.push(`- **Receita recebida:** ${centsToBRL(report.financial.grossRevenueCents)}`);
-  lines.push(`- **Receita a receber (previsto):** ${centsToBRL(report.financial.accruedRevenueCents)}`);
+  lines.push(`- **${REPORT_LABELS.received}:** ${centsToBRL(report.financial.grossRevenueCents)} (${REPORT_LABELS.receivedHint})`);
+  lines.push(`- **${REPORT_LABELS.receivable}:** ${centsToBRL(report.financial.accruedRevenueCents)} (${REPORT_LABELS.receivableHint})`);
   lines.push(`- **Custo operacional:** ${centsToBRL(report.financial.operatingCostCents)}`);
   lines.push(`- **Lucro líquido:** ${centsToBRL(report.financial.netProfitCents)}`);
   lines.push('');

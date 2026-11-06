@@ -178,7 +178,7 @@
             [loading]="loading() && !summary()"
             [value]="f ? f.revenueCents : null"
             [delta]="billingKpiDelta()"
-            [detail]="f && !billingKpiDelta() ? 'contratos assinados no período' : null"
+            [detail]="f && !billingKpiDelta() ? 'cobranças com vencimento no período' : null"
         ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" /></svg></div>
         <div
             app-kpi-card
@@ -191,7 +191,7 @@
             [loading]="loading() && !summary()"
             [value]="f ? f.receivedCents : null"
             [delta]="receivedKpiDelta()"
-            [detail]="f && !receivedKpiDelta() ? (receivedShareLabel() ?? 'de ' + billingLabel() + ' faturados') : null"
+            [detail]="f && !receivedKpiDelta() ? 'dinheiro que entrou no período' : null"
         ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6h20v12H2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /></svg></div>
         <div
             app-kpi-card
@@ -215,7 +215,8 @@
             [stagger]="3"
             [loading]="loading() && !summary()"
             [value]="f ? f.resultCents : null"
-            [detail]="marginDetail()"
+            [delta]="marginKpiDelta()"
+            [detail]="resultKpiDetail()"
         ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 7l-8.5 8.5-5-5L2 17 M16 7h6v6" /></svg></div>
         <div
             app-kpi-card
@@ -233,7 +234,7 @@
             app-kpi-card
             data-overdue-kpi
             variant="white"
-            label="Inadimplência"
+            label="Em atraso"
             numberFormat="brl-cents-whole"
             [anchored]="true"
             [stagger]="5"
@@ -248,7 +249,7 @@
         <h2 class="text-base font-semibold text-fg">Resultado do período</h2>
         @if (hasSaleRevenue()) {
             <p class="text-xs text-fg-muted" data-sale-revenue-card>
-                Venda de veículos no período: {{ saleRevenueLabel() }} (entrada única, fora do faturado).
+                Venda de veículos no período: {{ saleRevenueLabel() }} (entrada única: entra no lucro, fica fora do recebido).
             </p>
         }
     </div>
@@ -257,7 +258,7 @@
     </div>
 
     <!--
-        Faturamento x lucro (esquerda) e calendário financeiro (direita), mesma altura
+        Recebido x lucro (esquerda) e calendário financeiro (direita), mesma altura
         (items-stretch + app-page-card fill), como no protótipo. Sem `overview` do backend o
         gráfico some e o calendário ocupa a linha inteira.
     -->
@@ -267,11 +268,11 @@
         data-result-section
     >
         @if (hasResult()) {
-            <app-page-card class="dash-enter" title="Faturamento vs lucro" [fill]="true">
+            <app-page-card class="dash-enter" title="Recebido vs lucro" [fill]="true">
                 <ul cardActions class="hidden sm:flex gap-3 text-xs text-fg-muted" aria-label="Legenda">
                     <li class="inline-flex items-center gap-1.5">
                         <span class="size-2.5 rounded-[3px]" aria-hidden="true" style="background-color: #F63B04"></span>
-                        Faturamento
+                        Recebido
                     </li>
                     <li class="inline-flex items-center gap-1.5">
                         <span class="size-2.5 rounded-[3px]" aria-hidden="true" style="background-color: #0a9b62"></span>
@@ -290,7 +291,7 @@
             </app-page-card>
         } @else if (pending()) {
             <!-- Same slot as the chart card: while loading, the calendar never gets the whole row. -->
-            <app-card-skeleton title="Faturamento vs lucro" bodyClass="min-h-[22rem]" data-chart-skeleton />
+            <app-card-skeleton title="Recebido vs lucro" bodyClass="min-h-[22rem]" data-chart-skeleton />
         }
         <app-page-card class="dash-enter" style="--stagger-i: 1" title="Calendário financeiro" [fill]="true">
             <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1">
@@ -308,13 +309,17 @@
         <app-detail-dialog
             [open]="resultDetailOpen()"
             [title]="resultDetail()?.title ?? ''"
-            subtitle="Resultado do mês (caixa)"
+            subtitle="Resultado do mês (caixa): recebido + vendas − custos"
             (closed)="onResultDetailClosed()"
         >
             @if (resultDetail(); as d) {
-                <div class="grid gap-3 grid-cols-1 sm:grid-cols-3 mb-4" data-result-detail>
-                    <div app-kpi-card variant="white" size="compact" label="Faturamento"
+                <div class="grid gap-3 grid-cols-1 mb-4" [class.sm:grid-cols-3]="d.saleCents <= 0" [class.sm:grid-cols-2]="d.saleCents > 0" data-result-detail>
+                    <div app-kpi-card variant="white" size="compact" label="Recebido"
                         numberFormat="brl-cents" tone="success" [countUp]="false" [value]="d.revenueCents"></div>
+                    @if (d.saleCents > 0) {
+                        <div app-kpi-card variant="white" size="compact" label="Venda de veículos" data-result-sale
+                            numberFormat="brl-cents" tone="success" [countUp]="false" [value]="d.saleCents"></div>
+                    }
                     <div app-kpi-card variant="white" size="compact" label="Custos"
                         numberFormat="brl-cents" tone="danger" [countUp]="false" [value]="d.costCents"></div>
                     <div app-kpi-card variant="white" size="compact" label="Lucro"
@@ -382,7 +387,7 @@
         <!-- Este mês vs mês passado (caixa): só some se o endpoint falhar. -->
         @if (cashView(); as cv) {
             <div class="dash-enter min-w-0 md:col-span-2 xl:col-span-12 xl:order-2" style="--stagger-i: 2" data-cash-section>
-                <app-page-card title="Este mês vs mês passado" [fill]="true">
+                <app-page-card title="Recebido no mês (acumulado)" [fill]="true">
                     <span cardActions class="contents">
                     @if (cashLead(); as lead) {
                         <span
@@ -394,7 +399,7 @@
                     }
                     </span>
                     <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1">
-                        <p class="text-xs text-fg-muted mb-1 -mt-3">Quanto já recebi, dia a dia</p>
+                        <p class="text-xs text-fg-muted mb-1 -mt-3">Comparado ao mesmo dia do mês passado</p>
                         <p class="sr-only" data-cash-summary>
                             {{ cv.total }} recebidos em {{ cashMonthLabel() }} · {{ cv.comparison }}
                         </p>
@@ -421,7 +426,7 @@
         } @else if (cashPending()) {
             <app-card-skeleton
                 class="md:col-span-2 xl:col-span-12 xl:order-2"
-                title="Este mês vs mês passado"
+                title="Recebido no mês (acumulado)"
                 bodyClass="min-h-[20rem]"
                 data-cash-skeleton
             />
@@ -434,14 +439,14 @@
             <app-ranking-card
                 class="dash-enter xl:col-span-5 xl:order-4" style="--stagger-i: 3"
                 title="Top 5 veículos por receita"
-                subtitle="Quais carros mais rendem neste mês"
+                subtitle="Quais carros mais rendem, por valor recebido"
                 layout="bars"
                 [items]="topVehiclesByRevenue()"
             />
             <app-ranking-card
                 class="dash-enter xl:col-span-5 xl:order-5" style="--stagger-i: 4"
                 title="Top 5 motoristas por receita"
-                subtitle="Quem mais gerou receita neste mês"
+                subtitle="Quem mais gerou receita, por valor recebido"
                 layout="podium"
                 [items]="topDriversByRevenue()"
             />

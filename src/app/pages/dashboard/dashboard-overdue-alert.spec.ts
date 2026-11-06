@@ -157,7 +157,7 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
     expect(chip).not.toBeNull();
     expect(chip!.textContent).toContain('cobranças vencidas');
     expect(chip!.textContent).toContain('3');
-    // canvas: the chip is only count + label; the amount lives in the Inadimplência KPI
+    // canvas: the chip is only count + label; the amount lives in the Em atraso KPI
     expect(chip!.textContent).not.toContain('1.234,56');
     // rose, com variante escura (tokens do tema)
     const button = chip!.querySelector('button')!;

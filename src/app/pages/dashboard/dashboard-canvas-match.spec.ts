@@ -136,7 +136,7 @@ describe('DashboardHome — canvas match', () => {
     expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 41.300');
   });
 
-  it('Despesas and Inadimplência values are white (default tone), not rose', () => {
+  it('Despesas and Em atraso values are white (default tone), not rose', () => {
     const host = render();
     for (const sel of ['[data-expenses-kpi]', '[data-overdue-kpi]']) {
       expect(host.querySelector(sel)!.innerHTML).not.toContain('text-rose');
@@ -183,7 +183,7 @@ describe('DashboardHome — canvas match', () => {
     expect(chips.some((c) => c.startsWith('Onix AAA-1A11'))).toBe(true);
   });
 
-  it('the newest month of Faturamento vs lucro gets the lighter plate and a bold label', () => {
+  it('the newest month of Recebido vs lucro gets the lighter plate and a bold label', () => {
     const host = render();
     const bars = Array.from(host.querySelectorAll('[data-month-bar]'));
     expect(bars[2].className).toContain('bg-gray-100');
