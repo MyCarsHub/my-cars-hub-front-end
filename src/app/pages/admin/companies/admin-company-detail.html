@@ -139,8 +139,7 @@
           class="mt-3 rounded-xl bg-primary-50 dark:bg-primary-500/10 px-3 py-2.5 text-xs text-primary-800 dark:text-primary-200"
           data-testid="edit-mode-note"
         >
-          Modo edição: tudo que você mudar fica no registro de auditoria, sem aviso ao cliente.
-          Cobrança vencida continua valendo como prova e não pode ser apagada.
+          Modo edição: tudo que você mudar fica no registro de auditoria, sem e-mail ao cliente.
         </p>
       }
 
@@ -169,15 +168,15 @@
     <!-- Financeiro (FEAT-0480): valor gerenciado = volume das cobranças de aluguel por mês de vencimento. -->
     <section class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" aria-label="Financeiro do mês" data-testid="finance-tiles">
       @for (tile of financeTiles(); track tile.key) {
-        <div class="rounded-2xl bg-surface-muted p-4 min-w-0" [attr.data-tile]="tile.key">
-          <p class="text-xs text-fg-muted">{{ tile.label }}</p>
-          <p
-            class="mt-1 text-lg font-semibold tabular-nums break-words"
-            [class]="tile.tone === 'good' ? 'text-emerald-700 dark:text-emerald-300' : tile.tone === 'bad' ? 'text-rose-700 dark:text-rose-300' : 'text-fg'"
-          >
-            {{ tile.value }}
-          </p>
-        </div>
+        <div
+          app-kpi-card
+          variant="white"
+          size="compact"
+          [label]="tile.label"
+          [value]="tile.value"
+          [tone]="tile.tone === 'good' ? 'success' : tile.tone === 'bad' ? 'danger' : 'default'"
+          [attr.data-tile]="tile.key"
+        ></div>
       }
     </section>
 
