@@ -40,8 +40,8 @@ describe('AdminCompanies — menu de ações', () => {
   ): HTMLElement[] {
     const host = fixture.nativeElement as HTMLElement;
     const containers = Array.from(host.querySelectorAll('app-actions-menu'));
-    // os cards mobile vêm antes da tabela desktop no template
-    const container = scope === 'mobile' ? containers[0] : containers[containers.length - 1];
+    // app-data-list: a tabela (desktop) vem antes dos cartões (mobile)
+    const container = scope === 'desktop' ? containers[0] : containers[containers.length - 1];
     container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')?.click();
     fixture.detectChanges();
     return Array.from(container.querySelectorAll<HTMLElement>('[role="menuitem"]'));
@@ -75,14 +75,14 @@ describe('AdminCompanies — menu de ações', () => {
   });
 
   it.each(['mobile', 'desktop'] as const)(
-    'expõe Ver detalhes e Suspender no menu (%s)',
+    'expõe Abrir e Suspender no menu (%s)',
     (scope) => {
       const fixture = TestBed.createComponent(AdminCompanies);
       fixture.detectChanges();
 
       const labels = openMenuItems(fixture, scope).map((el) => el.textContent?.trim());
 
-      expect(labels).toContain('Ver detalhes');
+      expect(labels).toContain('Abrir');
       expect(labels).toContain('Suspender');
       // "Suspender" é a última (destrutiva) do menu
       expect(labels[labels.length - 1]).toBe('Suspender');

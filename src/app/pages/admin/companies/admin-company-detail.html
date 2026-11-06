@@ -43,6 +43,7 @@
               </span>
             }
           </div>
+          <p class="mt-1 text-sm text-fg-subtle" data-testid="company-place">{{ place() }}</p>
           <p class="mt-1 text-sm text-fg-subtle tabular-nums">
             CNPJ {{ company.documentMasked ?? '—' }}
           </p>
@@ -64,7 +65,7 @@
             (click)="startImpersonation()"
             [disabled]="impersonationStarting()"
           >
-            {{ impersonationStarting() ? 'Abrindo sessão…' : 'Ver como empresa (leitura)' }}
+            {{ impersonationStarting() ? 'Abrindo sessão…' : 'Ver como dono' }}
           </button>
 }
 @if (caps.can('modo_edicao')) {
@@ -128,10 +129,20 @@
       </div>
 
       <p class="mt-3 text-xs text-fg-subtle">
-        "Ver como empresa" abre uma sessão de <strong>somente leitura</strong> de 15 minutos:
+        "Ver como dono" abre uma sessão de <strong>somente leitura</strong> de 15 minutos:
         você navega pelas telas desta empresa sem poder alterar nada, e encerra pelo aviso
         no topo da tela.
       </p>
+
+      @if (caps.can('modo_edicao')) {
+        <p
+          class="mt-3 rounded-xl bg-primary-50 dark:bg-primary-500/10 px-3 py-2.5 text-xs text-primary-800 dark:text-primary-200"
+          data-testid="edit-mode-note"
+        >
+          Modo edição: tudo que você mudar fica no registro de auditoria, sem aviso ao cliente.
+          Cobrança vencida continua valendo como prova e não pode ser apagada.
+        </p>
+      }
 
       @if (impersonationError(); as impErr) {
         <div class="mt-3">
@@ -154,6 +165,36 @@
       />
     </div>
 }
+
+    <!-- Financeiro (FEAT-0480): valor gerenciado = volume das cobranças de aluguel por mês de vencimento. -->
+    <section class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" aria-label="Financeiro do mês" data-testid="finance-tiles">
+      @for (tile of financeTiles(); track tile.key) {
+        <div class="rounded-2xl bg-surface-muted p-4 min-w-0" [attr.data-tile]="tile.key">
+          <p class="text-xs text-fg-muted">{{ tile.label }}</p>
+          <p
+            class="mt-1 text-lg font-semibold tabular-nums break-words"
+            [class]="tile.tone === 'good' ? 'text-emerald-700 dark:text-emerald-300' : tile.tone === 'bad' ? 'text-rose-700 dark:text-rose-300' : 'text-fg'"
+          >
+            {{ tile.value }}
+          </p>
+        </div>
+      }
+    </section>
+
+    <div class="mb-4">
+      <app-page-card title="Valor gerenciado por mês">
+        <div class="p-4 sm:p-6" data-testid="managed-series">
+          <p class="mb-3 text-xs text-fg-subtle" title="Soma das cobranças de aluguel pelo mês de vencimento, sem canceladas, estornadas ou liberadas; não inclui caução.">
+            Dinheiro de aluguel que passou pela empresa, pelo mês de vencimento das cobranças.
+          </p>
+          @if (managedBars().length > 0) {
+            <app-bar-chart [data]="managedBars()" />
+          } @else {
+            <p class="text-sm text-fg-subtle" data-testid="managed-series-empty">—</p>
+          }
+        </div>
+      </app-page-card>
+    </div>
 
     <!-- Assinatura -->
     <app-page-card title="Assinatura">
@@ -202,6 +243,12 @@
                 {{ sub.externalIdMasked ?? '—' }}
               </p>
             </div>
+            @for (row of subscriptionRows(); track row.label) {
+              <div data-testid="sub-row">
+                <p class="text-xs text-fg-subtle uppercase tracking-wide">{{ row.label }}</p>
+                <p class="text-sm text-fg mt-1 tabular-nums">{{ row.value }}</p>
+              </div>
+            }
             @if (sub.trialEndsAt) {
               <div>
                 <p class="text-xs text-fg-subtle uppercase tracking-wide">Fim do trial</p>
@@ -453,6 +500,7 @@
                   </div>
                   <p class="mt-2 text-xs text-fg-muted">
                     Papel: <span class="font-medium text-fg-body">{{ roleLabel(member.role) }}</span>
+                    · Visto: <span class="font-medium text-fg-body" data-testid="last-seen">{{ lastSeenLabel(member.lastSeenAt) }}</span>
                   </p>
 @if (caps.can('contato.ver')) {
                   <app-contact-actions
@@ -477,6 +525,7 @@
                     <th class="py-3 pr-4 font-medium">Telefone</th>
                     <th class="py-3 pr-4 font-medium">Papel</th>
                     <th class="py-3 pr-4 font-medium">Status</th>
+                    <th class="py-3 pr-4 font-medium">Visto por último</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -511,6 +560,7 @@
                           {{ member.status }}
                         </span>
                       </td>
+                      <td class="py-3 pr-4 text-fg-soft" data-testid="last-seen">{{ lastSeenLabel(member.lastSeenAt) }}</td>
                     </tr>
                   }
                 </tbody>
