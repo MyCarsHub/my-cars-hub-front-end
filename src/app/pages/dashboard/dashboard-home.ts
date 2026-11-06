@@ -25,18 +25,16 @@ import {
     MonthlyResultDto,
     formatBRL,
 } from '../../types/dashboard.types';
-import { DateRange, DateRangePicker } from '../../components/date-range-picker/date-range-picker';
+import { DateRange, DateRangePicker, DateRangePresetKey } from '../../components/date-range-picker/date-range-picker';
 import { AlertChip } from './components/alert-chip';
 import { FailedChargeNotices } from './components/failed-charge-notices';
-import { MonthlyResultChart } from './components/monthly-result-chart';
-import { OffenderRow, TopOffendersTable } from './components/top-offenders-table';
+import { MonthlyResultChart, shortBrl } from './components/monthly-result-chart';
+import { OffenderRow } from './components/top-offenders-table';
 import { FinancialCalendar } from './components/financial-calendar';
 import { CashflowDaySheet } from './components/cashflow-day-sheet';
 import { CashAccumulationResponse } from '../../types/cash-accumulation.types';
 import { cashAccumulationView, monthName } from '../../utils/cash-accumulation-view';
 import { MONEY_AXIS_FLOOR_CENTS } from '../../utils/money-axis';
-import { ReportsService } from '../../services/reports.service';
-import { aggregateFleetRoi } from '../../types/reports.types';
 import { GrowthChart, GrowthSeries } from '../../components/charts/growth-chart/growth-chart';
 import { RingLegendCard, RingSlice } from '../../components/charts/ring-legend-card/ring-legend-card';
 import { RankingCard, RankingItem } from '../../components/charts/ranking-card/ranking-card';
@@ -108,7 +106,6 @@ function monthLong(key: string): string {
         AlertChip,
         FailedChargeNotices,
         MonthlyResultChart,
-        TopOffendersTable,
         FinancialCalendar,
         CashflowDaySheet,
         GrowthChart,
@@ -130,7 +127,6 @@ export class DashboardHome {
     private readonly doc = inject(DOCUMENT);
     private readonly access = inject(BillingAccessService);
     private readonly activation = inject(FleetActivationService);
-    private readonly reports = inject(ReportsService);
 
     private readonly session = inject(SessionService);
 
@@ -148,7 +144,6 @@ export class DashboardHome {
      */
     protected readonly showActivationReminder = signal(false);
 
-    /** Card de ROI: so OWNER/MANAGER (o backend recusa DRIVER com 403). */
     /**
      * FEAT-0123 — curva acumulada do dinheiro RECEBIDO no mês.
      *
@@ -183,6 +178,16 @@ export class DashboardHome {
         (this.cashView()?.current.points ?? []).map((p) => String(p.day)),
     );
 
+    /** Chip of the cash card: how far ahead of (or behind) last month at the same day; null without a base. */
+    protected readonly cashLead = computed(() => {
+        const v = this.cashView();
+        if (!v) return null;
+        const prev = v.previous.points[v.current.points.length - 1]?.cents ?? 0;
+        if (!(prev > 0)) return null;
+        const pct = Math.round(((v.totalCents - prev) / prev) * 100);
+        return { up: pct >= 0, text: `${pct >= 0 ? '↗' : '↘'} ${Math.abs(pct)}% ${pct >= 0 ? 'à frente' : 'atrás'}` };
+    });
+
     protected readonly cashSeries = computed<GrowthSeries[]>(() => {
         const view = this.cashView();
         if (!view) return [];
@@ -202,140 +207,6 @@ export class DashboardHome {
                 values: view.current.points.map((p) => p.cents),
             },
         ];
-    });
-
-    protected readonly showVehicleRoi = signal(false);
-    protected readonly vehicleRoi = this.reports.vehicleRoi;
-
-    /**
-     * ROI da frota para o card KPI (FIX-0420).
-     *
-     * A lista por veiculo saiu do dashboard — ela vira a visao da GERENCIA DO
-     * VEICULO (FEAT-0119). Aqui fica UM numero, no formato dos outros KPIs.
-     *
-     * A agregacao IGNORA o veiculo sem preco de compra, e por isso o template
-     * mostra a base quando ela difere do total: ver `aggregateFleetRoi`.
-     */
-    protected readonly fleetRoi = computed(() => {
-        const roi = this.vehicleRoi();
-        return roi ? aggregateFleetRoi(roi.vehicles) : null;
-    });
-
-    /** Percentual ja formatado; `null` quando nao ha base para afirmar nada. */
-    protected readonly fleetRoiPercentLabel = computed(() => {
-        const summary = this.fleetRoi();
-        if (!summary || summary.roiPercent === null) return null;
-        const value = summary.roiPercent;
-        const formatted = value.toLocaleString('pt-BR', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 1,
-        });
-        // O "+" e explicito como na Utilizacao: o sinal faz parte da leitura.
-        return `${value > 0 ? '+' : ''}${formatted}%`;
-    });
-
-    /** "R$ X ja devolvido" / "R$ X no prejuizo" — o dinheiro que o dono pediu. */
-    protected readonly fleetRoiNetLabel = computed(() => {
-        const summary = this.fleetRoi();
-        if (!summary || summary.roiPercent === null) return null;
-        const net = summary.netCents;
-        return net < 0
-            ? `${formatBRL(Math.abs(net))} no prejuízo`
-            : `${formatBRL(net)} já devolvido`;
-    });
-
-    /**
-     * Ressalva sobre a base do numero, SO quando ela difere do total. Excluir em
-     * silencio seria trocar um numero inflado por um numero mudo.
-     *
-     * A ressalva e GRADUADA, e a gradacao e o ponto: desvio pequeno merece
-     * rodape, desvio grande merece aviso. Com a base em MINORIA (menos da metade
-     * da frota tem preco de compra) o dono pode ler "+35%" sem reparar que
-     * aquilo fala de 3 carros de 40 — e decidir comprar mais carro com base
-     * nisso. Ai a linha sai do cinza pequeno, ganha peso de aviso (ambar, como o
-     * estado indeterminado) e passa a dizer o que FALTA, com o caminho para
-     * resolver, em vez de so contar.
-     *
-     * O numero continua na tela nos dois casos: nao se esconde dado que existe —
-     * o `purchase_price` (V71) e recente e hoje boa parte da frota nao o tem, de
-     * modo que esconder transformaria o cartao em travessao justamente na
-     * estreia. Quem some e a duvida sobre o que o numero cobre.
-     */
-    protected readonly fleetRoiBase = computed(() => {
-        const summary = this.fleetRoi();
-        if (!summary || summary.known === 0 || summary.known === summary.total) return null;
-
-        // "Menos da metade": 2 de 4 ainda e metade, e nao dispara o aviso.
-        const minority = summary.known * 2 < summary.total;
-
-        return {
-            minority,
-            label: minority
-                ? `só ${summary.known} de ${summary.total} veículos têm preço de compra`
-                : `base: ${summary.known} de ${summary.total} veículos`,
-        };
-    });
-
-    /** Valor exibido quando nao ha base para calcular — ver o template. */
-    protected readonly zeroMoney = formatBRL(0);
-
-    /**
-     * Cor do numero grande. Zero NAO e lucro nem prejuizo: cai no neutro, como a
-     * Utilizacao faz com 0%. Decidir por `net >= 0` pintaria o zero de verde,
-     * afirmando lucro onde nao ha nenhum.
-     */
-    protected readonly fleetRoiTone = computed<'positive' | 'negative' | 'neutral'>(() => {
-        const net = this.fleetRoi()?.netCents ?? 0;
-        if (net > 0) return 'positive';
-        if (net < 0) return 'negative';
-        return 'neutral';
-    });
-
-    /**
-     * Sem base para calcular o ROI. Hoje isso cobre DOIS casos: frota vazia
-     * (nenhum veiculo) e frota com carros mas nenhum deles com preco de compra.
-     * Os dois caem em `roiPercent === null` e recebem o mesmo R$ 0,00.
-     */
-    protected readonly fleetRoiIndeterminate = computed(() => {
-        const summary = this.fleetRoi();
-        return !!summary && summary.roiPercent === null;
-    });
-    protected readonly vehicleRoiLoading = this.reports.vehicleRoiLoading;
-    protected readonly vehicleRoiError = this.reports.vehicleRoiError;
-
-    /**
-     * Conteúdo do KPI de ROI. Erro vira travessão + aviso; sem base é 0% (fato, não tarefa);
-     * base em minoria leva o cartão inteiro para a frota, onde o preço de compra se informa.
-     */
-    protected readonly roiKpi = computed<{ value: string | null; detail: string | null; link: string | null }>(() => {
-        if (this.vehicleRoiError()) return { value: '—', detail: 'não foi possível calcular', link: null };
-        const summary = this.fleetRoi();
-        if (this.fleetRoiIndeterminate()) {
-            // Sem preço de compra em nenhum veículo não há ROI a calcular: caminho para resolver.
-            return {
-                value: '—',
-                detail: summary && summary.total > 0 ? 'informe o preço de compra dos veículos' : 'cadastre veículos para medir o retorno',
-                link: summary && summary.total > 0 ? '/veiculos' : null,
-            };
-        }
-        // Nada devolvido ainda: -100% seria só "ainda não recebi nada", não prejuízo medido.
-        if (summary && summary.returnedCents === 0) {
-            const base = this.fleetRoiBase();
-            return {
-                value: '—',
-                detail: base?.minority ? base.label : 'ainda sem receita para medir o retorno',
-                link: base?.minority ? '/veiculos' : null,
-            };
-        }
-        const label = this.fleetRoiPercentLabel();
-        if (!label) return { value: null, detail: null, link: null };
-        const base = this.fleetRoiBase();
-        const net = this.fleetRoiNetLabel();
-        return {
-            value: label,
-            detail: base ? `${net} · ${base.label}` : net,
-            link: base?.minority ? '/veiculos' : null,
-        };
     });
 
     /**
@@ -378,14 +249,6 @@ export class DashboardHome {
                 error: () => this.cashAccumulation.set(null),
             });
 
-        this.showVehicleRoi.set(this.isOperator());
-        if (this.showVehicleRoi()) {
-            this.reports
-                .loadVehicleRoi()
-                .pipe(takeUntilDestroyed())
-                .subscribe({ error: () => undefined });
-        }
-
         if (eligible) {
             this.activation
                 .hasVehicles()
@@ -396,6 +259,11 @@ export class DashboardHome {
                 });
         }
     }
+
+    /** Period pills of the prototype (no "Próximos" projections here). */
+    protected readonly periodPresets: readonly DateRangePresetKey[] = [
+        'today', '7d', '30d', 'monthCurrent', 'monthPast', 'year', 'custom',
+    ];
 
     protected readonly summary = signal<DashboardSummaryDto | null>(null);
     protected readonly loading = signal(false);
@@ -531,21 +399,50 @@ export class DashboardHome {
         return this.formatDelta(f?.receivedCents ?? 0, f?.previousReceivedCents ?? 0);
     });
 
-    /** Delta as the KPI card wants it (text + tone); `null` when there is no base to compare. */
-    private kpiDelta(d: DeltaInfo, suffix: string): KpiDelta | null {
+    /** Delta as the KPI card wants it: a tinted chip (`↗ 8%`) plus a caption; `null` with no base to compare. */
+    private kpiDelta(d: DeltaInfo, caption: string): KpiDelta | null {
         if (!d.label) return null;
-        const arrow = d.direction === 'up' ? '▲ ' : d.direction === 'down' ? '▼ ' : '';
+        const arrow = d.direction === 'up' ? '↗ ' : d.direction === 'down' ? '↘ ' : '';
         const tone = d.direction === 'up' ? 'good' : d.direction === 'down' ? 'bad' : 'neutral';
-        return { text: `${arrow}${d.label} ${suffix}`, tone };
+        return { chip: `${arrow}${d.label.replace(/^[+-]/, '')}`, text: caption, tone };
     }
 
     protected readonly billingKpiDelta = computed(() =>
         this.kpiDelta(this.billingDelta(), 'vs período anterior'),
     );
 
+    /** Share of the billed amount already received (`90% do faturado`), the caption of the received card. */
+    protected readonly receivedShareLabel = computed(() => {
+        const f = this.summary()?.finance;
+        if (!f || !(f.revenueCents > 0)) return null;
+        return `${Math.round((f.receivedCents / f.revenueCents) * 100)}% do faturado`;
+    });
+
     protected readonly receivedKpiDelta = computed(() =>
-        this.kpiDelta(this.receivedDelta(), 'vs anterior'),
+        this.kpiDelta(this.receivedDelta(), this.receivedShareLabel() ?? 'vs período anterior'),
     );
+
+    /** `margem 40%` of the result over the billed amount; the plain caption when nothing was billed. */
+    protected readonly marginDetail = computed(() => {
+        const f = this.summary()?.finance;
+        if (!f) return null;
+        if (!(f.revenueCents > 0)) return 'receita menos despesas';
+        return `margem ${Math.round((f.resultCents / f.revenueCents) * 100)}%`;
+    });
+
+    /** Overdue card caption: how many charges are behind it (`3 cobranças`), else the plain caption. */
+    protected readonly overdueDetailLabel = computed(() => {
+        const f = this.summary()?.finance;
+        if (!f) return null;
+        const n = this.summary()?.alerts?.overdueCharges?.count ?? 0;
+        return n > 0 ? `${n} ${n === 1 ? 'cobrança' : 'cobranças'}` : 'cobranças vencidas ou falhas';
+    });
+
+    /** "Olá, Lorran": first name from the session; plain "Olá" when the session has none. */
+    protected readonly greeting = computed(() => {
+        const first = this.session.getItem('name')?.trim().split(/\s+/)[0];
+        return first ? `Olá, ${first}` : 'Olá';
+    });
 
     // ---- Venda de veículos (FEAT-0074) -----------------------------------
 
@@ -624,12 +521,15 @@ export class DashboardHome {
         this.resultDetailOpen.set(false);
     }
 
-    protected readonly costSlices = computed<RingSlice[]>(() =>
-        (this.overview()?.costByCategory ?? []).map((c) => {
+    /** Where each real received goes: what is left (profit) first, then each cost category. */
+    protected readonly costSlices = computed<RingSlice[]>(() => {
+        const costs = (this.overview()?.costByCategory ?? []).map((c) => {
             const meta = COST_CATEGORY_META[c.category] ?? { label: c.category, color: '#9ca3af' };
             return { label: meta.label, value: c.amountCents, color: meta.color };
-        }),
-    );
+        });
+        const profit = Math.max(0, this.summary()?.finance?.resultCents ?? 0);
+        return [{ label: 'Lucro', value: profit, color: '#0a9b62' }, ...costs];
+    });
 
     protected readonly agingSlices = computed<RingSlice[]>(() => {
         const a = this.overview()?.overdueAging;
@@ -650,6 +550,8 @@ export class DashboardHome {
             id: v.id,
             name: v.label,
             value: formatBRL(v.revenueCents),
+            short: shortBrl(v.revenueCents),
+            amount: v.revenueCents,
         })),
     );
 
@@ -658,6 +560,8 @@ export class DashboardHome {
             id: d.id,
             name: d.label,
             value: formatBRL(d.revenueCents),
+            short: shortBrl(d.revenueCents),
+            amount: d.revenueCents,
         })),
     );
 
@@ -681,6 +585,15 @@ export class DashboardHome {
             count: d.count,
             totalAmountCents: d.totalAmountCents,
         }));
+    });
+
+    /** Footer of the offenders card: `9 multas · R$ 2.018 no período`; null with no fines. */
+    protected readonly offenderSummary = computed(() => {
+        const rows = this.offenderRows();
+        const n = rows.reduce((t, r) => t + r.count, 0);
+        if (n === 0) return null;
+        const cents = rows.reduce((t, r) => t + r.totalAmountCents, 0);
+        return `${n} ${n === 1 ? 'multa' : 'multas'} · ${formatBRL(cents)} no período`;
     });
 
     // The picker fires (rangeChange) on init with the 30d default,
@@ -755,17 +668,21 @@ export class DashboardHome {
     }
 
     /**
-     * «cobranças · 2 aluguéis · R$ X»: o número grande do card conta COBRANÇAS e a lista que ele
-     * abre mostra ALUGUÉIS, então o card diz as duas coisas. Sem `rentals` (backend antigo) a
-     * parte dos aluguéis simplesmente não aparece.
+     * The chip counts CHARGES ("3 cobranças vencidas") and the list it opens shows RENTALS, so the
+     * detail says how many rentals hold them and the amount. Without `rentals` (older backend)
+     * that part is simply absent.
      */
     protected overdueDetail(o: { count: number; amountCents: number; rentals?: number }): string {
-        const parts = [o.count === 1 ? 'cobrança' : 'cobranças'];
+        const parts: string[] = [];
         if (typeof o.rentals === 'number' && o.rentals > 0) {
             parts.push(`${o.rentals} ${o.rentals === 1 ? 'aluguel' : 'aluguéis'}`);
         }
         parts.push(this.format(o.amountCents));
         return parts.join(' · ');
+    }
+
+    protected overdueLabel(count: number): string {
+        return count === 1 ? 'cobrança vencida' : 'cobranças vencidas';
     }
 
     protected format(cents: number | null | undefined): string {

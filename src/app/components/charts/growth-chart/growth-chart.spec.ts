@@ -125,13 +125,15 @@ describe('GrowthChart with all-zero or negative data', () => {
     expect(growthIsEmpty([{ key: 'a', label: 'A', color: '#000', values: [0, 1] }])).toBe(false);
   });
 
-  it('zero data renders the empty sentence instead of a plot, on a real money axis', () => {
+  it('zero data renders the empty sentence instead of a plot and draws no made-up axis', () => {
     const el = render([{ key: 'a', label: 'A', color: '#000', values: [0, 0, 0, 0] }], {
       valueFormat: 'brl-cents',
       axisFloor: 10000,
     });
     expect(el.querySelector('[data-empty]')).not.toBeNull();
     expect(el.querySelector('[data-plot]')).toBeNull();
-    expect((el.textContent ?? '').replace(/\s+/g, ' ')).toContain('R$ 100');
+    expect(el.querySelector('[data-y-axis]')).toBeNull();
+    expect(el.querySelector('[data-x-axis]')).toBeNull();
+    expect((el.textContent ?? '').replace(/\s+/g, ' ')).not.toContain('R$ 100');
   });
 });

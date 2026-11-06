@@ -155,7 +155,7 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
 
     const chip = host.querySelector<HTMLElement>(CHIP);
     expect(chip).not.toBeNull();
-    expect(chip!.textContent).toContain('Em atraso');
+    expect(chip!.textContent).toContain('cobranças vencidas');
     expect(chip!.textContent).toContain('3');
     expect(chip!.textContent).toContain('1.234,56');
     // rose, com variante escura (tokens do tema)
@@ -167,14 +167,15 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
     expect(chips[0]).toBe(chip);
     expect(chips.length).toBeGreaterThan(1);
     // alvo de toque >= 44px
-    expect(button.className).toContain('min-h-[56px]');
+    expect(button.className).toContain('min-h-[44px]');
   });
 
   it('diz que o número são COBRANÇAS e quantos ALUGUÉIS elas ocupam (a lista mostra aluguéis)', () => {
     const { host } = render(summaryWith({ count: 3, amountCents: 123456, rentals: 2 }));
 
     const text = host.querySelector<HTMLElement>(CHIP)!.textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('cobranças · 2 aluguéis · ');
+    expect(text).toContain('cobranças vencidas');
+    expect(text).toContain('2 aluguéis · ');
     expect(text).toContain('1.234,56');
   });
 
@@ -182,7 +183,8 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
     const { host } = render(summaryWith({ count: 1, amountCents: 5000, rentals: 1 }));
 
     const text = host.querySelector<HTMLElement>(CHIP)!.textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('cobrança · 1 aluguel · ');
+    expect(text).toContain('cobrança vencida');
+    expect(text).toContain('1 aluguel · ');
     expect(text).not.toContain('cobranças');
     expect(text).not.toContain('aluguéis');
   });
@@ -191,7 +193,8 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
     const { host } = render(summaryWith({ count: 3, amountCents: 123456 }));
 
     const text = host.querySelector<HTMLElement>(CHIP)!.textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('cobranças · ');
+    expect(text).toContain('cobranças vencidas');
+    expect(text).not.toContain('aluguel');
     expect(text).not.toContain('alugu');
   });
 
@@ -202,7 +205,7 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
     );
     const chip = host.querySelector<HTMLElement>('app-alert-chip[data-failed-charges-alert]');
     expect(chip).not.toBeNull();
-    expect(chip!.textContent).toContain('Cobranças não criadas no Asaas');
+    expect(chip!.textContent).toContain('cobranças não criadas no Asaas');
     expect(chip!.textContent).toContain('700,00');
     expect(host.querySelector('app-failed-charge-notices')).not.toBeNull();
   });

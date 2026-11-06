@@ -41,9 +41,9 @@ export function shortBrl(cents: number): string {
 @Component({
     selector: 'app-monthly-result-chart',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    host: { class: 'block min-w-0' },
+    host: { class: 'flex flex-col min-w-0' },
     template: `
-        <ul class="flex gap-3 text-xs text-fg-muted mb-3" aria-label="Legenda">
+        <ul class="flex gap-3 text-xs text-fg-muted mb-3 sm:hidden" aria-label="Legenda">
             <li class="inline-flex items-center gap-1.5">
                 <span class="size-2.5 rounded-[3px]" aria-hidden="true" style="background-color: #F63B04"></span>
                 Faturamento
@@ -54,15 +54,18 @@ export function shortBrl(cents: number): string {
             </li>
         </ul>
         @if (empty()) {
-            <p
+            <div
                 data-empty
                 role="status"
-                class="h-44 flex items-center justify-center text-center text-sm text-fg-subtle px-4"
+                class="flex-1 min-h-44 flex flex-col items-center justify-center gap-2 text-center text-sm text-fg-subtle px-4"
             >
-                Ainda sem faturamento nos últimos 6 meses. Os números aparecem aqui assim que houver cobranças.
-            </p>
+                <p>Ainda sem faturamento nos últimos 6 meses. Os números aparecem aqui assim que houver cobranças.</p>
+                @if (losses().length) {
+                    <p data-losses class="text-xs text-rose-500">Resultado negativo: {{ losses().join(' · ') }}</p>
+                }
+            </div>
         } @else {
-            <div class="flex items-stretch gap-1.5 sm:gap-2.5 h-44" role="list">
+            <div class="flex items-stretch gap-1.5 sm:gap-2.5 flex-1 min-h-56 sm:min-h-72" role="list">
                 @for (bar of bars(); track bar.month) {
                     <button
                         type="button"
@@ -111,7 +114,14 @@ export class MonthlyResultChart {
     readonly monthSelect = output<string>();
 
     protected readonly empty = computed(() =>
-        this.months().every((m) => !(m.revenueCents > 0) && !(m.profitCents !== 0)),
+        this.months().every((m) => !(m.revenueCents > 0) && !(m.profitCents > 0)),
+    );
+
+    /** A loss draws no bar, so with nothing else to draw it is said in words, never hidden. */
+    protected readonly losses = computed(() =>
+        this.months()
+            .filter((m) => m.profitCents < 0)
+            .map((m) => `${resultMonthLabel(m.month)} ${formatBRL(m.profitCents)}`),
     );
 
     protected readonly bars = computed<ResultBar[]>(() => {

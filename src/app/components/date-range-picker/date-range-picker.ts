@@ -103,7 +103,7 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
             <app-filter-chip-group
                 [options]="presets()"
                 [value]="selected()"
-                [scrollable]="true"
+                [scrollable]="!wrapChips()"
                 ariaLabel="Período"
                 (selectionChange)="selectPreset($event)"
             />
@@ -178,9 +178,18 @@ export class DateRangePicker implements OnInit {
      */
     readonly presetKeys = input<readonly DateRangePresetKey[] | null>(null);
 
+    /** Show the `presetKeys` chips in the order they were listed instead of the selector's order. */
+    readonly presetListOrder = input(false);
+
+    /** Wrap the chips onto several rows on the phone instead of a horizontal carousel. */
+    readonly wrapChips = input(false);
+
     protected readonly presets = computed<readonly FilterChipOption<DateRangePresetKey>[]>(() => {
         const keys = this.presetKeys();
-        return keys === null ? PRESETS : PRESETS.filter((p) => keys.includes(p.value));
+        if (keys === null) return PRESETS;
+        // Default: the selector's own order. `presetListOrder`: the caller's order (the dashboard pills).
+        if (this.presetListOrder()) return keys.flatMap((k) => PRESETS.filter((p) => p.value === k));
+        return PRESETS.filter((p) => keys.includes(p.value));
     });
 
     constructor() {

@@ -36,7 +36,7 @@ import { SessionService } from '../../../services/session.service';
   selector: 'app-page-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './page-card.html',
-  host: { class: 'block' },
+  host: { class: 'block', '[class.h-full]': 'fill()' },
 })
 export class PageCard {
   private readonly session = inject(SessionService);
@@ -46,6 +46,8 @@ export class PageCard {
   collapsible = input(false);
   defaultOpen = input(true);
   storageKey = input<string | null>(null);
+  /** Fill the height the parent grid gives (side-by-side cards of equal height, no hole). */
+  fill = input(false);
   readonly toggled = output<boolean>();
 
   /** ID único para o `aria-controls` do chevron. */

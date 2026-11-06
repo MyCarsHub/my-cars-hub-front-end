@@ -1,6 +1,6 @@
 <app-default-page-layout
-    title="Dashboard"
-    description="Visão consolidada da operação da sua frota."
+    [title]="greeting()"
+    description="Sua frota em detalhes."
 >
     <!-- Error banner -->
     @if (error(); as msg) {
@@ -59,16 +59,15 @@
     -->
     @if (showAlerts()) {
         @if (summary(); as s) {
-            <section class="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 mb-4">
+            <section class="flex flex-wrap gap-2 mb-4" data-alert-chips>
                 @if (isOperator() && s.alerts.overdueCharges; as overdue) {
                     @if (overdue.count > 0) {
                         <app-alert-chip
                             data-overdue-charges-alert
                             variant="rose"
-                            label="Em atraso"
+                            [label]="overdueLabel(overdue.count)"
                             [count]="overdue.count"
                             [amountLabel]="overdueDetail(overdue)"
-                            icon="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z M12 6v6 M12 16h.01"
                             (chipClick)="onAlertClick('/alugueis?emAtraso=true')"
                         />
                     }
@@ -78,28 +77,25 @@
                     <app-alert-chip
                         data-failed-charges-alert
                         variant="warning"
-                        label="Cobranças não criadas no Asaas"
+                        label="cobranças não criadas no Asaas"
                         [count]="failedCount"
                         [amountLabel]="format(s.alerts.failedCharges?.amountCents ?? 0)"
-                        icon="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
                         (chipClick)="scrollToFailedNotices()"
                     />
                 }
                 @if (isOperator() && s.alerts.docsExpiring7d?.count; as docsExpiringCount) {
                     <app-alert-chip
                         variant="danger"
-                        label="Documentos a vencer (7d)"
+                        label="documentos a vencer (7d)"
                         [count]="docsExpiringCount"
-                        icon="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M12 12v4 M12 18h.01"
                         (chipClick)="onAlertClick('/alertas')"
                     />
                 }
                 @if (isOperator() && s.alerts.expiringInsurance30d?.count; as expiringInsuranceCount) {
                     <app-alert-chip
                         variant="warning"
-                        label="Seguros a vencer (30d)"
+                        label="seguros a vencer (30d)"
                         [count]="expiringInsuranceCount"
-                        icon="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
                         (chipClick)="onAlertClick('/seguros')"
                     />
                 }
@@ -110,53 +106,47 @@
                         variant="warning"
                         label="IPVA a vencer"
                         [count]="ipvaCount"
-                        icon="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z M8 8h8 M8 12h8 M8 16h5"
                         (chipClick)="onAlertClick('/ipva')"
                     />
                 }
                 @if (isOperator() && s.alerts.openFines.count > 0) {
                     <app-alert-chip
                         variant="danger"
-                        label="Multas em aberto"
+                        label="multas em aberto"
                         [count]="s.alerts.openFines.count"
                         [amountLabel]="format(s.alerts.openFines.amountCents)"
-                        icon="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
                         (chipClick)="onAlertClick('/multas')"
                     />
                 }
                 @if (isOperator() && s.alerts.openMaintenances.count > 0) {
                     <app-alert-chip
                         variant="warning"
-                        label="Manutenções abertas"
+                        label="manutenções abertas"
                         [count]="s.alerts.openMaintenances.count"
-                        icon="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
                         (chipClick)="onAlertClick('/manutencoes')"
                     />
                 }
                 @if (isOperator() && s.alerts.expiringCnh30d.count > 0) {
                     <app-alert-chip
                         variant="warning"
-                        label="CNH a vencer (30d)"
+                        label="CNH vencendo (30d)"
                         [count]="s.alerts.expiringCnh30d.count"
-                        icon="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
                         (chipClick)="onAlertClick('/motoristas')"
                     />
                 }
                 @if (isOperator() && s.alerts.expiringLicensing30d.count > 0) {
                     <app-alert-chip
                         variant="warning"
-                        label="Licenciamento a vencer (30d)"
+                        label="licenciamentos a vencer (30d)"
                         [count]="s.alerts.expiringLicensing30d.count"
-                        icon="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M9 15h6"
                         (chipClick)="onAlertClick('/veiculos')"
                     />
                 }
                 @if (isOperator() && s.alerts.reservedRentals.count > 0) {
                     <app-alert-chip
                         variant="info"
-                        label="Aluguéis reservados"
+                        label="aluguéis reservados"
                         [count]="s.alerts.reservedRentals.count"
-                        icon="M12 8v4l3 3 M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
                         (chipClick)="onAlertClick('/alugueis')"
                     />
                 }
@@ -184,24 +174,26 @@
             variant="primary"
             label="Faturado"
             numberFormat="brl-cents"
+            [anchored]="true"
             [stagger]="0"
             [loading]="loading() && !summary()"
             [value]="f ? f.revenueCents : null"
             [delta]="billingKpiDelta()"
             [detail]="f && !billingKpiDelta() ? 'contratos assinados no período' : null"
-        ></div>
+        ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" /></svg></div>
         <div
             app-kpi-card
             data-received-card
             variant="emerald"
             label="Recebido"
             numberFormat="brl-cents"
+            [anchored]="true"
             [stagger]="1"
             [loading]="loading() && !summary()"
             [value]="f ? f.receivedCents : null"
             [delta]="receivedKpiDelta()"
-            [detail]="f ? 'de ' + billingLabel() + ' faturados' : null"
-        ></div>
+            [detail]="f && !receivedKpiDelta() ? (receivedShareLabel() ?? 'de ' + billingLabel() + ' faturados') : null"
+        ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6h20v12H2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /></svg></div>
         <div
             app-kpi-card
             data-expenses-kpi
@@ -209,62 +201,49 @@
             label="Despesas"
             numberFormat="brl-cents"
             tone="danger"
+            [anchored]="true"
             [stagger]="2"
             [loading]="loading() && !summary()"
             [value]="f ? f.expensesCents : null"
             [detail]="f ? 'tudo que saiu no período' : null"
-        ></div>
+        ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z M8 8h8 M8 12h8 M8 16h5" /></svg></div>
         <div
             app-kpi-card
             data-result-kpi
             variant="emerald-dark"
             label="Lucro"
             numberFormat="brl-cents"
+            [anchored]="true"
             [stagger]="3"
             [loading]="loading() && !summary()"
             [value]="f ? f.resultCents : null"
-            [detail]="f ? 'receita menos despesas' : null"
-        ></div>
+            [detail]="marginDetail()"
+        ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 7l-8.5 8.5-5-5L2 17 M16 7h6v6" /></svg></div>
         <div
             app-kpi-card
             data-occupancy-card
             variant="white"
             label="Ocupação"
             numberFormat="percent"
+            [anchored]="true"
             [stagger]="4"
             [loading]="loading() && !summary()"
             [value]="summary() ? summary()!.fleet.utilizationPct : null"
             [detail]="summary() ? summary()!.fleet.rentedNow + ' alugados agora' : null"
-        ></div>
+        ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14l4-4 M3.34 19a10 10 0 1 1 17.32 0" /></svg></div>
         <div
             app-kpi-card
             data-overdue-kpi
             variant="white"
             label="Inadimplência"
             numberFormat="brl-cents"
+            [anchored]="true"
             [tone]="hasOverdue() ? 'danger' : 'default'"
             [stagger]="5"
             [loading]="loading() && !summary()"
             [value]="f ? f.overdueChargesCents : null"
-            [detail]="f ? 'cobranças vencidas ou falhas' : null"
-        ></div>
-
-        <!-- ROI da frota (FIX-0420): só dono/gerente; linha própria, nunca cartão órfão. -->
-        @if (showVehicleRoi()) {
-            <div
-                app-kpi-card
-                data-roi-card
-                class="col-span-full"
-                variant="white"
-                label="ROI da frota"
-                [stagger]="6"
-                [loading]="vehicleRoiLoading() && !vehicleRoi()"
-                [value]="roiKpi().value"
-                [detail]="roiKpi().detail"
-                [link]="roiKpi().link"
-                [ariaLabel]="roiKpi().link ? 'ROI da frota: informar preço de compra dos veículos' : null"
-            ></div>
-        }
+            [detail]="overdueDetailLabel()"
+        ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01" /></svg></div>
     </section>
 
     <!-- Período: UM seletor de período (o mês do gráfico é o toque na barra, não outro seletor). -->
@@ -277,24 +256,35 @@
         }
     </div>
     <div class="mb-4">
-        <app-date-range-picker (rangeChange)="onRangeChange($event)" />
+        <app-date-range-picker [presetKeys]="periodPresets" [presetListOrder]="true" [wrapChips]="true" (rangeChange)="onRangeChange($event)" />
     </div>
 
     <!--
-        Faturamento x lucro (esquerda) e calendário financeiro (direita), como no
-        protótipo. É a ÚNICA série de faturamento por mês da tela. Sem `overview`
-        do backend o gráfico some e o calendário ocupa a linha inteira.
+        Faturamento x lucro (esquerda) e calendário financeiro (direita), mesma altura
+        (items-stretch + app-page-card fill), como no protótipo. Sem `overview` do backend o
+        gráfico some e o calendário ocupa a linha inteira.
     -->
     <section
-        class="mb-4 grid gap-4 grid-cols-1 items-start"
-        [class.lg:grid-cols-2]="hasResult()"
+        class="mb-4 grid gap-4 grid-cols-1 items-stretch"
+        [class.xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]]="hasResult()"
         data-result-section
     >
         @if (hasResult()) {
-            <app-page-card title="Faturamento vs lucro">
-                <div class="px-4 pb-4 sm:px-6 min-w-0">
-                    <p class="text-xs text-fg-muted mb-3">Últimos 6 meses · toque num mês para ver o detalhe</p>
+            <app-page-card title="Faturamento vs lucro" [fill]="true">
+                <ul cardActions class="hidden sm:flex gap-3 text-xs text-fg-muted" aria-label="Legenda">
+                    <li class="inline-flex items-center gap-1.5">
+                        <span class="size-2.5 rounded-[3px]" aria-hidden="true" style="background-color: #F63B04"></span>
+                        Faturamento
+                    </li>
+                    <li class="inline-flex items-center gap-1.5">
+                        <span class="size-2.5 rounded-[3px]" aria-hidden="true" style="background-color: #0a9b62"></span>
+                        Lucro
+                    </li>
+                </ul>
+                <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1 flex flex-col">
+                    <p class="text-xs text-fg-muted mb-3 -mt-3">Últimos 6 meses · toque num mês para ver o detalhe</p>
                     <app-monthly-result-chart
+                        class="flex-1"
                         [months]="monthlyResultMonths()"
                         [selected]="resultMonth()"
                         (monthSelect)="onResultMonth($event)"
@@ -302,13 +292,8 @@
                 </div>
             </app-page-card>
         }
-        <app-page-card title="Calendário financeiro">
-            <div class="p-4 min-w-0">
-                <p class="text-xs text-gray-500 dark:text-fg-subtle mb-3">
-                    Recebimentos projetados por frequência do contrato (diária,
-                    semanal, mensal) + manutenções, multas, IPVA, seguro e
-                    financiamento do período.
-                </p>
+        <app-page-card title="Calendário financeiro" [fill]="true">
+            <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1">
                 <app-financial-calendar
                     [events]="calendarCashflow()"
                     [selectedDate]="selectedDay()"
@@ -342,104 +327,141 @@
     }
 
     <!--
-        Distribuições em pares de mesma altura (items-stretch, sem coluna meio
-        vazia): aluguéis | veículos, custos | atraso por idade. Sem atraso, o
-        card de custos ocupa a linha inteira em vez de deixar metade em branco.
+        Uma grade só, na ordem do celular (status, custos, caixa, top veículos, top motoristas,
+        ofensores). Tablet: 2 colunas. Desktop (xl): 20 colunas, status | caixa e depois os
+        quatro cartões, tudo de mesma altura por linha (items-stretch).
     -->
-    <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2 items-stretch" data-distributions>
-        <app-ring-legend-card
-            title="Aluguéis por status"
-            totalLabel="aluguéis"
-            [slices]="rentalsByStatusSlices()"
-        />
-        <app-ring-legend-card
-            title="Veículos por status"
-            totalLabel="veículos"
-            [subtitle]="summary() ? vehiclePlanLabel() : null"
-            [slices]="vehiclesByStatusSlices()"
-        />
+    <section
+        class="mb-4 grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-[repeat(20,minmax(0,1fr))] items-stretch"
+        data-board
+    >
+        <div
+            class="min-w-0 grid gap-4 grid-cols-1 md:col-span-2 md:grid-cols-2 xl:flex xl:flex-col xl:order-1"
+            [class.xl:col-span-8]="!!cashView()"
+            [class.xl:col-span-20]="!cashView()"
+            data-distributions
+        >
+            <app-ring-legend-card
+                class="xl:flex-1"
+                title="Aluguéis por status"
+                totalLabel="aluguéis"
+                [slices]="rentalsByStatusSlices()"
+            />
+            <app-ring-legend-card
+                class="xl:flex-1"
+                title="Veículos por status"
+                totalLabel="veículos"
+                [subtitle]="summary() ? vehiclePlanLabel() : null"
+                [slices]="vehiclesByStatusSlices()"
+            />
+        </div>
+
         @if (overview()) {
             <app-ring-legend-card
+                class="md:col-span-2 xl:col-span-6 xl:order-3"
                 data-money-section
-                [class.lg:col-span-2]="!hasAging()"
-                title="Para onde vai cada centavo"
+                layout="bar"
+                title="Para onde vai cada centavo recebido"
                 totalLabel="custos do período"
                 valueFormat="brl-cents"
                 [slices]="costSlices()"
             />
-            @if (hasAging()) {
-                <app-ring-legend-card
-                    title="Atraso por idade"
-                    totalLabel="em atraso"
-                    valueFormat="brl-cents"
-                    [slices]="agingSlices()"
-                />
-            }
         }
-    </section>
 
-    <!-- Este mês vs mês passado (caixa): só some se o endpoint falhar. -->
-    @if (cashView(); as cv) {
-        <section class="mb-4 min-w-0" data-cash-section>
-            <app-page-card title="Este mês vs mês passado">
-                <div class="px-4 pb-4 sm:px-6 min-w-0">
-                    <p class="text-sm text-fg-body mb-3" data-cash-summary>
-                        {{ cv.total }} recebidos em {{ cashMonthLabel() }} · {{ cv.comparison }}
-                    </p>
-                    <app-growth-chart
-                        [series]="cashSeries()"
-                        [labels]="cashLabels()"
-                        valueFormat="brl-cents"
-                        [axisFloor]="cashAxisFloor"
-                        emptyText="Nada recebido neste mês ainda."
-                        ariaLabel="Dinheiro recebido no mês e no mês passado, dia a dia"
-                    />
-                </div>
-            </app-page-card>
-        </section>
-    }
+        <!-- Este mês vs mês passado (caixa): só some se o endpoint falhar. -->
+        @if (cashView(); as cv) {
+            <div class="min-w-0 md:col-span-2 xl:col-span-12 xl:order-2" data-cash-section>
+                <app-page-card title="Este mês vs mês passado" [fill]="true">
+                    @if (cashLead(); as lead) {
+                        <span
+                            cardActions
+                            data-cash-lead
+                            class="rounded-full px-2.5 py-1 text-xs font-semibold"
+                            [class]="lead.up ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' : 'bg-rose-500/15 text-rose-600 dark:text-rose-300'"
+                            >{{ lead.text }}</span
+                        >
+                    }
+                    <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1">
+                        <p class="text-xs text-fg-muted mb-1 -mt-3">Quanto já recebi, dia a dia</p>
+                        <p class="text-sm text-fg-body mb-3" data-cash-summary>
+                            {{ cv.total }} recebidos em {{ cashMonthLabel() }} · {{ cv.comparison }}
+                        </p>
+                        <app-growth-chart
+                            [series]="cashSeries()"
+                            [labels]="cashLabels()"
+                            valueFormat="brl-cents"
+                            [axisFloor]="cashAxisFloor"
+                            [heightPx]="260"
+                            emptyText="Nada recebido neste mês ainda."
+                            ariaLabel="Dinheiro recebido no mês e no mês passado, dia a dia"
+                        />
+                    </div>
+                </app-page-card>
+            </div>
+        }
 
-    <!-- Top 5 por receita: veículos + motoristas -->
-    <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2 items-stretch">
         <app-ranking-card
+            class="xl:col-span-5 xl:order-4"
             title="Top 5 veículos por receita"
-            [hero]="true"
+            subtitle="Quais carros mais rendem neste mês"
+            layout="bars"
             [items]="topVehiclesByRevenue()"
         />
         <app-ranking-card
+            class="xl:col-span-5 xl:order-5"
             title="Top 5 motoristas por receita"
-            [hero]="true"
+            subtitle="Quem mais gerou receita neste mês"
+            layout="podium"
             [items]="topDriversByRevenue()"
         />
-    </section>
-
-    <!-- Top offenders -->
-    <section class="mb-4 min-w-0">
-        <app-page-card title="Top ofensores (multas)">
-            <div class="p-4 min-w-0">
-                <div class="mb-3">
+        <div class="min-w-0 md:col-span-2 xl:col-span-4 xl:order-6">
+            <app-page-card title="Top ofensores (multas)" [fill]="true" data-offenders>
+                <div class="px-4 pb-5 sm:px-6 min-w-0 flex-1 flex flex-col gap-3">
+                    <p class="text-xs text-fg-muted -mt-3">Quanto maior o selo, mais multas</p>
                     <app-pill-tabs
                         [options]="offenderModeOptions"
                         [value]="offenderMode()"
                         ariaLabel="Top ofensores por"
                         (selected)="setOffenderMode($event)"
                     />
+                    @if (loading() && !summary()) {
+                        <div class="h-14 rounded bg-surface-sunken animate-pulse"></div>
+                    } @else if (offenderRows().length === 0) {
+                        <p class="text-sm text-fg-subtle py-4">Sem multas no período.</p>
+                    } @else {
+                        <ul class="flex flex-wrap gap-2" data-offender-chips>
+                            @for (r of offenderRows(); track r.id) {
+                                <li>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1.5 min-h-[44px] rounded-xl bg-rose-500/10 px-3 py-1.5 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                                        [attr.aria-label]="'Ver detalhes de ' + r.title"
+                                        (click)="onOffenderClick(r)"
+                                    >
+                                        {{ r.title }} <b class="font-semibold">{{ r.count }}</b>
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    @if (offenderSummary(); as sum) {
+                        <p class="mt-auto text-xs text-fg-muted truncate" data-offender-summary>{{ sum }}</p>
+                    }
                 </div>
-                @if (loading() && !summary()) {
-                    <div class="space-y-2">
-                        <div class="h-14 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                        <div class="h-14 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                        <div class="h-14 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
-                    </div>
-                } @else {
-                    <app-top-offenders-table
-                        [rows]="offenderRows()"
-                        (rowClick)="onOffenderClick($event)"
-                    />
-                }
-            </div>
-        </app-page-card>
+            </app-page-card>
+        </div>
     </section>
+
+    @if (overview() && hasAging()) {
+        <section class="mb-4" data-aging>
+            <app-ring-legend-card
+                title="Atraso por idade"
+                totalLabel="em atraso"
+                valueFormat="brl-cents"
+                [slices]="agingSlices()"
+            />
+        </section>
+    }
 
     <!--
         Ações rápidas.
@@ -456,7 +478,8 @@
     @if (isOperator()) {
     <section class="mb-4 min-w-0">
         <app-page-card title="Ações rápidas">
-            <div class="p-4 min-w-0 grid gap-3 grid-cols-2 lg:grid-cols-4">
+            <p class="px-4 sm:px-6 -mt-3 pb-3 text-xs text-fg-muted">Cadastre em um toque</p>
+            <div class="px-4 pb-4 sm:px-6 min-w-0 grid gap-3 grid-cols-2 xl:grid-cols-4">
                 <app-quick-action-card
                     route="/alugueis/novo"
                     label="Novo aluguel"
