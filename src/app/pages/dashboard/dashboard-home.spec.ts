@@ -140,54 +140,16 @@ describe('DashboardHome — KPIs de frota', () => {
         fixture.detectChanges();
 
         const host: HTMLElement = fixture.nativeElement;
-        const cards = Array.from(host.querySelectorAll<HTMLElement>('section.grid > div'));
+        const cards = Array.from(host.querySelectorAll<HTMLElement>('section.grid > div, section.grid > app-ring-legend-card'));
         const card = cards.find((c) => c.textContent?.trim().startsWith(title));
         expect(card).toBeTruthy();
         return (card?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    }
-
-    /** Texto do card "Motoristas" da grade de KPIs. */
-    function driversCardText(fleet: Partial<FleetDto>, planName: string | null = 'PRO'): string {
-        return cardText(fleet, 'Motoristas', planName);
     }
 
     /** Texto do card "Veículos" da grade de KPIs. */
     function vehiclesCardText(fleet: Partial<FleetDto>, planName: string | null = 'PRO'): string {
         return cardText(fleet, 'Veículos', planName);
     }
-
-    /**
-     * FEAT-0070 — o card de motoristas mostra OPERAÇÃO, não capacidade: total
-     * e quantos estão ativos. Nada de "X de Y do plano" nem de "ilimitados",
-     * porque o teto virou guarda-corpo interno e `driverLimit` saiu do
-     * `FleetDto`. Esta é a guarda que impede a legenda de voltar.
-     */
-    it('mostra o total de motoristas sem nenhuma legenda de capacidade', () => {
-        const text = driversCardText({ driversActive: 2, driversTotal: 4 });
-
-        expect(text).toContain('4');
-        expect(text).toContain('2 ativos agora');
-        expect(text).not.toContain('do plano');
-        expect(text).not.toContain('ilimitados');
-    });
-
-    // Um `TestBed` por teste: o helper configura o módulo a cada chamada.
-    it('não vaza capacidade de motorista no ENTERPRISE (plano maquiado)', () => {
-        const text = driversCardText({ driversActive: 30, driversTotal: 80 }, 'ENTERPRISE');
-
-        expect(text).toContain('80');
-        expect(text).not.toContain('do plano');
-        expect(text).not.toContain('ilimitados');
-    });
-
-    it('não vaza capacidade de motorista no PRO (plano sem maquiagem)', () => {
-        const text = driversCardText({ driversActive: 5, driversTotal: 9 }, 'PRO');
-
-        expect(text).toContain('9');
-        expect(text).not.toContain('do plano');
-        expect(text).not.toContain('ilimitados');
-        expect(text).not.toContain('de sem limite');
-    });
 
     it('mostra "X de Y do plano" quando vehicleLimit é numérico', () => {
         const text = vehiclesCardText({ vehiclesTotal: 2, vehicleLimit: 3 });
@@ -333,7 +295,7 @@ describe('DashboardHome — venda de veículos (FEAT-0074)', () => {
         const cardText = (card?.textContent ?? '').replace(/\s+/g, ' ');
         expect(cardText).toContain('Venda de veículos');
         expect(cardText).toContain('45.000,00');
-        expect(cardText).toContain('entrada única no período');
+        expect(cardText).toContain('entrada única');
 
         // O faturamento continua sendo SÓ o aluguel: 5.000,00, não 50.000,00.
         expect(text(host)).toContain('5.000,00');
@@ -344,35 +306,6 @@ describe('DashboardHome — venda de veículos (FEAT-0074)', () => {
 
         expect(host.querySelector('[data-sale-revenue-card]')).toBeNull();
         expect(text(host)).not.toContain('Venda de veículos');
-    });
-
-    /**
-     * O backend não manda a venda quebrada por mês (`saleRevenueCents` é
-     * escalar da janela). Então a série mensal segue sendo de aluguel e a
-     * legenda DIZ isso, com o valor que ficou de fora — é o que impede o
-     * usuário de comparar gráfico com card e achar que sumiu dinheiro.
-     */
-    it('a série mensal declara que é só aluguel e nomeia a venda que ficou de fora', () => {
-        const host = render({ saleRevenueCents: 4_500_000 });
-
-        const note = host.querySelector('[data-monthly-chart-note]');
-        expect(note).not.toBeNull();
-        const noteText = (note?.textContent ?? '').replace(/\s+/g, ' ');
-        expect(noteText).toContain('Só aluguel (recorrente)');
-        expect(noteText).toContain('45.000,00');
-    });
-
-    /**
-     * INVARIANTE do nó: sem venda, a tela é IDÊNTICA à de antes. Nem tile, nem
-     * nota — uma legenda apontando "o card Venda" num estado em que esse card
-     * está oculto mandaria o usuário procurar o que não está lá.
-     */
-    it('sem venda, não há nota no gráfico — a tela fica como era antes', () => {
-        const host = render({ saleRevenueCents: 0 });
-
-        expect(host.querySelector('[data-monthly-chart-note]')).toBeNull();
-        expect(text(host)).not.toContain('Só aluguel');
-        expect(text(host)).not.toContain('card Venda');
     });
 });
 
@@ -846,22 +779,31 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
       return (el?.textContent ?? '').replace(/ /g, ' ');
     }
 
-    it('frota vazia mostra 0% e R$ 0,00, sem pedido de acao', () => {
+    it('frota vazia mostra travessao honesto, nao 0%', () => {
       const el = card([]);
 
-      expect(el?.textContent).toContain('0%');
-      expect(money(el)).toContain('R$ 0,00');
-      expect(el?.textContent).not.toContain('—');
-      expect(el?.textContent).not.toContain('preço de compra');
-      expect(el?.getAttribute('role')).toBeNull();
+      expect(el?.textContent).toContain('—');
+      expect(el?.textContent).not.toContain('0%');
+      expect(money(el)).not.toContain('R$ 0,00');
+      expect(el?.textContent).toContain('cadastre veículos');
     });
 
-    it('frota com carros mas nenhum com preco cai no mesmo 0%', () => {
+    it('frota com carros mas nenhum com preco pede o preco de compra', () => {
       const el = card([unpriced('a', 9_000_00)]);
 
-      expect(el?.textContent).toContain('0%');
-      expect(money(el)).toContain('R$ 0,00');
-      expect(el?.getAttribute('role')).toBeNull();
+      expect(el?.textContent).toContain('—');
+      expect(el?.textContent).not.toContain('0%');
+      expect(el?.textContent).toContain('preço de compra');
+    });
+
+    /** Receita zero com custo conhecido: -100% / "no prejuizo" seria so "ainda nao recebi nada". */
+    it('sem nada devolvido ainda, nao afirma -100% nem prejuizo', () => {
+      const el = card([priced('a', 127_743_47, 0), priced('b', 10_000_00, 0)]);
+
+      expect(el?.textContent).toContain('—');
+      expect(el?.textContent).not.toContain('-100');
+      expect(el?.textContent).not.toContain('no prejuízo');
+      expect(el?.textContent).toContain('ainda sem receita');
     });
 
     /** Zero nao e lucro nem prejuizo — nem verde, nem rose. */

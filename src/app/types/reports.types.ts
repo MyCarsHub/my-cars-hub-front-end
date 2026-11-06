@@ -143,6 +143,8 @@ export interface FleetRoiSummary {
   roiPercent: number | null;
   /** Liquido dos veiculos da BASE, nunca da frota toda — ver abaixo. */
   netCents: number;
+  /** Quanto a BASE ja devolveu; zero = ainda sem receita (o ROI de -100% nao e medicao). */
+  returnedCents: number;
 }
 
 /**
@@ -177,6 +179,7 @@ export function aggregateFleetRoi(
     // Sem base nao ha razao a calcular — `null` e indeterminado, nao zero.
     roiPercent: costCents > 0 ? ((returnedCents - costCents) / costCents) * 100 : null,
     netCents: costCents > 0 ? returnedCents - costCents : 0,
+    returnedCents,
   };
 }
 
