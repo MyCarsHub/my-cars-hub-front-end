@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
-import { GrowthChart, GrowthSeries, endPoint, growthAxisTop, growthIsEmpty, smoothPath } from './growth-chart';
+import { GrowthChart, GrowthSeries, endPoint, growthAxisTop, growthIsEmpty, linearPath, smoothPath } from './growth-chart';
 
 const SERIES: GrowthSeries[] = [
   { key: 'now', label: 'Este mês', color: '#F63B04', values: [2, 6, 12, 20] },
@@ -246,5 +246,23 @@ describe('GrowthChart — canvas look', () => {
   it('yDivisions=5 draws six ticks (R$ 0 .. top in steps of a fifth)', () => {
     const el = render(SERIES, { yDivisions: 5, axisTop: 50 });
     expect(el.querySelectorAll('[data-y-axis] span')).toHaveLength(6);
+  });
+});
+
+describe('linearPath (cumulative totals)', () => {
+  it('draws straight segments only: no curve commands, so a staircase never bulges', () => {
+    const { line, area } = linearPath([0, 0, 10, 10], 10);
+    expect(line).not.toMatch(/C/);
+    expect(line).toBe('M0.00 100.00 L33.33 100.00 L66.67 0.00 L100.00 0.00');
+    expect(area.endsWith('L100.00 100 L0.00 100 Z')).toBe(true);
+  });
+
+  it('smooth=false switches the chart to it; the default stays a curve', () => {
+    expect(render(SERIES, { smooth: false }).querySelector('[data-line]')!.getAttribute('d')).not.toMatch(/C/);
+    expect(render(SERIES).querySelector('[data-line]')!.getAttribute('d')).toMatch(/C/);
+  });
+
+  it('the plot is revealed with draw-in (motion that does not depend on hover)', () => {
+    expect(render(SERIES).querySelector('[data-plot]')!.getAttribute('class')).toContain('draw-in');
   });
 });

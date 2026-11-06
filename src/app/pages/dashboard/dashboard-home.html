@@ -263,11 +263,11 @@
     -->
     <section
         class="mb-4 grid gap-4 grid-cols-1 items-stretch"
-        [class.xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]]="hasResult()"
+        [class.xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]]="hasResult() || pending()"
         data-result-section
     >
         @if (hasResult()) {
-            <app-page-card title="Faturamento vs lucro" [fill]="true">
+            <app-page-card class="dash-enter" title="Faturamento vs lucro" [fill]="true">
                 <ul cardActions class="hidden sm:flex gap-3 text-xs text-fg-muted" aria-label="Legenda">
                     <li class="inline-flex items-center gap-1.5">
                         <span class="size-2.5 rounded-[3px]" aria-hidden="true" style="background-color: #F63B04"></span>
@@ -288,8 +288,11 @@
                     />
                 </div>
             </app-page-card>
+        } @else if (pending()) {
+            <!-- Same slot as the chart card: while loading, the calendar never gets the whole row. -->
+            <app-card-skeleton title="Faturamento vs lucro" bodyClass="min-h-[22rem]" data-chart-skeleton />
         }
-        <app-page-card title="Calendário financeiro" [fill]="true">
+        <app-page-card class="dash-enter" style="--stagger-i: 1" title="Calendário financeiro" [fill]="true">
             <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1">
                 <app-financial-calendar
                     [events]="calendarCashflow()"
@@ -334,27 +337,32 @@
     >
         <div
             class="min-w-0 grid gap-4 grid-cols-1 md:col-span-2 md:grid-cols-2 xl:flex xl:flex-col xl:order-1"
-            [class.xl:col-span-8]="!!cashView()"
-            [class.xl:col-span-20]="!cashView()"
+            [class.xl:col-span-8]="!!cashView() || cashPending()"
+            [class.xl:col-span-20]="!cashView() && !cashPending()"
             data-distributions
         >
-            <app-ring-legend-card
-                class="xl:flex-1"
-                title="Aluguéis por status"
-                totalLabel="aluguéis"
-                [slices]="rentalsByStatusSlices()"
-            />
-            <app-ring-legend-card
-                class="xl:flex-1"
-                title="Veículos por status"
-                totalLabel="veículos"
-                [slices]="vehiclesByStatusSlices()"
-            />
+            @if (pending()) {
+                <app-card-skeleton class="xl:flex-1" title="Aluguéis por status" bodyClass="min-h-32" data-ring-skeleton />
+                <app-card-skeleton class="xl:flex-1" title="Veículos por status" bodyClass="min-h-32" data-ring-skeleton />
+            } @else {
+                <app-ring-legend-card
+                    class="dash-enter xl:flex-1"
+                    title="Aluguéis por status"
+                    totalLabel="aluguéis"
+                    [slices]="rentalsByStatusSlices()"
+                />
+                <app-ring-legend-card
+                    class="dash-enter xl:flex-1" style="--stagger-i: 1"
+                    title="Veículos por status"
+                    totalLabel="veículos"
+                    [slices]="vehiclesByStatusSlices()"
+                />
+            }
         </div>
 
         @if (overview()) {
             <app-ring-legend-card
-                class="md:col-span-2 xl:col-span-5 xl:order-3"
+                class="dash-enter md:col-span-2 xl:col-span-5 xl:order-3" style="--stagger-i: 2"
                 data-money-section
                 layout="bar"
                 title="Para onde vai cada centavo recebido"
@@ -362,11 +370,18 @@
                 valueFormat="brl-cents-whole"
                 [slices]="costSlices()"
             />
+        } @else if (pending()) {
+            <app-card-skeleton
+                class="md:col-span-2 xl:col-span-5 xl:order-3"
+                title="Para onde vai cada centavo recebido"
+                bodyClass="min-h-64"
+                data-money-skeleton
+            />
         }
 
         <!-- Este mês vs mês passado (caixa): só some se o endpoint falhar. -->
         @if (cashView(); as cv) {
-            <div class="min-w-0 md:col-span-2 xl:col-span-12 xl:order-2" data-cash-section>
+            <div class="dash-enter min-w-0 md:col-span-2 xl:col-span-12 xl:order-2" style="--stagger-i: 2" data-cash-section>
                 <app-page-card title="Este mês vs mês passado" [fill]="true">
                     <span cardActions class="contents">
                     @if (cashLead(); as lead) {
@@ -390,6 +405,7 @@
                             [axisFloor]="cashAxisFloor"
                             [axisTop]="cv.axisTopCents"
                             [xTickMarks]="cashXTicks()"
+                            [smooth]="false"
                             [endDot]="true"
                             [endTooltip]="true"
                             [legendTop]="true"
@@ -402,24 +418,36 @@
                     </div>
                 </app-page-card>
             </div>
+        } @else if (cashPending()) {
+            <app-card-skeleton
+                class="md:col-span-2 xl:col-span-12 xl:order-2"
+                title="Este mês vs mês passado"
+                bodyClass="min-h-[20rem]"
+                data-cash-skeleton
+            />
         }
 
-        <app-ranking-card
-            class="xl:col-span-5 xl:order-4"
-            title="Top 5 veículos por receita"
-            subtitle="Quais carros mais rendem neste mês"
-            layout="bars"
-            [items]="topVehiclesByRevenue()"
-        />
-        <app-ranking-card
-            class="xl:col-span-5 xl:order-5"
-            title="Top 5 motoristas por receita"
-            subtitle="Quem mais gerou receita neste mês"
-            layout="podium"
-            [items]="topDriversByRevenue()"
-        />
-        <div class="min-w-0 md:col-span-2 xl:col-span-5 xl:order-6">
-            <app-page-card title="Top ofensores (multas)" [fill]="true" data-offenders>
+        @if (pending()) {
+            <app-card-skeleton class="xl:col-span-5 xl:order-4" title="Top 5 veículos por receita" bodyClass="min-h-[12.25rem]" data-ranking-skeleton />
+            <app-card-skeleton class="xl:col-span-5 xl:order-5" title="Top 5 motoristas por receita" bodyClass="min-h-[12.25rem]" data-ranking-skeleton />
+        } @else {
+            <app-ranking-card
+                class="dash-enter xl:col-span-5 xl:order-4" style="--stagger-i: 3"
+                title="Top 5 veículos por receita"
+                subtitle="Quais carros mais rendem neste mês"
+                layout="bars"
+                [items]="topVehiclesByRevenue()"
+            />
+            <app-ranking-card
+                class="dash-enter xl:col-span-5 xl:order-5" style="--stagger-i: 4"
+                title="Top 5 motoristas por receita"
+                subtitle="Quem mais gerou receita neste mês"
+                layout="podium"
+                [items]="topDriversByRevenue()"
+            />
+        }
+        <div class="dash-enter min-w-0 md:col-span-2 xl:col-span-5 xl:order-6" style="--stagger-i: 5">
+            <app-page-card title="Top ofensores (multas)" [fill]="true" [truncateTitle]="true" data-offenders>
                 <div class="px-4 pb-5 sm:px-6 min-w-0 flex-1 flex flex-col gap-3">
                     <p class="text-xs text-fg-muted -mt-3">Quanto maior o selo, mais multas</p>
                     <app-pill-tabs
@@ -433,16 +461,18 @@
                     } @else if (offenderRows().length === 0) {
                         <p class="text-sm text-fg-subtle py-4">Sem multas no período.</p>
                     } @else {
-                        <ul class="flex flex-wrap gap-2" data-offender-chips>
+                        <ul class="flex flex-wrap gap-2 min-w-0" data-offender-chips>
                             @for (r of offenderRows(); track r.id) {
-                                <li>
+                                <li class="min-w-0 max-w-full">
                                     <button
                                         type="button"
-                                        class="inline-flex items-center gap-1.5 min-h-[44px] rounded-xl bg-rose-500/10 px-3 py-1.5 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                                        data-offender-chip
+                                        class="inline-flex max-w-full min-w-0 items-center gap-1.5 h-11 rounded-xl bg-rose-500/10 px-3 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                                         [attr.aria-label]="'Ver detalhes de ' + r.title"
+                                        [title]="r.title"
                                         (click)="onOffenderClick(r)"
                                     >
-                                        {{ r.title }} <b class="font-semibold">{{ r.count }}</b>
+                                        <span class="min-w-0 truncate">{{ r.title }}</span>&ngsp;<b class="shrink-0 font-semibold">{{ r.count }}</b>
                                     </button>
                                 </li>
                             }
@@ -472,7 +502,7 @@
     <section class="mb-4 min-w-0">
         <app-page-card title="Ações rápidas">
             <p class="px-4 sm:px-6 -mt-3 pb-3 text-xs text-fg-muted">Cadastre em um toque</p>
-            <div class="px-4 pb-4 sm:px-6 min-w-0 grid gap-3 grid-cols-1 min-[440px]:grid-cols-2 xl:grid-cols-4">
+            <div class="px-4 pb-4 sm:px-6 min-w-0 grid gap-3 grid-cols-2 xl:grid-cols-4" data-quick-actions>
                 <app-quick-action-card
                     route="/alugueis/novo"
                     label="Novo aluguel"

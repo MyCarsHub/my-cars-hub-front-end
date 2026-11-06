@@ -55,14 +55,48 @@ describe('RankingCard', () => {
 });
 
 describe('RankingCard podium', () => {
-  it('first place wraps instead of truncating the driver name', () => {
+  const LONG = [
+    { id: '1', name: 'THIAGO PAULO PEREIRA DE SANTANA FILHO', value: 'R$ 7.500' },
+    { id: '2', name: 'MARCOS ANTONIO DO NASCIMENTO JUNIOR', value: 'R$ 3.100' },
+    { id: '3', name: 'MAXSUEL SANTOS DA SILVA', value: 'R$ 3.000' },
+  ];
+  function podium(): HTMLElement {
     const fixture = TestBed.createComponent(RankingCard);
-    fixture.componentRef.setInput('title', 'Top motoristas');
+    fixture.componentRef.setInput('title', 'Top 5 motoristas por receita');
     fixture.componentRef.setInput('layout', 'podium');
-    fixture.componentRef.setInput('items', [{ id: '1', name: 'Maria Aparecida de Souza Albuquerque Neto', value: 'R$ 7.500' }, ...ITEMS.slice(1)]);
+    fixture.componentRef.setInput('items', LONG);
     fixture.detectChanges();
-    const name = (fixture.nativeElement as HTMLElement).querySelector('[data-hero-name]')!;
-    expect(name.className).toContain('break-words');
-    expect(name.className).not.toContain('truncate');
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('first place is ONE line with an ellipsis and the full name in the tooltip', () => {
+    const name = podium().querySelector('[data-hero-name]')!;
+    expect(name.className).toContain('truncate');
+    expect(name.className).not.toContain('break-words');
+    expect(name.getAttribute('title')).toBe(LONG[0].name);
+    expect(name.parentElement!.className).toContain('min-w-0');
+  });
+
+  it('first place has a fixed height, so the card height never depends on the name', () => {
+    expect(podium().querySelector('[data-rank-row]')!.className).toContain('h-14');
+  });
+
+  it('the small chips truncate, carry the name as tooltip and have a fixed height', () => {
+    const chips = Array.from(podium().querySelectorAll('[data-rank-chip]'));
+    expect(chips.length).toBe(2);
+    for (const chip of chips) {
+      expect(chip.className).toContain('h-12');
+      expect(chip.className).toContain('min-w-0');
+      const name = chip.querySelector('.font-medium')!;
+      expect(name.className).toContain('truncate');
+      expect(name.getAttribute('title')).toBeTruthy();
+      expect(chip.innerHTML).not.toContain('break-words');
+    }
+  });
+
+  it('the card title is a single truncated line (headers of side-by-side cards stay aligned)', () => {
+    const h2 = podium().querySelector('h2')!;
+    expect(h2.className).toContain('truncate');
+    expect(h2.getAttribute('title')).toBe('Top 5 motoristas por receita');
   });
 });
