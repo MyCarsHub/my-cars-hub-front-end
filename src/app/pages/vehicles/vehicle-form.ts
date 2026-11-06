@@ -12,7 +12,6 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   AbstractControl,
-  FormArray,
   FormBuilder,
   ReactiveFormsModule,
   ValidationErrors,
@@ -45,13 +44,14 @@ import { NotificationService } from '../../services/notification.service';
 import { FinancingFormFields } from '../../components/vehicles/financing-form-fields/financing-form-fields';
 import { IpvaInstallmentsFields } from '../../components/vehicles/ipva-installments-fields/ipva-installments-fields';
 import {
-  IpvaOp,
-  IpvaRowGroup,
-  RemovedIpvaRow,
-  createIpvaRow,
-  ipvaRowFromInstallment,
-  planIpvaOps,
-} from '../../components/vehicles/ipva-installments-fields/ipva-installments-plan';
+  IpvaDraft,
+  IpvaExistingSummary,
+  IpvaSeriesGroup,
+  createIpvaSeriesGroup,
+  ipvaSeriesFromGroup,
+  ipvaYearOf,
+  summarizeIpva,
+} from '../../components/vehicles/ipva-installments-fields/ipva-series';
 import { VehicleIpvaService } from '../../services/vehicle-ipva.service';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
 import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
@@ -223,11 +223,16 @@ export class VehicleForm implements OnInit {
   private readonly ipvaService = inject(VehicleIpvaService);
 
   /**
-   * IPVA em parcelas (FEAT-0421/0422): o cadastro e a edição trabalham com as parcelas, não
-   * mais com o valor único. O que foi removido de uma parcela já gravada espera aqui até o submit.
+   * IPVA em série (cadastro e edição), no molde de Seguro e Financiamento: Valor da parcela,
+   * Parcelas, Início e Vencimento. No submit o grupo vira `ipvaQueue` (as parcelas a gravar) e
+   * é fechado; a fila só perde o que o servidor confirmou, então o retry depois de falha parcial
+   * não duplica. Editar/excluir parcela individual é na aba IPVA do veículo.
    */
-  protected readonly ipvaRows = new FormArray<IpvaRowGroup>([]);
-  private ipvaRemoved: RemovedIpvaRow[] = [];
+  protected readonly ipvaSeries: IpvaSeriesGroup = createIpvaSeriesGroup();
+  protected readonly showIpva = signal(false);
+  /** Parcelas que já existem no servidor (edição): só o resumo; nunca são tocadas daqui. */
+  protected readonly ipvaExisting = signal<IpvaExistingSummary | null>(null);
+  private ipvaQueue: IpvaDraft[] = [];
 
   /**
    * Campos planos legados (ipvaAmount/ipvaDueDate/ipvaStatus). O backend ainda os aceita e,
@@ -514,6 +519,7 @@ export class VehicleForm implements OnInit {
       this.form.statusChanges,
       this.financingForm.statusChanges,
       this.insuranceForm.statusChanges,
+      this.ipvaSeries.statusChanges,
     )
       .pipe(takeUntilDestroyed())
       .subscribe(() => {
@@ -864,7 +870,7 @@ export class VehicleForm implements OnInit {
           status: (v.ipvaStatus ?? null) as IpvaStatus | null,
         };
         this.loading.set(false);
-        this.loadIpvaInstallments(id, !!v.sale);
+        this.loadIpvaInstallments(id);
         this.loadExistingPhoto(id);
       },
       error: (err: HttpErrorResponse) => {
@@ -874,35 +880,26 @@ export class VehicleForm implements OnInit {
     });
   }
 
-  /** Edição: traz as parcelas de todos os exercícios para as linhas editáveis do card de IPVA. */
-  private loadIpvaInstallments(vehicleId: string, sold: boolean): void {
+  /** Edição: traz as parcelas de todos os exercícios só para o resumo do card de IPVA. */
+  private loadIpvaInstallments(vehicleId: string): void {
     this.ipvaService.listYears(vehicleId).subscribe({
       next: (years) => {
-        this.ipvaRows.clear({ emitEvent: false });
-        const all = years
-          .flatMap((y) => y.installments)
-          .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.number - b.number);
-        for (const i of all) this.ipvaRows.push(ipvaRowFromInstallment(i), { emitEvent: false });
-        if (sold) this.ipvaRows.disable({ emitEvent: false });
-        this.ipvaRows.updateValueAndValidity();
+        const all = years.flatMap((y) => y.installments);
+        this.ipvaExisting.set(all.length > 0 ? summarizeIpva(all) : null);
       },
-      // Sem as parcelas o card fica vazio e salvar NÃO apaga nada: só o que a pessoa
-      // adicionar daqui para a frente é enviado.
+      // Sem o resumo o card só oferece a geração; nada é apagado nem reenviado.
       error: () => undefined,
     });
   }
 
-  protected addIpvaRow(): void {
+  protected toggleIpva(): void {
     if (this.sold()) return;
-    this.ipvaRows.push(createIpvaRow());
+    this.showIpva.update((v) => !v);
   }
 
-  protected removeIpvaRow(index: number): void {
-    if (this.sold()) return;
-    const v = this.ipvaRows.at(index)?.getRawValue();
-    if (!v || v.paid) return;
-    if (v.id && v.year != null) this.ipvaRemoved.push({ id: v.id, year: v.year });
-    this.ipvaRows.removeAt(index);
+  /** O bloco de IPVA só é enviado quando aberto (ou quando sobrou fila de um envio que falhou). */
+  protected willSubmitIpva(): boolean {
+    return this.showIpva() || this.ipvaQueue.length > 0;
   }
 
   /** Edição: acha o anexo PHOTO e pede a URL assinada para a miniatura. */
@@ -1155,10 +1152,11 @@ export class VehicleForm implements OnInit {
       return;
     }
 
-    if (this.ipvaRows.invalid) {
-      this.ipvaRows.markAllAsTouched();
-      this.bannerSource = this.ipvaRows;
-      this.error.set('Verifique as parcelas do IPVA.');
+    // Fila pendente de um envio que falhou: o grupo já foi consumido, não revalida.
+    if (this.showIpva() && this.ipvaQueue.length === 0 && this.ipvaSeries.invalid) {
+      this.ipvaSeries.markAllAsTouched();
+      this.bannerSource = this.ipvaSeries;
+      this.error.set('Verifique os campos do IPVA.');
       this.focusFirstInvalid();
       return;
     }
@@ -1307,66 +1305,48 @@ export class VehicleForm implements OnInit {
   }
 
   /**
-   * Parcelas de IPVA depois do veículo salvo (precisam do id). Sequencial e parando na primeira
-   * falha; cada operação que passa atualiza a linha (id/ano/original), então o retry — o form
-   * continua montado, em modo edição — só reenvia o que faltou, sem duplicar parcela.
+   * Série de IPVA depois do veículo salvo (precisa do id). Na 1ª passada o grupo vira a fila; cada
+   * parcela confirmada sai dela, então o retry — o form continua montado, em modo edição — só
+   * reenvia o que faltou. Sequencial e parando na primeira falha.
    */
   private ipvaStep(v: Vehicle): Observable<Vehicle> {
-    const ops = planIpvaOps(this.ipvaRows.controls, this.ipvaRemoved);
-    if (ops.length === 0) return of(v);
-    let current: IpvaOp = ops[0];
-    return from(ops).pipe(
-      concatMap((op) => {
-        current = op;
-        return this.ipvaRequest(v.id, op);
-      }),
+    if (this.ipvaQueue.length === 0 && this.showIpva()) {
+      this.ipvaQueue = ipvaSeriesFromGroup(this.ipvaSeries) ?? [];
+    }
+    const pending = [...this.ipvaQueue];
+    if (pending.length === 0) return of(v);
+    return from(pending).pipe(
+      concatMap((draft) =>
+        this.ipvaService.add(v.id, ipvaYearOf(draft.dueDate), {
+          dueDate: draft.dueDate,
+          amountCents: draft.amountCents,
+        }).pipe(
+          tap(() => {
+            this.ipvaQueue = this.ipvaQueue.filter((d) => d !== draft);
+          }),
+        ),
+      ),
       toArray(),
+      tap(() => {
+        // Série inteira gravada: fecha o bloco e atualiza o resumo (o form segue em edição em retry).
+        this.showIpva.set(false);
+        this.ipvaSeries.reset({ amount: '', installments: '1', start: '', dueDay: '' });
+      }),
       map(() => v),
-      // catchError FORA do concatMap: a primeira falha encerra o fluxo, as operações
-      // seguintes não rodam.
       catchError((err: HttpErrorResponse) => {
-        this.handleIpvaError(err, current);
+        this.handleIpvaError(err);
         return EMPTY;
       }),
     );
   }
 
-  private ipvaRequest(vehicleId: string, op: IpvaOp): Observable<true> {
-    if (op.kind === 'remove') {
-      return this.ipvaService.remove(vehicleId, op.year, op.id).pipe(
-        tap(() => {
-          this.ipvaRemoved = this.ipvaRemoved.filter((r) => r.id !== op.id);
-        }),
-        map(() => true as const),
-      );
-    }
-    const payload = { dueDate: op.dueDate, amountCents: op.amountCents };
-    if (op.kind === 'update') {
-      return this.ipvaService.update(vehicleId, op.year, op.id, payload).pipe(
-        tap(() => op.row.patchValue({ origDue: op.dueDate, origCents: op.amountCents })),
-        map(() => true as const),
-      );
-    }
-    const known = new Set(this.ipvaRows.controls.map((r) => r.getRawValue().id));
-    return this.ipvaService.add(vehicleId, op.year, payload).pipe(
-      tap((year) => {
-        // O backend devolve o exercício inteiro: a parcela nova é a que ainda não está no form.
-        const created = year.installments.find((i) => !known.has(i.id) && i.dueDate === op.dueDate);
-        op.row.patchValue({
-          id: created?.id ?? null,
-          year: created ? year.year : null,
-          origDue: op.dueDate,
-          origCents: op.amountCents,
-        });
-      }),
-      map(() => true as const),
-    );
-  }
-
-  private handleIpvaError(err: HttpErrorResponse, op: IpvaOp): void {
+  private handleIpvaError(err: HttpErrorResponse): void {
     this.saving.set(false);
-    const target = op.row ?? this.ipvaRows;
-    const { formMessage, applied } = this.apiErrors.handleForm(err, target, CHILD_RETRY_HINT);
+    const { formMessage, applied } = this.apiErrors.handleForm(
+      err,
+      this.ipvaSeries,
+      CHILD_RETRY_HINT,
+    );
     this.error.set(this.childErrorMessage('IPVA', formMessage, applied.length > 0));
   }
 

@@ -531,17 +531,61 @@
         </div>
       </app-page-card>
 
-      <!-- ====== IPVA (opcional) — parcelas, na criação E na edição ====== -->
+      <!-- ====== IPVA (opcional) — série de parcelas, na criação E na edição ====== -->
       <app-page-card title="IPVA (opcional)">
-        <div class="p-4 sm:p-6 space-y-3">
-          <app-ipva-installments-fields
-            [rows]="ipvaRows"
-            [locked]="sold()"
-            (addRow)="addIpvaRow()"
-            (removeRow)="removeIpvaRow($event)" />
-          <p class="text-xs text-fg-faint">
-            Uma linha por parcela. Para pagar ou gerar parcelas em série, use a Gerência do veículo.
-          </p>
+        <div class="p-4 sm:p-6 space-y-4">
+          @if (ipvaExisting(); as ex) {
+            <!-- Já há parcelas: só o resumo. Editar, pagar ou excluir é na aba IPVA do veículo. -->
+            <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-sm" data-testid="ipva-summary">
+              <div>
+                <dt class="text-fg-subtle">Parcelas</dt>
+                <dd class="text-fg-body tabular-nums">{{ ex.count }}</dd>
+              </div>
+              <div>
+                <dt class="text-fg-subtle">Pagas</dt>
+                <dd class="text-fg-body tabular-nums">{{ ex.paidCount }} de {{ ex.count }}</dd>
+              </div>
+              <div>
+                <dt class="text-fg-subtle">Total</dt>
+                <dd class="text-fg-body tabular-nums">{{ formatCurrency(ex.totalCents) }}</dd>
+              </div>
+            </dl>
+            <a
+              [routerLink]="['/veiculos', editingId()]"
+              class="w-full sm:w-auto sm:mr-3 inline-flex items-center justify-center gap-2 px-4 min-h-[44px] rounded-xl
+                     border border-edge text-sm font-medium text-fg-soft hover:bg-surface-muted
+                     focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500">
+              Ver IPVA do veículo
+            </a>
+          }
+
+          <button
+            type="button"
+            (click)="toggleIpva()"
+            [attr.aria-expanded]="showIpva()"
+            aria-controls="veiculo-ipva-block"
+            data-testid="ipva-toggle"
+            [disabled]="sold()"
+            [attr.title]="soldLockReason()"
+            class="w-full sm:w-auto inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl border border-edge
+                   text-sm font-medium text-fg-soft hover:bg-surface-muted
+                   disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-surface">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              @if (showIpva()) {
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              } @else {
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              }
+            </svg>
+            {{ showIpva() ? 'Remover IPVA' : (ipvaExisting() ? 'Adicionar mais parcelas' : 'Adicionar IPVA') }}
+          </button>
+
+          <div id="veiculo-ipva-block" class="space-y-4">
+            @if (showIpva()) {
+              <app-ipva-installments-fields [group]="ipvaSeries" />
+            }
+          </div>
         </div>
       </app-page-card>
 
