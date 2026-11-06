@@ -62,6 +62,8 @@
       ariaLabel="Usuários"
       actionsLabel="Ações do usuário"
       exportFilename="usuarios.csv"
+      [rowTarget]="true"
+      (rowActivate)="openUser($event)"
     >
       <ng-template dataListCell="user" let-user>
         <a

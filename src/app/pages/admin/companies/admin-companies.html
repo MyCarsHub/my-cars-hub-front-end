@@ -64,6 +64,8 @@
           actionsLabel="Ações da empresa"
           emptyText="Nenhuma empresa encontrada com esses filtros."
           exportFilename="empresas"
+          [rowTarget]="true"
+          (rowActivate)="openCompany($event)"
           [columns]="columns"
           [rows]="companies()"
           [rowId]="rowId"

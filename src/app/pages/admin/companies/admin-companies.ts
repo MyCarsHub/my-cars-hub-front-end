@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 
@@ -132,6 +132,13 @@ export class AdminCompanies implements OnInit, OnDestroy {
   protected readonly searchControl = new FormControl<string>('', { nonNullable: true });
   protected readonly search = signal<string>('');
   protected readonly columns = COLUMNS;
+  private readonly router = inject(Router);
+
+  /** A linha inteira abre o detalhe (alvo de mouse e toque); o teclado usa o link do nome. */
+  protected openCompany(company: AdminCompanyListItem): void {
+    void this.router.navigate(['/admin/companies', company.id]);
+  }
+
   protected readonly rowId = (company: AdminCompanyListItem): string => company.id;
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly planOptions = PLAN_OPTIONS;

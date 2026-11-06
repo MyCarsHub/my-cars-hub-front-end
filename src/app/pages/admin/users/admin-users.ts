@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { BackLink } from '../../../components/core/back-link/back-link';
@@ -155,6 +155,13 @@ export class AdminUsers implements OnInit, OnDestroy {
       tone: (u) => userSituation(u).tone,
     },
   ];
+  private readonly router = inject(Router);
+
+  /** A linha inteira abre o detalhe (alvo de mouse e toque); o teclado usa o link do nome. */
+  protected openUser(user: AdminUserListItem): void {
+    void this.router.navigate(['/admin/users', user.id]);
+  }
+
   protected readonly rowId = (u: AdminUserListItem): string => u.id;
 
   protected readonly totalPages = computed(() => {
