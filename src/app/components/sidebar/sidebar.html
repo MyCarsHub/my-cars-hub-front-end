@@ -9,15 +9,16 @@
 @if (!layout.isMobile()) {
 <aside class="app-sidebar fixed top-0 left-0 z-30 h-[calc(100dvh-var(--consent-banner-h,0px))] bg-surface border-r border-gray-200 dark:border-edge
            flex flex-col overflow-hidden" [@sidebarWidth]="layout.isCollapsed() ? 'collapsed' : 'expanded'"
-  role="navigation" aria-label="Menu principal">
+  role="navigation" [attr.aria-label]="menuLabel()">
   <ng-container *ngTemplateOutlet="sidebarContent" />
 </aside>
 }
 
 <!-- ==================== SIDEBAR (MOBILE DRAWER) ==================== -->
 @if (layout.isMobile() && layout.isMobileOpen()) {
-<aside class="app-sidebar fixed top-0 left-0 z-50 h-[calc(100dvh-var(--consent-banner-h,0px))] w-[260px] bg-surface border-r border-gray-200 dark:border-edge
-           flex flex-col shadow-2xl" @mobileSlide role="navigation" aria-label="Menu principal">
+<aside #drawer class="app-sidebar fixed top-0 left-0 z-50 h-[calc(100dvh-var(--consent-banner-h,0px))] w-[260px] bg-surface border-r border-gray-200 dark:border-edge
+           flex flex-col shadow-2xl" @mobileSlide [attr.role]="modalDrawer() ? 'dialog' : 'navigation'"
+  [attr.aria-modal]="modalDrawer() ? 'true' : null" [attr.aria-label]="menuLabel()" (keydown)="trapTab($event)">
   <!-- Close button -->
   <!--
     Motorista: alvo de 44px CENTRADO no cabeçalho do logo (h-16): 10px + 44px + 10px = 64px.
@@ -25,7 +26,7 @@
     decidiriam pela ordem do CSS gerado. O `top` do motorista é estilo, não classe: um
     `[class.top-2.5]` não aplica nada (o ponto quebra o nome da classe no binding).
   -->
-  <button class="absolute flex items-center justify-center
+  <button #closeButton class="absolute flex items-center justify-center
              rounded-lg text-gray-400 dark:text-fg-faint hover:text-gray-600 dark:hover:text-fg-muted hover:bg-gray-100 dark:hover:bg-surface-sunken
              focus:outline-none focus:ring-2 focus:ring-primary-500" (click)="layout.closeMobile()"
     [class.top-4]="!isDriverMenu()" [class.right-3]="!isDriverMenu()"
@@ -62,12 +63,12 @@
 
   <!-- ===== MULTI-TENANT SWITCHER ===== -->
   <div class="p-3 border-b border-gray-100 dark:border-edge-soft shrink-0">
-    @if (layout.showSwitcher()) {
+    @if (layout.showSwitcher() && !headerCard()) {
     <button class="w-full min-h-11 flex items-center gap-3 bg-canvas hover:bg-gray-100 dark:hover:bg-surface-sunken
              px-3 py-2.5 rounded-xl transition-colors"
       [class.justify-center]="layout.isCollapsed() && !layout.isMobile()" (click)="layout.toggleTenant()"
       [attr.aria-expanded]="layout.isTenantOpen()" aria-haspopup="dialog" type="button"
-      [title]="layout.isCollapsed() && !layout.isMobile() ? tenantTitle(layout.selectedTenant()) : ''">
+      [title]="layout.isCollapsed() && !layout.isMobile() ? cardTitle(headerView()) : ''">
       <ng-container *ngTemplateOutlet="tenantHeader" />
       @if (!layout.isCollapsed() || layout.isMobile()) {
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -88,7 +89,7 @@
     } @else {
     <div class="w-full flex items-center gap-3 bg-canvas px-3 py-2.5 rounded-xl"
       [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
-      [title]="layout.isCollapsed() && !layout.isMobile() ? tenantTitle(layout.selectedTenant()) : ''">
+      [title]="layout.isCollapsed() && !layout.isMobile() ? cardTitle(headerView()) : ''">
       <ng-container *ngTemplateOutlet="tenantHeader" />
     </div>
     }
@@ -97,12 +98,12 @@
   <ng-template #tenantHeader>
     <div class="w-8 h-8 bg-primary-500 text-white rounded-full shrink-0
              flex items-center justify-center font-semibold text-sm">
-      {{ layout.selectedTenant().initial }}
+      {{ headerView().initial }}
     </div>
     @if (!layout.isCollapsed() || layout.isMobile()) {
     <div class="flex-1 text-left min-w-0" @fadeLabel>
-      <p class="text-sm font-semibold text-gray-900 dark:text-fg truncate">{{ layout.selectedTenant().name }}</p>
-      @if (roleLabel(layout.selectedTenant().role); as role) {
+      <p class="text-sm font-semibold text-gray-900 dark:text-fg truncate">{{ headerView().name }}</p>
+      @if (headerView().subtitle; as role) {
       <p class="text-xs text-primary-700 dark:text-primary-400 font-medium truncate">{{ role }}</p>
       }
     </div>
@@ -149,6 +150,19 @@
           }
         </div>
         }
+      } @else if (item.areaPill) {
+        <!-- Item de ÁREA (Administração, já dentro dela): pílula cinza, sem o realce de rota ativa. -->
+        <a [routerLink]="item.route" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
+                 bg-gray-100 dark:bg-surface-sunken text-gray-900 dark:text-fg font-semibold transition-colors group"
+          [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
+          [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
+          [attr.aria-label]="item.label">
+          <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+
+          @if (!layout.isCollapsed() || layout.isMobile()) {
+          <span class="text-sm truncate" @fadeLabel>{{ item.label }}</span>
+          }
+        </a>
       } @else {
         <a [routerLink]="item.route" routerLinkActive="active-link"
           [routerLinkActiveOptions]="item.exactMatch ? { exact: true } : { exact: false }" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
