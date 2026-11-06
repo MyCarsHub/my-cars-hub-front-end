@@ -167,30 +167,97 @@
         }
     }
 
-    <!-- Fleet KPI grid: 2x2 on mobile, 5x1 on lg -->
-    <section class="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-4">
-        <!-- Dinheiro que JA ENTROU no mes: primeiro da fileira, pintado de laranja (KpiCard). -->
-        @if (cashKpi(); as cash) {
-            <div
-                app-kpi-card
-                data-cash-card
-                variant="primary"
-                [label]="cash.label"
-                numberFormat="brl-cents"
-                [stagger]="0"
-                [value]="cash.totalCents"
-                [detail]="cash.detail"
-            ></div>
-        }
+    <!--
+        KPI da operação (protótipo Main.dc.html): seis cartões, nunca uma fileira
+        quebrada. Celular 2x3, tablet 3x2, desktop 6x1; o ROI da frota fica numa
+        linha própria (col-span-full) para não sobrar cartão sozinho em nenhum
+        tamanho. Os números do período são os do seletor logo abaixo.
+    -->
+    @let f = summary()?.finance;
+    <section
+        class="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6 mb-6"
+        data-kpi-grid
+    >
+        <div
+            app-kpi-card
+            data-billed-card
+            variant="primary"
+            label="Faturado"
+            numberFormat="brl-cents"
+            [stagger]="0"
+            [loading]="loading() && !summary()"
+            [value]="f ? f.revenueCents : null"
+            [delta]="billingKpiDelta()"
+            [detail]="f && !billingKpiDelta() ? 'contratos assinados no período' : null"
+        ></div>
+        <div
+            app-kpi-card
+            data-received-card
+            variant="emerald"
+            label="Recebido"
+            numberFormat="brl-cents"
+            [stagger]="1"
+            [loading]="loading() && !summary()"
+            [value]="f ? f.receivedCents : null"
+            [delta]="receivedKpiDelta()"
+            [detail]="f ? 'de ' + billingLabel() + ' faturados' : null"
+        ></div>
+        <div
+            app-kpi-card
+            data-expenses-kpi
+            variant="white"
+            label="Despesas"
+            numberFormat="brl-cents"
+            tone="danger"
+            [stagger]="2"
+            [loading]="loading() && !summary()"
+            [value]="f ? f.expensesCents : null"
+            [detail]="f ? 'tudo que saiu no período' : null"
+        ></div>
+        <div
+            app-kpi-card
+            data-result-kpi
+            variant="emerald-dark"
+            label="Lucro"
+            numberFormat="brl-cents"
+            [stagger]="3"
+            [loading]="loading() && !summary()"
+            [value]="f ? f.resultCents : null"
+            [detail]="f ? 'receita menos despesas' : null"
+        ></div>
+        <div
+            app-kpi-card
+            data-occupancy-card
+            variant="white"
+            label="Ocupação"
+            numberFormat="percent"
+            [stagger]="4"
+            [loading]="loading() && !summary()"
+            [value]="summary() ? summary()!.fleet.utilizationPct : null"
+            [detail]="summary() ? summary()!.fleet.rentedNow + ' alugados agora' : null"
+        ></div>
+        <div
+            app-kpi-card
+            data-overdue-kpi
+            variant="white"
+            label="Inadimplência"
+            numberFormat="brl-cents"
+            [tone]="hasOverdue() ? 'danger' : 'default'"
+            [stagger]="5"
+            [loading]="loading() && !summary()"
+            [value]="f ? f.overdueChargesCents : null"
+            [detail]="f ? 'cobranças vencidas ou falhas' : null"
+        ></div>
 
-        <!-- ROI da frota (FIX-0420): mesmo KpiCard dos vizinhos, so o dono/gerente ve. -->
+        <!-- ROI da frota (FIX-0420): só dono/gerente; linha própria, nunca cartão órfão. -->
         @if (showVehicleRoi()) {
             <div
                 app-kpi-card
                 data-roi-card
-                variant="emerald"
-                label="ROI"
-                [stagger]="1"
+                class="col-span-full"
+                variant="white"
+                label="ROI da frota"
+                [stagger]="6"
                 [loading]="vehicleRoiLoading() && !vehicleRoi()"
                 [value]="roiKpi().value"
                 [detail]="roiKpi().detail"
@@ -198,231 +265,61 @@
                 [ariaLabel]="roiKpi().link ? 'ROI da frota: informar preço de compra dos veículos' : null"
             ></div>
         }
-
-        <!--
-            Os quatro cartoes simples da fileira sao o mesmo `KpiCard` da tela de
-            Membros: cor, raio e tipografia moram num lugar so. O cartao so mostra
-            numero e legenda quando o resumo chegou; sem ele, fica o rotulo.
-        -->
-        <div
-            app-kpi-card
-            variant="emerald-dark"
-            label="Utilização"
-            numberFormat="percent"
-            [stagger]="2"
-            [loading]="loading() && !summary()"
-            [value]="summary() ? summary()!.fleet.utilizationPct : null"
-            [detail]="summary() ? 'frota rodando' : null"
-        ></div>
-        <div
-            app-kpi-card
-            variant="white"
-            label="Veículos"
-            numberFormat="integer"
-            [stagger]="3"
-            [loading]="loading() && !summary()"
-            [value]="summary() ? summary()!.fleet.vehiclesTotal : null"
-            [detail]="summary() ? vehiclePlanLabel() : null"
-        ></div>
-
-        <!-- Sem legenda de capacidade (FEAT-0070): o card mostra total e ativos. -->
-        <div
-            app-kpi-card
-            variant="white"
-            label="Motoristas"
-            numberFormat="integer"
-            [stagger]="4"
-            [loading]="loading() && !summary()"
-            [value]="summary() ? summary()!.fleet.driversTotal : null"
-            [detail]="summary() ? summary()!.fleet.driversActive + ' ativos agora' : null"
-        ></div>
-
-        <div
-            app-kpi-card
-            variant="white"
-            label="Alugados agora"
-            numberFormat="integer"
-            [stagger]="5"
-            [loading]="loading() && !summary()"
-            [value]="summary() ? summary()!.fleet.rentedNow : null"
-            [detail]="summary() ? summary()!.fleet.reservedNow + ' reservados' : null"
-        ></div>
     </section>
 
-    <!-- Period picker -->
+    <!-- Período: UM seletor de período (o mês do gráfico é o toque na barra, não outro seletor). -->
+    <div class="mb-3 flex flex-col gap-1">
+        <h2 class="text-base font-semibold text-fg">Resultado do período</h2>
+        @if (hasSaleRevenue()) {
+            <p class="text-xs text-fg-muted" data-sale-revenue-card>
+                Venda de veículos no período: {{ saleRevenueLabel() }} (entrada única, fora do faturado).
+            </p>
+        }
+    </div>
     <div class="mb-4">
-        <app-date-range-picker
-            [jumpToMonth]="jumpToMonth()"
-            (rangeChange)="onRangeChange($event)"
-        />
+        <app-date-range-picker (rangeChange)="onRangeChange($event)" />
     </div>
 
-    <!-- Faturamento: seção dedicada, mobile-first (2x2) -->
-    @if (summary()?.finance; as f) {
-        <section class="mb-4">
-            <app-page-card title="Faturamento">
-                <div class="p-4 min-w-0">
-                    <div
-                        class="grid gap-3 grid-cols-2"
-                        [class.lg:grid-cols-4]="!hasSaleRevenue()"
-                        [class.lg:grid-cols-5]="hasSaleRevenue()"
-                    >
-                        <div
-                            app-kpi-card
-                            variant="white"
-                            size="compact"
-                            label="Faturamento"
-                            numberFormat="brl-cents"
-                            tone="success"
-                            [value]="f.revenueCents"
-                            [delta]="billingKpiDelta()"
-                            [detail]="billingKpiDelta() ? null : 'contratos assinados no período'"
-                        ></div>
-
-                        <!-- Venda de veículos (FEAT-0074): categoria PONTUAL, só quando
-                             houve venda; sem delta (o backend não manda comparação). -->
-                        @if (hasSaleRevenue()) {
-                            <div
-                                app-kpi-card
-                                data-sale-revenue-card
-                                variant="white"
-                                size="compact"
-                                label="Venda de veículos"
-                                numberFormat="brl-cents"
-                                tone="primary"
-                                [value]="saleRevenueCents()"
-                                detail="entrada única no período"
-                            ></div>
-                        }
-
-                        <div
-                            app-kpi-card
-                            variant="white"
-                            size="compact"
-                            label="Recebido"
-                            numberFormat="brl-cents"
-                            tone="success"
-                            [value]="f.receivedCents"
-                            [delta]="receivedKpiDelta()"
-                            [detail]="'de ' + billingLabel() + ' faturados'"
-                        ></div>
-
-                        <div
-                            app-kpi-card
-                            variant="white"
-                            size="compact"
-                            label="A receber"
-                            numberFormat="brl-cents"
-                            tone="warning"
-                            [value]="f.pendingChargesCents"
-                            detail="cobranças pendentes no período"
-                        ></div>
-
-                        <div
-                            app-kpi-card
-                            variant="white"
-                            size="compact"
-                            label="Inadimplência aluguel"
-                            numberFormat="brl-cents"
-                            [tone]="hasOverdue() ? 'danger' : 'default'"
-                            [value]="f.overdueChargesCents"
-                            detail="cobranças vencidas ou falhas"
-                        ></div>
-                    </div>
-
-                    <!--
-                        STORY-VEHICLE-FINANCE — para onde foi o dinheiro. Despesa e
-                        resultado são KPIs (app-kpi-card, contam até o valor); a quebra
-                        embaixo é lista compacta: cor só no quadradinho do ícone.
-                    -->
-                    <div class="mt-6 min-w-0" data-expenses-block>
-                        <h3 class="text-sm font-medium text-gray-800 dark:text-fg-body mb-2">
-                            Despesas do período
-                        </h3>
-                        <div class="grid gap-3 grid-cols-2 mb-4">
-                            <div
-                                app-kpi-card
-                                data-expenses-kpi
-                                variant="white"
-                                size="compact"
-                                label="Despesas"
-                                numberFormat="brl-cents"
-                                tone="danger"
-                                [value]="f.expensesCents"
-                                detail="manutenção, multas, IPVA, seguro e financiamento"
-                                detailCompact="tudo que saiu no período"
-                            ></div>
-                            <div
-                                app-kpi-card
-                                data-result-kpi
-                                variant="white"
-                                size="compact"
-                                label="Resultado"
-                                numberFormat="brl-cents"
-                                [tone]="f.resultCents >= 0 ? 'success' : 'danger'"
-                                [value]="f.resultCents"
-                                detail="receita menos despesas"
-                                detailCompact="receita - despesas"
-                            ></div>
-                        </div>
-                        <app-expense-breakdown [breakdown]="expenseBreakdown()" />
-                    </div>
-
-                    <!-- Faturamento últimos 6 meses -->
-                    <div class="mt-6 min-w-0">
-                        <div class="flex items-baseline justify-between mb-2">
-                            <h3 class="text-sm font-medium text-gray-800 dark:text-fg-body">
-                                Faturamento últimos 6 meses
-                            </h3>
-                            <span class="text-[11px] text-gray-500 dark:text-fg-subtle">
-                                clique em um mês para filtrar
-                            </span>
-                        </div>
-                        <app-monthly-billing-chart
-                            [data]="monthlyBilling()"
-                            (barClick)="onMonthlyBarClick($event)"
-                        />
-                        <!-- A série é de ALUGUEL. A venda é escalar da janela (o
-                             backend não a quebra por mês), então dizer que ela
-                             está fora é a única forma honesta de distinguir
-                             pontual de recorrente aqui. Legenda em coluna única,
-                             quebra no mobile. -->
-                        @if (monthlyChartNote(); as chartNote) {
-                            <p
-                                class="mt-2 text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle break-words"
-                                data-monthly-chart-note
-                            >
-                                {{ chartNote }}
-                            </p>
-                        }
-                    </div>
-                </div>
-            </app-page-card>
-        </section>
-    }
-
-    <!-- FEAT-0468 — faturamento x lucro, 6 meses (caixa). Some sem `overview`. -->
-    @if (hasResult()) {
-        <section class="mb-4 min-w-0" data-result-section>
+    <!--
+        Faturamento x lucro (esquerda) e calendário financeiro (direita), como no
+        protótipo. É a ÚNICA série de faturamento por mês da tela. Sem `overview`
+        do backend o gráfico some e o calendário ocupa a linha inteira.
+    -->
+    <section
+        class="mb-4 grid gap-4 grid-cols-1 items-start"
+        [class.lg:grid-cols-2]="hasResult()"
+        data-result-section
+    >
+        @if (hasResult()) {
             <app-page-card title="Faturamento vs lucro">
                 <div class="px-4 pb-4 sm:px-6 min-w-0">
-                    <app-growth-chart
-                        [series]="resultSeries()"
-                        [labels]="resultLabels()"
-                        valueFormat="brl-cents"
-                        ariaLabel="Faturamento e lucro dos últimos 6 meses"
-                    />
-                    <p class="text-xs text-fg-muted mt-3 mb-2">Toque em um mês para ver o detalhe.</p>
-                    <app-pill-tabs
-                        [options]="resultMonthOptions()"
-                        [value]="resultMonthValue()"
-                        ariaLabel="Mês do resultado"
-                        (selected)="onResultMonth($event)"
+                    <p class="text-xs text-fg-muted mb-3">Últimos 6 meses · toque num mês para ver o detalhe</p>
+                    <app-monthly-result-chart
+                        [months]="monthlyResultMonths()"
+                        [selected]="resultMonth()"
+                        (monthSelect)="onResultMonth($event)"
                     />
                 </div>
             </app-page-card>
-        </section>
+        }
+        <app-page-card title="Calendário financeiro">
+            <div class="p-4 min-w-0">
+                <p class="text-xs text-gray-500 dark:text-fg-subtle mb-3">
+                    Recebimentos projetados por frequência do contrato (diária,
+                    semanal, mensal) + manutenções, multas, IPVA, seguro e
+                    financiamento do período.
+                </p>
+                <app-financial-calendar
+                    [events]="calendarCashflow()"
+                    [selectedDate]="selectedDay()"
+                    (daySelect)="onDaySelect($event)"
+                    (monthChange)="onCalendarMonthChange($event)"
+                />
+            </div>
+        </app-page-card>
+    </section>
 
+    @if (hasResult()) {
         <app-detail-dialog
             [open]="resultDetailOpen()"
             [title]="resultDetail()?.title ?? ''"
@@ -444,10 +341,27 @@
         </app-detail-dialog>
     }
 
-    <!-- FEAT-0468 — para onde vai o dinheiro (custos do período) e atraso por idade. -->
-    @if (overview()) {
-        <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2 items-start" data-money-section>
+    <!--
+        Distribuições em pares de mesma altura (items-stretch, sem coluna meio
+        vazia): aluguéis | veículos, custos | atraso por idade. Sem atraso, o
+        card de custos ocupa a linha inteira em vez de deixar metade em branco.
+    -->
+    <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2 items-stretch" data-distributions>
+        <app-ring-legend-card
+            title="Aluguéis por status"
+            totalLabel="aluguéis"
+            [slices]="rentalsByStatusSlices()"
+        />
+        <app-ring-legend-card
+            title="Veículos por status"
+            totalLabel="veículos"
+            [subtitle]="summary() ? vehiclePlanLabel() : null"
+            [slices]="vehiclesByStatusSlices()"
+        />
+        @if (overview()) {
             <app-ring-legend-card
+                data-money-section
+                [class.lg:col-span-2]="!hasAging()"
                 title="Para onde vai cada centavo"
                 totalLabel="custos do período"
                 valueFormat="brl-cents"
@@ -461,55 +375,32 @@
                     [slices]="agingSlices()"
                 />
             }
+        }
+    </section>
+
+    <!-- Este mês vs mês passado (caixa): só some se o endpoint falhar. -->
+    @if (cashView(); as cv) {
+        <section class="mb-4 min-w-0" data-cash-section>
+            <app-page-card title="Este mês vs mês passado">
+                <div class="px-4 pb-4 sm:px-6 min-w-0">
+                    <p class="text-sm text-fg-body mb-3" data-cash-summary>
+                        {{ cv.total }} recebidos em {{ cashMonthLabel() }} · {{ cv.comparison }}
+                    </p>
+                    <app-growth-chart
+                        [series]="cashSeries()"
+                        [labels]="cashLabels()"
+                        valueFormat="brl-cents"
+                        [axisFloor]="cashAxisFloor"
+                        emptyText="Nada recebido neste mês ainda."
+                        ariaLabel="Dinheiro recebido no mês e no mês passado, dia a dia"
+                    />
+                </div>
+            </app-page-card>
         </section>
     }
 
-    <!--
-        Calendario a ESQUERDA ocupando metade, e as duas distribuicoes
-        EMPILHADAS a direita (decisao do dono).
-
-        `items-start` importa: sem ele o grid estica as duas colunas ate a
-        altura da mais alta, e a coluna da direita ficaria com um vazio
-        embaixo do segundo cartao sempre que o calendario for mais alto.
-
-        No celular a grade e de UMA coluna, entao a ordem do DOM e a ordem
-        da tela: calendario, alugueis, veiculos.
-    -->
-    <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2 items-start">
-        <div class="min-w-0">
-            <app-page-card title="Calendário financeiro">
-                        <div class="p-4 min-w-0">
-                            <p class="text-xs text-gray-500 dark:text-fg-subtle mb-3">
-                                Recebimentos projetados por frequência do contrato (diária,
-                                semanal, mensal) + manutenções, multas, IPVA, seguro e
-                                financiamento do período.
-                            </p>
-                            <app-financial-calendar
-                                [events]="calendarCashflow()"
-                                [selectedDate]="selectedDay()"
-                                (daySelect)="onDaySelect($event)"
-                                (monthChange)="onCalendarMonthChange($event)"
-                            />
-                        </div>
-                    </app-page-card>
-        </div>
-
-        <div class="grid gap-4 min-w-0">
-            <app-ring-legend-card
-                title="Aluguéis por status"
-                totalLabel="aluguéis"
-                [slices]="rentalsByStatusSlices()"
-            />
-            <app-ring-legend-card
-                title="Veículos por status"
-                totalLabel="veículos"
-                [slices]="vehiclesByStatusSlices()"
-            />
-        </div>
-    </section>
-
     <!-- Top 5 por receita: veículos + motoristas -->
-    <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2">
+    <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2 items-stretch">
         <app-ranking-card
             title="Top 5 veículos por receita"
             [hero]="true"
@@ -549,17 +440,6 @@
             </div>
         </app-page-card>
     </section>
-
-    <!--
-        FEAT-0123 — "Quanto já entrou no mês". Substitui a "Evolução do ticket
-        médio", removida por decisão do dono: ticket médio é termo que o cliente
-        não reconhece, e o dashboard existe para ele abrir todo dia e ver se está
-        melhor que antes.
-
-        NÃO usa `finance.revenueDaily`: aquilo DISTRIBUI o total do aluguel pelos
-        dias (competência). Aqui é CAIXA — cobrança paga —, e mostrar competência
-        faria o cartão exibir dinheiro que o dono não recebeu.
-    -->
 
     <!--
         Ações rápidas.

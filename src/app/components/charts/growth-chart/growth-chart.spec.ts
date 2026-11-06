@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
-import { GrowthChart, GrowthSeries, growthAxisTop, smoothPath } from './growth-chart';
+import { GrowthChart, GrowthSeries, growthAxisTop, growthIsEmpty, smoothPath } from './growth-chart';
 
 const SERIES: GrowthSeries[] = [
   { key: 'now', label: 'Este mês', color: '#F63B04', values: [2, 6, 12, 20] },
@@ -102,5 +102,36 @@ describe('GrowthChart', () => {
     expect(ticks).toHaveLength(5);
     expect(ticks[0].textContent).toBe('d1');
     expect(ticks[4].textContent).toBe('d30');
+  });
+});
+
+describe('GrowthChart with all-zero or negative data', () => {
+  const ys = (line: string): number[] =>
+    line.replace(/[MC]/g, ' ').split(/\s+/).filter(Boolean).map(Number).filter((_, i) => i % 2 === 1);
+
+  it('smoothPath of an all-zero series is a flat line on the floor, no hump', () => {
+    const { line } = smoothPath([0, 0, 0, 0, 0, 0], 10000);
+    expect(ys(line).every((y) => y === 100)).toBe(true);
+  });
+
+  it('never overshoots the data and keeps negatives on the floor', () => {
+    const { line } = smoothPath([0, 500, 0, -300, 0, 0], 1000);
+    expect(Math.max(...ys(line))).toBeLessThanOrEqual(100);
+    expect(Math.min(...ys(line))).toBeGreaterThanOrEqual(50);
+  });
+
+  it('growthIsEmpty is true only when nothing is above zero', () => {
+    expect(growthIsEmpty([{ key: 'a', label: 'A', color: '#000', values: [0, 0, -5] }])).toBe(true);
+    expect(growthIsEmpty([{ key: 'a', label: 'A', color: '#000', values: [0, 1] }])).toBe(false);
+  });
+
+  it('zero data renders the empty sentence instead of a plot, on a real money axis', () => {
+    const el = render([{ key: 'a', label: 'A', color: '#000', values: [0, 0, 0, 0] }], {
+      valueFormat: 'brl-cents',
+      axisFloor: 10000,
+    });
+    expect(el.querySelector('[data-empty]')).not.toBeNull();
+    expect(el.querySelector('[data-plot]')).toBeNull();
+    expect((el.textContent ?? '').replace(/\s+/g, ' ')).toContain('R$ 100');
   });
 });

@@ -96,7 +96,7 @@ describe('DashboardHome — despesas por categoria e alerta de IPVA', () => {
 
   const text = (el: Element | null): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
-  it('shows expenses and result as KPI cards and the five-category breakdown', () => {
+  it('shows expenses and result as KPI cards, with no nested expense block', () => {
     const { host } = render(
       summaryWith({
         expensesCents: 150000,
@@ -108,23 +108,8 @@ describe('DashboardHome — despesas por categoria e alerta de IPVA', () => {
     );
     expect(text(host.querySelector('[data-expenses-kpi]'))).toContain('R$ 1.500,00');
     expect(text(host.querySelector('[data-result-kpi]'))).toContain('R$ 3.500,00');
-    const rows = host.querySelectorAll('[data-expenses-block] li[data-expense]');
-    expect(Array.from(rows).map((r) => r.getAttribute('data-expense'))).toEqual([
-      'maintenance',
-      'fines',
-      'ipva',
-      'insurance',
-      'financing',
-    ]);
-    expect(text(host.querySelector('li[data-expense="financing"]'))).toContain('R$ 500,00');
-  });
-
-  it('falls back to maintenance + fines when the backend sends no breakdown', () => {
-    const { host } = render(
-      summaryWith({ expensesCents: 30000, maintenanceExpenseCents: 10000, fineExpenseCents: 20000 }),
-    );
-    const rows = host.querySelectorAll('li[data-expense]');
-    expect(Array.from(rows).map((r) => r.getAttribute('data-expense'))).toEqual(['maintenance', 'fines']);
+    // the breakdown no longer lives in a card inside the revenue card: it is the cost ring + the month detail
+    expect(host.querySelector('[data-expenses-block]')).toBeNull();
   });
 
   it('shows the IPVA chip with its count and opens the IPVA page', () => {

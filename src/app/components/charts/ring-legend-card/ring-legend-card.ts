@@ -49,6 +49,9 @@ export function ringGradient(slices: readonly RingSlice[], gap: string): string 
   host: { class: 'block min-w-0' },
   template: `
     <app-page-card [title]="title()">
+      @if (subtitle()) {
+        <p data-subtitle class="px-4 sm:px-6 -mt-1 pb-3 text-xs text-fg-muted">{{ subtitle() }}</p>
+      }
       <div class="px-4 sm:px-6 pb-5 flex flex-col sm:flex-row items-center gap-5 min-w-0">
         <div
           data-ring
@@ -97,6 +100,8 @@ export class RingLegendCard {
   readonly title = input.required<string>();
   readonly slices = input.required<readonly RingSlice[]>();
   readonly valueFormat = input<KpiNumberFormat>('integer');
+  /** One line under the title (e.g. the plan capacity). */
+  readonly subtitle = input<string | null>(null);
   /** Caption under the number in the middle of the ring. */
   readonly totalLabel = input('total');
   /** Colour of the gap between slices; should match the card surface. */
