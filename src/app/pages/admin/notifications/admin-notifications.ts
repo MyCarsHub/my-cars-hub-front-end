@@ -25,6 +25,7 @@ import {
   ChargeNotificationDay,
   ChargeNotificationItem,
 } from '../../../types/admin-charge-notifications.types';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 export type DayPreset = 'today' | 'yesterday' | 'custom';
 
@@ -67,7 +68,7 @@ export function shiftIsoDate(iso: string, days: number): string {
 @Component({
   selector: 'app-admin-notifications',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BackLink, DefaultPageLayout, PageCard, AlertBanner, FilterChipGroup],
+  imports: [PersonNamePipe, BackLink, DefaultPageLayout, PageCard, AlertBanner, FilterChipGroup],
   templateUrl: './admin-notifications.html',
 })
 export class AdminNotifications implements OnInit {

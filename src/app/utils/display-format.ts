@@ -17,7 +17,7 @@
 const NAME_PARTICLES: ReadonlySet<string> = new Set(['de', 'da', 'do', 'dos', 'das', 'e']);
 
 /** Roman numerals that stay upper-case in a name ("João II"). */
-const ROMAN_NUMERALS: ReadonlySet<string> = new Set(['II', 'III', 'IV']);
+const ROMAN_NUMERALS: ReadonlySet<string> = new Set(['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
 
 /**
  * Vehicle brands that are acronyms or stylised all-caps (from the FIPE brand
@@ -33,7 +33,7 @@ const MODEL_ACRONYMS: ReadonlySet<string> = new Set([
   ...BRAND_ACRONYMS,
   'SUV', 'GT', 'GTI', 'GTS', 'GTR', 'LT', 'LTZ', 'LS', 'LX', 'EX', 'EXL', 'XLT', 'SRV', 'SRX',
   'TSI', 'TDI', 'TFSI', 'CVT', 'AWD', 'CX', 'RS', 'SR', 'SE', 'LTD', 'GLS', 'GLX', 'GLI', 'ST',
-  'SX', 'WRX', 'STI', 'HDI', 'THP', 'AT', 'MT', 'XR', 'XRE', 'XRS',
+  'SX', 'WRX', 'STI', 'HDI', 'THP', 'AT', 'MT', 'XR', 'XRE', 'XRS', 'CD', 'CS', 'CE', 'XEI', 'XLS', 'SLT',
 ]);
 
 /** Whole hyphenated tokens made of letter codes (CR-V, HR-V…). */
@@ -90,11 +90,6 @@ export function formatPersonName(value: string | null | undefined): string {
   if (!text || text.includes('@') || !isUniformCase(text)) return text;
   const words = text.split(' ');
   return words.map((w, i) => personWord(w, i, i > 0 ? words[i - 1] : null)).join(' ');
-}
-
-/** First letter for avatars, consistent with the formatted name. */
-export function personInitial(value: string | null | undefined): string {
-  return formatPersonName(value).charAt(0).toUpperCase();
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +151,6 @@ export function formatPlate(
   options: { readonly hyphen?: boolean; readonly empty?: string } = {},
 ): string {
   const p = (plate ?? '').toUpperCase();
-  if (options.hyphen !== false && p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
+  if (options.hyphen !== false && p.length === 7 && !p.includes('-')) return `${p.slice(0, 3)}-${p.slice(3)}`;
   return p || (options.empty ?? '—');
 }

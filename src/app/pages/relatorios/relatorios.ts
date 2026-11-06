@@ -28,7 +28,7 @@ import {
   FilterChipGroup,
   FilterChipOption,
 } from '../../components/filter-chip-group/filter-chip-group';
-import { formatPersonName } from '../../utils/display-format';
+import { formatPersonName, formatPlate } from '../../utils/display-format';
 
 /** Presets de período. `'custom'` não é um chip: é o estado das datas manuais. */
 type ReportPreset = 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear';
@@ -125,7 +125,7 @@ export class Relatorios implements OnInit {
     const r = this.report();
     if (!r) return [];
     return r.vehicleRanking.topProfitable.map((v) => ({
-      label: v.plate,
+      label: formatPlate(v.plate),
       value: v.netCents,
       hint: `Receita ${this.formatBRL(v.revenueCents)} · Custo ${this.formatBRL(v.costCents)}`,
     }));
@@ -136,7 +136,7 @@ export class Relatorios implements OnInit {
     const r = this.report();
     if (!r) return [];
     return r.vehicleRanking.topUnprofitable.map((v) => ({
-      label: v.plate,
+      label: formatPlate(v.plate),
       value: Math.abs(v.netCents),
       hint: `Receita ${this.formatBRL(v.revenueCents)} · Custo ${this.formatBRL(v.costCents)}`,
     }));

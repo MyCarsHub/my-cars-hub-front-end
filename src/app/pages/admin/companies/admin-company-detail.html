@@ -400,7 +400,7 @@
                       <div class="flex gap-1 min-w-0">
                         <dt class="shrink-0">Comprador:</dt>
                         <dd class="min-w-0 break-words text-fg">
-                          {{ sale.buyerName ?? '—' }}
+                          {{ (sale.buyerName | personName) || '—' }}
                         </dd>
                       </div>
                       <div class="flex gap-1 min-w-0">
@@ -412,7 +412,7 @@
                       <div class="flex gap-1 min-w-0 sm:col-span-2">
                         <dt class="shrink-0">Registrada por:</dt>
                         <dd class="min-w-0 break-words text-fg">
-                          {{ sale.authorName ?? '—' }}
+                          {{ (sale.authorName | personName) || '—' }}
                           <span class="text-fg-subtle">· {{ formatDateTime(sale.createdAt) }}</span>
                         </dd>
                       </div>
@@ -454,7 +454,7 @@
                       <div class="flex gap-1 min-w-0 sm:col-span-2">
                         <dt class="shrink-0">Por:</dt>
                         <dd class="min-w-0 break-words text-fg">
-                          {{ undo.authorName ?? '—' }}
+                          {{ (undo.authorName | personName) || '—' }}
                           <span class="text-fg-subtle">· {{ formatDateTime(undo.createdAt) }}</span>
                         </dd>
                       </div>

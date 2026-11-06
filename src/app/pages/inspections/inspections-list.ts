@@ -331,7 +331,7 @@ export class InspectionsList implements OnInit {
           found.push({
             vehicleId: rental.vehicleId,
             plate: formatPlate(rental.vehiclePlate?.trim(), { hyphen: false, empty: '' }) || null,
-            label: [rental.vehiclePlate, car].filter(Boolean).join(' · ') || 'Veículo do aluguel',
+            label: [formatPlate(rental.vehiclePlate, { hyphen: false, empty: '' }), car].filter(Boolean).join(' · ') || 'Veículo do aluguel',
           });
         }
         this.driverVehicles.set(found);

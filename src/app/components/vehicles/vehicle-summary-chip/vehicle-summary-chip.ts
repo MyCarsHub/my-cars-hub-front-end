@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { RouterLink } from '@angular/router';
 import { VehicleStatus, VehicleType } from '../../../types/vehicle.types';
 import { vehicleStatusMeta } from '../../../utils/status-maps';
+import { VehicleLabelPipe } from '../../../pipes/vehicle-label.pipe';
+import { formatPlate } from '../../../utils/display-format';
 
 export interface VehicleSummary {
   id: string;
@@ -19,7 +21,7 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
 @Component({
   selector: 'app-vehicle-summary-chip',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink],
+  imports: [VehicleLabelPipe, RouterLink],
   host: { class: 'block' },
   template: `
     @let v = vehicle();
@@ -40,7 +42,7 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
             {{ formattedPlate() }}
           </p>
           <p class="text-xs text-fg-subtle truncate">
-            {{ v.brand }} {{ v.model }}@if (v.hodometer != null) { · {{ v.hodometer }} km }
+            {{ v.brand | vehicleLabel: v.model }}@if (v.hodometer != null) { · {{ v.hodometer }} km }
           </p>
         </div>
         <div class="hidden xs:flex flex-col items-end gap-1 flex-none">
@@ -79,7 +81,7 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
             {{ formattedPlate() }}
           </p>
           <p class="text-xs text-fg-subtle truncate">
-            {{ v.brand }} {{ v.model }}@if (v.hodometer != null) { · {{ v.hodometer }} km }
+            {{ v.brand | vehicleLabel: v.model }}@if (v.hodometer != null) { · {{ v.hodometer }} km }
           </p>
         </div>
         <div class="hidden xs:flex flex-col items-end gap-1 flex-none">
@@ -116,9 +118,7 @@ export class VehicleSummaryChip {
   linkTo = input<VehicleSummaryChipLinkTo>('detail');
 
   protected readonly formattedPlate = computed(() => {
-    const p = (this.vehicle().plate ?? '').toUpperCase();
-    if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
-    return p || '—';
+    return formatPlate(this.vehicle().plate);
   });
 
   protected readonly routerTarget = computed(() => ['/veiculos', this.vehicle().id]);

@@ -61,6 +61,7 @@ import {
 import { formatSaleDate, saleReleasesSlotNote, soldLockReason as soldLockReasonFor } from './vehicle-sale-copy';
 import { formatPlate, formatVehicleLabel } from '../../utils/display-format';
 import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 const TYPE_LABEL: Record<VehicleType, string> = { CAR: 'Carro', MOTORCYCLE: 'Moto' };
 
@@ -91,6 +92,7 @@ export function ipvaYearFromQuery(value: string | null): number | null {
   selector: 'app-vehicle-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
     VehicleLabelPipe,
     RouterLink,
     DefaultPageLayout,

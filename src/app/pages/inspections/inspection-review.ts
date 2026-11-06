@@ -156,6 +156,8 @@ export class InspectionReview implements OnInit {
     return `${kindLabel(current.kind)} realizada${when ? ` em ${when}` : ''}.`;
   });
 
+  /** Stored plate, untouched: the generated file names must not change with the display rule. */
+  private readonly plateForFile = computed(() => this.inspection()?.vehiclePlate?.trim() || null);
   protected readonly plate = computed(() => formatPlate(this.inspection()?.vehiclePlate?.trim(), { hyphen: false, empty: '' }) || null);
   protected readonly vehicle = computed(() => {
     const current = this.inspection();
@@ -255,7 +257,7 @@ export class InspectionReview implements OnInit {
   protected readonly pdfName = computed(() => {
     const current = this.inspection();
     if (!current) return 'vistoria.pdf';
-    return `vistoria-${kindWord(current.kind)}-${this.plate() ?? current.id}.pdf`;
+    return `vistoria-${kindWord(current.kind)}-${this.plateForFile() ?? current.id}.pdf`;
   });
 
   // ------------------------------------------------------------------ ciclo
@@ -351,7 +353,7 @@ export class InspectionReview implements OnInit {
   private photoItem(frame: AngleFrame): DocumentPreviewItem {
     const current = this.inspection();
     const stem = current
-      ? `vistoria-${kindWord(current.kind)}-${this.plate() ?? current.id}`
+      ? `vistoria-${kindWord(current.kind)}-${this.plateForFile() ?? current.id}`
       : 'vistoria';
     return {
       source: this.photoSource(frame.angle),

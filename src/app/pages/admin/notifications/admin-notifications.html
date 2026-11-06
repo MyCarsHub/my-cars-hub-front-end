@@ -182,7 +182,7 @@
               >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
-                    <p class="text-sm font-semibold text-fg break-words">{{ item.driverFirstName }}</p>
+                    <p class="text-sm font-semibold text-fg break-words">{{ item.driverFirstName | personName }}</p>
                     <p class="text-xs text-fg-muted break-words">
                       {{ item.companyName }}
                       @if (item.driverEmailMasked) {
@@ -242,7 +242,7 @@
                     <div>
                       <dt class="font-medium text-fg-muted">Último reenvio</dt>
                       <dd class="mt-1 text-fg-soft">
-                        {{ formatTime(r.requestedAt) }} por {{ r.requestedByName }} ·
+                        {{ formatTime(r.requestedAt) }} por {{ r.requestedByName | personName }} ·
                         {{ resendOutcomeLabel(r.outcome, r.providerConfirmed) }}
                       </dd>
                     </div>

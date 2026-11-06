@@ -4,7 +4,6 @@ import {
   formatPersonName,
   formatPlate,
   formatVehicleLabel,
-  personInitial,
 } from './display-format';
 
 describe('formatPersonName (FEAT-0556)', () => {
@@ -26,6 +25,11 @@ describe('formatPersonName (FEAT-0556)', () => {
     ['roman II', 'JOÃO II', 'João II'],
     ['roman III lower', 'pedro iii', 'Pedro III'],
     ['roman IV', 'LUIS IV', 'Luis IV'],
+    ['roman I', 'PEDRO I', 'Pedro I'],
+    ['roman V', 'carlos v', 'Carlos V'],
+    ['roman VIII', 'HENRIQUE VIII', 'Henrique VIII'],
+    ['roman IX', 'LUIS IX', 'Luis IX'],
+    ['roman X', 'pio x', 'Pio X'],
     ['collapse spaces', '  JOAO    SILVA ', 'Joao Silva'],
     ['real 1', 'FRANCISCO DE ASSIS PEREIRA JÚNIOR', 'Francisco de Assis Pereira Júnior'],
     ['real 2', 'aparecida da conceição lima', 'Aparecida da Conceição Lima'],
@@ -60,11 +64,6 @@ describe('formatPersonName (FEAT-0556)', () => {
       const once = formatPersonName(input);
       expect(formatPersonName(once)).toBe(once);
     }
-  });
-
-  it('initial follows the formatted name', () => {
-    expect(personInitial('joão silva')).toBe('J');
-    expect(personInitial(null)).toBe('');
   });
 
   it('never touches an e-mail address used as a fallback name', () => {
@@ -113,7 +112,15 @@ describe('formatBrand / formatModel (FEAT-0556)', () => {
     ['cr-v', 'CR-V'],
     ['HR-V', 'HR-V'],
     ['CX-5', 'CX-5'],
-    ['COROLLA XEI', 'Corolla Xei'],
+    ['COROLLA XEI', 'Corolla XEI'],
+    ['corolla xei', 'Corolla XEI'],
+    ['PALIO CD', 'Palio CD'],
+    ['CELTA CS', 'Celta CS'],
+    ['UNO CE', 'Uno CE'],
+    ['HILUX SLT', 'Hilux SLT'],
+    ['hilux xls', 'Hilux XLS'],
+    ['RANGER XLT', 'Ranger XLT'],
+    ['CRUZE LTZ', 'Cruze LTZ'],
     ['GOL GTI', 'Gol GTI'],
     ['COMPASS LONGITUDE', 'Compass Longitude'],
     ['C4 CACTUS', 'C4 Cactus'],
@@ -154,6 +161,10 @@ describe('formatPlate (FEAT-0556)', () => {
     expect(formatPlate(null)).toBe('—');
     expect(formatPlate('')).toBe('—');
     expect(formatPlate(undefined, { empty: 'Veículo' })).toBe('Veículo');
+  });
+  it('keeps a stored hyphen on a 7-char plate (no double hyphen)', () => {
+    expect(formatPlate('abc-123')).toBe('ABC-123');
+    expect(formatPlate('ABC-123')).toBe('ABC-123');
   });
   it('hyphen:false only uppercases', () => {
     expect(formatPlate('abc1d23', { hyphen: false })).toBe('ABC1D23');
