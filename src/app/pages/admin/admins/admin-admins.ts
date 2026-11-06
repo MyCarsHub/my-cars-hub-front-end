@@ -26,8 +26,13 @@ import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import { AdminUserListItem } from '../../../types/admin-user.types';
 import { AdminMember, AdminRole, AdminRoleReason } from '../../../types/admin-roles.types';
-import { ADMIN_ROLE_LABEL } from './admin-role-badge';
 import { AdminRolesService } from './admin-roles.service';
+
+const ADMIN_ROLE_LABEL: Record<AdminRole, string> = {
+  OWNER: 'Dono da plataforma',
+  SUPPORT: 'Suporte',
+  READONLY: 'Leitura',
+};
 
 export type AdminSheet = 'grant' | 'change' | 'revoke';
 
