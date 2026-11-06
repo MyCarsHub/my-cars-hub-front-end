@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 
@@ -22,7 +22,13 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
-import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
+import {
+  DataList,
+  DataListActions,
+  DataListCell,
+  type DataListColumn,
+} from '../../../components/lists/data-list/data-list';
+import { StatusChip } from '../../../components/core/status-chip/status-chip';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminCompaniesService } from '../admin-companies.service';
@@ -56,6 +62,19 @@ const COMPANY_STATUS_CHIPS: Record<AdminCompanyStatus, ChipStyle> = {
 const PAGE_SIZE = 20;
 
 /**
+ * Colunas da lista (kit `app-data-list`). Valor gerenciado e MRR vêm do backend em
+ * centavos; valor ausente (backend antigo) vira "—" — o 0 só aparece quando o servidor o manda.
+ */
+const COLUMNS: readonly DataListColumn<AdminCompanyListItem>[] = [
+  { key: 'name', header: 'Empresa', primary: true, value: (c) => c.name },
+  { key: 'plan', header: 'Plano', value: (c) => c.planName },
+  { key: 'status', header: 'Situação', value: (c) => COMPANY_STATUS_CHIPS[c.status]?.label ?? c.status },
+  { key: 'owner', header: 'Dono', value: (c) => c.ownerName, noExport: true },
+  { key: 'managed', header: 'Gerenciado', kind: 'money-cents', end: true, value: (c) => c.managedMonthCents },
+  { key: 'mrr', header: 'MRR', kind: 'money-cents', end: true, value: (c) => c.mrrCents },
+];
+
+/**
  * Opcoes dos dois filtros. Ficam FORA do template porque `FilterChipGroup.options`
  * e um `input` — um literal inline no template viraria um array novo a cada
  * deteccao de mudanca e derrubaria o `OnPush` do grupo a toa.
@@ -84,7 +103,10 @@ const PLAN_OPTIONS: readonly FilterChipOption<PlanFilter>[] = [
     PageCard,
     ConfirmDialog,
     AlertBanner,
-    ActionsMenu,
+    DataList,
+    DataListCell,
+    DataListActions,
+    StatusChip,
     FilterChipGroup,
     RouterLink,
   ],
@@ -109,6 +131,15 @@ export class AdminCompanies implements OnInit, OnDestroy {
 
   protected readonly searchControl = new FormControl<string>('', { nonNullable: true });
   protected readonly search = signal<string>('');
+  protected readonly columns = COLUMNS;
+  private readonly router = inject(Router);
+
+  /** A linha inteira abre o detalhe (alvo de mouse e toque); o teclado usa o link do nome. */
+  protected openCompany(company: AdminCompanyListItem): void {
+    void this.router.navigate(['/admin/companies', company.id]);
+  }
+
+  protected readonly rowId = (company: AdminCompanyListItem): string => company.id;
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly planOptions = PLAN_OPTIONS;
 
@@ -246,15 +277,10 @@ export class AdminCompanies implements OnInit, OnDestroy {
     return subscriptionChip(company.subscriptionStatus, company.trialEndsAt);
   }
 
-  protected formatDate(value: string | null): string {
-    if (!value) return '—';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+  /** "Campinas, SP" / "Campinas" / "SP" / "—" — cadastro parcial é estado normal. */
+  protected place(company: AdminCompanyListItem): string {
+    const parts = [company.city, company.uf].map((p) => (p ?? '').trim()).filter((p) => p !== '');
+    return parts.length > 0 ? parts.join(', ') : '—';
   }
 
   /**

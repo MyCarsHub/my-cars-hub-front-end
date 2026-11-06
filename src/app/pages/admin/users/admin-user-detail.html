@@ -41,64 +41,60 @@
             <h2 class="text-xl sm:text-2xl font-semibold text-fg break-words">
               {{ user.name ?? '(sem nome)' }}
             </h2>
-            <span
-              class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                     font-medium uppercase tracking-wide"
-              [class]="statusChip(user.active)"
-            >
-              {{ user.active ? 'Ativo' : 'Inativo' }}
-            </span>
-            <span
-              class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                     font-medium uppercase tracking-wide"
-              [class]="roleChip(user.systemRole)"
-            >
-              {{ user.systemRole === 'PLATFORM_ADMIN' ? 'Admin' : 'Usuário' }}
-            </span>
+            <app-status-chip [tone]="statusTone(user.active)" data-testid="user-status">{{
+              user.active ? 'Ativo' : 'Inativo'
+            }}</app-status-chip>
+            <app-status-chip tone="neutral">{{
+              user.systemRole === 'PLATFORM_ADMIN' ? 'Admin' : 'Usuário'
+            }}</app-status-chip>
           </div>
           <p class="mt-1 text-sm text-fg-subtle break-words">{{ user.email }}</p>
           <p class="mt-1 text-xs text-fg-faint tabular-nums">ID {{ user.id }}</p>
         </div>
 
-        <!-- Actions menu (Admin v2 2A: so quem tem usuario.gerir; o servidor confere de novo) -->
-        @if (caps.can('usuario.gerir')) {
-        <div class="relative shrink-0" data-testid="user-actions">
-          <button
-            type="button"
-            class="min-w-[44px] min-h-[44px] flex items-center justify-center gap-2
-                   rounded-xl border border-edge text-fg-soft px-3 py-2 text-sm font-medium
-                   hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400"
-            (click)="toggleActionMenu($event)"
-            [disabled]="updating()"
-            aria-haspopup="menu"
-          >
-            <span>Ações</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                 aria-hidden="true">
-              <circle cx="12" cy="5" r="1.5" />
-              <circle cx="12" cy="12" r="1.5" />
-              <circle cx="12" cy="19" r="1.5" />
-            </svg>
-          </button>
-          @if (openActionMenu()) {
-            <div
-              class="absolute right-0 top-full mt-1 w-64 rounded-xl border border-edge
-                     bg-surface shadow-lg z-20 py-1"
-              role="menu"
+        <!-- Acoes: cada uma so aparece com a capacidade (falha fechada); o servidor confere de novo. -->
+        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap shrink-0" data-testid="user-actions">
+          @if (canEnterAs()) {
+            <button
+              type="button"
+              data-testid="enter-as"
+              class="press min-h-[44px] px-5 rounded-xl text-sm font-semibold bg-primary-500 text-white
+                     hover:bg-primary-600 shadow-sm focus:outline-none focus-visible:ring-2
+                     focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60"
+              [disabled]="entering()"
+              (click)="enterAs()"
             >
-              <button
-                type="button"
-                class="w-full text-left text-sm px-4 py-3 hover:bg-canvas min-h-[44px]"
-                (click)="requestToggleStatus()"
-              >
-                {{ user.active ? 'Desativar usuário' : 'Ativar usuário' }}
-              </button>
-            </div>
+              {{ entering() ? 'Abrindo sessão…' : 'Entrar como ' + firstName() }}
+            </button>
+          }
+          @if (canResend()) {
+            <button
+              type="button"
+              data-testid="resend-invite"
+              class="press min-h-[44px] px-5 rounded-xl text-sm font-semibold bg-surface-sunken text-fg-body
+                     hover:bg-surface-strong focus:outline-none focus-visible:ring-2
+                     focus-visible:ring-primary-400 disabled:opacity-60"
+              [disabled]="resending()"
+              (click)="resendInvite()"
+            >
+              {{ resending() ? 'Reenviando…' : 'Reenviar convite' }}
+            </button>
+          }
+          @if (caps.can('usuario.gerir')) {
+            <button
+              type="button"
+              data-testid="toggle-status"
+              class="press min-h-[44px] px-5 rounded-xl text-sm font-semibold bg-surface-sunken
+                     hover:bg-surface-strong focus:outline-none focus-visible:ring-2
+                     focus-visible:ring-primary-400 disabled:opacity-60"
+              [class]="user.active ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'"
+              [disabled]="updating()"
+              (click)="requestToggleStatus()"
+            >
+              {{ user.active ? 'Desativar' : 'Ativar' }}
+            </button>
           }
         </div>
-        }
       </div>
     </section>
 
@@ -153,75 +149,22 @@
           @if (user.companies.length === 0) {
             <p class="text-sm text-fg-subtle">Este usuário não está vinculado a nenhuma empresa.</p>
           } @else {
-            <!-- Mobile: cards -->
-            <ul class="flex flex-col gap-2 lg:hidden">
+            <ul class="flex flex-col gap-2">
               @for (link of user.companies; track trackLink($index, link)) {
-                <li class="rounded-xl border border-edge-soft bg-canvas p-3">
-                  <div class="flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                      <a
-                        [routerLink]="['/admin/companies', link.companyId]"
-                        data-testid="company-link"
-                        class="inline-flex items-center min-h-[44px] text-sm font-medium text-primary-700 dark:text-primary-300
-                               hover:underline truncate max-w-full
-                               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                      >{{ link.companyName }}</a>
-                      <p class="text-xs text-fg-subtle mt-0.5">
-                        Papel: <span class="font-medium text-fg-soft">{{ roleLabel(link.role) }}</span>
-                      </p>
-                    </div>
-                    <span
-                      class="shrink-0 text-[10px] uppercase font-medium tracking-wide px-2 py-0.5 rounded-full"
-                      [class]="linkStatusChip(link.status)"
-                    >
-                      {{ linkStatusLabel(link.status) }}
-                    </span>
-                  </div>
-                  <p class="mt-2 text-xs text-fg-subtle tabular-nums">
-                    Desde {{ formatDate(link.joinedAt) }}
-                  </p>
+                <li class="rounded-xl bg-surface-muted p-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <a
+                    [routerLink]="['/admin/companies', link.companyId]"
+                    data-testid="company-link"
+                    class="inline-flex items-center min-h-[44px] flex-1 min-w-0 text-sm font-semibold text-primary-700
+                           dark:text-primary-300 hover:underline break-words
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+                  >{{ link.companyName }}</a>
+                  <app-status-chip size="sm" [tone]="roleTone(link.role)">{{ roleLabel(link.role) }}</app-status-chip>
+                  <app-status-chip size="sm" [tone]="linkStatusTone(link.status)">{{ linkStatusLabel(link.status) }}</app-status-chip>
+                  <span class="text-xs text-fg-subtle tabular-nums">Desde {{ formatDate(link.joinedAt) }}</span>
                 </li>
               }
             </ul>
-            <!-- Desktop: table -->
-            <div class="hidden lg:block overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="text-left text-xs uppercase tracking-wide text-fg-subtle border-b border-edge">
-                    <th class="py-3 pr-4 font-medium">Empresa</th>
-                    <th class="py-3 pr-4 font-medium">Papel</th>
-                    <th class="py-3 pr-4 font-medium">Status</th>
-                    <th class="py-3 pr-4 font-medium">Desde</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (link of user.companies; track trackLink($index, link)) {
-                    <tr class="border-b border-edge-soft">
-                      <td class="py-3 pr-4 font-medium">
-                        <a
-                          [routerLink]="['/admin/companies', link.companyId]"
-                          data-testid="company-link"
-                          class="text-primary-700 dark:text-primary-300 hover:underline
-                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                        >{{ link.companyName }}</a>
-                      </td>
-                      <td class="py-3 pr-4 text-fg-soft">{{ roleLabel(link.role) }}</td>
-                      <td class="py-3 pr-4">
-                        <span
-                          class="text-[10px] uppercase font-medium tracking-wide px-2 py-0.5 rounded-full"
-                          [class]="linkStatusChip(link.status)"
-                        >
-                          {{ linkStatusLabel(link.status) }}
-                        </span>
-                      </td>
-                      <td class="py-3 pr-4 text-fg-muted tabular-nums">
-                        {{ formatDate(link.joinedAt) }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
           }
         </div>
       </app-page-card>
@@ -240,3 +183,28 @@
   (confirmed)="confirmPending()"
   (cancelled)="cancelPending()"
 />
+
+@if (pickerOpen()) {
+  <app-bottom-sheet
+    title="Entrar como {{ firstName() }}"
+    subtitle="Escolha a empresa. A sessão é somente leitura."
+    (closed)="closePicker()"
+  >
+    <ul class="flex flex-col gap-2" data-testid="enter-picker">
+      @for (link of enterTargets(); track link.companyId) {
+        <li>
+          <button
+            type="button"
+            data-testid="enter-option"
+            class="press w-full min-h-[44px] text-left rounded-xl bg-surface-muted px-4 py-3 text-sm font-semibold
+                   text-fg hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            (click)="startEnter(link)"
+          >
+            {{ link.companyName }}
+            <span class="block text-xs font-normal text-fg-subtle">{{ roleLabel(link.role) }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  </app-bottom-sheet>
+}

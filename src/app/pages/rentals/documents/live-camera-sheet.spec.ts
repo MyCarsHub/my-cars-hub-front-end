@@ -31,7 +31,7 @@ class Host {
   readonly cancelado = signal(false);
 }
 
-describe('LiveCameraSheet', () => {
+describe('LiveCameraSheet', { timeout: 15000 }, () => {
   let tracks: ReturnType<typeof fakeTrack>[];
   let getUserMedia: ReturnType<typeof vi.fn>;
   const originalMediaDevices = navigator.mediaDevices;
@@ -58,16 +58,35 @@ describe('LiveCameraSheet', () => {
 
   /**
    * A camera arranca num microtask (para o `viewChild` do video ja existir), e
-   * `getUserMedia` e assincrono: sao dois saltos de fila antes de o estado
-   * final aparecer. Um `whenStable` so resolve cedo demais e o teste leria
-   * "Abrindo a camera...".
+   * `getUserMedia` e assincrono. Nada aqui depende de velocidade de runner:
+   * espera-se a CONDICAO (getUserMedia chamado e resolvido, estado final
+   * renderizado), nunca um numero fixo de saltos de fila.
    */
+  async function settle(fixture: ReturnType<typeof TestBed.createComponent<Host>>, calls = 1) {
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(calls), { timeout: 4000 });
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
   async function render() {
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await fixture.whenStable();
-    fixture.detectChanges();
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+      // Sem API nao ha chamada a esperar: o estado "indisponivel" e sincrono.
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture;
+    }
+    await settle(fixture);
+    // O estado final (disparo/aviso) aparece depois da promessa resolver.
+    await vi.waitFor(
+      () => {
+        fixture.detectChanges();
+        const el = fixture.nativeElement as HTMLElement;
+        expect(el.textContent).not.toContain('Abrindo a');
+      },
+      { timeout: 4000 },
+    );
     return fixture;
   }
 
@@ -150,10 +169,7 @@ describe('LiveCameraSheet', () => {
       ).find((b) => b.textContent?.includes('Tentar de novo')) as HTMLButtonElement;
 
       botao.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      await fixture.whenStable();
-
-      expect(getUserMedia).toHaveBeenCalledTimes(2);
+      await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2), { timeout: 4000 });
     });
   });
 

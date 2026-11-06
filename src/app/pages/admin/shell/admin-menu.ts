@@ -1,3 +1,4 @@
+import { NavItem } from '../../../components/sidebar/sidebar';
 import { AdminCapabilityCode } from '../../../types/admin-roles.types';
 
 /** Um destino do menu da administração. Só rotas de `/admin`: nenhuma tela de empresa entra aqui. */
@@ -17,6 +18,11 @@ export interface AdminMenuItem {
 export interface AdminMenuGroup {
   label: string;
   items: AdminMenuItem[];
+  /**
+   * Presente = a sidebar desenha o conjunto como GRUPO que abre e fecha (como "Frota"), com este
+   * rótulo e este ícone. Ausente = os itens sobem soltos para o primeiro nível.
+   */
+  collapsible?: { label: string; icon: string };
 }
 
 /**
@@ -69,6 +75,10 @@ export const ADMIN_MENU: readonly AdminMenuGroup[] = [
   },
   {
     label: 'DINHEIRO',
+    collapsible: {
+      label: 'Dinheiro',
+      icon: 'M12 3v18M17 7H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H6',
+    },
     items: [
       {
         id: 'charges',
@@ -95,6 +105,7 @@ export const ADMIN_MENU: readonly AdminMenuGroup[] = [
   },
   {
     label: 'OPERAÇÃO',
+    collapsible: { label: 'Operação', icon: 'M21 12a8 8 0 0 1-12 7l-5 2l2-5a8 8 0 1 1 15-4' },
     items: [
       {
         id: 'support',
@@ -149,6 +160,7 @@ export function isAdminAreaUrl(url: string): boolean {
 export function visibleAdminMenu(can: (code: AdminCapabilityCode) => boolean): AdminMenuGroup[] {
   return ADMIN_MENU.map((group) => ({
     label: group.label,
+    collapsible: group.collapsible,
     items: group.items.filter((item) => can(item.capability)),
   })).filter((group) => group.items.length > 0);
 }
@@ -161,4 +173,34 @@ export function adminMenuItemForUrl(url: string): AdminMenuItem | null {
   return (
     all.find((i) => !i.exact && (path === i.route || path.startsWith(i.route + '/'))) ?? null
   );
+}
+
+/** Mesmo molde de ícone do menu de empresa (20px, traço 2), para as duas áreas não divergirem. */
+function navIcon(path: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
+}
+
+/**
+ * O menu da administração no modelo da sidebar de empresa (`NavItem`): grupos com `collapsible`
+ * viram grupo que abre e fecha; os demais itens sobem soltos. Grupo com UM item visível vira
+ * item, a mesma regra do menu de empresa.
+ */
+export function buildAdminNavItems(groups: readonly AdminMenuGroup[]): NavItem[] {
+  const toItem = (item: AdminMenuItem): NavItem => ({
+    route: item.route,
+    label: item.label,
+    icon: navIcon(item.icon),
+    exactMatch: item.exact,
+  });
+  return groups.flatMap((group): NavItem[] => {
+    if (group.items.length === 0) return [];
+    if (!group.collapsible || group.items.length === 1) return group.items.map(toItem);
+    return [
+      {
+        label: group.collapsible.label,
+        icon: navIcon(group.collapsible.icon),
+        children: group.items.map(toItem),
+      },
+    ];
+  });
 }
