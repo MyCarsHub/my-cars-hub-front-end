@@ -211,7 +211,8 @@ interface DrawnSeries {
       </ul>
     }
 
-    <table class="sr-only">
+    <div class="sr-only">
+    <table>
       <caption>
         {{ ariaLabel() }}
       </caption>
@@ -234,6 +235,7 @@ interface DrawnSeries {
         }
       </tbody>
     </table>
+    </div>
   `,
 })
 export class GrowthChart {

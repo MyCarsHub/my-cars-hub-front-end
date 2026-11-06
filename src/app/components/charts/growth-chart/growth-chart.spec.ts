@@ -81,6 +81,12 @@ describe('GrowthChart', () => {
     expect(render([SERIES[0]]).querySelector('ul')).toBeNull();
   });
 
+  it('keeps the accessible table inside a clipping sr-only wrapper (a bare sr-only table widens the page on iOS)', () => {
+    const el = render(SERIES);
+    const wrapper = el.querySelector('table')!.parentElement!;
+    expect(wrapper.className).toContain('sr-only');
+  });
+
   it('repeats the data as text in a table, formatted as pt-BR money', () => {
     const el = render([{ ...SERIES[0], values: [150000, 250000, 0, 100] }], {
       valueFormat: 'brl-cents',

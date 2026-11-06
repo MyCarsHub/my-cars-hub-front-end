@@ -659,20 +659,6 @@ export class DashboardHome {
         this.router.navigateByUrl(`${base}/${row.id}`);
     }
 
-    /**
-     * The chip counts CHARGES ("3 cobranças vencidas") and the list it opens shows RENTALS, so the
-     * detail says how many rentals hold them and the amount. Without `rentals` (older backend)
-     * that part is simply absent.
-     */
-    protected overdueDetail(o: { count: number; amountCents: number; rentals?: number }): string {
-        const parts: string[] = [];
-        if (typeof o.rentals === 'number' && o.rentals > 0) {
-            parts.push(`${o.rentals} ${o.rentals === 1 ? 'aluguel' : 'aluguéis'}`);
-        }
-        parts.push(this.format(o.amountCents));
-        return parts.join(' · ');
-    }
-
     protected overdueLabel(count: number): string {
         return count === 1 ? 'cobrança vencida' : 'cobranças vencidas';
     }

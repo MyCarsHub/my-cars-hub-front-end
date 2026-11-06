@@ -67,7 +67,6 @@
                             variant="rose"
                             [label]="overdueLabel(overdue.count)"
                             [count]="overdue.count"
-                            [amountLabel]="overdueDetail(overdue)"
                             (chipClick)="onAlertClick('/alugueis?emAtraso=true')"
                         />
                     }
@@ -129,7 +128,7 @@
                 @if (isOperator() && s.alerts.expiringCnh30d.count > 0) {
                     <app-alert-chip
                         variant="warning"
-                        label="CNH vencendo (30d)"
+                        label="CNH vencendo"
                         [count]="s.alerts.expiringCnh30d.count"
                         (chipClick)="onAlertClick('/motoristas')"
                     />
