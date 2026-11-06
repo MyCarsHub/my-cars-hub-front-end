@@ -1,157 +1,106 @@
-<div class="min-w-0">
-    <!-- Header: month nav + Today -->
-    <div class="flex items-center justify-between gap-2 mb-3">
-        <button
-            type="button"
-            class="min-h-[44px] min-w-[44px] rounded-lg border border-gray-200 dark:border-edge bg-surface
-                   text-gray-700 dark:text-fg-soft hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400
-                   flex items-center justify-center"
-            aria-label="Mês anterior"
-            (click)="prevMonth()"
-        >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M15 18l-6-6 6-6" />
-            </svg>
-        </button>
-        <div class="flex-1 text-center min-w-0">
-            <p class="text-sm sm:text-base font-semibold text-gray-800 dark:text-fg-body capitalize truncate">
-                {{ monthLabel() }}
-            </p>
+<div class="min-w-0" data-financial-calendar>
+    <!-- Header: month subtitle left, Hoje + arrows right (pulled up beside the card title from sm) -->
+    <div class="flex items-center justify-between gap-2 mb-4 sm:h-12 sm:-mt-[3.25rem]">
+        <p class="text-xs text-fg-muted sm:self-end min-w-0 truncate" data-calendar-month>{{ monthLabel() }}</p>
+        <div class="flex items-center gap-1.5 shrink-0">
+            <button
+                type="button"
+                class="size-11 rounded-xl bg-surface-sunken text-fg-soft hover:text-fg focus:outline-none
+                       focus-visible:ring-2 focus-visible:ring-primary-400 flex items-center justify-center"
+                aria-label="Mês anterior"
+                (click)="prevMonth()"
+            >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 18l-6-6 6-6" />
+                </svg>
+            </button>
+            <button
+                type="button"
+                class="min-h-11 px-3.5 rounded-xl bg-surface-sunken text-fg-soft text-sm font-medium hover:text-fg
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                (click)="goToday()"
+            >
+                Hoje
+            </button>
+            <button
+                type="button"
+                class="size-11 rounded-xl bg-surface-sunken text-fg-soft hover:text-fg focus:outline-none
+                       focus-visible:ring-2 focus-visible:ring-primary-400 flex items-center justify-center"
+                aria-label="Próximo mês"
+                (click)="nextMonth()"
+            >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M9 6l6 6-6 6" />
+                </svg>
+            </button>
         </div>
-        <button
-            type="button"
-            class="min-h-[44px] px-3 rounded-lg border border-gray-200 dark:border-edge bg-surface
-                   text-gray-700 dark:text-fg-soft text-xs hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400"
-            (click)="goToday()"
-        >
-            Hoje
-        </button>
-        <button
-            type="button"
-            class="min-h-[44px] min-w-[44px] rounded-lg border border-gray-200 dark:border-edge bg-surface
-                   text-gray-700 dark:text-fg-soft hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400
-                   flex items-center justify-center"
-            aria-label="Próximo mês"
-            (click)="nextMonth()"
-        >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 6l6 6-6 6" />
-            </svg>
-        </button>
     </div>
 
-    <!-- Weekday header -->
-    <div class="grid grid-cols-7 gap-1 mb-1">
-        @for (w of weekdays; track w) {
-            <div class="min-w-0 text-[10px] sm:text-xs text-gray-500 dark:text-fg-subtle text-center uppercase tracking-wide">
-                {{ w }}
+    <!-- Weekday header: single letters -->
+    <div class="grid grid-cols-7 gap-1 mb-1.5">
+        @for (w of weekdays; track $index) {
+            <div class="min-w-0 text-xs text-fg-subtle text-center" [attr.aria-label]="w.name" data-weekday>
+                {{ w.letter }}
             </div>
         }
     </div>
 
-    <!-- Grid -->
+    <!-- Grid: square cells, day number + dots only -->
     <div class="grid grid-cols-7 gap-1">
         @for (cell of cells(); track $index) {
             @if (cell.isPad) {
-                <div class="min-w-0 min-h-[52px] sm:min-h-[64px] rounded-md bg-canvas/40"></div>
+                <div class="min-w-0 aspect-square rounded-xl bg-surface-sunken/40"></div>
             } @else {
                 <button
                     type="button"
-                    class="min-w-0 min-h-[52px] sm:min-h-[64px] rounded-md border p-1 text-left
-                           flex flex-col justify-between transition-colors
-                           focus:outline-none focus:ring-2 focus:ring-primary-400"
-                    [class.bg-surface]="!cell.isToday && selectedDate() !== cell.date"
-                    [class.border-gray-200]="!cell.isToday && selectedDate() !== cell.date" [class.dark:border-edge]="!cell.isToday && selectedDate() !== cell.date"
-                    [class.bg-primary-50]="cell.isToday && selectedDate() !== cell.date" [class.dark:bg-primary-500/10]="cell.isToday && selectedDate() !== cell.date"
-                    [class.border-primary-300]="cell.isToday" [class.dark:border-primary-500/40]="cell.isToday"
+                    class="min-w-0 aspect-square rounded-xl bg-surface-sunken flex items-center justify-center gap-0.5
+                           text-sm tabular-nums transition-colors
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    [class.border-2]="cell.isToday"
+                    [class.border-primary-500]="cell.isToday"
+                    [class.font-semibold]="cell.isToday"
+                    [class.text-primary-500]="cell.isToday"
+                    [class.text-fg-body]="!cell.isToday"
                     [class.ring-2]="selectedDate() === cell.date"
                     [class.ring-primary-500]="selectedDate() === cell.date"
-                    [attr.aria-label]="'Dia ' + cell.dayOfMonth"
+                    [attr.aria-label]="cellLabel(cell)"
+                    [attr.aria-current]="cell.isToday ? 'date' : null"
+                    [attr.data-today]="cell.isToday ? '' : null"
                     (click)="onCellClick(cell)"
                 >
-                    <div class="flex items-center justify-between">
-                        <span
-                            class="text-[11px] sm:text-sm tabular-nums"
-                            [class.font-semibold]="cell.isToday"
-                            [class.text-primary-700]="cell.isToday" [class.dark:text-primary-400]="cell.isToday"
-                            [class.text-gray-700]="!cell.isToday" [class.dark:text-fg-soft]="!cell.isToday"
-                        >
-                            {{ cell.dayOfMonth }}
-                        </span>
-                        @if (cell.inCount + cell.outCount > 1) {
-                            <span class="text-[9px] sm:text-[10px] font-medium
-                                         bg-gray-100 dark:bg-surface-sunken text-gray-600 dark:text-fg-muted rounded-full px-1.5 tabular-nums">
-                                {{ cell.inCount + cell.outCount }}
-                            </span>
-                        }
-                    </div>
-                    <div class="flex flex-col gap-0.5 items-start min-w-0 w-full">
-                        @if (cell.inCount > 0) {
-                            <span class="flex items-center gap-1 min-w-0 w-full text-[9px] sm:text-[10px] text-emerald-700 dark:text-emerald-300
-                                         font-medium tabular-nums leading-none">
-                                <span class="shrink-0 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                <span class="truncate">{{ shortMoney(cell.inCents) }}</span>
-                            </span>
-                        }
-                        @if (cell.outCount > 0) {
-                            <span class="flex items-center gap-1 min-w-0 w-full text-[9px] sm:text-[10px] text-red-700 dark:text-red-300
-                                         font-medium tabular-nums leading-none">
-                                <span class="shrink-0 inline-block w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                <span class="truncate">{{ shortMoney(cell.outCents) }}</span>
-                            </span>
-                        }
-                    </div>
+                    <span>{{ cell.dayOfMonth }}</span>
+                    @if (cell.inCount > 0) {
+                        <span class="shrink-0 size-1.5 rounded-full bg-emerald-500" data-dot="in" aria-hidden="true"></span>
+                    }
+                    @if (cell.outCount > 0) {
+                        <span class="shrink-0 size-1.5 rounded-full bg-red-500" data-dot="out" aria-hidden="true"></span>
+                    }
                 </button>
             }
         }
     </div>
 
-    <!-- Legend -->
-    <div class="flex flex-wrap items-center gap-3 mt-3 text-[11px] text-gray-500 dark:text-fg-subtle">
-        <span class="flex items-center gap-1.5">
-            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-            Recebimentos
-        </span>
-        <span class="flex items-center gap-1.5">
-            <span class="inline-block w-2 h-2 rounded-full bg-red-500"></span>
-            Pagamentos (manutenções, multas, IPVA, seguro e financiamento)
-        </span>
-    </div>
-
-    <!-- Monthly summary cards -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3">
-            <p class="text-[10px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide">Recebimentos</p>
-            <p class="text-sm sm:text-lg font-semibold text-emerald-600 dark:text-emerald-300 tabular-nums truncate">
-                {{ inLabel() }}
+    <!-- Month tiles (they double as the legend): label + value only -->
+    <div class="grid grid-cols-3 gap-2 mt-4">
+        <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5" data-tile="in">
+            <p class="flex items-center gap-1 text-xs text-fg-muted">
+                <span class="shrink-0 size-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
+                <span class="min-w-0">Recebimentos</span>
             </p>
-            <p class="text-[10px] sm:text-xs text-gray-500 dark:text-fg-subtle tabular-nums">
-                {{ monthSummary().inCount }} evento(s)
-            </p>
+            <p class="text-sm sm:text-base font-semibold text-emerald-600 dark:text-emerald-300 tabular-nums break-words">{{ inLabel() }}</p>
         </div>
-        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3">
-            <p class="text-[10px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide">Pagamentos</p>
-            <p class="text-sm sm:text-lg font-semibold text-red-600 dark:text-red-300 tabular-nums truncate">
-                {{ outLabel() }}
+        <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5" data-tile="out">
+            <p class="flex items-center gap-1 text-xs text-fg-muted">
+                <span class="shrink-0 size-1.5 rounded-full bg-red-500" aria-hidden="true"></span>
+                <span class="min-w-0">Pagamentos</span>
             </p>
-            <p class="text-[10px] sm:text-xs text-gray-500 dark:text-fg-subtle tabular-nums">
-                {{ monthSummary().outCount }} evento(s)
-            </p>
+            <p class="text-sm sm:text-base font-semibold text-red-600 dark:text-red-300 tabular-nums break-words">{{ outLabel() }}</p>
         </div>
-        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 col-span-2 sm:col-span-2">
-            <p class="text-[10px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide">Saldo projetado</p>
-            <p
-                class="text-sm sm:text-lg font-semibold tabular-nums truncate"
-                [class.text-emerald-600]="monthSummary().balance >= 0" [class.dark:text-emerald-300]="monthSummary().balance >= 0"
-                [class.text-red-600]="monthSummary().balance < 0" [class.dark:text-red-300]="monthSummary().balance < 0"
-            >
-                {{ balanceLabel() }}
-            </p>
-            <p class="text-[10px] sm:text-xs text-gray-500 dark:text-fg-subtle">
-                Recebimentos - pagamentos no mês
-            </p>
+        <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5" data-tile="balance">
+            <p class="text-xs text-fg-muted">Saldo projetado</p>
+            <p class="text-sm sm:text-base font-semibold text-fg-body tabular-nums break-words">{{ balanceLabel() }}</p>
         </div>
     </div>
 </div>

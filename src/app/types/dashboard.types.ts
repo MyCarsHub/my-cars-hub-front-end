@@ -323,6 +323,18 @@ export function formatBRL(cents: number | null | undefined): string {
     return BRL_FORMATTER.format(value);
 }
 
+const BRL_WHOLE_FORMATTER = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+});
+
+/** Cents as whole reais ("R$ 7.356"), for dashboard summaries where cents are noise. */
+export function formatBRLWhole(cents: number | null | undefined): string {
+    return BRL_WHOLE_FORMATTER.format(Math.round((cents ?? 0) / 100));
+}
+
 /** Format an ISO `yyyy-MM-dd` as a short pt-BR date (e.g. "07 jul"). */
 export function formatShortDate(iso: string): string {
     const d = new Date(iso + 'T00:00:00');

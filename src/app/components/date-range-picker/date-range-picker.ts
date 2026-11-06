@@ -134,7 +134,7 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
                 @if (customError()) {
                     <p class="text-xs text-red-600 dark:text-red-300">{{ customError() }}</p>
                 }
-            } @else if (currentRange(); as r) {
+            } @else if (showRange() && currentRange(); as r) {
                 <p class="text-xs text-gray-500 dark:text-fg-subtle">
                     {{ r.from }} — {{ r.to }}
                 </p>
@@ -183,6 +183,9 @@ export class DateRangePicker implements OnInit {
 
     /** Wrap the chips onto several rows on the phone instead of a horizontal carousel. */
     readonly wrapChips = input(false);
+
+    /** Show the resolved ISO range (`2026-11-01 — 2026-11-30`) under the chips; the dashboard pills do not. */
+    readonly showRange = input(true);
 
     protected readonly presets = computed<readonly FilterChipOption<DateRangePresetKey>[]>(() => {
         const keys = this.presetKeys();

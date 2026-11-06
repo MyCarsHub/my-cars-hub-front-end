@@ -101,6 +101,14 @@ describe('AppShell — gate do sino de notificações', () => {
     expect(header?.querySelector('app-notification-bell')).not.toBeNull();
     expect(startPolling).toHaveBeenCalled();
   });
+
+  it('o scroller do <main> nao pana para o lado (min-w-0 + overflow-x-clip)', () => {
+    configure(true);
+    const main = render().querySelector('main');
+
+    expect(main?.className).toContain('min-w-0');
+    expect(main?.className).toContain('overflow-x-clip');
+  });
 });
 
 /**

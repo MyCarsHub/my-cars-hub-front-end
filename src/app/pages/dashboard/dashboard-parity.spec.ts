@@ -129,10 +129,10 @@ describe('DashboardHome — parity with the prototype', () => {
     expect(norm(host)).not.toContain('ROI da frota');
   });
 
-  it('period pills are the prototype set: no "Próximos" projections, "Mês atual" after "30 dias"', () => {
+  it('period pills are the prototype set: no "Próximos" projections, "Mês atual" before "30 dias" (canvas order)', () => {
     const host = render();
     const labels = Array.from(host.querySelectorAll('app-date-range-picker [role="radio"], app-date-range-picker button')).map((b) => norm(b));
-    expect(labels).toEqual(['Hoje', '7 dias', '30 dias', 'Mês atual', 'Mês passado', 'Este ano', 'Personalizado']);
+    expect(labels).toEqual(['Hoje', '7 dias', 'Mês atual', '30 dias', 'Mês passado', 'Este ano', 'Personalizado']);
   });
 
   it('revenue by month is drawn once: no second chart, no month pills', () => {
@@ -195,6 +195,51 @@ describe('DashboardHome — parity with the prototype', () => {
     expect(norm(section)).not.toContain('R$ 100');
   });
 
+  it('production case: October had cash after day 6 -> last month is a dashed line over the WHOLE month, this month stops at today', () => {
+    const series = (month: string, days: number, through: number, perDay: (d: number) => number) => {
+      let acc = 0;
+      const points = Array.from({ length: through }, (_, i) => {
+        const dayCents = perDay(i + 1);
+        acc += dayCents;
+        return { day: i + 1, cumulativeCents: acc, dayCents };
+      });
+      return { month, daysInMonth: days, throughDay: through, points, totalCents: acc };
+    };
+    const cash = {
+      current: series('2026-11', 30, 6, (d) => (d === 3 ? 1_418_898 : 0)),
+      previous: series('2026-10', 31, 31, (d) => (d === 20 ? 1_800_000 : 0)),
+      previousSameDayCents: 0,
+      deltaCents: 1_418_898,
+    };
+    const host = render({}, cash);
+    const section = host.querySelector('[data-cash-section]')!;
+    const lines = section.querySelectorAll('app-growth-chart [data-line]');
+    const lastX = (el: Element) => Number(el.getAttribute('d')!.trim().split(' ').slice(-2)[0]);
+    expect(lines).toHaveLength(2);
+    expect(lines[0].getAttribute('stroke-dasharray')).toBe('4 4');
+    expect(lastX(lines[0])).toBeCloseTo(100, 1); // last month: whole month
+    expect(lastX(lines[1])).toBeCloseTo((5 / 30) * 100, 1); // this month: day 6 of 31
+    expect(section.querySelectorAll('[data-end-dot]')).toHaveLength(1);
+    expect([...section.querySelectorAll('[data-x-axis] span')].map((s) => s.textContent!.trim())).toEqual([
+      'dia 1', '5', '10', '15', '20', '25', '30',
+    ]);
+    expect(norm(section.querySelector('[data-y-axis]'))).toContain('R$');
+    expect(norm(section.querySelector('[data-y-axis]'))).toMatch(/R\$ \d+k/);
+    expect(section.querySelector('[data-cash-lead]')).toBeNull(); // no base on that day: no invented %
+  });
+
+  it('chip compares on the same day: ahead and behind', () => {
+    const mk = (cur: number, prevSame: number) => {
+      const m = (month: string, through: number, total: number) => ({
+        month, daysInMonth: 30, throughDay: through, totalCents: total,
+        points: Array.from({ length: through }, (_, i) => ({ day: i + 1, cumulativeCents: i + 1 === through ? total : 0, dayCents: 0 })),
+      });
+      return { current: m('2026-11', 10, cur), previous: m('2026-10', 30, 99_999_00), previousSameDayCents: prevSame, deltaCents: cur - prevSame };
+    };
+    expect(norm(render({}, mk(108_00, 100_00)).querySelector('[data-cash-lead]'))).toBe('↗ 8% à frente');
+    expect(norm(render({}, mk(75_00, 100_00)).querySelector('[data-cash-lead]'))).toBe('↘ 25% atrás');
+  });
+
   it('statuses stack on the left, cash chart on the right; the four cards come in one row', () => {
     const host = render();
     expect(host.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(2);
@@ -238,11 +283,11 @@ describe('DashboardHome — responsive classes per section (phone 375 / tablet 7
     const spans = Array.from(board.children).map((c) => c.className);
     expect(spans[0]).toContain('md:col-span-2'); // statuses
     expect(spans[0]).toContain('xl:col-span-8');
-    expect(spans[1]).toContain('xl:col-span-6'); // costs
+    expect(spans[1]).toContain('xl:col-span-5'); // costs
     expect(spans[2]).toContain('xl:col-span-12'); // cash
     expect(spans[3]).toContain('xl:col-span-5'); // top vehicles
     expect(spans[4]).toContain('xl:col-span-5'); // top drivers
-    expect(spans[5]).toContain('xl:col-span-4'); // offenders
+    expect(spans[5]).toContain('xl:col-span-5'); // offenders
     // desktop order: statuses, cash, costs, vehicles, drivers, offenders
     expect(spans.map((c) => /xl:order-(\d)/.exec(c)?.[1])).toEqual(['1', '3', '2', '4', '5', '6']);
   });
