@@ -6,7 +6,6 @@ import { SessionService } from '../../../services/session.service';
 import { homeRouteForRole } from '../../../utils/home-route';
 import { buildAdminNavItems, visibleAdminMenu } from './admin-menu';
 
-const ICON_SHIELD = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6z"/></svg>`;
 const ICON_BACK = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6l-6 6l6 6M4 12h16"/></svg>`;
 const ICON_PROFILE = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 
@@ -62,7 +61,6 @@ export class AdminSidebar {
       ? buildAdminNavItems(visibleAdminMenu((code) => this.caps.can(code)))
       : [];
     return [
-      { route: '/admin', label: 'Administração', icon: ICON_SHIELD, areaPill: true },
       ...adminItems,
       { route: this.appHome(), label: 'Voltar ao app', icon: ICON_BACK, pinBottom: true },
       { route: '/perfil', label: 'Perfil', icon: ICON_PROFILE, pinBottom: true },

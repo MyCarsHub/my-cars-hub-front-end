@@ -4,6 +4,7 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Router, provideRouter } from '@angular/router';
+import { Sidebar } from '../../../components/sidebar/sidebar';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LayoutStore } from '../../../components/core/layouts/layout.store';
@@ -68,10 +69,9 @@ describe('AdminSidebar (FIX-0864: a sidebar do app com o modelo da administraç�
     expect(el.querySelector('[data-admin-sidebar]')).toBeNull();
   });
 
-  it('modelo: pílula Administração, itens, grupos e rodapé na ordem do protótipo', () => {
+  it('modelo: itens, grupos e rodapé na ordem do protótipo, sem pílula nem rótulo de seção', () => {
     const { el } = render(['ver', 'admins.gerir', 'suporte.atender', 'blog']);
     expect(labels(el)).toEqual([
-      'Administração',
       'Visão geral',
       'Usuários',
       'Empresas',
@@ -100,7 +100,7 @@ describe('AdminSidebar (FIX-0864: a sidebar do app com o modelo da administraç�
 
   it('falha fechada: sem resposta de /admin/me nenhum item de administração, só a saída', () => {
     const { el } = render(['ver', 'blog'], { loaded: false });
-    expect(labels(el)).toEqual(['Administração', 'Voltar ao app', 'Perfil']);
+    expect(labels(el)).toEqual(['Voltar ao app', 'Perfil']);
   });
 
   it('cartão do topo no lugar do seletor: avatar, nome e papel em laranja', () => {
@@ -111,13 +111,74 @@ describe('AdminSidebar (FIX-0864: a sidebar do app com o modelo da administraç�
     expect(el.querySelector('.text-primary-700')!.textContent).toContain('Dono da plataforma');
   });
 
-  it('pílula Administração é cinza e não recebe o realce laranja', async () => {
-    const { el, fixture, router } = render(['ver']);
-    await router.navigateByUrl('/admin/users');
-    fixture.detectChanges();
-    const pill = link(el, 'Administração')!;
-    expect(pill.classList.contains('bg-gray-100')).toBe(true);
-    expect(pill.classList.contains('active-link')).toBe(false);
+  /** Monta a sidebar de EMPRESA (dono) ao lado, no mesmo módulo, para comparar marcação. */
+  function companySidebar(): HTMLElement {
+    const payload = { role: 'OWNER', exp: Math.floor(Date.now() / 1000) + 3600 };
+    const b64 = btoa(JSON.stringify(payload))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    sessionStorage.setItem('token', `header.${b64}.signature`);
+    const f = TestBed.createComponent(Sidebar);
+    f.detectChanges();
+    return f.nativeElement as HTMLElement;
+  }
+  const cls = (n: Element | null | undefined) =>
+    (n?.getAttribute('class') ?? '').split(/\s+/).filter((c) => c && c !== 'active-link' && !c.startsWith('ng-')).sort().join(' ');
+
+  it('paridade: mesma marcação e mesmos tokens da sidebar de empresa (desktop)', () => {
+    const { el } = render(['ver']);
+    const admin = el;
+    const company = companySidebar();
+    const a = admin.querySelector('aside')!;
+    const c = company.querySelector('aside')!;
+    expect(cls(a)).toBe(cls(c));
+    // logo, cartão do topo, nav, bloco fixo de baixo e Recolher: filho a filho, mesma classe.
+    const kids = (n: Element) => Array.from(n.children).map(cls);
+    expect(kids(a)).toEqual(kids(c));
+    expect(cls(admin.querySelector('nav'))).toBe(cls(company.querySelector('nav')));
+    expect(cls(admin.querySelector('[data-nav-bottom]'))).toBe(cls(company.querySelector('[data-nav-bottom]')));
+    expect(cls(admin.querySelector('.bg-primary-500.rounded-full')!.parentElement)).toBe(
+      cls(company.querySelector('.bg-primary-500.rounded-full')!.parentElement),
+    );
+    // item simples e grupo: classes idênticas às do item/grupo de empresa.
+    expect(cls(link(admin, 'Usuários'))).toBe(cls(company.querySelector('nav a.nav-link')));
+    expect(cls(link(admin, 'Dinheiro'))).toBe(cls(company.querySelector('nav button.nav-link')));
+    expect(cls(link(admin, 'Perfil'))).toBe(cls(link(company, 'Perfil')));
+    // o rótulo do item: mesma escala tipográfica (text-sm font-medium), sem negrito grande.
+    const label = (n: HTMLElement) => cls(n.querySelector('span:not([class*="w-5"])'));
+    expect(label(link(admin, 'Usuários')!)).toBe(label(company.querySelector<HTMLElement>('nav a.nav-link')!));
+  });
+
+  it('paridade: sem pílula ADMIN, sem rótulos de seção em caixa alta, sem rodapé próprio', () => {
+    const { el } = render(['ver', 'admins.gerir', 'suporte.atender', 'blog']);
+    const text = (el.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).not.toMatch(/ADMIN/);
+    for (const section of ['GERAL', 'PESSOAS', 'DINHEIRO', 'OPERAÇÃO', 'SEGURANÇA']) {
+      expect(text).not.toContain(section);
+    }
+    expect(el.querySelector('[class*="tracking-wider"]')).toBeNull();
+    expect(el.querySelector('nav [class*="uppercase"]')).toBeNull();
+    expect(text).not.toContain('Sair da administração');
+    expect(el.querySelector('[data-admin-sidebar], [data-admin-role], [data-admin-exit]')).toBeNull();
+    // o papel mora no cartão do topo, não numa linha solta sob o último item.
+    expect(el.querySelector('nav')!.textContent).not.toContain('Dono da plataforma');
+    // o rodapé fixo (Voltar ao app, Perfil, Recolher) está FORA do nav que rola.
+    expect(el.querySelector('nav a[aria-label="Voltar ao app"]')).toBeNull();
+    expect(el.querySelector('[data-nav-bottom] a[aria-label="Voltar ao app"]')).not.toBeNull();
+    // a rolagem usa a folha de estilo do componente compartilhado (barra fina de 4px).
+    expect(el.querySelector('nav')!.classList.contains('overflow-y-auto')).toBe(true);
+  });
+
+  it('paridade: gaveta do celular com a mesma casca e o mesmo botão Fechar', () => {
+    const { el, layout } = render(['ver'], { mobile: true, open: true });
+    const company = companySidebar();
+    expect(layout.isMobileOpen()).toBe(true);
+    const a = el.querySelector('aside')!;
+    const c = company.querySelector('aside')!;
+    expect(cls(a)).toBe(cls(c));
+    expect(cls(a.querySelector('[data-drawer-close]'))).toBe(cls(c.querySelector('[data-drawer-close]')));
+    expect(Array.from(a.children).map(cls)).toEqual(Array.from(c.children).map(cls));
   });
 
   it('realce: lista e detalhe marcam o mesmo item; Visão geral só na URL exata', async () => {
