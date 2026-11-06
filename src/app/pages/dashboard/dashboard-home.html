@@ -389,8 +389,11 @@
                         <app-growth-chart
                             [series]="cashSeries()"
                             [labels]="cashLabels()"
-                            valueFormat="brl-cents"
+                            valueFormat="brl-cents-compact"
                             [axisFloor]="cashAxisFloor"
+                            [axisTop]="cv.axisTopCents"
+                            [xTickMarks]="cashXTicks()"
+                            [endDot]="true"
                             [heightPx]="260"
                             emptyText="Nada recebido neste mês ainda."
                             ariaLabel="Dinheiro recebido no mês e no mês passado, dia a dia"

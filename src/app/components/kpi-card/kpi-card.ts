@@ -38,10 +38,11 @@ export type KpiCardSize = 'regular' | 'compact';
  * - `decimal`: 1.234,5 (see `decimals`, default 1)
  * - `brl`: value in reais  -> R$ 1.234,00
  * - `brl-cents`: value in cents -> R$ 12,34
+ * - `brl-cents-compact`: cents as an axis label (150000 -> R$ 1,5k; 1000000 -> R$ 10k; 5000 -> R$ 50)
  * - `percent`: value is already in percent points (62.5 -> 62,5%; 50 -> 50%; `decimals` fixes the digits)
  * - `ratio`: value is 0..1 (0.625 -> 63%)
  */
-export type KpiNumberFormat = 'integer' | 'decimal' | 'brl' | 'brl-cents' | 'percent' | 'ratio';
+export type KpiNumberFormat = 'integer' | 'decimal' | 'brl' | 'brl-cents' | 'brl-cents-compact' | 'percent' | 'ratio';
 
 export interface KpiDelta {
   readonly text: string;
@@ -58,6 +59,14 @@ const decimalFormatter = (digits: number, min = digits): Intl.NumberFormat =>
 const percentText = (n: number, decimals: number | null): string =>
   `${(decimals === null ? decimalFormatter(1, 0) : decimalFormatter(decimals)).format(n)}%`;
 
+/** R$ 10k / R$ 1,5k / R$ 50: one decimal at most, none when whole. */
+function compactBrl(reais: number): string {
+  const abs = Math.abs(reais);
+  const sign = reais < 0 ? '-' : '';
+  if (abs >= 1000) return `${sign}R$ ${decimalFormatter(1, 0).format(Math.round(abs / 100) / 10)}k`;
+  return `${sign}R$ ${decimalFormatter(0).format(Math.round(abs))}`;
+}
+
 /** Pure: the text of `n` in `kind`. Exported so specs and pages share the one rule. */
 export function formatKpiNumber(kind: KpiNumberFormat, n: number, decimals: number | null = null): string {
   switch (kind) {
@@ -69,6 +78,8 @@ export function formatKpiNumber(kind: KpiNumberFormat, n: number, decimals: numb
       return BRL.format(n);
     case 'brl-cents':
       return BRL.format(Math.round(n) / 100);
+    case 'brl-cents-compact':
+      return compactBrl(n / 100);
     case 'percent':
       return percentText(n, decimals);
     case 'ratio':

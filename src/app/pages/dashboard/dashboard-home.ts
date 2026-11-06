@@ -35,7 +35,7 @@ import { CashflowDaySheet } from './components/cashflow-day-sheet';
 import { CashAccumulationResponse } from '../../types/cash-accumulation.types';
 import { cashAccumulationView, monthName } from '../../utils/cash-accumulation-view';
 import { MONEY_AXIS_FLOOR_CENTS } from '../../utils/money-axis';
-import { GrowthChart, GrowthSeries } from '../../components/charts/growth-chart/growth-chart';
+import { GrowthChart, GrowthSeries, GrowthXTick } from '../../components/charts/growth-chart/growth-chart';
 import { RingLegendCard, RingSlice } from '../../components/charts/ring-legend-card/ring-legend-card';
 import { RankingCard, RankingItem } from '../../components/charts/ranking-card/ranking-card';
 import { PillTabs, PillTabOption } from '../../components/core/pill-tabs/pill-tabs';
@@ -169,36 +169,41 @@ export class DashboardHome {
     protected readonly cashAxisFloor = MONEY_AXIS_FLOOR_CENTS;
 
     /**
-     * Both curves stop at today: the previous month is drawn only up to the same day, so the
-     * chart never promises half a month of data it does not have for the current one.
+     * Both curves live on the FULL month axis (the longer of the two months): this month is drawn
+     * solid up to today, last month dashed to its last day, so the owner sees where last month
+     * ended and not only how it started.
      */
-    private readonly cashDays = computed(() => this.cashView()?.current.points.length ?? 0);
+    protected readonly cashLabels = computed(() => {
+        const days = this.cashView()?.axisDays ?? 0;
+        return Array.from({ length: days }, (_, i) => String(i + 1));
+    });
 
-    protected readonly cashLabels = computed(() =>
-        (this.cashView()?.current.points ?? []).map((p) => String(p.day)),
-    );
+    /** x marks "dia 1, 5, 10, ..." (only the days that exist in the month axis). */
+    protected readonly cashXTicks = computed<GrowthXTick[]>(() => {
+        const days = this.cashView()?.axisDays ?? 0;
+        return [1, 5, 10, 15, 20, 25, 30]
+            .filter((d) => d <= days)
+            .map((d) => ({ index: d - 1, text: `dia ${d}` }));
+    });
 
-    /** Chip of the cash card: how far ahead of (or behind) last month at the same day; null without a base. */
+    /** Chip of the cash card: ahead of / behind last month ON THE SAME DAY; null without a base. */
     protected readonly cashLead = computed(() => {
-        const v = this.cashView();
-        if (!v) return null;
-        const prev = v.previous.points[v.current.points.length - 1]?.cents ?? 0;
-        if (!(prev > 0)) return null;
-        const pct = Math.round(((v.totalCents - prev) / prev) * 100);
+        const r = this.cashAccumulation();
+        if (!r || !(r.previousSameDayCents > 0)) return null;
+        const pct = Math.round((r.deltaCents / r.previousSameDayCents) * 100);
         return { up: pct >= 0, text: `${pct >= 0 ? '↗' : '↘'} ${Math.abs(pct)}% ${pct >= 0 ? 'à frente' : 'atrás'}` };
     });
 
     protected readonly cashSeries = computed<GrowthSeries[]>(() => {
         const view = this.cashView();
         if (!view) return [];
-        const days = this.cashDays();
         return [
             {
                 key: 'previous',
                 label: 'Mês passado',
                 color: '#a3a3a3',
                 reference: true,
-                values: view.previous.points.slice(0, days).map((p) => p.cents),
+                values: view.previous.points.map((p) => p.cents),
             },
             {
                 key: 'current',

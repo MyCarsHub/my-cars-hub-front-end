@@ -39,12 +39,14 @@ const clampBetween = (y: number, a: number, b: number): number =>
 export function smoothPath(
   values: readonly number[],
   top: number,
+  slots: number = values.length,
 ): { line: string; area: string } {
   if (values.length === 0) return { line: '', area: '' };
   const n = values.length;
+  const span = Math.max(slots, n);
   // The axis starts at zero: a negative value sits on the floor instead of leaving the box.
   const pts = values.map((v, i) => [
-    n === 1 ? 50 : (i / (n - 1)) * 100,
+    span === 1 ? 50 : (i / (span - 1)) * 100,
     clampY(100 - (Math.max(0, v) / top) * 100),
   ]);
   let d = `M${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
@@ -63,6 +65,26 @@ export function smoothPath(
   return { line: d, area: `${d} L${lastX} 100 L${firstX} 100 Z` };
 }
 
+/** Pure: where the last value of a series sits in the 0-100 box (for the end-point dot). */
+export function endPoint(
+  values: readonly number[],
+  top: number,
+  slots: number = values.length,
+): { x: number; y: number } | null {
+  if (values.length === 0) return null;
+  const span = Math.max(slots, values.length);
+  return {
+    x: span === 1 ? 50 : ((values.length - 1) / (span - 1)) * 100,
+    y: clampY(100 - (Math.max(0, values[values.length - 1]) / top) * 100),
+  };
+}
+
+/** A labelled mark on the x axis: `index` is the position in `labels`. */
+export interface GrowthXTick {
+  readonly index: number;
+  readonly text: string;
+}
+
 interface DrawnSeries {
   readonly key: string;
   readonly label: string;
@@ -70,6 +92,7 @@ interface DrawnSeries {
   readonly reference: boolean;
   readonly line: string;
   readonly area: string;
+  readonly end: { x: number; y: number } | null;
 }
 
 /**
@@ -108,6 +131,7 @@ interface DrawnSeries {
             {{ emptyText() }}
           </div>
         } @else {
+        <div class="relative">
         <svg
           data-plot
           class="w-full block overflow-visible"
@@ -133,13 +157,41 @@ interface DrawnSeries {
             />
           }
         </svg>
+        @if (endDot()) {
+          @for (s of drawn(); track s.key) {
+            @if (!s.reference && s.end; as end) {
+              <span
+                data-end-dot
+                class="absolute h-2.5 w-2.5 rounded-full border-2 border-white dark:border-surface -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                aria-hidden="true"
+                [style.left.%]="end.x"
+                [style.top.%]="end.y"
+                [style.background-color]="s.color"
+              ></span>
+            }
+          }
+        }
+        </div>
         }
         @if (!empty()) {
+        @if (positionedTicks(); as ticks) {
+          <div data-x-axis class="relative text-[11px] text-fg-muted h-5 pt-1" aria-hidden="true">
+            @for (t of ticks; track t.index) {
+              <span
+                class="absolute whitespace-nowrap"
+                [style.left.%]="t.left"
+                [style.transform]="t.shift"
+                >{{ t.text }}</span
+              >
+            }
+          </div>
+        } @else {
         <div data-x-axis class="flex justify-between text-[11px] text-fg-muted h-5 pt-1" aria-hidden="true">
           @for (label of xTicks(); track $index) {
             <span>{{ label }}</span>
           }
         </div>
+        }
         }
       </div>
     </div>
@@ -197,15 +249,39 @@ export class GrowthChart {
   readonly axisFloor = input(GROWTH_AXIS_MIN_TOP);
   /** How many x labels to print (evenly picked), so 30 days stay legible at 375px. */
   readonly maxXTicks = input(6);
+  /** Pin the axis top (same unit as the values); null keeps the "real max or floor" rule. */
+  readonly axisTop = input<number | null>(null);
+  /** Dot on the last value of each non-reference series. */
+  readonly endDot = input(false);
+  /** Explicit x marks (by index in `labels`), spread over the FULL label axis; overrides `maxXTicks`. */
+  readonly xTickMarks = input<readonly GrowthXTick[] | null>(null);
   /** Shown instead of the plot when every value is zero. */
   readonly emptyText = input('Ainda sem movimento neste período.');
 
   protected readonly empty = computed(() => growthIsEmpty(this.series()));
 
-  protected readonly top = computed(() => growthAxisTop(this.series(), this.axisFloor()));
+  protected readonly top = computed(() => {
+    const pinned = this.axisTop();
+    const real = growthAxisTop(this.series(), this.axisFloor());
+    return pinned === null ? real : Math.max(pinned, real);
+  });
+
+  protected readonly positionedTicks = computed(() => {
+    const marks = this.xTickMarks();
+    if (!marks) return null;
+    const last = Math.max(1, this.labels().length - 1);
+    return marks.map((m) => ({
+      index: m.index,
+      text: m.text,
+      left: (m.index / last) * 100,
+      // Edge labels hang inward so they never leave the card.
+      shift: m.index === 0 ? 'none' : m.index === last ? 'translateX(-100%)' : 'translateX(-50%)',
+    }));
+  });
 
   protected readonly drawn = computed<DrawnSeries[]>(() => {
     const top = this.top();
+    const slots = this.labels().length;
     // Reference first so the main series paints over it.
     return [...this.series()]
       .sort((a, b) => Number(!!b.reference) - Number(!!a.reference))
@@ -214,7 +290,8 @@ export class GrowthChart {
         label: s.label,
         color: s.color,
         reference: !!s.reference,
-        ...smoothPath(s.values, top),
+        ...smoothPath(s.values, top, slots),
+        end: endPoint(s.values, top, slots),
       }));
   });
 
@@ -233,6 +310,9 @@ export class GrowthChart {
   });
 
   protected text(v: number | undefined): string {
-    return v === undefined ? '—' : formatKpiNumber(this.valueFormat(), v);
+    return v === undefined
+      ? '—'
+      // The axis may be compact (R$ 10k); the text table keeps the exact value.
+      : formatKpiNumber(this.valueFormat() === 'brl-cents-compact' ? 'brl-cents' : this.valueFormat(), v);
   }
 }
