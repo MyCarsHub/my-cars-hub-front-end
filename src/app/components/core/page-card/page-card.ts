@@ -48,6 +48,11 @@ export class PageCard {
   storageKey = input<string | null>(null);
   /** Fill the height the parent grid gives (side-by-side cards of equal height, no hole). */
   fill = input(false);
+  /**
+   * One-line title with an ellipsis (full text in the tooltip). Cards that sit side by side
+   * use it so a long title never makes one header taller than its neighbours.
+   */
+  truncateTitle = input(false);
   readonly toggled = output<boolean>();
 
   /** ID único para o `aria-controls` do chevron. */

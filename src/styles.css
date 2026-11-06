@@ -1099,3 +1099,57 @@ tr.is-leaving .cell-collapse {
     animation: none;
   }
 }
+
+/*
+ * Movimento do dashboard (so transform/opacity/clip-path). Antes so a contagem dos KPIs se
+ * mexia, e ela some inteira sob `prefers-reduced-motion`: num celular com "reduzir movimento"
+ * ligado (comum no Android com economia de bateria) o painel ficava estatico. Agora cartoes,
+ * barras, anel e curva tem entrada propria; com movimento reduzido viram so um fade curto
+ * (sem deslocamento), em vez de sumirem.
+ *
+ * `.dash-enter`: cartao sobe 8px e aparece, cascata de 50ms (`--stagger-i`, max. 8).
+ * `.bar-rise`: barra cresce da base (scaleY), cascata de 45ms.
+ * `.draw-in`: o grafico de linha e revelado da esquerda para a direita (clip-path).
+ * `.ring-in`: o anel gira um pouco e cresce ate o tamanho final.
+ * Todas usam `backwards`: o quadro final nao fica preso no elemento.
+ */
+@keyframes dash-rise {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes bar-rise {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes draw-in {
+  from { clip-path: inset(-8px 100% -8px -8px); }
+  to { clip-path: inset(-8px -8px -8px -8px); }
+}
+@keyframes ring-in {
+  from { opacity: 0; transform: scale(0.88) rotate(-24deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+.dash-enter {
+  animation: dash-rise 320ms cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
+  animation-delay: calc(min(var(--stagger-i, 0), 8) * 50ms);
+}
+.bar-rise {
+  transform-origin: bottom center;
+  animation: bar-rise 600ms cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
+  animation-delay: calc(80ms + min(var(--stagger-i, 0), 8) * 45ms);
+}
+.draw-in {
+  animation: draw-in 900ms cubic-bezier(0.2, 0.9, 0.3, 1) 150ms backwards;
+}
+.ring-in {
+  animation: ring-in 600ms cubic-bezier(0.2, 0.9, 0.3, 1) 100ms backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-enter,
+  .bar-rise,
+  .draw-in,
+  .ring-in {
+    animation: fade-in 200ms ease-out backwards;
+    animation-delay: 0ms;
+  }
+}

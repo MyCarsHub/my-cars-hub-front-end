@@ -512,7 +512,15 @@ export class Sidebar {
     return { initial: tenant.initial, name: tenant.name, subtitle: this.roleLabel(tenant.role) };
   });
 
+  /**
+   * Label enter animation (`fadeLabel`: width 0 -> auto with `truncate`) must NOT play on the
+   * first paint: on a hard reload the main thread is busy, the animation freezes part-way and
+   * the owner saw 'Administra…', 'Dashbo…' until it finished. Disabled for the first render only.
+   */
+  protected readonly animationsDisabled = signal(true);
+
   constructor() {
+    afterNextRender(() => this.animationsDisabled.set(false));
     // Gaveta modal aberta: o foco vai para o Fechar; fechada, volta para o ☰ de quem abriu.
     let wasOpen = false;
     let opener: HTMLElement | null = null;

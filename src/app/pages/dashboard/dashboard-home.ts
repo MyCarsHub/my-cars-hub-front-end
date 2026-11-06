@@ -15,6 +15,7 @@ import { ExpenseBreakdown } from '../../components/expense-breakdown/expense-bre
 import { FleetActivationService } from '../../services/fleet-activation.service';
 import { SessionService } from '../../services/session.service';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
+import { CardSkeleton } from './components/card-skeleton';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { DashboardService } from '../../services/dashboard.service';
 import {
@@ -117,6 +118,7 @@ function monthLong(key: string): string {
         RouterLink,
         KpiCard,
         ExpenseBreakdown,
+        CardSkeleton,
     ],
     templateUrl: './dashboard-home.html',
 })
@@ -248,8 +250,14 @@ export class DashboardHome {
             .loadCashAccumulation()
             .pipe(takeUntilDestroyed())
             .subscribe({
-                next: (res) => this.cashAccumulation.set(res),
-                error: () => this.cashAccumulation.set(null),
+                next: (res) => {
+                    this.cashAccumulation.set(res);
+                    this.cashPending.set(false);
+                },
+                error: () => {
+                    this.cashAccumulation.set(null);
+                    this.cashPending.set(false);
+                },
             });
 
         if (eligible) {
@@ -271,6 +279,12 @@ export class DashboardHome {
     protected readonly summary = signal<DashboardSummaryDto | null>(null);
     protected readonly loading = signal(false);
     protected readonly error = signal<string | null>(null);
+
+    /** No summary yet and no failure: every board card shows a placeholder in its own slot. */
+    protected readonly pending = computed(() => !this.summary() && !this.error());
+
+    /** The cash curve is its own request: its slot is held until it answers (or fails). */
+    protected readonly cashPending = signal(true);
 
     /** Currently applied range — used on reload after failure. */
     private readonly currentRange = signal<DateRange | null>(null);

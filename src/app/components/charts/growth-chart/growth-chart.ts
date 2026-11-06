@@ -65,6 +65,27 @@ export function smoothPath(
   return { line: d, area: `${d} L${lastX} 100 L${firstX} 100 Z` };
 }
 
+/**
+ * Pure: straight segments through `values` (same 0-100 box as `smoothPath`). A cumulative total
+ * is a staircase that only ever rises: a spline turns every step into an S-bend and the short
+ * current-month curve into a blob, so those charts draw plain segments.
+ */
+export function linearPath(
+  values: readonly number[],
+  top: number,
+  slots: number = values.length,
+): { line: string; area: string } {
+  if (values.length === 0) return { line: '', area: '' };
+  const n = values.length;
+  const span = Math.max(slots, n);
+  const pts = values.map((v, i) => [
+    span === 1 ? 50 : (i / (span - 1)) * 100,
+    clampY(100 - (Math.max(0, v) / top) * 100),
+  ]);
+  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(' ');
+  return { line: d, area: `${d} L${pts[n - 1][0].toFixed(2)} 100 L${pts[0][0].toFixed(2)} 100 Z` };
+}
+
 /** Pure: where the last value of a series sits in the 0-100 box (for the end-point dot). */
 export function endPoint(
   values: readonly number[],
@@ -101,7 +122,7 @@ interface DrawnSeries {
  * constant weight at any width (375px to desktop). No library: this is the same curve the
  * design prototype draws, and it ships zero extra bytes. Axis rule is the line chart's (zero
  * floor, minimum top); the same series are repeated in a sr-only table, since an SVG path
- * carries no numbers. Draws nothing animated, so reduced motion needs no special case.
+ * carries no numbers. The plot is revealed left to right (`draw-in`, a clip-path) and the end dot fades in; under reduced motion both become a plain fade.
  */
 @Component({
   selector: 'app-growth-chart',
@@ -122,7 +143,7 @@ interface DrawnSeries {
       @if (!empty()) {
       <div
         data-y-axis
-        class="flex flex-col justify-between text-right text-[10px] text-fg-muted tabular-nums min-w-9 pb-5"
+        class="flex flex-col justify-between text-right text-[10px] sm:text-[11px] text-fg-muted tabular-nums min-w-9 pb-5"
         aria-hidden="true"
       >
         @for (tick of yTicks(); track $index) {
@@ -144,7 +165,7 @@ interface DrawnSeries {
         <div class="relative">
         <svg
           data-plot
-          class="w-full block overflow-visible"
+          class="draw-in w-full block overflow-visible"
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
           aria-hidden="true"
@@ -182,8 +203,9 @@ interface DrawnSeries {
             @if (!s.reference && s.end; as end) {
               <span
                 data-end-dot
-                class="absolute h-2.5 w-2.5 rounded-full border-2 border-white dark:border-surface -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                class="fade-in absolute h-2.5 w-2.5 rounded-full border-2 border-white dark:border-surface -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                 aria-hidden="true"
+                style="animation-delay: 800ms"
                 [style.left.%]="end.x"
                 [style.top.%]="end.y"
                 [style.background-color]="s.color"
@@ -301,6 +323,8 @@ export class GrowthChart {
   readonly endTooltip = input(false);
   /** Prefix of the x label in the tooltip title (`dia ` + `30`). */
   readonly tooltipLabelPrefix = input('');
+  /** `false`: straight segments (cumulative totals); `true` (default): smooth curve. */
+  readonly smooth = input(true);
   /** Shown instead of the plot when every value is zero. */
   readonly emptyText = input('Ainda sem movimento neste período.');
 
@@ -367,7 +391,7 @@ export class GrowthChart {
         label: s.label,
         color: s.color,
         reference: !!s.reference,
-        ...smoothPath(s.values, top, slots),
+        ...(this.smooth() ? smoothPath(s.values, top, slots) : linearPath(s.values, top, slots)),
         end: endPoint(s.values, top, slots),
       }));
   });

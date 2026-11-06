@@ -12,6 +12,7 @@ import { PageCard } from './page-card';
       [collapsible]="collapsible"
       [defaultOpen]="defaultOpen"
       [storageKey]="storageKey"
+      [truncateTitle]="truncate"
     >
       <p data-testid="content">Body</p>
     </app-page-card>
@@ -21,6 +22,7 @@ class HostComponent {
   collapsible = false;
   defaultOpen = true;
   storageKey: string | null = null;
+  truncate = false;
 }
 
 describe('PageCard', () => {
@@ -88,5 +90,23 @@ describe('PageCard', () => {
 
     const chevron = fixture.debugElement.query(By.css('button[aria-expanded]'));
     expect(chevron.nativeElement.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('truncateTitle keeps the title on one line and puts the full text in the tooltip', () => {
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.componentInstance.truncate = true;
+    fixture.detectChanges();
+    const h2 = fixture.debugElement.query(By.css('h2')).nativeElement as HTMLElement;
+    expect(h2.className).toContain('truncate');
+    expect(h2.getAttribute('title')).toBe('Test Card');
+    expect(h2.parentElement!.className).toContain('min-w-0');
+  });
+
+  it('by default the title is not truncated and has no tooltip', () => {
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.detectChanges();
+    const h2 = fixture.debugElement.query(By.css('h2')).nativeElement as HTMLElement;
+    expect(h2.className).not.toContain('truncate');
+    expect(h2.hasAttribute('title')).toBe(false);
   });
 });
