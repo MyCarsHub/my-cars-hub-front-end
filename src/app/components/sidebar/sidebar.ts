@@ -48,11 +48,6 @@ export interface NavItem {
   tourKey?: string;
   /** Grupo que nasce aberto antes de qualquer clique (menu do motorista: Financeiro). */
   defaultOpen?: boolean;
-  /**
-   * Item de ÁREA (FIX-0864): "Administração" quando já se está dentro dela. Vira a pílula cinza
-   * do topo, sem o realce laranja de rota ativa, porque ele diz em que área a pessoa está.
-   */
-  areaPill?: boolean;
 }
 
 /** Cartão do topo no lugar do seletor de empresa (a área de administração mostra a PESSOA). */
@@ -673,7 +668,7 @@ export class Sidebar {
   }
 
   protected trackByKey(_index: number, item: NavItem): string {
-    // Rótulo + rota: a pílula de área e "Visão geral" apontam para a mesma rota.
+    // Rótulo + rota: o menu de administração repete rota entre itens (ex.: grupo e filho).
     return `${item.label}|${item.route ?? ''}`;
   }
 

@@ -150,19 +150,6 @@
           }
         </div>
         }
-      } @else if (item.areaPill) {
-        <!-- Item de ÁREA (Administração, já dentro dela): pílula cinza, sem o realce de rota ativa. -->
-        <a [routerLink]="item.route" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
-                 bg-gray-100 dark:bg-surface-sunken text-gray-900 dark:text-fg font-semibold transition-colors group"
-          [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
-          [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
-          [attr.aria-label]="item.label">
-          <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
-
-          @if (!layout.isCollapsed() || layout.isMobile()) {
-          <span class="text-sm truncate" @fadeLabel>{{ item.label }}</span>
-          }
-        </a>
       } @else {
         <a [routerLink]="item.route" routerLinkActive="active-link"
           [routerLinkActiveOptions]="item.exactMatch ? { exact: true } : { exact: false }" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
