@@ -197,7 +197,8 @@ export const REFERENCE_STYLE = Object.freeze({
       Alternativa textual: sr-only a esconde do olho e a mantém para o leitor
       de tela — ver o bloco "Por que canvas tem tabela junto" no componente.
     -->
-    <table class="sr-only">
+    <div class="sr-only">
+    <table>
       <caption>
         {{ ariaLabel() }}
       </caption>
@@ -239,6 +240,7 @@ export const REFERENCE_STYLE = Object.freeze({
         }
       </tbody>
     </table>
+    </div>
   `,
 })
 export class LineChart implements OnDestroy {

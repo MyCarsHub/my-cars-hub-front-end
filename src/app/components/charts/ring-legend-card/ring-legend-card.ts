@@ -100,7 +100,7 @@ export function ringGradient(slices: readonly RingSlice[], gap: string): string 
                   aria-hidden="true"
                   [style.background-color]="row.color"
                 ></span>
-                <span class="truncate">{{ row.label }}</span>
+                <span class="min-w-0 break-words">{{ row.label }}</span>
               </span>
               <span class="shrink-0 tabular-nums text-fg inline-flex items-baseline gap-3">
                 <span class="text-xs text-fg-muted">{{ row.pct }}%</span>

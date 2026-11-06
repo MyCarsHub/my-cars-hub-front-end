@@ -81,7 +81,7 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
         <app-sidebar />
       }
       <main
-        class="relative min-h-0 flex-1 overflow-y-auto transition-none"
+        class="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip transition-none"
         [@contentMargin]="contentState()"
       >
         <!-- O botão de tema aparece SEMPRE (dono, gerente e motorista; também no onboarding);

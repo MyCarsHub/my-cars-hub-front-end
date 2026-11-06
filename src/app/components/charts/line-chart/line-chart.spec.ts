@@ -132,7 +132,7 @@ describe('LineChart — alternativa textual', () => {
   it('esconde a tabela visualmente sem tira-la da arvore de acessibilidade', () => {
     const table = host.querySelector('table');
 
-    expect(table?.className).toContain('sr-only');
+    expect(table?.parentElement?.className).toContain('sr-only');
     expect(table?.getAttribute('aria-hidden')).toBeNull();
   });
 
@@ -270,7 +270,7 @@ describe('LineChart — modo barra', () => {
 
   it('mantem o canvas decorativo e a tabela visivel ao leitor de tela', () => {
     expect(host.querySelector('canvas')?.getAttribute('aria-hidden')).toBe('true');
-    expect(host.querySelector('table')?.className).toContain('sr-only');
+    expect(host.querySelector('table')?.parentElement?.className).toContain('sr-only');
   });
 });
 

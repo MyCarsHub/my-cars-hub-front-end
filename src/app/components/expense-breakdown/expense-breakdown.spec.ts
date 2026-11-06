@@ -41,4 +41,25 @@ describe('ExpenseBreakdown', () => {
     expect(host.querySelectorAll('li[data-expense]').length).toBe(2);
     expect(render(null).querySelector('ul')).toBeNull();
   });
+
+  it('columns follow the container width, not the screen: 2 on phone/dialog, 5 only when wide', () => {
+    const host = render({ maintenance: 100, fines: 100, ipva: 100, insurance: 100, financing: 100 });
+    const cls = host.querySelector('ul')!.className;
+    expect(host.className).toContain('@container');
+    expect(cls).toContain('grid-cols-2');
+    expect(cls).toContain('@2xl:grid-cols-5');
+    expect(cls).not.toContain('lg:grid-cols-5');
+    expect(cls).not.toMatch(/(^|\s)grid-cols-5/);
+  });
+
+  it('labels and values are never clipped: no truncate, value does not wrap', () => {
+    const host = render({ maintenance: 1418898, fines: 0, ipva: 0, insurance: 0, financing: 0 });
+    for (const l of Array.from(host.querySelectorAll('[data-expense-label]'))) {
+      expect(l.className).not.toContain('truncate');
+    }
+    const v = host.querySelector('[data-expense-value]')!;
+    expect(v.className).not.toContain('truncate');
+    expect(v.className).toContain('whitespace-nowrap');
+    expect(host.querySelector('[data-expense-share]')).not.toBeNull();
+  });
 });

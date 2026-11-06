@@ -53,3 +53,16 @@ describe('RankingCard', () => {
     expect(render().querySelector('ol')!.outerHTML).not.toMatch(/divide-|border-b|border-t/);
   });
 });
+
+describe('RankingCard podium', () => {
+  it('first place wraps instead of truncating the driver name', () => {
+    const fixture = TestBed.createComponent(RankingCard);
+    fixture.componentRef.setInput('title', 'Top motoristas');
+    fixture.componentRef.setInput('layout', 'podium');
+    fixture.componentRef.setInput('items', [{ id: '1', name: 'Maria Aparecida de Souza Albuquerque Neto', value: 'R$ 7.500' }, ...ITEMS.slice(1)]);
+    fixture.detectChanges();
+    const name = (fixture.nativeElement as HTMLElement).querySelector('[data-hero-name]')!;
+    expect(name.className).toContain('break-words');
+    expect(name.className).not.toContain('truncate');
+  });
+});

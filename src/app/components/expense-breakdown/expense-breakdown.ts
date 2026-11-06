@@ -23,12 +23,14 @@ const CHIP: Record<ExpenseCategory, string> = {
  */
 @Component({
   selector: 'app-expense-breakdown',
+  // The host is the query container: columns follow ITS width (a 512px dialog is not a 1024px screen).
+  host: { class: 'block @container min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (rows().length > 0) {
-      <ul class="grid gap-x-4 gap-y-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5" [attr.aria-label]="ariaLabel()">
+      <ul class="grid gap-x-3 gap-y-3 grid-cols-2 @md:grid-cols-3 @2xl:grid-cols-5" [attr.aria-label]="ariaLabel()">
         @for (row of rows(); track row.key) {
-          <li class="flex items-center gap-3 min-w-0 min-h-[44px]" [attr.data-expense]="row.key">
+          <li class="flex items-center gap-2.5 min-w-0 min-h-[44px]" [attr.data-expense]="row.key">
             <span class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center" [class]="chip(row.key)" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -55,13 +57,13 @@ const CHIP: Record<ExpenseCategory, string> = {
               </svg>
             </span>
             <span class="flex-1 min-w-0">
-              <span class="block text-xs text-gray-500 dark:text-fg-subtle truncate">{{ row.label }}</span>
-              <span class="block text-sm font-semibold tabular-nums truncate"
+              <span class="block text-xs text-gray-500 dark:text-fg-subtle break-words" data-expense-label>{{ row.label }}</span>
+              <span class="block text-sm font-semibold tabular-nums whitespace-nowrap" data-expense-value
                     [class]="row.cents > 0 ? 'text-gray-900 dark:text-fg' : 'text-gray-400 dark:text-fg-faint'">
                 {{ money(row.cents) }}
               </span>
+              <span class="block text-[11px] text-gray-500 dark:text-fg-subtle tabular-nums" data-expense-share>{{ pct(row.share) }}</span>
             </span>
-            <span class="shrink-0 text-[11px] text-gray-500 dark:text-fg-subtle tabular-nums">{{ pct(row.share) }}</span>
           </li>
         }
       </ul>
