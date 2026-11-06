@@ -1,18 +1,18 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { FormArray, ReactiveFormsModule } from '@angular/forms';
+import { ReactiveFormsModule } from '@angular/forms';
 import { map, startWith, switchMap } from 'rxjs';
 import { applyPtBrMoneyMaskToControl } from '../../../utils/ptbr-money-mask';
+import { formatPtBrMoney } from '../../../utils/ptbr-number';
 import { FieldControl, FormField } from '../../form-field/form-field';
-import { IpvaRowGroup } from './ipva-installments-plan';
+import { IpvaSeriesGroup, MAX_IPVA_SERIES, ipvaSeriesFromGroup } from './ipva-series';
 
 /**
- * Parcelas de IPVA do formulário do veículo (cadastro e edição): adicionar, editar e
- * remover. O formulário dono do `FormArray` decide quando e o que enviar; aqui só há a
- * apresentação, no molde dos cards opcionais (Financiamento, Seguro).
+ * Série de parcelas de IPVA do formulário do veículo, no molde de Seguro e Financiamento:
+ * Valor da parcela, Parcelas, Início e Vencimento. O formulário dono do grupo gera as
+ * parcelas e as grava; aqui só há a apresentação e a prévia.
  *
- * Mobile-first: cada parcela é um bloco próprio; vencimento e valor lado a lado em duas
- * colunas, alvos de toque de 44px. Parcela paga aparece travada, só para leitura.
+ * Mobile-first: uma coluna em 375px, duas a partir de `sm`; alvos de toque de 44px+.
  */
 @Component({
   selector: 'app-ipva-installments-fields',
@@ -21,46 +21,56 @@ import { IpvaRowGroup } from './ipva-installments-plan';
   templateUrl: './ipva-installments-fields.html',
 })
 export class IpvaInstallmentsFields {
-  readonly rows = input.required<FormArray<IpvaRowGroup>>();
-  /** Veículo vendido: o backend recusa mexer no IPVA (409); a tela trava antes. */
-  readonly locked = input(false);
+  readonly group = input.required<IpvaSeriesGroup>();
 
-  /**
-   * As linhas mudam DENTRO do mesmo FormArray (push/remove), então a referência do input não
-   * muda e um filho OnPush não repintaria. O `valueChanges` do array vira a lista que o
-   * template lê.
-   */
-  protected readonly controls = toSignal(
-    toObservable(this.rows).pipe(
-      switchMap((array) =>
-        array.valueChanges.pipe(
-          startWith(null),
-          map(() => [...array.controls]),
-        ),
-      ),
+  protected readonly maxInstallments = MAX_IPVA_SERIES;
+
+  private readonly version = toSignal(
+    toObservable(this.group).pipe(
+      switchMap((g) => g.valueChanges.pipe(startWith(null), map(() => g.getRawValue()))),
     ),
-    { initialValue: [] as IpvaRowGroup[] },
+    { initialValue: null },
   );
 
-  readonly addRow = output<void>();
-  readonly removeRow = output<number>();
+  /** Prévia "3x de R$ 333,33 — 10/03/2026 a 10/05/2026"; vazia enquanto algo não vale. */
+  protected readonly preview = computed<string | null>(() => {
+    this.version();
+    const rows = ipvaSeriesFromGroup(this.group());
+    if (!rows || rows.length === 0) return null;
+    const cents = rows[0].amountCents;
+    const total = formatPtBrMoney(cents * rows.length);
+    const first = this.br(rows[0].dueDate);
+    const last = this.br(rows[rows.length - 1].dueDate);
+    const span = rows.length === 1 ? `vence em ${first}` : `de ${first} a ${last}`;
+    return `${rows.length}x de R$ ${formatPtBrMoney(cents)} — ${span}. Total: R$ ${total}.`;
+  });
 
-  protected readonly dateMessages: Readonly<Record<string, string>> = {
-    required: 'Informe o vencimento.',
-  };
   protected readonly amountMessages: Readonly<Record<string, string>> = {
-    required: 'Informe o valor.',
+    required: 'Informe o valor da parcela.',
     min: 'O valor precisa ser maior que zero.',
     moneyFormat: 'Informe um valor válido (ex.: 1.234,56).',
   };
+  protected readonly installmentsMessages: Readonly<Record<string, string>> = {
+    required: 'Informe quantas parcelas.',
+    integer: 'Use um número inteiro.',
+    range: `Informe de 1 a ${MAX_IPVA_SERIES} parcelas.`,
+  };
+  protected readonly startMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o mês de início.',
+    monthFormat: 'Use o formato AAAA-MM (ex.: 2026-03).',
+  };
+  protected readonly dueDayMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o dia do vencimento.',
+    integer: 'Use um número inteiro.',
+    range: 'Informe um dia de 1 a 31.',
+  };
 
-  protected onMoneyInput(event: Event, row: IpvaRowGroup): void {
-    applyPtBrMoneyMaskToControl(event, row.controls.amount);
+  protected onMoneyInput(event: Event): void {
+    applyPtBrMoneyMaskToControl(event, this.group().controls.amount);
   }
 
-  protected formatDate(iso: string | null): string {
-    if (!iso) return '—';
-    const [y, m, d] = iso.slice(0, 10).split('-');
+  private br(iso: string): string {
+    const [y, m, d] = iso.split('-');
     return `${d}/${m}/${y}`;
   }
 }
