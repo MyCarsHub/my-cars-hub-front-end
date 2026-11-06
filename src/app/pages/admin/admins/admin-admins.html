@@ -19,136 +19,97 @@
     </button>
   </div>
 
-  <!-- Resumo -->
-  <div class="mb-4 grid grid-cols-3 gap-2 lg:gap-3" data-testid="admin-counts">
-    <div class="rounded-2xl border border-edge bg-surface p-3 lg:p-4">
-      <div class="text-2xl font-bold tabular-nums text-fg">{{ counts().owner }}</div>
-      <div class="mt-1 text-xs text-fg-subtle lg:text-sm">Dono</div>
-    </div>
-    <div class="rounded-2xl border border-edge bg-surface p-3 lg:p-4">
-      <div class="text-2xl font-bold tabular-nums text-fg">{{ counts().support }}</div>
-      <div class="mt-1 text-xs text-fg-subtle lg:text-sm">Suporte</div>
-    </div>
-    <div class="rounded-2xl border border-edge bg-surface p-3 lg:p-4">
-      <div class="text-2xl font-bold tabular-nums text-fg">{{ counts().readonly }}</div>
-      <div class="mt-1 text-xs text-fg-subtle lg:text-sm">Leitura</div>
-    </div>
-  </div>
-
   @if (loadError()) {
     <app-alert-banner [message]="loadError()!" />
   }
 
-  @if (loading()) {
-    <div class="space-y-2" aria-busy="true" aria-label="Carregando admins">
-      @for (i of [1, 2, 3]; track i) {
-        <div class="h-20 animate-pulse rounded-2xl bg-surface-sunken"></div>
-      }
-    </div>
-  } @else {
-    <div
-      class="flex flex-col gap-2.5 lg:gap-0 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-edge lg:bg-surface"
+  <!-- Lista + "O que cada papel pode" (Administradores, AdminApp.dc.html).
+       A coluna "Verificação em 2 etapas" do desenho NÃO existe aqui: não há 2FA de admin no servidor. -->
+  <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
+    <app-data-list
       data-testid="admin-list"
+      ariaLabel="Administradores"
+      actionsLabel="Mais ações do administrador"
+      emptyText="Nenhum admin."
+      [columns]="columns"
+      [rows]="members()"
+      [rowId]="rowId"
+      [loading]="loading()"
     >
-      <div
-        class="hidden lg:grid lg:grid-cols-[2.2fr_1fr_1fr_1.2fr_56px] lg:gap-4 lg:border-b lg:border-edge
-               lg:bg-surface-muted lg:px-5 lg:py-3 text-xs font-semibold uppercase tracking-wide text-fg-faint"
-        aria-hidden="true"
-      >
-        <span>Admin</span><span>Papel</span><span>Situação</span><span>Último acesso</span><span></span>
-      </div>
-
-      @for (m of members(); track m.id; let i = $index) {
-        <article
-          class="enter-up grid grid-cols-[44px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-2xl border border-edge
-                 bg-surface p-3.5 lg:grid-cols-[2.2fr_1fr_1fr_1.2fr_56px] lg:items-center lg:gap-4 lg:rounded-none
-                 lg:border-0 lg:border-t lg:border-edge lg:px-5 lg:py-3.5 lg:first-of-type:border-t-0"
-          [style.--stagger-i]="i"
-          [attr.data-testid]="'admin-row-' + m.id"
-        >
-          <!-- pessoa -->
-          <div class="contents lg:flex lg:min-w-0 lg:items-center lg:gap-3">
-            <span
-              class="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold text-white"
-              [class]="avatarTone(m.adminRole)"
-              aria-hidden="true"
-              >{{ initials(m.name) }}</span
-            >
-            <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-1.5 font-semibold text-fg">
-                <span class="break-words">{{ m.name ?? 'Sem nome' }}</span>
-                @if (isMe(m)) {
-                  <span class="rounded-md bg-surface-sunken px-1.5 py-0.5 text-[11px] font-semibold text-fg-subtle">Você</span>
-                }
-              </div>
-              <div class="truncate text-sm text-fg-subtle">{{ m.email }}</div>
-            </div>
-          </div>
-
-          <!-- ações: o kebab padrão das listas do admin (ActionsMenu), como em Empresas -->
-          <div class="col-start-3 row-start-1 -mr-1.5 -mt-1 lg:col-start-5 lg:m-0 lg:justify-self-end">
-            @if (!isMe(m)) {
-              <app-actions-menu [label]="'Ações para ' + (m.name ?? 'admin')" [menuWidth]="232">
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
-                  [attr.data-testid]="'menu-change-' + m.id"
-                  (click)="openChange(m)"
-                >
-                  Mudar papel
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="w-full text-left text-sm px-4 py-3 text-rose-600 dark:text-rose-300 hover:bg-rose-50
-                         dark:hover:bg-rose-500/10 min-h-[44px] border-t border-edge-soft"
-                  [attr.data-testid]="'menu-revoke-' + m.id"
-                  (click)="openRevoke(m)"
-                >
-                  Remover acesso de admin
-                </button>
-              </app-actions-menu>
-            } @else {
-              <span class="inline-flex h-11 w-11 items-center justify-center text-fg-faint" title="Você não pode mudar o próprio acesso">
-                <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                </svg>
-                <span class="sr-only">Você não pode mudar o próprio acesso</span>
-              </span>
+      <ng-template dataListCell="name" let-m>
+        <span class="block min-w-0" [attr.data-testid]="'admin-row-' + m.id">
+          <span class="flex flex-wrap items-center gap-1.5 font-semibold text-fg">
+            <span class="break-words">{{ m.name ?? 'Sem nome' }}</span>
+            @if (isMe(m)) {
+              <span class="rounded-md bg-surface-sunken px-1.5 py-0.5 text-[11px] font-semibold text-fg-muted">Você</span>
             }
-          </div>
+          </span>
+          <span class="block truncate text-sm font-normal text-fg-subtle">{{ m.email }}</span>
+        </span>
+      </ng-template>
 
-          <!-- metadados -->
-          <div class="col-span-2 col-start-2 flex flex-wrap items-center gap-1.5 text-sm text-fg-subtle lg:contents">
-            <span class="lg:col-start-2 lg:row-start-1"><app-admin-role-badge [role]="m.adminRole" /></span>
-            <span class="lg:col-start-3 lg:row-start-1">
-              @if (m.active) {
-                <span class="inline-flex h-6 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200">
-                  <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>Ativo
-                </span>
-              } @else {
-                <span class="inline-flex h-6 items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 text-xs font-semibold text-fg-soft">
-                  <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>Desativado
-                </span>
-              }
-            </span>
-            <span class="w-full lg:col-start-4 lg:row-start-1 lg:w-auto lg:text-fg-soft">{{ lastAccess(m) }}</span>
-          </div>
-        </article>
-      } @empty {
-        <p class="rounded-2xl border border-edge bg-surface p-6 text-center text-fg-subtle">Nenhum admin.</p>
-      }
-    </div>
+      <ng-template dataListActions let-m>
+        @if (!isMe(m)) {
+          <button
+            type="button"
+            role="menuitem"
+            class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+            [attr.data-testid]="'menu-change-' + m.id"
+            (click)="openChange(m)"
+          >
+            Mudar papel
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            class="w-full text-left text-sm px-4 py-3 text-rose-600 dark:text-rose-300 hover:bg-rose-50
+                   dark:hover:bg-rose-500/10 min-h-[44px]"
+            [attr.data-testid]="'menu-revoke-' + m.id"
+            (click)="openRevoke(m)"
+          >
+            Remover acesso de admin
+          </button>
+        } @else {
+          <button
+            type="button"
+            role="menuitem"
+            disabled
+            class="w-full text-left text-sm px-4 py-3 text-fg-muted min-h-[44px] cursor-not-allowed"
+            data-testid="menu-self"
+          >
+            Você não pode mudar o próprio acesso
+          </button>
+        }
+      </ng-template>
+    </app-data-list>
 
-    @if (iAmOnlyOwner()) {
-      <p class="mt-3 flex items-start gap-2 text-sm text-fg-subtle" data-testid="only-owner-note">
-        <svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
-        </svg>
-        Você é o único Dono: seu papel não pode ser alterado nem removido. Torne outra pessoa Dono antes.
-      </p>
-    }
+    <section
+      class="rounded-2xl bg-surface p-4 lg:p-5"
+      aria-labelledby="roles-heading"
+      data-testid="role-explainer"
+    >
+      <h2 id="roles-heading" class="mb-3 font-semibold text-fg-body">O que cada papel pode</h2>
+      <ul class="flex flex-col gap-2">
+        @for (r of roleOptions; track r.value) {
+          <li class="rounded-xl bg-surface-muted p-3.5" [attr.data-testid]="'role-tile-' + r.value">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-semibold text-fg">{{ r.label }}</span>
+              <span class="text-xs text-fg-muted tabular-nums">{{ countFor(r.value) }}</span>
+            </div>
+            <p class="mt-1 text-sm text-fg-soft">{{ r.hint }}</p>
+          </li>
+        }
+      </ul>
+    </section>
+  </div>
+
+  @if (!loading() && iAmOnlyOwner()) {
+    <p class="mt-3 flex items-start gap-2 text-sm text-fg-subtle" data-testid="only-owner-note">
+      <svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+      </svg>
+      Você é o único Dono: seu papel não pode ser alterado nem removido. Torne outra pessoa Dono antes.
+    </p>
   }
 
   <!-- Botão flutuante no celular -->

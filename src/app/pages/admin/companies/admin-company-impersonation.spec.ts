@@ -127,7 +127,7 @@ describe('AdminCompanyDetail — abrir "ver como empresa"', () => {
 
   function impersonationButton(host: HTMLElement): HTMLButtonElement | undefined {
     return Array.from(host.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Ver como empresa'),
+      button.textContent?.includes('Ver como dono'),
     );
   }
 

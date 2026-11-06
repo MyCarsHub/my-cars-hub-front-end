@@ -35,6 +35,8 @@ import { ContactBar } from '../contact/contact-bar';
 import { ContactActions } from '../contact/contact-actions';
 import { subscriptionChip } from './subscription-status-chip';
 import { formatBRL } from '../../../types/dashboard.types';
+import { BarChart, BarDatum } from '../../../components/charts/bar-chart/bar-chart';
+import { KpiCard } from '../../../components/kpi-card/kpi-card';
 import { companyRoleLabel } from '../../../utils/role-labels';
 
 interface ChipStyle {
@@ -102,6 +104,33 @@ const COMPANY_STATUS: Record<AdminCompanyStatus, ChipStyle> = {
 
 const CONFIRMATION_WORD = 'SUSPENDER';
 
+const MONTH_LABELS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/** Dinheiro vindo do servidor: nulo/ausente é "—", NUNCA R$ 0 (zero é dado; nulo é desconhecido). */
+function moneyOrDash(cents: number | null | undefined): string {
+  return cents === null || cents === undefined ? '—' : formatBRL(cents);
+}
+
+/** `yyyy-MM` -> "mai/26"; formato inesperado volta como veio. */
+function monthLabel(month: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) return month;
+  return `${MONTH_LABELS[Number(match[2]) - 1] ?? match[2]}/${match[1].slice(2)}`;
+}
+
+export interface FinanceTile {
+  key: string;
+  label: string;
+  value: string;
+  /** Cor do número: só vermelho (atraso) e verde (recebido) carregam sentido. */
+  tone: 'default' | 'good' | 'bad';
+}
+
+export interface SubscriptionRow {
+  label: string;
+  value: string;
+}
+
 @Component({
   selector: 'app-admin-company-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -116,6 +145,8 @@ const CONFIRMATION_WORD = 'SUSPENDER';
     RouterLink,
     ContactBar,
     ContactActions,
+    BarChart,
+    KpiCard,
   ],
   templateUrl: './admin-company-detail.html',
 })
@@ -201,6 +232,57 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   protected readonly ownerContactHint = computed<string | null>(
     () => this.owner()?.phoneMasked ?? this.detail()?.registration?.phone ?? null,
   );
+
+  /** "Campinas, SP" a partir do cadastro; vazio vira "—". */
+  protected readonly place = computed(() => {
+    const reg = this.detail()?.registration;
+    const parts = [reg?.addressCity, reg?.addressUf].map((p) => (p ?? '').trim()).filter((p) => p !== '');
+    return parts.length > 0 ? parts.join(', ') : '—';
+  });
+
+  /**
+   * Financeiro do mês (FEAT-0480). Gerenciado = volume das cobranças de ALUGUEL por mês de
+   * vencimento; recebido = parte já paga; atraso = vencida e não paga. Sem bloco: "—".
+   */
+  protected readonly financeTiles = computed<FinanceTile[]>(() => {
+    const detail = this.detail();
+    if (!detail) return [];
+    const fin = detail.finance;
+    const ops = detail.operations;
+    return [
+      { key: 'managed', label: 'Valor gerenciado no mês', value: moneyOrDash(fin?.managedMonthCents), tone: 'default' },
+      { key: 'received', label: 'Recebido no mês', value: moneyOrDash(fin?.receivedMonthCents), tone: 'good' },
+      { key: 'overdue', label: 'Em atraso', value: moneyOrDash(fin?.overdueMonthCents), tone: 'bad' },
+      { key: 'vehicles', label: 'Veículos ativos', value: ops ? COUNT_FORMATTER.format(ops.vehicles.activeTotal) : '—', tone: 'default' },
+      { key: 'drivers', label: 'Motoristas', value: ops ? COUNT_FORMATTER.format(ops.drivers.total) : '—', tone: 'default' },
+    ];
+  });
+
+  /** Série dos 6 meses para o gráfico de barras (centavos). */
+  protected readonly managedBars = computed<BarDatum[]>(() =>
+    (this.detail()?.finance?.managedSeries ?? []).map((point) => ({
+      label: monthLabel(point.month),
+      value: point.managedCents,
+    })),
+  );
+
+  protected readonly subscriptionRows = computed<SubscriptionRow[]>(() => {
+    const sub = this.detail()?.subscription;
+    if (!sub) return [];
+    const discount = sub.discountCents;
+    return [
+      { label: 'Preço de tabela', value: moneyOrDash(sub.listPriceCents) },
+      {
+        label: 'Desconto',
+        value: discount === null || discount === undefined ? '—' : discount === 0 ? 'Sem desconto' : formatBRL(discount),
+      },
+      { label: 'Cobrado de verdade', value: moneyOrDash(sub.chargedCents) },
+      {
+        label: 'Forma de pagamento',
+        value: sub.paymentMethod === 'PIX' ? 'Pix' : sub.paymentMethod === 'CARD' ? 'Cartão' : '—',
+      },
+    ];
+  });
 
   protected readonly registrationSections = computed<RegistrationSection[]>(() => {
     const reg = this.detail()?.registration;
@@ -491,6 +573,18 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
       month: '2-digit',
       year: 'numeric',
     });
+  }
+
+  /** "hoje" / "ontem" / "há N dias" / data; nulo = "—" (a coluna é esparsa, não é "nunca acessou"). */
+  protected lastSeenLabel(value: string | null | undefined): string {
+    if (!value) return '—';
+    const seen = new Date(value);
+    if (Number.isNaN(seen.getTime())) return '—';
+    const days = Math.floor((Date.now() - seen.getTime()) / 86_400_000);
+    if (days <= 0) return 'hoje';
+    if (days === 1) return 'ontem';
+    if (days < 30) return `há ${days} dias`;
+    return this.formatDate(value);
   }
 
   protected formatDateTime(value: string | null): string {

@@ -36,6 +36,7 @@ describe('AppShell — menu da administração em /admin/**', () => {
             isOnboardingCompleted: () => true,
             isPlatformAdmin: () => true,
             getCompanyRoleFromToken: () => 'OWNER',
+            getIdentityFromToken: () => ({ id: '1', name: 'Lorran Sarmento', email: null }),
           },
         },
         { provide: ImpersonationService, useValue: { active: signal(false) } },
@@ -81,7 +82,10 @@ describe('AppShell — menu da administração em /admin/**', () => {
     it(`${url}: menu da administração, sem o menu de empresa`, async () => {
       const el = await renderAt(url);
       expect(el.querySelector('app-admin-sidebar')).not.toBeNull();
-      expect(el.querySelector('app-sidebar')).toBeNull();
+      // FIX-0864: a mesma `app-sidebar`, uma so, dentro do invólucro da administração.
+      expect(el.querySelectorAll('app-sidebar').length).toBe(1);
+      expect(el.querySelector('app-admin-sidebar app-sidebar')).not.toBeNull();
+      expect(el.querySelector('a[aria-label="Voltar ao app"]')).not.toBeNull();
     });
   }
 
@@ -89,5 +93,6 @@ describe('AppShell — menu da administração em /admin/**', () => {
     const el = await renderAt('/dashboard');
     expect(el.querySelector('app-sidebar')).not.toBeNull();
     expect(el.querySelector('app-admin-sidebar')).toBeNull();
+    expect(el.querySelector('a[aria-label="Voltar ao app"]')).toBeNull();
   });
 });

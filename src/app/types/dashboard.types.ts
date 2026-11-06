@@ -267,6 +267,45 @@ export interface DashboardSummaryDto {
     charges: ChargesDto;
     distributions: DistributionsDto;
     topOffenders: TopOffendersDto;
+    /** FEAT-0467 (v2 blocks). Optional: an older backend does not send it. */
+    overview?: OverviewDto;
+}
+
+/** FEAT-0467 — four readings added to the summary, all per company. */
+export interface OverviewDto {
+    /** 6 months (current + 5), cash basis, ascending. */
+    monthlyResult: MonthlyResultDto[];
+    overdueAging: OverdueAgingDto;
+    /** Always the five categories, zero-filled. */
+    costByCategory: CostCategoryDto[];
+    receivedByDay: { currentMonth: DailyPointDto[]; previousMonth: DailyPointDto[] };
+}
+
+export interface MonthlyResultDto {
+    /** ISO `yyyy-MM`. */
+    month: string;
+    revenueCents: number;
+    costCents: number;
+    profitCents: number;
+    costBreakdown: ExpenseBreakdownDto;
+}
+
+export interface AgingBucketDto {
+    count: number;
+    amountCents: number;
+}
+
+export interface OverdueAgingDto {
+    days1To7: AgingBucketDto;
+    days8To30: AgingBucketDto;
+    daysOver30: AgingBucketDto;
+}
+
+export interface CostCategoryDto {
+    category: 'MAINTENANCE' | 'FINES' | 'IPVA' | 'INSURANCE' | 'FINANCING' | string;
+    amountCents: number;
+    /** Basis points (10000 = 100%). */
+    shareBp: number;
 }
 
 // ---------------------------------------------------------------------------

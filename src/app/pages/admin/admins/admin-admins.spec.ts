@@ -54,20 +54,42 @@ describe('AdminAdmins (Admins e papéis)', () => {
     return fixture;
   }
 
-  it('lista os admins com papel e as contagens por papel', () => {
+  it('lista os admins com nome, e-mail, papel e último acesso', () => {
     const el: HTMLElement = render().nativeElement;
     expect(svc.list).toHaveBeenCalled();
-    expect(el.querySelectorAll('[data-testid^="admin-row-"]').length).toBe(3);
-    expect(el.querySelector('[data-testid="admin-counts"]')?.textContent).toMatch(/1\s*Dono[\s\S]*1\s*Suporte[\s\S]*1\s*Leitura/);
-    expect(el.textContent).toContain('Dono da plataforma');
-    expect(el.textContent).toContain('Leitura');
+    expect(el.querySelectorAll('[data-testid^="admin-row-"]').length).toBe(6); // tabela + cartões
+    const table = el.querySelector('[data-table]')!;
+    expect(table.querySelectorAll('[data-row]').length).toBe(3);
+    expect(table.textContent).toContain('Lorran Sarmento');
+    expect(table.textContent).toContain('m@x.com');
+    expect(table.textContent).toContain('Dono da plataforma');
+    expect(table.textContent).toContain('Suporte');
+    expect(table.textContent).toContain('Leitura');
+    expect(table.textContent).toContain('Último acesso');
   });
 
-  it('a própria linha não tem menu de ações; as outras têm o kebab padrão', () => {
+  it('não desenha a coluna de verificação em 2 etapas (não existe 2FA de admin)', () => {
     const el: HTMLElement = render().nativeElement;
-    expect(el.querySelector(`[data-testid="admin-row-${ME}"] app-actions-menu`)).toBeNull();
-    expect(el.querySelector('[data-testid="admin-row-a-2"] app-actions-menu')).not.toBeNull();
-    expect(el.querySelector('[data-testid="only-owner-note"]')).not.toBeNull();
+    expect(el.textContent?.toLowerCase()).not.toContain('2 etapas');
+    expect(el.textContent?.toLowerCase()).not.toContain('verificação em');
+  });
+
+  it('o cartão "O que cada papel pode" explica os três papéis com as contagens', () => {
+    const el: HTMLElement = render().nativeElement;
+    const card = el.querySelector('[data-testid="role-explainer"]')!;
+    expect(card.textContent).toContain('O que cada papel pode');
+    expect(card.querySelector('[data-testid="role-tile-OWNER"]')?.textContent).toContain('Dono da plataforma');
+    expect(card.querySelector('[data-testid="role-tile-SUPPORT"]')?.textContent).toContain('1 pessoa');
+    expect(card.querySelector('[data-testid="role-tile-READONLY"]')?.textContent).toContain('Leitura');
+  });
+
+  it('a própria linha só tem o item travado; as outras têm o kebab padrão com as ações', () => {
+    const el: HTMLElement = render().nativeElement;
+    expect(el.querySelectorAll('[data-table] app-actions-menu').length).toBe(3);
+    // os itens do menu só existem com o menu aberto; o template da própria linha não oferece ações
+    const fixture = TestBed.createComponent(AdminAdmins);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="only-owner-note"]')).not.toBeNull();
   });
 
   it('remover acesso só habilita depois de digitar REMOVER, e manda o motivo', () => {

@@ -71,7 +71,7 @@ describe('SupportEditEntry', () => {
 
     const dialog = el(fixture).querySelector('[role="dialog"]') as HTMLElement;
     expect(dialog.textContent).toContain('Locadora Alfa');
-    expect(dialog.textContent).toContain('Tudo é registrado e visível para a empresa');
+    expect(dialog.textContent).toContain('Tudo fica no registro de auditoria, sem e-mail ao cliente');
     expect(startEdit).not.toHaveBeenCalled();
 
     const confirm = Array.from(dialog.querySelectorAll('button')).find((b) =>

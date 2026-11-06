@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { AdminUsers } from './admin-users';
 import { AdminUsersService } from '../admin-users.service';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import type { AdminUserListItem } from '../../../types/admin-user.types';
@@ -39,6 +40,7 @@ describe('AdminUsers — erros do backend', () => {
       providers: [
         provideRouter([]),
         ApiErrorService,
+        { provide: AdminCapabilitiesService, useValue: { can: () => true, ensureLoaded: () => of(null) } },
         {
           provide: AdminUsersService,
           useValue: {
