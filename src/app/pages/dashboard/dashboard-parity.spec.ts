@@ -195,6 +195,51 @@ describe('DashboardHome — parity with the prototype', () => {
     expect(norm(section)).not.toContain('R$ 100');
   });
 
+  it('production case: October had cash after day 6 -> last month is a dashed line over the WHOLE month, this month stops at today', () => {
+    const series = (month: string, days: number, through: number, perDay: (d: number) => number) => {
+      let acc = 0;
+      const points = Array.from({ length: through }, (_, i) => {
+        const dayCents = perDay(i + 1);
+        acc += dayCents;
+        return { day: i + 1, cumulativeCents: acc, dayCents };
+      });
+      return { month, daysInMonth: days, throughDay: through, points, totalCents: acc };
+    };
+    const cash = {
+      current: series('2026-11', 30, 6, (d) => (d === 3 ? 1_418_898 : 0)),
+      previous: series('2026-10', 31, 31, (d) => (d === 20 ? 1_800_000 : 0)),
+      previousSameDayCents: 0,
+      deltaCents: 1_418_898,
+    };
+    const host = render({}, cash);
+    const section = host.querySelector('[data-cash-section]')!;
+    const lines = section.querySelectorAll('app-growth-chart [data-line]');
+    const lastX = (el: Element) => Number(el.getAttribute('d')!.trim().split(' ').slice(-2)[0]);
+    expect(lines).toHaveLength(2);
+    expect(lines[0].getAttribute('stroke-dasharray')).toBe('4 4');
+    expect(lastX(lines[0])).toBeCloseTo(100, 1); // last month: whole month
+    expect(lastX(lines[1])).toBeCloseTo((5 / 30) * 100, 1); // this month: day 6 of 31
+    expect(section.querySelectorAll('[data-end-dot]')).toHaveLength(1);
+    expect([...section.querySelectorAll('[data-x-axis] span')].map((s) => s.textContent!.trim())).toEqual([
+      'dia 1', 'dia 5', 'dia 10', 'dia 15', 'dia 20', 'dia 25', 'dia 30',
+    ]);
+    expect(norm(section.querySelector('[data-y-axis]'))).toContain('R$');
+    expect(norm(section.querySelector('[data-y-axis]'))).toMatch(/R\$ \d+k/);
+    expect(section.querySelector('[data-cash-lead]')).toBeNull(); // no base on that day: no invented %
+  });
+
+  it('chip compares on the same day: ahead and behind', () => {
+    const mk = (cur: number, prevSame: number) => {
+      const m = (month: string, through: number, total: number) => ({
+        month, daysInMonth: 30, throughDay: through, totalCents: total,
+        points: Array.from({ length: through }, (_, i) => ({ day: i + 1, cumulativeCents: i + 1 === through ? total : 0, dayCents: 0 })),
+      });
+      return { current: m('2026-11', 10, cur), previous: m('2026-10', 30, 99_999_00), previousSameDayCents: prevSame, deltaCents: cur - prevSame };
+    };
+    expect(norm(render({}, mk(108_00, 100_00)).querySelector('[data-cash-lead]'))).toBe('↗ 8% à frente');
+    expect(norm(render({}, mk(75_00, 100_00)).querySelector('[data-cash-lead]'))).toBe('↘ 25% atrás');
+  });
+
   it('statuses stack on the left, cash chart on the right; the four cards come in one row', () => {
     const host = render();
     expect(host.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(2);
