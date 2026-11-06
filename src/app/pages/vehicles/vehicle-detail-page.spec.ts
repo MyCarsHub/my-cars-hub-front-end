@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { BehaviorSubject, NEVER, Observable, of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { VehicleDetail } from './vehicle-detail';
 import { RentalService } from '../rentals/rental.service';
@@ -238,7 +238,15 @@ describe('VehicleDetail, página única', () => {
     fixture.detectChanges();
   }
 
-  beforeEach(() => TestBed.resetTestingModule());
+  // As datas do spec (vencimentos de 05/11/2026) são relativas a este dia; sem relógio fixo o
+  // spec apodrece na virada do dia, quando o licenciamento do carro-base passa a vencido.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 5, 12));
+    TestBed.resetTestingModule();
+  });
+
+  afterEach(() => vi.useRealTimers());
 
   // ------------------------------------------------------------- segmentos
 
