@@ -29,6 +29,7 @@ import {
   DriverNavIcon,
   DriverNavRoutes,
 } from './driver-nav';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 export interface NavItem {
   route?: string;
@@ -378,7 +379,7 @@ export const NAV_ITEMS: NavItem[] = [
 @Component({
   selector: 'app-sidebar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive, CompanySwitcher],
+  imports: [PersonNamePipe, NgTemplateOutlet, RouterLink, RouterLinkActive, CompanySwitcher],
   host: { '(document:keydown.escape)': 'onEscape()' },
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css',
@@ -512,7 +513,15 @@ export class Sidebar {
     return { initial: tenant.initial, name: tenant.name, subtitle: this.roleLabel(tenant.role) };
   });
 
+  /**
+   * Label enter animation (`fadeLabel`: width 0 -> auto with `truncate`) must NOT play on the
+   * first paint: on a hard reload the main thread is busy, the animation freezes part-way and
+   * the owner saw 'Administra…', 'Dashbo…' until it finished. Disabled for the first render only.
+   */
+  protected readonly animationsDisabled = signal(true);
+
   constructor() {
+    afterNextRender(() => this.animationsDisabled.set(false));
     // Gaveta modal aberta: o foco vai para o Fechar; fechada, volta para o ☰ de quem abriu.
     let wasOpen = false;
     let opener: HTMLElement | null = null;

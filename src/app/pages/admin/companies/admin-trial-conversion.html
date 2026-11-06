@@ -70,7 +70,7 @@
 
           <div class="flex items-center justify-between gap-2 pt-2 border-t border-edge-soft">
             <span class="text-xs text-fg-subtle truncate min-w-0">
-              Dono: <span class="text-fg-soft font-medium">{{ item.ownerName ?? '—' }}</span>
+              Dono: <span class="text-fg-soft font-medium">{{ (item.ownerName | personName) || '—' }}</span>
             </span>
             <app-contact-actions
               subjectType="COMPANY"

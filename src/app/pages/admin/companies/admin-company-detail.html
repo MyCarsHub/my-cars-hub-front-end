@@ -390,7 +390,7 @@
                   >
                     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                       <p class="min-w-0 text-sm font-medium text-fg break-words">
-                        {{ sale.vehiclePlate ?? '—' }}
+                        {{ sale.vehiclePlate | plate: false }}
                       </p>
                       <p class="shrink-0 text-sm font-semibold tabular-nums text-primary-700 dark:text-primary-400">
                         {{ formatMoney(sale.saleValueCents) }}
@@ -400,7 +400,7 @@
                       <div class="flex gap-1 min-w-0">
                         <dt class="shrink-0">Comprador:</dt>
                         <dd class="min-w-0 break-words text-fg">
-                          {{ sale.buyerName ?? '—' }}
+                          {{ (sale.buyerName | personName) || '—' }}
                         </dd>
                       </div>
                       <div class="flex gap-1 min-w-0">
@@ -412,7 +412,7 @@
                       <div class="flex gap-1 min-w-0 sm:col-span-2">
                         <dt class="shrink-0">Registrada por:</dt>
                         <dd class="min-w-0 break-words text-fg">
-                          {{ sale.authorName ?? '—' }}
+                          {{ (sale.authorName | personName) || '—' }}
                           <span class="text-fg-subtle">· {{ formatDateTime(sale.createdAt) }}</span>
                         </dd>
                       </div>
@@ -437,7 +437,7 @@
                   >
                     <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                       <p class="min-w-0 text-sm font-medium text-fg break-words">
-                        {{ undo.vehiclePlate ?? 'Veículo excluído' }}
+                        {{ undo.vehiclePlate ? (undo.vehiclePlate | plate: false) : 'Veículo excluído' }}
                       </p>
                       <span
                         class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold"
@@ -454,7 +454,7 @@
                       <div class="flex gap-1 min-w-0 sm:col-span-2">
                         <dt class="shrink-0">Por:</dt>
                         <dd class="min-w-0 break-words text-fg">
-                          {{ undo.authorName ?? '—' }}
+                          {{ (undo.authorName | personName) || '—' }}
                           <span class="text-fg-subtle">· {{ formatDateTime(undo.createdAt) }}</span>
                         </dd>
                       </div>
@@ -487,7 +487,7 @@
                         class="inline-flex items-center min-h-[44px] text-sm font-medium text-primary-700 dark:text-primary-300
                                hover:underline truncate max-w-full
                                focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                      >{{ member.name }}</a>
+                      >{{ member.name | personName }}</a>
                       <p class="text-xs text-fg-subtle truncate">{{ member.email }}</p>
                     </div>
                     <span
@@ -536,7 +536,7 @@
                           data-testid="member-link"
                           class="text-primary-700 dark:text-primary-300 hover:underline
                                  focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                        >{{ member.name }}</a>
+                        >{{ member.name | personName }}</a>
                       </td>
                       <td class="py-3 pr-4 text-fg-muted">{{ member.email }}</td>
                       <td class="py-1 pr-4">

@@ -59,6 +59,9 @@ import {
   rentedHero,
 } from './vehicle-page.model';
 import { formatSaleDate, saleReleasesSlotNote, soldLockReason as soldLockReasonFor } from './vehicle-sale-copy';
+import { formatPlate, formatVehicleLabel } from '../../utils/display-format';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 const TYPE_LABEL: Record<VehicleType, string> = { CAR: 'Carro', MOTORCYCLE: 'Moto' };
 
@@ -89,6 +92,8 @@ export function ipvaYearFromQuery(value: string | null): number | null {
   selector: 'app-vehicle-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
+    VehicleLabelPipe,
     RouterLink,
     DefaultPageLayout,
     ConfirmDialog,
@@ -163,7 +168,7 @@ export class VehicleDetail implements OnInit {
   protected readonly pageDescription = computed(() => {
     const v = this.vehicle();
     if (!v) return '';
-    return [`${v.brand} ${v.model}`, v.yearModel, v.color].filter(Boolean).join(' · ');
+    return [formatVehicleLabel(v.brand, v.model), v.yearModel, v.color].filter(Boolean).join(' · ');
   });
 
   /** O número do segmento é o tamanho da lista, nunca o `openCount` do resumo. */
@@ -671,9 +676,7 @@ export class VehicleDetail implements OnInit {
   }
 
   protected formatPlate(plate: string | undefined): string {
-    const p = (plate ?? '').toUpperCase();
-    if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
-    return p || '—';
+    return formatPlate(plate);
   }
 }
 

@@ -49,7 +49,7 @@
             </div>
             <div>
               <dt class="text-xs uppercase tracking-wide text-fg-subtle">Motorista envolvido</dt>
-              <dd class="text-fg">{{ driverName() || '—' }}</dd>
+              <dd class="text-fg">{{ (driverName() | personName) || '—' }}</dd>
             </div>
             <div>
               <dt class="text-xs uppercase tracking-wide text-fg-subtle">Quem pagou</dt>
@@ -133,7 +133,7 @@
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <dt class="text-xs uppercase tracking-wide text-fg-subtle">Nome</dt>
-                <dd class="text-fg">{{ i.thirdPartyName || '—' }}</dd>
+                <dd class="text-fg">{{ (i.thirdPartyName | personName) || '—' }}</dd>
               </div>
               <div>
                 <dt class="text-xs uppercase tracking-wide text-fg-subtle">Documento</dt>
@@ -146,7 +146,7 @@
               <div>
                 <dt class="text-xs uppercase tracking-wide text-fg-subtle">Placa</dt>
                 <dd class="text-fg tabular-nums tracking-wider">
-                  {{ i.thirdPartyPlate || '—' }}
+                  {{ i.thirdPartyPlate | plate: false }}
                 </dd>
               </div>
             </dl>

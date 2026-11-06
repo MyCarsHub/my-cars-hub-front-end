@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import {
   AdminActionRequest,
+  AdminCancelChargeRequest,
+  AdminCancelChargeResult,
   AdminReceivedOutsideRequest,
   AdminChargeActionResult,
   AdminChargeTab,
@@ -57,6 +59,14 @@ export class AdminChargesService {
   retry(chargeId: string, body: AdminActionRequest): Observable<AdminChargeActionResult> {
     return this.http.post<AdminChargeActionResult>(
       `${environment.apiUrl}/admin/charges/${chargeId}/retry`,
+      body,
+    );
+  }
+
+  /** FEAT-0553: cancela/exclui UMA cobrança (só Dono), inclusive vencida. Sem atualização otimista. */
+  cancelCharge(chargeId: string, body: AdminCancelChargeRequest): Observable<AdminCancelChargeResult> {
+    return this.http.post<AdminCancelChargeResult>(
+      `${environment.apiUrl}/admin/charges/${chargeId}/cancel`,
       body,
     );
   }

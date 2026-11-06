@@ -434,7 +434,7 @@
                     <span class="text-sm font-semibold text-fg">{{ c.label }}</span>
                     <span class="text-xs text-fg-subtle">
                       @if (c.plate) {
-                        <span class="font-mono tracking-wide">{{ c.plate }}</span>
+                        <span class="font-mono tracking-wide">{{ c.plate | plate: false }}</span>
                       }
                       @if (c.plate && c.rent) {
                         ·

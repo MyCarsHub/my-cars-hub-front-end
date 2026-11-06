@@ -86,7 +86,7 @@
                 >
                   <option value="">Veículo: Todos</option>
                   @for (v of vehicles(); track v.id) {
-                    <option [value]="v.id">{{ formatPlate(v.plate) }} · {{ v.brand }} {{ v.model }}</option>
+                    <option [value]="v.id">{{ formatPlate(v.plate) }} · {{ v.brand | vehicleLabel: v.model }}</option>
                   }
                 </select>
               </div>
@@ -223,7 +223,7 @@
                           {{ formatPlate(i.vehiclePlate) }}
                         </b>
                         <small class="block text-xs text-fg-subtle mt-0.5 truncate">
-                          {{ i.vehicleBrand }} {{ i.vehicleModel }} · {{ i.insurer }}
+                          {{ i.vehicleBrand | vehicleLabel: i.vehicleModel }} · {{ i.insurer }}
                         </small>
                       </div>
                       <app-status-chip [tone]="expiryTone(i)" size="sm">{{ expiryBadge(i).label }}</app-status-chip>
@@ -326,7 +326,7 @@
                     >
                       <td class="px-3 py-3.5">
                         <b class="block font-semibold text-fg tabular-nums tracking-wider">{{ formatPlate(i.vehiclePlate) }}</b>
-                        <small class="block text-xs text-fg-subtle">{{ i.vehicleBrand }} {{ i.vehicleModel }}</small>
+                        <small class="block text-xs text-fg-subtle">{{ i.vehicleBrand | vehicleLabel: i.vehicleModel }}</small>
                       </td>
                       <td class="px-3 py-3.5 text-fg-soft">{{ i.insurer }}</td>
                       <td class="px-3 py-3.5 tabular-nums text-fg-soft">{{ i.policyNumber }}</td>

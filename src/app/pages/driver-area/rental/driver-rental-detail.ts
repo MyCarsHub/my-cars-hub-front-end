@@ -44,6 +44,7 @@ import {
   plural,
   reservedBanner,
 } from './driver-rental-view';
+import { formatVehicleLabel, formatPlate } from '../../../utils/display-format';
 
 const LOAD_ERROR = 'Não foi possível carregar o aluguel.';
 const NOT_FOUND = 'Não encontramos este aluguel.';
@@ -145,8 +146,8 @@ export class DriverRentalDetail {
   protected readonly vehicleLine = computed(() => {
     const row = this.identity();
     if (!row) return '';
-    const car = [row.vehicleBrand, row.vehicleModel].filter(Boolean).join(' ');
-    return [row.vehiclePlate?.toUpperCase(), car].filter(Boolean).join(' · ');
+    const car = formatVehicleLabel(row.vehicleBrand, row.vehicleModel);
+    return [formatPlate(row.vehiclePlate, { hyphen: false, empty: '' }), car].filter(Boolean).join(' · ');
   });
 
   protected readonly hero = computed(() => {

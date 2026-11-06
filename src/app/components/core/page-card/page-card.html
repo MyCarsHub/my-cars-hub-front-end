@@ -15,9 +15,13 @@
        garante a folga e o `shrink-0` faz o título quebrar linha antes de espremer
        a ação, o que vale para todo consumidor de `cardActions`, não só um. -->
   <div class="px-4 sm:px-6 py-5 flex items-center justify-between gap-2">
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3" [class.min-w-0]="truncateTitle()">
       <ng-content select="[cardIcon]" />
-      <h2 class="font-semibold text-fg-body">{{ title() }}</h2>
+      <h2
+        class="font-semibold text-fg-body"
+        [class.truncate]="truncateTitle()"
+        [attr.title]="truncateTitle() ? title() : null"
+      >{{ title() }}</h2>
     </div>
 
     <div class="flex items-center gap-2 shrink-0">

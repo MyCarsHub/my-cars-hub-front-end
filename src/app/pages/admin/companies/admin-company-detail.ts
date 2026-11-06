@@ -38,6 +38,8 @@ import { formatBRL } from '../../../types/dashboard.types';
 import { BarChart, BarDatum } from '../../../components/charts/bar-chart/bar-chart';
 import { KpiCard } from '../../../components/kpi-card/kpi-card';
 import { companyRoleLabel } from '../../../utils/role-labels';
+import { PlatePipe } from '../../../pipes/plate.pipe';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 interface ChipStyle {
   label: string;
@@ -135,6 +137,8 @@ export interface SubscriptionRow {
   selector: 'app-admin-company-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
+    PlatePipe,
     BackLink,
     ReactiveFormsModule,
     DefaultPageLayout,

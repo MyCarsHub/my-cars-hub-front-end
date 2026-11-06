@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CHIP_TONE, PersonRow, validityTextTone } from './members.model';
 import { MembersIcon } from './members-icon';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 const CHIP =
   'whitespace-nowrap inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium';
@@ -10,7 +11,7 @@ const CHIP =
 @Component({
   selector: 'app-person-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, MembersIcon],
+  imports: [PersonNamePipe, DatePipe, MembersIcon],
   host: { class: 'block' },
   template: `
     <article
@@ -33,7 +34,7 @@ const CHIP =
         </div>
         <div class="flex-1 min-w-0">
           <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-fg">
-            <span class="break-words min-w-0">{{ row().name }}</span>
+            <span class="break-words min-w-0">{{ row().name | personName }}</span>
             <span data-status-chip [class]="chip + ' ' + tone[row().statusChip.tone]">{{
               row().statusChip.label
             }}</span>
@@ -63,7 +64,7 @@ const CHIP =
             type="button"
             data-member-actions
             [disabled]="busy()"
-            [attr.aria-label]="'Ações para ' + row().name"
+            [attr.aria-label]="'Ações para ' + (row().name | personName)"
             aria-haspopup="dialog"
             (click)="actions.emit(row())"
             class="w-11 h-11 -mt-2 -mr-2 inline-flex items-center justify-center rounded-lg text-fg-subtle
@@ -78,7 +79,7 @@ const CHIP =
             type="button"
             data-invite-actions
             [disabled]="busy()"
-            [attr.aria-label]="'Ações do convite de ' + row().name"
+            [attr.aria-label]="'Ações do convite de ' + (row().name | personName)"
             aria-haspopup="dialog"
             (click)="actions.emit(row())"
             class="w-11 h-11 -mt-2 -mr-2 inline-flex items-center justify-center rounded-lg text-fg-subtle

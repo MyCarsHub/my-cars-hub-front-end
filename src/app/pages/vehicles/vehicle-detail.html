@@ -104,7 +104,7 @@
                   {{ formatMoney(saleInfo.saleValueCents) }}
                 </span>
                 <span class="text-sm text-white/85 leading-snug [overflow-wrap:anywhere]">
-                  Veículo vendido em {{ formatDate(saleInfo.saleDate) }} para {{ saleInfo.buyerName }}.
+                  Veículo vendido em {{ formatDate(saleInfo.saleDate) }} para {{ saleInfo.buyerName | personName }}.
                 </span>
               </div>
               <div class="border-t border-white/25 pt-3 flex flex-col gap-1">
@@ -162,7 +162,7 @@
               <div appListRow>
                 <span class="tile" aria-hidden="true"><app-vehicle-icon name="car" /></span>
                 <span class="t">
-                  <b class="[overflow-wrap:anywhere]">{{ v.brand }} {{ v.model }}</b>
+                  <b class="[overflow-wrap:anywhere]">{{ v.brand | vehicleLabel: v.model }}</b>
                   <small>{{ v.yearManufacture }} / {{ v.yearModel }}{{ v.color ? ', ' + v.color : '' }}</small>
                 </span>
               </div>

@@ -34,6 +34,8 @@ import {
   VehicleListItem,
 } from '../../types/vehicle.types';
 import { FINANCING_STATUS_FILTER_OPTIONS } from '../../utils/status-maps';
+import { formatPlate } from '../../utils/display-format';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
 
 const STATUS_OPTIONS = FINANCING_STATUS_FILTER_OPTIONS;
 
@@ -55,6 +57,7 @@ type PendingAction = 'payOff' | 'delete';
   selector: 'app-financings-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    VehicleLabelPipe,
     FormsModule,
     RouterLink,
     DefaultPageLayout,
@@ -282,9 +285,7 @@ export class FinancingsList implements OnInit {
   }
 
   protected formatPlate(plate: string): string {
-    const p = (plate ?? '').toUpperCase();
-    if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
-    return p || '—';
+    return formatPlate(plate);
   }
 
   protected formatDate(iso: string | null): string {

@@ -49,6 +49,7 @@ import {
   ptDayMonth,
   toViewRow,
 } from './ipva-fleet-list';
+import { formatVehicleLabel } from '../../utils/display-format';
 
 export const IPVA_PAGE_SIZE = 20;
 /** Espera depois da última tecla da busca. */
@@ -219,7 +220,7 @@ export class IpvaFleet implements OnInit {
 
   protected readonly sheetSubtitle = computed(() => {
     const v = this.chosen();
-    if (this.step() === 'generate' && v) return `${plateLabel(v.plate)} · ${v.brand} ${v.model}`;
+    if (this.step() === 'generate' && v) return `${plateLabel(v.plate)} · ${formatVehicleLabel(v.brand, v.model)}`;
     return 'Escolha um veículo que ainda não tem IPVA neste ano.';
   });
 

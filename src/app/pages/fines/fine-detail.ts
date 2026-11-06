@@ -33,11 +33,13 @@ import {
   FineSeverity,
   FineStatus,
 } from '../../types/fine.types';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 @Component({
   selector: 'app-fine-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
     BackLink,
     RouterLink,
     FormsModule,

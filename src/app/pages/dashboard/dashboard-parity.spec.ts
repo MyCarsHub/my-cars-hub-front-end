@@ -214,7 +214,7 @@ describe('DashboardHome — parity with the prototype', () => {
     const host = render({}, cash);
     const section = host.querySelector('[data-cash-section]')!;
     const lines = section.querySelectorAll('app-growth-chart [data-line]');
-    const lastX = (el: Element) => Number(el.getAttribute('d')!.trim().split(' ').slice(-2)[0]);
+    const lastX = (el: Element) => Number(el.getAttribute('d')!.replace(/[A-Z]/g, ' ').trim().split(/\s+/).slice(-2)[0]);
     expect(lines).toHaveLength(2);
     expect(lines[0].getAttribute('stroke-dasharray')).toBe('4 4');
     expect(lastX(lines[0])).toBeCloseTo(100, 1); // last month: whole month
@@ -307,9 +307,9 @@ describe('DashboardHome — responsive classes per section (phone 375 / tablet 7
       },
     } as unknown as Partial<DashboardSummaryDto>);
     expect(host.querySelector('app-alert-chip button')!.className).toContain('min-h-[44px]');
-    expect(host.querySelector('[data-offender-chips] button')!.className).toContain('min-h-[44px]');
+    expect(host.querySelector('[data-offender-chips] button')!.className).toContain('h-11');
     expect(host.querySelector('app-quick-action-card a')!.className).toContain('min-h-[64px]');
-    expect(host.querySelector('app-quick-action-card')!.parentElement!.className).toContain('grid-cols-2');
+    expect(host.querySelector('app-quick-action-card')!.parentElement!.className.split(/\s+/)).toContain('grid-cols-2');
   });
 
   it('the chart never forces a width', () => {

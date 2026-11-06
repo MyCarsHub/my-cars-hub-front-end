@@ -34,6 +34,9 @@ import {
   FilterChipGroup,
   FilterChipOption,
 } from '../../components/filter-chip-group/filter-chip-group';
+import { formatPlate, formatVehicleLabel, formatPersonName } from '../../utils/display-format';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 type PendingAction = 'activate' | 'cancel' | 'delete';
 
@@ -47,6 +50,8 @@ const STATUS_CHIPS: readonly FilterChipOption<RentalStatus | ''>[] = RENTAL_STAT
   selector: 'app-rentals-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
+    VehicleLabelPipe,
     FormsModule,
     RouterLink,
     DefaultPageLayout,
@@ -379,21 +384,19 @@ export class RentalsList implements OnInit {
   }
 
   protected vehicleModel(r: RentalListItemDto): string {
-    const fromRow = [r.vehicleBrand, r.vehicleModel].filter(Boolean).join(' ');
+    const fromRow = formatVehicleLabel(r.vehicleBrand, r.vehicleModel);
     if (fromRow) return fromRow;
     const v = this.vehiclesById().get(r.vehicleId);
-    return v ? `${v.brand} ${v.model}` : '';
+    return v ? formatVehicleLabel(v.brand, v.model) : '';
   }
 
   protected driverName(r: RentalListItemDto): string {
-    if (r.driverName) return r.driverName;
-    return this.driversById().get(r.driverId)?.name ?? '—';
+    if (r.driverName) return formatPersonName(r.driverName);
+    return formatPersonName(this.driversById().get(r.driverId)?.name) || '—';
   }
 
   protected formatPlate(plate: string): string {
-    const p = (plate ?? '').toUpperCase();
-    if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
-    return p || '—';
+    return formatPlate(plate);
   }
 
   protected formatDate(iso: string | null): string {
