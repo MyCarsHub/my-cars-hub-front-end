@@ -214,7 +214,7 @@
                   {{ fipeLoading() === 'brands' ? 'Carregando marcas…' : 'Selecione a marca…' }}
                 </option>
                 @for (brand of fipeBrands(); track brand.code) {
-                  <option [value]="brand.code">{{ brand.name }}</option>
+                  <option [value]="brand.code">{{ brand.name | vehicleBrand }}</option>
                 }
               </select>
               @if (fieldInvalid(['brand'])) {
@@ -246,7 +246,7 @@
                      fipeBrandCode() ? 'Selecione o modelo…' : 'Escolha a marca primeiro' }}
                 </option>
                 @for (model of fipeModels(); track model.code) {
-                  <option [value]="model.code">{{ model.name }}</option>
+                  <option [value]="model.code">{{ model.name | vehicleModel }}</option>
                 }
               </select>
               @if (fieldInvalid(['model'])) {

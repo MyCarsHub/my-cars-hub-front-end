@@ -16,14 +16,15 @@ import { ApiErrorService } from '../../../services/api-error.service';
 import { FleetFinanceService } from '../../../services/fleet-finance.service';
 import { VehiclePickerFilter } from '../../../types/fleet-finance.types';
 import { VehicleListItem } from '../../../types/vehicle.types';
+import { formatPlate } from '../../../utils/display-format';
+import { VehicleLabelPipe } from '../../../pipes/vehicle-label.pipe';
 
 /** Espera depois da última tecla antes de perguntar ao servidor. */
 export const PICKER_DEBOUNCE_MS = 250;
 
 /** `ABC1D23` → `ABC-1D23`; o resto sai como veio. */
 export function pickerPlate(plate: string | null | undefined): string {
-  const p = (plate ?? '').toUpperCase();
-  return p.length === 7 ? `${p.slice(0, 3)}-${p.slice(3)}` : p || '—';
+  return formatPlate(plate);
 }
 
 type Load = { readonly state: 'loading' } | { readonly state: 'error'; readonly message: string } | {
@@ -41,7 +42,7 @@ type Load = { readonly state: 'loading' } | { readonly state: 'error'; readonly 
   selector: 'app-vehicle-picker',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [ReactiveFormsModule, AlertBanner],
+  imports: [VehicleLabelPipe, ReactiveFormsModule, AlertBanner],
   template: `
     <div class="space-y-3" data-testid="vehicle-picker">
       <div class="relative">
@@ -100,7 +101,7 @@ type Load = { readonly state: 'loading' } | { readonly state: 'error'; readonly 
                   >
                     <span class="min-w-0 flex-1">
                       <b class="block text-base font-semibold text-fg tabular-nums tracking-wider">{{ plate(v.plate) }}</b>
-                      <small class="block text-xs text-fg-subtle truncate">{{ v.brand }} {{ v.model }} · {{ v.yearModel }}</small>
+                      <small class="block text-xs text-fg-subtle truncate">{{ v.brand | vehicleLabel: v.model }} · {{ v.yearModel }}</small>
                     </span>
                     <svg class="shrink-0 text-fg-faint" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

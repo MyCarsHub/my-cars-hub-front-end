@@ -44,6 +44,7 @@ import {
   userRole,
   userSituation,
 } from './admin-users-view';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 interface PendingAction {
   kind: 'DEACTIVATE' | 'ACTIVATE';
@@ -70,6 +71,7 @@ const TAB_OPTIONS: readonly PillTabOption<UsersTab>[] = [
   selector: 'app-admin-users',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
     ContactActions,
     BackLink,
     ReactiveFormsModule,

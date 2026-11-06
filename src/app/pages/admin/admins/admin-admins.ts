@@ -27,6 +27,7 @@ import { SessionService } from '../../../services/session.service';
 import { AdminUserListItem } from '../../../types/admin-user.types';
 import { AdminMember, AdminRole, AdminRoleReason } from '../../../types/admin-roles.types';
 import { AdminRolesService } from './admin-roles.service';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 const ADMIN_ROLE_LABEL: Record<AdminRole, string> = {
   OWNER: 'Dono da plataforma',
@@ -105,6 +106,7 @@ const ROLE_TONE: Record<AdminRole | 'NONE', StatusChipTone> = {
   selector: 'app-admin-admins',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
     DefaultPageLayout,
     AlertBanner,
     BottomSheet,

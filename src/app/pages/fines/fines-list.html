@@ -33,7 +33,7 @@
             >
               <option value="">Veículo: Todos</option>
               @for (v of vehicles(); track v.id) {
-                <option [value]="v.id">{{ formatPlate(v.plate) }} · {{ v.brand }} {{ v.model }}</option>
+                <option [value]="v.id">{{ formatPlate(v.plate) }} · {{ v.brand | vehicleLabel: v.model }}</option>
               }
             </select>
           </div>

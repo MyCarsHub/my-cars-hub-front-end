@@ -31,7 +31,7 @@
             >
               <option value="">Selecione…</option>
               @for (v of vehicles(); track v.id) {
-                <option [value]="v.id">{{ v.plate }} · {{ v.brand }} {{ v.model }}</option>
+                <option [value]="v.id">{{ v.plate | plate: false }} · {{ v.brand | vehicleLabel: v.model }}</option>
               }
             </select>
           </app-form-field>
@@ -49,7 +49,7 @@
             >
               <option value="">Não informado</option>
               @for (d of drivers(); track d.id) {
-                <option [value]="d.id">{{ d.name }}</option>
+                <option [value]="d.id">{{ d.name | personName }}</option>
               }
             </select>
           </app-form-field>

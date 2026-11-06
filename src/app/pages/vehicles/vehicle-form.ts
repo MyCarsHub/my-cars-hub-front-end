@@ -94,6 +94,8 @@ import {
   PendingSlotView,
 } from '../../components/documents/pending-documents-block';
 import { OPEN_BLOCK_PARAM } from '../../types/fleet-finance.types';
+import { VehicleBrandPipe } from '../../pipes/vehicle-brand.pipe';
+import { VehicleModelPipe } from '../../pipes/vehicle-model.pipe';
 
 const PLATE_PATTERN = /^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/;
 
@@ -182,6 +184,8 @@ function yearRangeValidator(group: AbstractControl): ValidationErrors | null {
   selector: 'app-vehicle-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    VehicleModelPipe,
+    VehicleBrandPipe,
     ReactiveFormsModule,
     DefaultPageLayout,
     PageCard,

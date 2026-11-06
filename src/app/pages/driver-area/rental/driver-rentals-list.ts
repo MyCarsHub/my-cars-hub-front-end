@@ -28,6 +28,7 @@ import {
   plural,
   rateLine,
 } from './driver-rental-view';
+import { formatVehicleLabel, formatPlate } from '../../../utils/display-format';
 
 const LOAD_ERROR = 'Não foi possível carregar seus aluguéis.';
 
@@ -147,8 +148,8 @@ export class DriverRentalsList {
         const own = charges.get(r.id) ?? null;
         return {
           id: r.id,
-          plate: (r.vehiclePlate ?? '').toUpperCase() || 'Veículo',
-          model: [r.vehicleBrand, r.vehicleModel].filter(Boolean).join(' '),
+          plate: formatPlate(r.vehiclePlate, { hyphen: false, empty: 'Veículo' }),
+          model: formatVehicleLabel(r.vehicleBrand, r.vehicleModel),
           chipLabel: meta.label,
           chipClass: meta.chip,
           period: `${fullDate(r.startDate)} → ${fullDate(r.endDate)}`,

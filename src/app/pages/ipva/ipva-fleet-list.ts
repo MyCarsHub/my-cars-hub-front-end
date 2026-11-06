@@ -1,6 +1,7 @@
 import { StatusChipTone } from '../../components/core/status-chip/status-chip';
 import { IpvaFleetRow } from '../../types/fleet-finance.types';
 import { IpvaInstallmentStatus } from '../../types/vehicle-ipva.types';
+import { formatVehicleLabel, formatPlate } from '../../utils/display-format';
 
 /** Aba de situação da lista. `ALL` não vai na requisição. */
 export type IpvaStatusFilter = 'ALL' | IpvaInstallmentStatus;
@@ -49,8 +50,7 @@ export function ptDayMonth(iso: string | null | undefined): string {
 }
 
 export function plateLabel(plate: string | null | undefined): string {
-  const p = (plate ?? '').toUpperCase();
-  return p.length === 7 ? `${p.slice(0, 3)}-${p.slice(3)}` : p || '—';
+  return formatPlate(plate);
 }
 
 export interface IpvaFleetViewRow {
@@ -78,7 +78,7 @@ export function toViewRow(row: IpvaFleetRow): IpvaFleetViewRow {
   return {
     row,
     plate,
-    model: `${row.vehicleBrand ?? ''} ${row.vehicleModel ?? ''}`.trim(),
+    model: formatVehicleLabel(row.vehicleBrand, row.vehicleModel),
     total: brlCents(row.totalCents),
     paid: brlCents(row.paidCents),
     open: brlCents(row.openCents),

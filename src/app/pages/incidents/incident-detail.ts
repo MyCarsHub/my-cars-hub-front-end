@@ -24,6 +24,8 @@ import {
   INCIDENT_FAULT_PARTY_META,
   VehicleIncident,
 } from '../../types/vehicle-incident.types';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
+import { PlatePipe } from '../../pipes/plate.pipe';
 
 /**
  * Ficha completa de um sinistro — a ÚNICA tela que mostra os dados do terceiro
@@ -37,6 +39,8 @@ import {
   selector: 'app-incident-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PlatePipe,
+    PersonNamePipe,
     BackLink,
     DefaultPageLayout,
     PageCard,

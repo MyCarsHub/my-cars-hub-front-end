@@ -72,9 +72,9 @@
           class="block min-h-[44px] content-center rounded-sm outline-none break-words
                  hover:text-primary-700 dark:hover:text-primary-400 hover:underline
                  focus-visible:ring-2 focus-visible:ring-primary-400"
-          [attr.aria-label]="'Abrir ' + (user.name ?? user.email)"
+          [attr.aria-label]="'Abrir ' + ((user.name | personName) || user.email)"
         >
-          {{ user.name ?? '(sem nome)' }}
+          {{ (user.name | personName) || '(sem nome)' }}
           <span class="block text-xs font-normal text-fg-subtle break-all">{{ user.email }}</span>
         </a>
       </ng-template>

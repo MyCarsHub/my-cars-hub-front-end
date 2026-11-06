@@ -25,6 +25,9 @@ import {
   IncidentType,
   UpdateVehicleIncidentRequest,
 } from '../../types/vehicle-incident.types';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
+import { PlatePipe } from '../../pipes/plate.pipe';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 /**
  * Registro e correção de um sinistro.
@@ -44,7 +47,7 @@ import {
 @Component({
   selector: 'app-incident-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl, PaidByField],
+  imports: [PersonNamePipe, PlatePipe, VehicleLabelPipe, ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl, PaidByField],
   templateUrl: './incident-form.html',
 })
 export class IncidentForm implements OnInit {

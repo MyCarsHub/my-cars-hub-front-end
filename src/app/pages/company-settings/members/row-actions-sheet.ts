@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { InviteRow, MemberRow, ROLE_CHANGE_NOTE } from './members.model';
 import { MembersIcon } from './members-icon';
 import { MembersSheet } from './members-sheet';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 export type RowActionsTarget =
   | { kind: 'member'; row: MemberRow }
@@ -18,7 +19,7 @@ const ITEM =
 @Component({
   selector: 'app-row-actions-sheet',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MembersSheet, MembersIcon],
+  imports: [PersonNamePipe, MembersSheet, MembersIcon],
   template: `
     @if (target(); as t) {
       <app-members-sheet
@@ -35,7 +36,7 @@ const ITEM =
               {{ t.row.initial }}
             </div>
             <div class="min-w-0">
-              <p class="text-sm font-semibold text-fg truncate">{{ t.row.name }}</p>
+              <p class="text-sm font-semibold text-fg truncate">{{ t.row.name | personName }}</p>
               <p class="text-xs text-fg-subtle truncate">
                 {{ t.row.email }} · {{ t.row.roleLabel }}
               </p>
@@ -55,7 +56,7 @@ const ITEM =
                   {{
                     t.row.isSelf
                       ? 'Você deixa de entrar nesta empresa na hora.'
-                      : t.row.name + ' deixa de entrar nesta empresa na hora.'
+                      : (t.row.name | personName) + ' deixa de entrar nesta empresa na hora.'
                   }}
                 </span>
               </span>

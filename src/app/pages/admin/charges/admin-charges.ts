@@ -26,6 +26,7 @@ import {
 import { ContactActions } from '../contact/contact-actions';
 import { AdminChargesService } from './admin-charges.service';
 import { ChargeActionMode, ChargeActionsSheet } from './charge-actions-sheet';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 const STATUS_LABELS: Record<string, string> = {
   FAILED: 'Falhou',
@@ -56,7 +57,7 @@ const KIND_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-admin-charges',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, AlertBanner, RouterLink, ContactActions, ChargeActionsSheet, ActionsMenu],
+  imports: [PersonNamePipe, DefaultPageLayout, AlertBanner, RouterLink, ContactActions, ChargeActionsSheet, ActionsMenu],
   templateUrl: './admin-charges.html',
 })
 export class AdminCharges implements OnInit {

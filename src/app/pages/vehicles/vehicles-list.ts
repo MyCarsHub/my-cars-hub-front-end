@@ -31,6 +31,8 @@ import {
   licensingBadge,
   vehicleStatusMeta,
 } from '../../utils/status-maps';
+import { formatPlate, formatVehicleLabel } from '../../utils/display-format';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
 
 const TYPE_OPTIONS: Array<{ value: VehicleType | ''; label: string }> = [
   { value: '', label: 'Todos' },
@@ -41,6 +43,7 @@ const TYPE_OPTIONS: Array<{ value: VehicleType | ''; label: string }> = [
   selector: 'app-vehicles-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    VehicleLabelPipe,
     FormsModule,
     NgTemplateOutlet,
     RouterLink,
@@ -164,7 +167,7 @@ export class VehiclesList implements OnInit {
     if (!vehicle) return '';
     return (
       `Tem certeza que deseja remover o veículo «${this.formatPlate(vehicle.plate)}» ` +
-      `(${vehicle.brand} ${vehicle.model})? Esta ação não pode ser desfeita.`
+      `(${formatVehicleLabel(vehicle.brand, vehicle.model)})? Esta ação não pode ser desfeita.`
     );
   });
 
@@ -274,9 +277,7 @@ export class VehiclesList implements OnInit {
   }
 
   protected formatPlate(plate: string): string {
-    const p = (plate ?? '').toUpperCase();
-    if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
-    return p || '—';
+    return formatPlate(plate);
   }
 
   protected formatDate(iso: string | null): string {
