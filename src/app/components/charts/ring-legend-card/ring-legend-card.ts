@@ -46,46 +46,65 @@ export function ringGradient(slices: readonly RingSlice[], gap: string): string 
   selector: 'app-ring-legend-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PageCard],
-  host: { class: 'block min-w-0' },
+  host: { class: 'block min-w-0 h-full' },
   template: `
-    <app-page-card [title]="title()">
+    <app-page-card [title]="title()" [fill]="true">
       @if (subtitle()) {
         <p data-subtitle class="px-4 sm:px-6 -mt-1 pb-3 text-xs text-fg-muted">{{ subtitle() }}</p>
       }
-      <div class="px-4 sm:px-6 pb-5 flex flex-col sm:flex-row items-center gap-5 min-w-0">
-        <div
-          data-ring
-          role="img"
-          class="relative size-28 shrink-0 rounded-full"
-          [attr.aria-label]="title() + ': ' + summary()"
-          [style.background]="gradient()"
-        >
+      <div
+        class="px-4 sm:px-6 pb-5 flex min-w-0 flex-1"
+        [class.flex-row]="layout() === 'ring'"
+        [class.items-center]="layout() === 'ring'"
+        [class.gap-5]="layout() === 'ring'"
+        [class.flex-col]="layout() === 'bar'"
+        [class.gap-4]="layout() === 'bar'"
+      >
+        @if (layout() === 'ring') {
           <div
-            class="absolute inset-[22%] rounded-full bg-surface flex flex-col items-center justify-center text-center"
+            data-ring
+            role="img"
+            class="relative size-28 sm:size-32 shrink-0 rounded-full"
+            [attr.aria-label]="title() + ': ' + summary()"
+            [style.background]="gradient()"
           >
-            <span class="text-base font-semibold text-fg tabular-nums leading-none">{{
-              totalText()
-            }}</span>
-            <span class="text-[10px] text-fg-muted mt-0.5">{{ totalLabel() }}</span>
-          </div>
-        </div>
-        <ul class="w-full min-w-0 space-y-1.5" aria-label="Legenda">
-          @for (row of rows(); track row.label) {
-            <li
-              data-legend-row
-              class="flex items-center justify-between gap-3 rounded-xl bg-surface-muted px-3 py-2 text-sm min-w-0"
+            <div
+              class="absolute inset-[22%] rounded-full bg-surface flex flex-col items-center justify-center text-center"
             >
+              <span class="text-lg font-semibold text-fg tabular-nums leading-none">{{
+                totalText()
+              }}</span>
+              <span class="text-[10px] text-fg-muted mt-0.5">{{ totalLabel() }}</span>
+            </div>
+          </div>
+        } @else {
+          <div
+            data-split-bar
+            role="img"
+            class="flex h-3 w-full overflow-hidden rounded-full bg-surface-sunken"
+            [attr.aria-label]="title() + ': ' + summary()"
+          >
+            @for (row of rows(); track row.label) {
+              @if (row.value > 0) {
+                <span [style.flex-grow]="row.value" [style.background-color]="row.color"></span>
+              }
+            }
+          </div>
+        }
+        <ul class="w-full min-w-0 space-y-2.5" aria-label="Legenda">
+          @for (row of rows(); track row.label) {
+            <li data-legend-row class="flex items-center justify-between gap-3 text-sm min-w-0">
               <span class="inline-flex items-center gap-2 min-w-0 text-fg-body">
                 <span
-                  class="size-2.5 rounded-[3px] shrink-0"
+                  class="size-3 rounded-[4px] shrink-0"
                   aria-hidden="true"
                   [style.background-color]="row.color"
                 ></span>
                 <span class="truncate">{{ row.label }}</span>
               </span>
-              <span class="shrink-0 tabular-nums text-fg">
-                <b class="font-semibold">{{ row.text }}</b>
-                <span class="text-fg-muted ml-1.5">{{ row.pct }}%</span>
+              <span class="shrink-0 tabular-nums text-fg inline-flex items-baseline gap-3">
+                <span class="text-xs text-fg-muted">{{ row.pct }}%</span>
+                <b class="font-semibold min-w-6 text-right">{{ row.text }}</b>
               </span>
             </li>
           } @empty {
@@ -100,6 +119,8 @@ export class RingLegendCard {
   readonly title = input.required<string>();
   readonly slices = input.required<readonly RingSlice[]>();
   readonly valueFormat = input<KpiNumberFormat>('integer');
+  /** `ring`: donut + list (statuses). `bar`: one stacked bar + list (where the money goes). */
+  readonly layout = input<'ring' | 'bar'>('ring');
   /** One line under the title (e.g. the plan capacity). */
   readonly subtitle = input<string | null>(null);
   /** Caption under the number in the middle of the ring. */

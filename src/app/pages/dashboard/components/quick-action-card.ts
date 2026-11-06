@@ -8,13 +8,12 @@ import { RouterLink } from '@angular/router';
     template: `
         <a
             [routerLink]="route()"
-            class="group flex items-center gap-3 p-4 rounded-xl border border-gray-200 dark:border-edge bg-surface
-                   hover:border-primary-400 hover:shadow-sm transition-all min-h-[64px]
+            class="group flex items-center gap-3 p-3 rounded-xl bg-surface-muted
+                   hover:bg-surface-sunken transition-colors min-h-[64px]
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
         >
             <span
-                class="w-10 h-10 shrink-0 rounded-lg bg-primary-50 dark:bg-primary-500/10 text-primary-500 dark:text-primary-400
-                       flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-500/15 transition-colors"
+                class="w-11 h-11 shrink-0 rounded-xl bg-primary-500 text-white flex items-center justify-center"
                 aria-hidden="true"
             >
                 <svg

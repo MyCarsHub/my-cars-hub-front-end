@@ -115,11 +115,12 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
     const { host } = render(summaryWith(overview, 40000));
     expect(host.querySelector('[data-result-section] app-monthly-result-chart')).not.toBeNull();
     expect(text(host.querySelector('[data-result-section]'))).toContain('out/26');
-    expect(host.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(4);
-    expect(text(host)).toContain('Para onde vai cada centavo');
+    expect(host.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(2);
+    expect(host.querySelectorAll('app-ring-legend-card').length).toBe(4);
+    expect(text(host)).toContain('Para onde vai cada centavo recebido');
     expect(text(host)).toContain('Atraso por idade');
     expect(host.querySelectorAll('app-ranking-card').length).toBe(2);
-    expect(text(host)).toContain('ABC1D23 · Fiat Argo');
+    expect(text(host)).toContain('ABC1D23');
     expect(text(host)).toContain('Aluguéis por status');
   });
 
@@ -134,12 +135,11 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
     expect(ownerSections.length).toBeGreaterThan(5);
     expect(sections(manager)).toEqual(ownerSections);
     expect(manager.querySelector('[data-result-section]')).not.toBeNull();
-    expect(manager.querySelector('[data-roi-card]')).not.toBeNull();
-    expect(manager.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(4);
+    expect(manager.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(2);
   });
 
-  it('a non-operator role does not get the operator-only ROI card', () => {
-    const { host } = render(summaryWith(overview, 40000), 'DRIVER');
+  it('no role gets a ROI card on the dashboard (the prototype has none; ROI lives in Relatórios)', () => {
+    const { host } = render(summaryWith(overview, 40000), 'OWNER');
     expect(host.querySelector('[data-roi-card]')).toBeNull();
   });
 
@@ -175,10 +175,9 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
       },
     };
     const { host } = render(summaryWith(zero));
-    expect(host.querySelectorAll('[data-distributions] app-ring-legend-card').length).toBe(3);
+    expect(host.querySelectorAll('app-ring-legend-card').length).toBe(3);
+    expect(host.querySelector('[data-aging]')).toBeNull();
     expect(text(host)).not.toContain('Atraso por idade');
-    // sem o card de atraso, o de custos ocupa a linha inteira: nada de metade vazia
-    expect(host.querySelector('[data-money-section]')?.className).toContain('lg:col-span-2');
   });
 
   it('the KPI row carries the six prototype cards and no hand-made indicator cards', () => {

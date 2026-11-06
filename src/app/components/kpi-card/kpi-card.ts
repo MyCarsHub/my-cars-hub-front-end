@@ -47,6 +47,8 @@ export interface KpiDelta {
   readonly text: string;
   /** `good`/`bad` colour the text; `neutral` is the quiet caption colour. No dot, no icon. */
   readonly tone: 'good' | 'bad' | 'neutral';
+  /** Prototype delta chip ("↗ 8%") drawn before `text` as a tinted pill; `text` is then the caption. */
+  readonly chip?: string;
 }
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -241,7 +243,14 @@ const INTERACTIVE =
         <p [class]="valueClass()">—</p>
       }
       @if (delta(); as d) {
-        <p data-kpi-delta [class]="deltaClass(d)">{{ d.text }}</p>
+        @if (d.chip) {
+          <p data-kpi-delta class="mt-1.5 flex items-center gap-1.5 min-w-0 text-[11px] sm:text-xs" [class]="captionClass(d)">
+            <span data-kpi-chip class="shrink-0 rounded-full px-2 py-0.5 font-semibold tabular-nums" [class]="chipClass(d)">{{ d.chip }}</span>
+            <span class="truncate">{{ d.text }}</span>
+          </p>
+        } @else {
+          <p data-kpi-delta [class]="deltaClass(d)">{{ d.text }}</p>
+        }
       }
       @if (detail() !== null) {
         <p data-kpi-detail [class]="detailCompact() !== null ? look().detail + ' hidden md:block' : look().detail">
@@ -399,6 +408,19 @@ export class KpiCard {
   protected deltaClass(d: KpiDelta): string {
     const base = 'text-[11px] sm:text-xs mt-1 truncate ';
     return base + (PAINTED.has(this.variant()) ? 'text-white/90' : DELTA_PLAIN[d.tone]);
+  }
+
+  protected captionClass(_d: KpiDelta): string {
+    return PAINTED.has(this.variant()) ? 'text-white/90' : 'text-gray-500 dark:text-fg-subtle';
+  }
+
+  protected chipClass(d: KpiDelta): string {
+    if (PAINTED.has(this.variant())) return 'bg-white/20 text-white';
+    return d.tone === 'good'
+      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300'
+      : d.tone === 'bad'
+        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300'
+        : 'bg-surface-muted text-fg-muted';
   }
 
   protected activate(): void {
