@@ -413,13 +413,16 @@ export class DashboardHome {
     );
 
     /**
-     * Profit margin over what was RECEIVED (never over Faturado), as the chip of the Lucro card.
-     * `null` when nothing was received: a margin over zero is not a number.
+     * Profit margin over what came IN (Recebido + vehicle sales: the same base Lucro is built from,
+     * so it cannot pass 100% while expenses are >= 0; never over Faturado), as the chip of the
+     * Lucro card. `null` when nothing came in: a margin over zero is not a number.
      */
     protected readonly marginKpiDelta = computed<KpiDelta | null>(() => {
         const f = this.summary()?.finance;
-        if (!f || !(f.receivedCents > 0) || !Number.isFinite(f.resultCents)) return null;
-        const pct = Math.round((f.resultCents / f.receivedCents) * 100);
+        if (!f || !Number.isFinite(f.resultCents)) return null;
+        const base = f.receivedCents + (f.saleRevenueCents ?? 0);
+        if (!(base > 0)) return null;
+        const pct = Math.round((f.resultCents / base) * 100);
         return { chip: `margem ${pct}%`, text: 'recebido + vendas − despesas', tone: pct < 0 ? 'bad' : 'neutral' };
     });
 

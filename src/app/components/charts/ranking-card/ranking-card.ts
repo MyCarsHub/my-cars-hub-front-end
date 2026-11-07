@@ -48,7 +48,7 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
   imports: [PageCard],
   host: { class: 'block min-w-0 h-full' },
   template: `
-    <app-page-card [title]="title()" [fill]="true" [truncateTitle]="true">
+    <app-page-card [title]="title()" [fill]="true" [truncateTitle]="!reserveTitle()" [reserveTitleLines]="reserveTitle()">
       <div class="px-4 sm:px-6 pb-5 min-w-0 flex-1">
         @if (subtitle()) {
           <p class="text-xs text-fg-muted mb-3">{{ subtitle() }}</p>
@@ -151,6 +151,8 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
 export class RankingCard {
   readonly title = input.required<string>();
   readonly subtitle = input<string | null>(null);
+  /** Wrap the title on up to two lines and reserve both (cards side by side stay aligned). */
+  readonly reserveTitle = input(false);
   readonly items = input.required<readonly RankingItem[]>();
   /** How many rows to show. */
   readonly limit = input(5);

@@ -369,6 +369,7 @@
             <app-ring-legend-card
                 class="dash-enter md:col-span-2 xl:col-span-5 xl:order-3" style="--stagger-i: 2"
                 data-money-section
+                [reserveTitle]="true"
                 layout="bar"
                 title="Para onde vai cada centavo recebido"
                 totalLabel="custos do período"
@@ -380,6 +381,7 @@
                 class="md:col-span-2 xl:col-span-5 xl:order-3"
                 title="Para onde vai cada centavo recebido"
                 bodyClass="min-h-64"
+                [reserveTitle]="true"
                 data-money-skeleton
             />
         }
@@ -433,28 +435,30 @@
         }
 
         @if (pending()) {
-            <app-card-skeleton class="xl:col-span-5 xl:order-4" title="Top 5 veículos por receita" bodyClass="min-h-[12.25rem]" data-ranking-skeleton />
-            <app-card-skeleton class="xl:col-span-5 xl:order-5" title="Top 5 motoristas por receita" bodyClass="min-h-[12.25rem]" data-ranking-skeleton />
+            <app-card-skeleton class="xl:col-span-5 xl:order-4" title="Top 5 veículos por receita" [reserveTitle]="true" bodyClass="min-h-[12.25rem]" data-ranking-skeleton />
+            <app-card-skeleton class="xl:col-span-5 xl:order-5" title="Top 5 motoristas por receita" [reserveTitle]="true" bodyClass="min-h-[12.25rem]" data-ranking-skeleton />
         } @else {
             <app-ranking-card
                 class="dash-enter xl:col-span-5 xl:order-4" style="--stagger-i: 3"
                 title="Top 5 veículos por receita"
-                subtitle="Quais carros mais rendem, por valor recebido"
+                subtitle="Por valor recebido no período"
+                [reserveTitle]="true"
                 layout="bars"
                 [items]="topVehiclesByRevenue()"
             />
             <app-ranking-card
                 class="dash-enter xl:col-span-5 xl:order-5" style="--stagger-i: 4"
                 title="Top 5 motoristas por receita"
-                subtitle="Quem mais gerou receita, por valor recebido"
+                subtitle="Por valor recebido no período"
+                [reserveTitle]="true"
                 layout="podium"
                 [items]="topDriversByRevenue()"
             />
         }
         <div class="dash-enter min-w-0 md:col-span-2 xl:col-span-5 xl:order-6" style="--stagger-i: 5">
-            <app-page-card title="Top ofensores (multas)" [fill]="true" [truncateTitle]="true" data-offenders>
+            <app-page-card title="Top ofensores (multas)" [fill]="true" [reserveTitleLines]="true" data-offenders>
                 <div class="px-4 pb-5 sm:px-6 min-w-0 flex-1 flex flex-col gap-3">
-                    <p class="text-xs text-fg-muted -mt-3">Quanto maior o selo, mais multas</p>
+                    <p class="text-xs text-fg-muted">Quanto maior o selo, mais multas</p>
                     <app-pill-tabs
                         [options]="offenderModeOptions"
                         [value]="offenderMode()"

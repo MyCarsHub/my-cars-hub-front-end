@@ -113,8 +113,25 @@ describe('DashboardHome — metric labels', () => {
     expect(card).toContain('recebido + vendas − despesas');
   });
 
-  it('Lucro margin is hidden when Recebido is zero, whatever the Faturado is, and no NaN shows', () => {
-    const { host } = render(summary({ revenueCents: 1740000, receivedCents: 0, resultCents: 0 }));
+  it('Lucro margin counts the vehicle sale in its base, so Lucro 4600 on Recebido 2600 + vendas 3000 is 82%, never above 100%', () => {
+    const { host } = render(summary({ revenueCents: 1740000, receivedCents: 260000, saleRevenueCents: 300000, expensesCents: 100000, resultCents: 460000 }));
+    const card = text(host.querySelector('[data-result-kpi]'));
+    expect(card).toContain('margem 82%');
+    expect(card).not.toContain('177%');
+  });
+
+  it('Lucro margin never passes 100% when expenses are zero (all of what came in is profit)', () => {
+    const { host } = render(summary({ receivedCents: 260000, saleRevenueCents: 300000, expensesCents: 0, resultCents: 560000 }));
+    expect(text(host.querySelector('[data-result-kpi]'))).toContain('margem 100%');
+  });
+
+  it('Lucro margin shows on a month with only a vehicle sale (Recebido zero, vendas > 0)', () => {
+    const { host } = render(summary({ receivedCents: 0, saleRevenueCents: 300000, expensesCents: 100000, resultCents: 200000 }));
+    expect(text(host.querySelector('[data-result-kpi]'))).toContain('margem 67%');
+  });
+
+  it('Lucro margin is hidden when Recebido and vendas are zero, whatever the Faturado is, and no NaN shows', () => {
+    const { host } = render(summary({ revenueCents: 1740000, receivedCents: 0, saleRevenueCents: 0, resultCents: 0 }));
     const card = text(host.querySelector('[data-result-kpi]'));
     expect(card).not.toContain('margem');
     expect(card).not.toContain('NaN');
