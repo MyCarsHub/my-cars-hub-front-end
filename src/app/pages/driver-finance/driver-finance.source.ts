@@ -22,6 +22,7 @@ import {
   LedgerType,
   RideApp,
 } from './driver-finance.types';
+import { formatVehicleLabel } from '../../utils/display-format';
 
 /** "Today" of the finance screens, in the business time zone. The demo pins it. */
 export const DRIVER_FINANCE_TODAY = new InjectionToken<() => string>('DRIVER_FINANCE_TODAY', {
@@ -171,7 +172,7 @@ export class HttpDriverFinanceSource extends DriverFinanceSource {
         };
         const rental = profile.activeRental;
         if (!rental) return of(base);
-        const label = [rental.brand, rental.model].filter(Boolean).join(' ') || 'Seu carro';
+        const label = formatVehicleLabel(rental.brand, rental.model) || 'Seu carro';
         return this.http
           .get<RentalChargeDto[] | { content?: RentalChargeDto[] }>(
             `${RENTALS}/${encodeURIComponent(rental.rentalId)}/charges`,

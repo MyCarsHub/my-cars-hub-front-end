@@ -39,6 +39,8 @@ import {
   INSURANCE_STATUS_FILTER_OPTIONS,
 } from '../../utils/status-maps';
 import { todayIso } from '../../components/vehicles/insurance-form-fields/insurance-utils';
+import { formatPlate } from '../../utils/display-format';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
 
 const STATUS_OPTIONS = INSURANCE_STATUS_FILTER_OPTIONS;
 
@@ -80,6 +82,7 @@ type PendingAction = 'cancel' | 'delete';
   selector: 'app-insurances-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    VehicleLabelPipe,
     FormsModule,
     RouterLink,
     DefaultPageLayout,
@@ -407,9 +410,7 @@ export class InsurancesList implements OnInit {
   }
 
   protected formatPlate(plate: string): string {
-    const p = (plate ?? '').toUpperCase();
-    if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
-    return p || '—';
+    return formatPlate(plate);
   }
 
   protected formatDate(iso: string | null): string {

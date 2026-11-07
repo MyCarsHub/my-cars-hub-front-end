@@ -8,7 +8,7 @@
 <!-- ==================== SIDEBAR (DESKTOP) ==================== -->
 @if (!layout.isMobile()) {
 <aside class="app-sidebar fixed top-0 left-0 z-30 h-[calc(100dvh-var(--consent-banner-h,0px))] bg-surface border-r border-gray-200 dark:border-edge
-           flex flex-col overflow-hidden" [@sidebarWidth]="layout.isCollapsed() ? 'collapsed' : 'expanded'"
+           flex flex-col overflow-hidden" [@.disabled]="animationsDisabled()" [@sidebarWidth]="layout.isCollapsed() ? 'collapsed' : 'expanded'"
   role="navigation" [attr.aria-label]="menuLabel()">
   <ng-container *ngTemplateOutlet="sidebarContent" />
 </aside>
@@ -102,7 +102,7 @@
     </div>
     @if (!layout.isCollapsed() || layout.isMobile()) {
     <div class="flex-1 text-left min-w-0" @fadeLabel>
-      <p class="text-sm font-semibold text-gray-900 dark:text-fg truncate">{{ headerView().name }}</p>
+      <p class="text-sm font-semibold text-gray-900 dark:text-fg truncate">{{ headerView().name | personName }}</p>
       @if (headerView().subtitle; as role) {
       <p class="text-xs text-primary-700 dark:text-primary-400 font-medium truncate">{{ role }}</p>
       }

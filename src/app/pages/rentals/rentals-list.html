@@ -86,7 +86,7 @@
               (change)="onDesktopFilterChange('vehicle', $any($event.target).value)">
               <option value="">Todos</option>
               @for (v of vehicles(); track v.id) {
-                <option [value]="v.id">{{ formatPlate(v.plate) }} — {{ v.brand }} {{ v.model }}</option>
+                <option [value]="v.id">{{ formatPlate(v.plate) }} — {{ v.brand | vehicleLabel: v.model }}</option>
               }
             </select>
           </label>
@@ -99,7 +99,7 @@
               (change)="onDesktopFilterChange('driver', $any($event.target).value)">
               <option value="">Todos</option>
               @for (d of drivers(); track d.id) {
-                <option [value]="d.id">{{ d.name }}</option>
+                <option [value]="d.id">{{ d.name | personName }}</option>
               }
             </select>
           </label>
@@ -514,7 +514,7 @@
               (ngModelChange)="draftVehicle.set($any($event))">
               <option value="">Todos</option>
               @for (v of vehicles(); track v.id) {
-                <option [value]="v.id">{{ formatPlate(v.plate) }} — {{ v.brand }} {{ v.model }}</option>
+                <option [value]="v.id">{{ formatPlate(v.plate) }} — {{ v.brand | vehicleLabel: v.model }}</option>
               }
             </select>
           </label>
@@ -528,7 +528,7 @@
               (ngModelChange)="draftDriver.set($any($event))">
               <option value="">Todos</option>
               @for (d of drivers(); track d.id) {
-                <option [value]="d.id">{{ d.name }}</option>
+                <option [value]="d.id">{{ d.name | personName }}</option>
               }
             </select>
           </label>

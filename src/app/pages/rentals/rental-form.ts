@@ -84,11 +84,16 @@ import {
 } from '../../types/rental.types';
 import { VehicleListItem } from '../../types/vehicle.types';
 import { DriverListItem } from '../../types/driver.types';
+import { formatPlate } from '../../utils/display-format';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 @Component({
   selector: 'app-rental-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
+    VehicleLabelPipe,
     ReactiveFormsModule,
     RouterLink,
     DefaultPageLayout,
@@ -1509,9 +1514,7 @@ export class RentalForm implements OnInit {
   }
 
   protected formatPlate(plate: string): string {
-    const p = (plate ?? '').toUpperCase();
-    if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
-    return p || '—';
+    return formatPlate(plate);
   }
 }
 

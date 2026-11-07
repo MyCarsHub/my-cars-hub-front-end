@@ -27,6 +27,9 @@ import { applyMaskedCepInput, maskCep } from '../../utils/cep-mask';
 import { applyMaskedPhoneInput, maskPhone, normalizePhone } from '../../utils/phone-mask';
 import { companyRoleLabel } from '../../utils/role-labels';
 import { ThemePicker } from '../../components/theme-picker/theme-picker';
+import { formatVehicleLabel } from '../../utils/display-format';
+import { PlatePipe } from '../../pipes/plate.pipe';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
 /** DDD + number: 10 (landline) or 11 (mobile) digits — the server's own rule. */
 export function phoneDigitsValidator(control: AbstractControl): ValidationErrors | null {
@@ -57,6 +60,8 @@ export function phoneDigitsValidator(control: AbstractControl): ValidationErrors
   selector: 'app-driver-profile',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
+    PlatePipe,
     ReactiveFormsModule,
     RouterLink,
     AlertBanner,
@@ -122,7 +127,7 @@ export class DriverProfile implements OnInit {
   protected readonly rentalVehicle = computed(() => {
     const r = this.profile()?.activeRental;
     if (!r) return '';
-    return [r.brand, r.model].filter(Boolean).join(' ');
+    return formatVehicleLabel(r.brand, r.model);
   });
 
   protected readonly phoneMessages: Readonly<Record<string, string>> = {

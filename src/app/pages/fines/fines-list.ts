@@ -28,11 +28,14 @@ import {
   FineStatus,
 } from '../../types/fine.types';
 import { VehicleListItem } from '../../types/vehicle.types';
+import { formatPlate, formatVehicleLabel } from '../../utils/display-format';
+import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
 
 @Component({
   selector: 'app-fines-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    VehicleLabelPipe,
     FormsModule,
     RouterLink,
     DefaultPageLayout,
@@ -173,13 +176,11 @@ export class FinesList implements OnInit {
 
   protected vehicleModel(vehicleId: string): string {
     const v = this.vehiclesById().get(vehicleId);
-    return v ? `${v.brand} ${v.model}` : '';
+    return v ? formatVehicleLabel(v.brand, v.model) : '';
   }
 
   protected formatPlate(plate: string): string {
-    const p = (plate ?? '').toUpperCase();
-    if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
-    return p || '—';
+    return formatPlate(plate);
   }
 
   protected formatDate(iso: string | null): string {

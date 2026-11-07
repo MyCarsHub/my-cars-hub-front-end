@@ -61,10 +61,19 @@
             </button>
           </li>
           }
+          @if (canCancel()) {
+<li class="enter-up" style="--stagger-i: 6">
+            <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-cancel" (click)="go('cancel')">
+              <span class="font-medium text-red-700 dark:text-red-300">Cancelar cobrança</span>
+              <span class="text-sm text-fg-subtle">Remove a cobrança também no Asaas do cliente</span>
+            </button>
+          </li>
+          }
         </ul>
         @if (isOverdue()) {
           <p class="mt-4 rounded-xl bg-surface-muted px-4 py-3 text-sm text-fg-subtle" data-testid="overdue-rule">
             Atrasada é nossa prova: esta cobrança não é gerada de novo, re-datada nem marcada como falha.
+            @if (canCancel()) { Só o cancelamento deliberado do Dono, com motivo e confirmação, a remove. }
           </p>
         }
       }
@@ -104,6 +113,16 @@
                 [(value)]="receivedOn"
               />
             }
+            @if (mode() === 'cancel') {
+              <p class="text-base text-fg-soft" data-testid="cancel-explainer">
+                A cobrança é <strong class="text-fg">removida também na conta do cliente no Asaas</strong> (o link deixa de
+                funcionar) e fica cancelada aqui. Nada é gerado de novo e o vencimento não muda.
+                @if (cancelNeedsProof()) {
+                  Esta cobrança está <strong class="text-fg">vencida</strong>: é a nossa prova de dívida. Cancelar é uma
+                  decisão deliberada do Dono e fica registrada na auditoria.
+                }
+              </p>
+            }
             @if (mode() === 'retry') {
               <p class="text-base text-fg-soft">
                 Antes de gerar, o sistema confere no Asaas se a cobrança anterior foi paga — nunca cobra duas vezes.
@@ -133,7 +152,35 @@
                 </span>
               </label>
             }
-            <app-reason-picker [options]="reasons" [(reason)]="reason" [(note)]="note" />
+            @if (mode() !== 'cancel' || cancelNeedsProof()) {
+              <app-reason-picker
+                [options]="reasons"
+                [(reason)]="reason"
+                [(note)]="note"
+                [noteCounter]="mode() === 'cancel'"
+                [noteHint]="mode() === 'cancel' ? 'Fica só no registro do cancelamento, não vai para o cliente.' : 'Não vai para o cliente nem para a trilha de auditoria.'"
+              />
+            }
+            @if (mode() === 'cancel' && cancelNeedsProof()) {
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-fg-muted">
+                  Digite <strong class="font-mono text-fg" data-testid="cancel-code">{{ confirmationCode() }}</strong> para confirmar
+                </span>
+                <input
+                  type="text"
+                  maxlength="64"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  data-testid="cancel-confirmation"
+                  class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base font-mono text-fg
+                         focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  [value]="confirmation()"
+                  (input)="setConfirmation($event)"
+                />
+                <span class="text-xs text-fg-subtle">Os 8 primeiros caracteres do código da cobrança.</span>
+              </label>
+            }
           </form>
         } @else {
           <div class="enter-up flex flex-col gap-3" data-testid="action-result">
@@ -180,7 +227,8 @@
     @if (showsForm()) {
       <button
         type="submit"
-        class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-semibold text-white bg-primary-500 hover:bg-primary-600 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 press"
+        class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-semibold text-white transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 press"
+        [class]="mode() === 'cancel' ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-400' : 'bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-400'"
         data-testid="action-confirm"
         [attr.form]="formId"
         [disabled]="!canSubmit()"
@@ -188,6 +236,7 @@
         @switch (mode()) {
           @case ('received') { {{ busy() ? 'Registrando…' : 'Cancelar no Asaas e registrar' }} }
           @case ('retry') { {{ busy() ? 'Gerando…' : 'Gerar de novo' }} }
+          @case ('cancel') { {{ busy() ? 'Cancelando…' : 'Cancelar cobrança' }} }
           @case ('name') { {{ busy() ? 'Salvando…' : 'Salvar nome' }} }
           @default { {{ busy() ? 'Enviando…' : 'Atualizar no Asaas' }} }
         }

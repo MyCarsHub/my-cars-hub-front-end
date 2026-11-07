@@ -26,7 +26,7 @@
                 {{ formatPlate(f.vehiclePlate) }}
               </p>
               <p class="text-sm text-fg-muted truncate">
-                {{ f.vehicleBrand }} {{ f.vehicleModel }}
+                {{ f.vehicleBrand | vehicleLabel: f.vehicleModel }}
                 @if (f.vehicleYearModel) { <span class="text-fg-faint">· {{ f.vehicleYearModel }}</span> }
               </p>
               <a

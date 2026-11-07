@@ -178,7 +178,7 @@
             [loading]="loading() && !summary()"
             [value]="f ? f.revenueCents : null"
             [delta]="billingKpiDelta()"
-            [detail]="f && !billingKpiDelta() ? 'contratos assinados no período' : null"
+            [detail]="f && !billingKpiDelta() ? 'cobranças com vencimento no período' : null"
         ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" /></svg></div>
         <div
             app-kpi-card
@@ -191,7 +191,7 @@
             [loading]="loading() && !summary()"
             [value]="f ? f.receivedCents : null"
             [delta]="receivedKpiDelta()"
-            [detail]="f && !receivedKpiDelta() ? (receivedShareLabel() ?? 'de ' + billingLabel() + ' faturados') : null"
+            [detail]="f && !receivedKpiDelta() ? 'dinheiro que entrou no período' : null"
         ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6h20v12H2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /></svg></div>
         <div
             app-kpi-card
@@ -215,7 +215,8 @@
             [stagger]="3"
             [loading]="loading() && !summary()"
             [value]="f ? f.resultCents : null"
-            [detail]="marginDetail()"
+            [delta]="marginKpiDelta()"
+            [detail]="resultKpiDetail()"
         ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 7l-8.5 8.5-5-5L2 17 M16 7h6v6" /></svg></div>
         <div
             app-kpi-card
@@ -233,7 +234,7 @@
             app-kpi-card
             data-overdue-kpi
             variant="white"
-            label="Inadimplência"
+            label="Em atraso"
             numberFormat="brl-cents-whole"
             [anchored]="true"
             [stagger]="5"
@@ -248,7 +249,7 @@
         <h2 class="text-base font-semibold text-fg">Resultado do período</h2>
         @if (hasSaleRevenue()) {
             <p class="text-xs text-fg-muted" data-sale-revenue-card>
-                Venda de veículos no período: {{ saleRevenueLabel() }} (entrada única, fora do faturado).
+                Venda de veículos no período: {{ saleRevenueLabel() }} (entrada única: entra no lucro, fica fora do recebido).
             </p>
         }
     </div>
@@ -257,21 +258,21 @@
     </div>
 
     <!--
-        Faturamento x lucro (esquerda) e calendário financeiro (direita), mesma altura
+        Recebido x lucro (esquerda) e calendário financeiro (direita), mesma altura
         (items-stretch + app-page-card fill), como no protótipo. Sem `overview` do backend o
         gráfico some e o calendário ocupa a linha inteira.
     -->
     <section
         class="mb-4 grid gap-4 grid-cols-1 items-stretch"
-        [class.xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]]="hasResult()"
+        [class.xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]]="hasResult() || pending()"
         data-result-section
     >
         @if (hasResult()) {
-            <app-page-card title="Faturamento vs lucro" [fill]="true">
+            <app-page-card class="dash-enter" title="Recebido vs lucro" [fill]="true">
                 <ul cardActions class="hidden sm:flex gap-3 text-xs text-fg-muted" aria-label="Legenda">
                     <li class="inline-flex items-center gap-1.5">
                         <span class="size-2.5 rounded-[3px]" aria-hidden="true" style="background-color: #F63B04"></span>
-                        Faturamento
+                        Recebido
                     </li>
                     <li class="inline-flex items-center gap-1.5">
                         <span class="size-2.5 rounded-[3px]" aria-hidden="true" style="background-color: #0a9b62"></span>
@@ -288,8 +289,11 @@
                     />
                 </div>
             </app-page-card>
+        } @else if (pending()) {
+            <!-- Same slot as the chart card: while loading, the calendar never gets the whole row. -->
+            <app-card-skeleton title="Recebido vs lucro" bodyClass="min-h-[22rem]" data-chart-skeleton />
         }
-        <app-page-card title="Calendário financeiro" [fill]="true">
+        <app-page-card class="dash-enter" style="--stagger-i: 1" title="Calendário financeiro" [fill]="true">
             <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1">
                 <app-financial-calendar
                     [events]="calendarCashflow()"
@@ -305,13 +309,17 @@
         <app-detail-dialog
             [open]="resultDetailOpen()"
             [title]="resultDetail()?.title ?? ''"
-            subtitle="Resultado do mês (caixa)"
+            subtitle="Resultado do mês (caixa): recebido + vendas − custos"
             (closed)="onResultDetailClosed()"
         >
             @if (resultDetail(); as d) {
-                <div class="grid gap-3 grid-cols-1 sm:grid-cols-3 mb-4" data-result-detail>
-                    <div app-kpi-card variant="white" size="compact" label="Faturamento"
+                <div class="grid gap-3 grid-cols-1 mb-4" [class.sm:grid-cols-3]="d.saleCents <= 0" [class.sm:grid-cols-2]="d.saleCents > 0" data-result-detail>
+                    <div app-kpi-card variant="white" size="compact" label="Recebido"
                         numberFormat="brl-cents" tone="success" [countUp]="false" [value]="d.revenueCents"></div>
+                    @if (d.saleCents > 0) {
+                        <div app-kpi-card variant="white" size="compact" label="Venda de veículos" data-result-sale
+                            numberFormat="brl-cents" tone="success" [countUp]="false" [value]="d.saleCents"></div>
+                    }
                     <div app-kpi-card variant="white" size="compact" label="Custos"
                         numberFormat="brl-cents" tone="danger" [countUp]="false" [value]="d.costCents"></div>
                     <div app-kpi-card variant="white" size="compact" label="Lucro"
@@ -334,40 +342,54 @@
     >
         <div
             class="min-w-0 grid gap-4 grid-cols-1 md:col-span-2 md:grid-cols-2 xl:flex xl:flex-col xl:order-1"
-            [class.xl:col-span-8]="!!cashView()"
-            [class.xl:col-span-20]="!cashView()"
+            [class.xl:col-span-8]="!!cashView() || cashPending()"
+            [class.xl:col-span-20]="!cashView() && !cashPending()"
             data-distributions
         >
-            <app-ring-legend-card
-                class="xl:flex-1"
-                title="Aluguéis por status"
-                totalLabel="aluguéis"
-                [slices]="rentalsByStatusSlices()"
-            />
-            <app-ring-legend-card
-                class="xl:flex-1"
-                title="Veículos por status"
-                totalLabel="veículos"
-                [slices]="vehiclesByStatusSlices()"
-            />
+            @if (pending()) {
+                <app-card-skeleton class="xl:flex-1" title="Aluguéis por status" bodyClass="min-h-32" data-ring-skeleton />
+                <app-card-skeleton class="xl:flex-1" title="Veículos por status" bodyClass="min-h-32" data-ring-skeleton />
+            } @else {
+                <app-ring-legend-card
+                    class="dash-enter xl:flex-1"
+                    title="Aluguéis por status"
+                    totalLabel="aluguéis"
+                    [slices]="rentalsByStatusSlices()"
+                />
+                <app-ring-legend-card
+                    class="dash-enter xl:flex-1" style="--stagger-i: 1"
+                    title="Veículos por status"
+                    totalLabel="veículos"
+                    [slices]="vehiclesByStatusSlices()"
+                />
+            }
         </div>
 
         @if (overview()) {
             <app-ring-legend-card
-                class="md:col-span-2 xl:col-span-5 xl:order-3"
+                class="dash-enter md:col-span-2 xl:col-span-5 xl:order-3" style="--stagger-i: 2"
                 data-money-section
+                [reserveTitle]="true"
                 layout="bar"
                 title="Para onde vai cada centavo recebido"
                 totalLabel="custos do período"
                 valueFormat="brl-cents-whole"
                 [slices]="costSlices()"
             />
+        } @else if (pending()) {
+            <app-card-skeleton
+                class="md:col-span-2 xl:col-span-5 xl:order-3"
+                title="Para onde vai cada centavo recebido"
+                bodyClass="min-h-64"
+                [reserveTitle]="true"
+                data-money-skeleton
+            />
         }
 
         <!-- Este mês vs mês passado (caixa): só some se o endpoint falhar. -->
         @if (cashView(); as cv) {
-            <div class="min-w-0 md:col-span-2 xl:col-span-12 xl:order-2" data-cash-section>
-                <app-page-card title="Este mês vs mês passado" [fill]="true">
+            <div class="dash-enter min-w-0 md:col-span-2 xl:col-span-12 xl:order-2" style="--stagger-i: 2" data-cash-section>
+                <app-page-card title="Recebido no mês (acumulado)" [fill]="true">
                     <span cardActions class="contents">
                     @if (cashLead(); as lead) {
                         <span
@@ -379,7 +401,7 @@
                     }
                     </span>
                     <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1">
-                        <p class="text-xs text-fg-muted mb-1 -mt-3">Quanto já recebi, dia a dia</p>
+                        <p class="text-xs text-fg-muted mb-1 -mt-3">Comparado ao mesmo dia do mês passado</p>
                         <p class="sr-only" data-cash-summary>
                             {{ cv.total }} recebidos em {{ cashMonthLabel() }} · {{ cv.comparison }}
                         </p>
@@ -390,6 +412,7 @@
                             [axisFloor]="cashAxisFloor"
                             [axisTop]="cv.axisTopCents"
                             [xTickMarks]="cashXTicks()"
+                            [smooth]="false"
                             [endDot]="true"
                             [endTooltip]="true"
                             [legendTop]="true"
@@ -402,26 +425,40 @@
                     </div>
                 </app-page-card>
             </div>
+        } @else if (cashPending()) {
+            <app-card-skeleton
+                class="md:col-span-2 xl:col-span-12 xl:order-2"
+                title="Recebido no mês (acumulado)"
+                bodyClass="min-h-[20rem]"
+                data-cash-skeleton
+            />
         }
 
-        <app-ranking-card
-            class="xl:col-span-5 xl:order-4"
-            title="Top 5 veículos por receita"
-            subtitle="Quais carros mais rendem neste mês"
-            layout="bars"
-            [items]="topVehiclesByRevenue()"
-        />
-        <app-ranking-card
-            class="xl:col-span-5 xl:order-5"
-            title="Top 5 motoristas por receita"
-            subtitle="Quem mais gerou receita neste mês"
-            layout="podium"
-            [items]="topDriversByRevenue()"
-        />
-        <div class="min-w-0 md:col-span-2 xl:col-span-5 xl:order-6">
-            <app-page-card title="Top ofensores (multas)" [fill]="true" data-offenders>
+        @if (pending()) {
+            <app-card-skeleton class="xl:col-span-5 xl:order-4" title="Top 5 veículos por receita" [reserveTitle]="true" bodyClass="min-h-[12.25rem]" data-ranking-skeleton />
+            <app-card-skeleton class="xl:col-span-5 xl:order-5" title="Top 5 motoristas por receita" [reserveTitle]="true" bodyClass="min-h-[12.25rem]" data-ranking-skeleton />
+        } @else {
+            <app-ranking-card
+                class="dash-enter xl:col-span-5 xl:order-4" style="--stagger-i: 3"
+                title="Top 5 veículos por receita"
+                subtitle="Por valor recebido no período"
+                [reserveTitle]="true"
+                layout="bars"
+                [items]="topVehiclesByRevenue()"
+            />
+            <app-ranking-card
+                class="dash-enter xl:col-span-5 xl:order-5" style="--stagger-i: 4"
+                title="Top 5 motoristas por receita"
+                subtitle="Por valor recebido no período"
+                [reserveTitle]="true"
+                layout="podium"
+                [items]="topDriversByRevenue()"
+            />
+        }
+        <div class="dash-enter min-w-0 md:col-span-2 xl:col-span-5 xl:order-6" style="--stagger-i: 5">
+            <app-page-card title="Top ofensores (multas)" [fill]="true" [reserveTitleLines]="true" data-offenders>
                 <div class="px-4 pb-5 sm:px-6 min-w-0 flex-1 flex flex-col gap-3">
-                    <p class="text-xs text-fg-muted -mt-3">Quanto maior o selo, mais multas</p>
+                    <p class="text-xs text-fg-muted">Quanto maior o selo, mais multas</p>
                     <app-pill-tabs
                         [options]="offenderModeOptions"
                         [value]="offenderMode()"
@@ -433,16 +470,18 @@
                     } @else if (offenderRows().length === 0) {
                         <p class="text-sm text-fg-subtle py-4">Sem multas no período.</p>
                     } @else {
-                        <ul class="flex flex-wrap gap-2" data-offender-chips>
+                        <ul class="flex flex-wrap gap-2 min-w-0" data-offender-chips>
                             @for (r of offenderRows(); track r.id) {
-                                <li>
+                                <li class="min-w-0 max-w-full">
                                     <button
                                         type="button"
-                                        class="inline-flex items-center gap-1.5 min-h-[44px] rounded-xl bg-rose-500/10 px-3 py-1.5 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                                        data-offender-chip
+                                        class="inline-flex max-w-full min-w-0 items-center gap-1.5 h-11 rounded-xl bg-rose-500/10 px-3 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                                         [attr.aria-label]="'Ver detalhes de ' + r.title"
+                                        [title]="r.title"
                                         (click)="onOffenderClick(r)"
                                     >
-                                        {{ r.title }} <b class="font-semibold">{{ r.count }}</b>
+                                        <span class="min-w-0 truncate">{{ r.title }}</span>&ngsp;<b class="shrink-0 font-semibold">{{ r.count }}</b>
                                     </button>
                                 </li>
                             }
@@ -472,7 +511,7 @@
     <section class="mb-4 min-w-0">
         <app-page-card title="Ações rápidas">
             <p class="px-4 sm:px-6 -mt-3 pb-3 text-xs text-fg-muted">Cadastre em um toque</p>
-            <div class="px-4 pb-4 sm:px-6 min-w-0 grid gap-3 grid-cols-1 min-[440px]:grid-cols-2 xl:grid-cols-4">
+            <div class="px-4 pb-4 sm:px-6 min-w-0 grid gap-3 grid-cols-2 xl:grid-cols-4" data-quick-actions>
                 <app-quick-action-card
                     route="/alugueis/novo"
                     label="Novo aluguel"

@@ -15,6 +15,7 @@ import { ExpenseBreakdown } from '../../components/expense-breakdown/expense-bre
 import { FleetActivationService } from '../../services/fleet-activation.service';
 import { SessionService } from '../../services/session.service';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
+import { CardSkeleton } from './components/card-skeleton';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { DashboardService } from '../../services/dashboard.service';
 import {
@@ -117,6 +118,7 @@ function monthLong(key: string): string {
         RouterLink,
         KpiCard,
         ExpenseBreakdown,
+        CardSkeleton,
     ],
     templateUrl: './dashboard-home.html',
 })
@@ -248,8 +250,14 @@ export class DashboardHome {
             .loadCashAccumulation()
             .pipe(takeUntilDestroyed())
             .subscribe({
-                next: (res) => this.cashAccumulation.set(res),
-                error: () => this.cashAccumulation.set(null),
+                next: (res) => {
+                    this.cashAccumulation.set(res);
+                    this.cashPending.set(false);
+                },
+                error: () => {
+                    this.cashAccumulation.set(null);
+                    this.cashPending.set(false);
+                },
             });
 
         if (eligible) {
@@ -271,6 +279,12 @@ export class DashboardHome {
     protected readonly summary = signal<DashboardSummaryDto | null>(null);
     protected readonly loading = signal(false);
     protected readonly error = signal<string | null>(null);
+
+    /** No summary yet and no failure: every board card shows a placeholder in its own slot. */
+    protected readonly pending = computed(() => !this.summary() && !this.error());
+
+    /** The cash curve is its own request: its slot is held until it answers (or fails). */
+    protected readonly cashPending = signal(true);
 
     /** Currently applied range — used on reload after failure. */
     private readonly currentRange = signal<DateRange | null>(null);
@@ -390,29 +404,47 @@ export class DashboardHome {
         this.kpiDelta(this.billingDelta(), this.comparisonCaption()),
     );
 
-    /** Share of the billed amount already received (`90% do faturado`), the caption of the received card. */
-    protected readonly receivedShareLabel = computed(() => {
-        const f = this.summary()?.finance;
-        if (!f || !(f.revenueCents > 0)) return null;
-        return `${Math.round((f.receivedCents / f.revenueCents) * 100)}% do faturado`;
-    });
-
+    /**
+     * Recebido is cash by payment day, Faturado is accrual by due date: cash over accrual can pass
+     * 100%, so the card never prints a share of the billed amount (it once read 151%).
+     */
     protected readonly receivedKpiDelta = computed(() =>
-        this.kpiDelta(this.receivedDelta(), this.receivedShareLabel() ?? this.comparisonCaption()),
+        this.kpiDelta(this.receivedDelta(), this.comparisonCaption()),
     );
 
-    /** `margem 40%` of the result over the billed amount; the plain caption when nothing was billed. */
-    protected readonly marginDetail = computed(() => {
+    /**
+     * Profit margin over what came IN (Recebido + vehicle sales: the same base Lucro is built from,
+     * so it cannot pass 100% while expenses are >= 0; never over Faturado), as the chip of the
+     * Lucro card. `null` when nothing came in: a margin over zero is not a number.
+     */
+    protected readonly marginKpiDelta = computed<KpiDelta | null>(() => {
         const f = this.summary()?.finance;
-        if (!f) return null;
-        if (!(f.revenueCents > 0)) return 'receita menos despesas';
-        return `margem ${Math.round((f.resultCents / f.revenueCents) * 100)}%`;
+        if (!f || !Number.isFinite(f.resultCents)) return null;
+        const base = f.receivedCents + (f.saleRevenueCents ?? 0);
+        if (!(base > 0)) return null;
+        const pct = Math.round((f.resultCents / base) * 100);
+        return { chip: `margem ${pct}%`, text: 'recebido + vendas − despesas', tone: pct < 0 ? 'bad' : 'neutral' };
     });
 
-    /** Overdue card caption: how many charges are behind it (`3 cobranças`), else the plain caption. */
+    /** Lucro caption: the formula, always; the margin chip replaces it only when there is a margin. */
+    protected readonly resultKpiDetail = computed(() => {
+        const f = this.summary()?.finance;
+        return f && !this.marginKpiDelta() ? 'recebido + vendas − despesas' : null;
+    });
+
+    /**
+     * Em atraso caption: the overdue share of the period's Faturado (`4,3% do faturado`) from
+     * `overdueRateBp`; with no rate (Faturado zero, or a backend that does not send it) the old
+     * caption (how many charges are behind the amount) stands, never a percent.
+     */
     protected readonly overdueDetailLabel = computed(() => {
         const f = this.summary()?.finance;
         if (!f) return null;
+        const bp = f.overdueRateBp;
+        if (typeof bp === 'number' && Number.isFinite(bp)) {
+            const pct = (bp / 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+            return `${pct}% do faturado`;
+        }
         const n = this.summary()?.alerts?.overdueCharges?.count ?? 0;
         return n > 0 ? `${n} ${n === 1 ? 'cobrança' : 'cobranças'}` : 'cobranças vencidas ou falhas';
     });
@@ -429,7 +461,7 @@ export class DashboardHome {
      * Receita BRUTA de venda no período — categoria PONTUAL, própria.
      *
      * Decisão do usuário (FIX-0257): o card mostra a ENTRADA DE CAIXA do mês,
-     * pelo valor bruto. Fica ao lado do faturamento, nunca somada nele.
+     * pelo valor bruto. Entra no lucro, mas fica fora do Recebido e do Faturado.
      */
     protected readonly saleRevenueCents = computed(
         () => this.summary()?.finance?.saleRevenueCents ?? 0,
@@ -488,7 +520,8 @@ export class DashboardHome {
     protected readonly resultDetail = computed(() => {
         const key = this.resultMonth();
         const m = this.monthlyResultMonths().find((r) => r.month === key);
-        return m ? { ...m, title: monthLong(m.month) } : null;
+        // `saleRevenueCents` is optional on the wire: a backend that does not send it reads as zero.
+        return m ? { ...m, saleCents: m.saleRevenueCents ?? 0, title: monthLong(m.month) } : null;
     });
 
     protected onResultMonth(key: string): void {

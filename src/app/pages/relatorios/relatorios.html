@@ -104,7 +104,7 @@
         </div>
         <h2 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-fg">Sem cobranças quitadas no período</h2>
         <p class="mt-2 text-sm text-gray-600 dark:text-fg-muted max-w-md mx-auto">
-          As cobranças pendentes aparecem em <span class="font-medium text-gray-800 dark:text-fg-body">Receita a receber</span> quando existirem.
+          As cobranças pendentes aparecem em <span class="font-medium text-gray-800 dark:text-fg-body">{{ labels.receivable }}</span> quando existirem.
         </p>
         <p class="mt-3 text-xs text-gray-500 dark:text-fg-subtle">
           Veja os aluguéis ativos em <a href="#operacao" class="text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 underline underline-offset-2">Operações</a> abaixo.
@@ -126,17 +126,18 @@
       <!-- KPIs -->
       <section class="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-4">
         <div class="rounded-2xl bg-surface border border-gray-200 dark:border-edge p-4 min-w-0">
-          <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">Receita recebida</p>
+          <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide break-words">{{ labels.received }}</p>
           <p class="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-fg mt-1 tabular-nums truncate">
             {{ formatBRL(r.financial.grossRevenueCents) }}
           </p>
+          <p class="text-[10px] sm:text-[11px] text-gray-400 dark:text-fg-faint mt-1 break-words">{{ labels.receivedHint }}</p>
         </div>
         <div class="rounded-2xl bg-canvas border border-dashed border-gray-200 dark:border-edge p-4 min-w-0">
-          <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">Receita a receber</p>
+          <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide break-words">{{ labels.receivable }}</p>
           <p class="text-xl sm:text-2xl font-semibold text-gray-600 dark:text-fg-muted mt-1 tabular-nums truncate">
             {{ formatBRL(r.financial.accruedRevenueCents) }}
           </p>
-          <p class="text-[10px] sm:text-[11px] text-gray-400 dark:text-fg-faint mt-1 truncate">(previsto)</p>
+          <p class="text-[10px] sm:text-[11px] text-gray-400 dark:text-fg-faint mt-1 break-words">{{ labels.receivableHint }}</p>
         </div>
         <!-- STORY-VEHICLE-FINANCE: custo e lucro são o KPI de sempre (app-kpi-card, conta até o valor). -->
         <div
@@ -187,7 +188,7 @@
         <app-page-card title="Receita mensal">
           <div class="p-4 min-w-0">
             <p class="text-xs text-gray-500 dark:text-fg-subtle mb-3">
-              Receita bruta agregada por mês no período selecionado.
+              Dinheiro recebido por mês no período selecionado, estornos abatidos.
             </p>
             <app-monthly-billing-chart [data]="monthlyRevenueSeries()" />
             @if (hasPartialMonth()) {
@@ -205,6 +206,7 @@
       <section class="mb-4">
         <app-page-card title="Receita por gateway">
           <div class="p-4 min-w-0">
+            <p class="text-xs text-gray-500 dark:text-fg-subtle mb-3">Dinheiro recebido por gateway, estornos abatidos.</p>
             <div class="grid gap-3 grid-cols-2 lg:grid-cols-3">
               @for (g of r.financial.revenueByGateway; track g.provider) {
                 <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">

@@ -38,6 +38,8 @@ import { formatBRL } from '../../../types/dashboard.types';
 import { BarChart, BarDatum } from '../../../components/charts/bar-chart/bar-chart';
 import { KpiCard } from '../../../components/kpi-card/kpi-card';
 import { companyRoleLabel } from '../../../utils/role-labels';
+import { PlatePipe } from '../../../pipes/plate.pipe';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 interface ChipStyle {
   label: string;
@@ -135,6 +137,8 @@ export interface SubscriptionRow {
   selector: 'app-admin-company-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
+    PlatePipe,
     BackLink,
     ReactiveFormsModule,
     DefaultPageLayout,
@@ -242,7 +246,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
 
   /**
    * Financeiro do mês (FEAT-0480). Gerenciado = volume das cobranças de ALUGUEL por mês de
-   * vencimento; recebido = parte já paga; atraso = vencida e não paga. Sem bloco: "—".
+   * vencimento; recebido = dinheiro pago no mês (pelo mês do pagamento, não do vencimento); atraso = vencida e não paga. Sem bloco: "—".
    */
   protected readonly financeTiles = computed<FinanceTile[]>(() => {
     const detail = this.detail();

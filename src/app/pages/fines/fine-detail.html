@@ -97,7 +97,7 @@
             </div>
             <div class="col-span-2 sm:col-span-3">
               <p class="text-xs uppercase tracking-wide text-fg-faint">Motorista</p>
-              <p class="font-medium text-fg-body">{{ driverName() || '—' }}</p>
+              <p class="font-medium text-fg-body">{{ (driverName() | personName) || '—' }}</p>
             </div>
             @if (f.notes) {
               <div class="col-span-2 sm:col-span-3">

@@ -14,6 +14,7 @@ import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { ReportsService } from '../../services/reports.service';
+import { REPORT_LABELS } from '../../types/reports.types';
 import {
   exportReportExcel,
   exportReportPdf,
@@ -28,6 +29,7 @@ import {
   FilterChipGroup,
   FilterChipOption,
 } from '../../components/filter-chip-group/filter-chip-group';
+import { formatPersonName, formatPlate } from '../../utils/display-format';
 
 /** Presets de período. `'custom'` não é um chip: é o estado das datas manuais. */
 type ReportPreset = 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear';
@@ -67,6 +69,7 @@ export class Relatorios implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
 
+  protected readonly labels = REPORT_LABELS;
   protected readonly report = this.reportsService.overview;
   protected readonly loading = this.reportsService.loading;
 
@@ -124,7 +127,7 @@ export class Relatorios implements OnInit {
     const r = this.report();
     if (!r) return [];
     return r.vehicleRanking.topProfitable.map((v) => ({
-      label: v.plate,
+      label: formatPlate(v.plate),
       value: v.netCents,
       hint: `Receita ${this.formatBRL(v.revenueCents)} · Custo ${this.formatBRL(v.costCents)}`,
     }));
@@ -135,7 +138,7 @@ export class Relatorios implements OnInit {
     const r = this.report();
     if (!r) return [];
     return r.vehicleRanking.topUnprofitable.map((v) => ({
-      label: v.plate,
+      label: formatPlate(v.plate),
       value: Math.abs(v.netCents),
       hint: `Receita ${this.formatBRL(v.revenueCents)} · Custo ${this.formatBRL(v.costCents)}`,
     }));
@@ -146,7 +149,7 @@ export class Relatorios implements OnInit {
     const r = this.report();
     if (!r) return [];
     return r.driverRanking.topRevenue.map((d) => ({
-      label: d.name,
+      label: formatPersonName(d.name),
       value: d.revenueCents,
     }));
   });
@@ -156,7 +159,7 @@ export class Relatorios implements OnInit {
     const r = this.report();
     if (!r) return [];
     return r.driverRanking.topProblematic.map((d) => ({
-      label: d.name,
+      label: formatPersonName(d.name),
       value: d.totalProblematicCents,
       hint: `Multas ${this.formatBRL(d.unpaidFinesCents)} · Cobranças ${this.formatBRL(d.unpaidChargesCents)}`,
     }));

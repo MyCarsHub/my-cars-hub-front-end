@@ -1,8 +1,9 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { ReportsOverviewResponse } from '../types/reports.types';
+import { REPORT_LABELS, ReportsOverviewResponse } from '../types/reports.types';
 import { PDF_TABLE_TOP_MARGIN, stampLogoOnEveryPage } from './report-pdf-logo';
+import { formatPlate, formatPersonName } from './display-format';
 
 function centsToBRL(cents: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -59,8 +60,8 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
     startY: 90,
     head: [['Financeiro', 'Valor']],
     body: [
-      ['Receita recebida', centsToBRL(report.financial.grossRevenueCents)],
-      ['Receita a receber (previsto)', centsToBRL(report.financial.accruedRevenueCents)],
+      [`${REPORT_LABELS.received} (${REPORT_LABELS.receivedHint})`, centsToBRL(report.financial.grossRevenueCents)],
+      [`${REPORT_LABELS.receivable} (${REPORT_LABELS.receivableHint})`, centsToBRL(report.financial.accruedRevenueCents)],
       ['Custo operacional', centsToBRL(report.financial.operatingCostCents)],
       ['Lucro líquido', centsToBRL(report.financial.netProfitCents)],
     ],
@@ -102,7 +103,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
     autoTable(doc, {
       head: [['Top 5 veículos lucrativos', 'Receita', 'Custo', 'Líquido']],
       body: report.vehicleRanking.topProfitable.map((v) => [
-        v.plate,
+        formatPlate(v.plate),
         centsToBRL(v.revenueCents),
         centsToBRL(v.costCents),
         centsToBRL(v.netCents),
@@ -119,7 +120,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
     autoTable(doc, {
       head: [['Top 5 veículos com prejuízo', 'Receita', 'Custo', 'Líquido']],
       body: report.vehicleRanking.topUnprofitable.map((v) => [
-        v.plate,
+        formatPlate(v.plate),
         centsToBRL(v.revenueCents),
         centsToBRL(v.costCents),
         centsToBRL(v.netCents),
@@ -135,7 +136,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
   if (report.driverRanking.topRevenue.length > 0) {
     autoTable(doc, {
       head: [['Top 5 motoristas por receita', 'Receita']],
-      body: report.driverRanking.topRevenue.map((d) => [d.name, centsToBRL(d.revenueCents)]),
+      body: report.driverRanking.topRevenue.map((d) => [formatPersonName(d.name), centsToBRL(d.revenueCents)]),
       theme: 'grid',
       margin: { top: PDF_TABLE_TOP_MARGIN },
       headStyles: { fillColor: [22, 163, 74] },
@@ -148,7 +149,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
     autoTable(doc, {
       head: [['Top 5 motoristas problemáticos', 'Multas em aberto', 'Charges em aberto', 'Total']],
       body: report.driverRanking.topProblematic.map((d) => [
-        d.name,
+        formatPersonName(d.name),
         centsToBRL(d.unpaidFinesCents),
         centsToBRL(d.unpaidChargesCents),
         centsToBRL(d.totalProblematicCents),
@@ -187,8 +188,8 @@ export function exportReportExcel(report: ReportsOverviewResponse): void {
     ['Período', `${fmtDate(report.from)} — ${fmtDate(report.to)}`],
     [],
     ['Financeiro', 'Valor (R$)'],
-    ['Receita recebida', (report.financial.grossRevenueCents ?? 0) / 100],
-    ['Receita a receber (previsto)', (report.financial.accruedRevenueCents ?? 0) / 100],
+    [`${REPORT_LABELS.received} (${REPORT_LABELS.receivedHint})`, (report.financial.grossRevenueCents ?? 0) / 100],
+    [`${REPORT_LABELS.receivable} (${REPORT_LABELS.receivableHint})`, (report.financial.accruedRevenueCents ?? 0) / 100],
     ['Custo operacional', (report.financial.operatingCostCents ?? 0) / 100],
     ['Lucro líquido', (report.financial.netProfitCents ?? 0) / 100],
     [],
@@ -208,13 +209,13 @@ export function exportReportExcel(report: ReportsOverviewResponse): void {
     rows.push(['Top veículos lucrativos']);
     rows.push(['Placa', 'Receita (R$)', 'Custo (R$)', 'Líquido (R$)']);
     for (const v of report.vehicleRanking.topProfitable) {
-      rows.push([v.plate, v.revenueCents / 100, v.costCents / 100, v.netCents / 100]);
+      rows.push([formatPlate(v.plate), v.revenueCents / 100, v.costCents / 100, v.netCents / 100]);
     }
     rows.push([]);
     rows.push(['Top veículos com prejuízo']);
     rows.push(['Placa', 'Receita (R$)', 'Custo (R$)', 'Líquido (R$)']);
     for (const v of report.vehicleRanking.topUnprofitable) {
-      rows.push([v.plate, v.revenueCents / 100, v.costCents / 100, v.netCents / 100]);
+      rows.push([formatPlate(v.plate), v.revenueCents / 100, v.costCents / 100, v.netCents / 100]);
     }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Veículos');
   }
@@ -224,14 +225,14 @@ export function exportReportExcel(report: ReportsOverviewResponse): void {
     rows.push(['Top motoristas por receita']);
     rows.push(['Nome', 'Receita (R$)']);
     for (const d of report.driverRanking.topRevenue) {
-      rows.push([d.name, d.revenueCents / 100]);
+      rows.push([formatPersonName(d.name), d.revenueCents / 100]);
     }
     rows.push([]);
     rows.push(['Top motoristas problemáticos']);
     rows.push(['Nome', 'Multas em aberto (R$)', 'Charges em aberto (R$)', 'Total (R$)']);
     for (const d of report.driverRanking.topProblematic) {
       rows.push([
-        d.name,
+        formatPersonName(d.name),
         d.unpaidFinesCents / 100,
         d.unpaidChargesCents / 100,
         d.totalProblematicCents / 100,
@@ -261,8 +262,8 @@ export function reportToMarkdown(report: ReportsOverviewResponse): string {
   lines.push('');
   lines.push(`## Financeiro`);
   lines.push('');
-  lines.push(`- **Receita recebida:** ${centsToBRL(report.financial.grossRevenueCents)}`);
-  lines.push(`- **Receita a receber (previsto):** ${centsToBRL(report.financial.accruedRevenueCents)}`);
+  lines.push(`- **${REPORT_LABELS.received}:** ${centsToBRL(report.financial.grossRevenueCents)} (${REPORT_LABELS.receivedHint})`);
+  lines.push(`- **${REPORT_LABELS.receivable}:** ${centsToBRL(report.financial.accruedRevenueCents)} (${REPORT_LABELS.receivableHint})`);
   lines.push(`- **Custo operacional:** ${centsToBRL(report.financial.operatingCostCents)}`);
   lines.push(`- **Lucro líquido:** ${centsToBRL(report.financial.netProfitCents)}`);
   lines.push('');
@@ -292,7 +293,7 @@ export function reportToMarkdown(report: ReportsOverviewResponse): string {
     lines.push('| Placa | Receita | Custo | Líquido |');
     lines.push('|---|---|---|---|');
     for (const v of report.vehicleRanking.topProfitable) {
-      lines.push(`| ${v.plate} | ${centsToBRL(v.revenueCents)} | ${centsToBRL(v.costCents)} | ${centsToBRL(v.netCents)} |`);
+      lines.push(`| ${formatPlate(v.plate)} | ${centsToBRL(v.revenueCents)} | ${centsToBRL(v.costCents)} | ${centsToBRL(v.netCents)} |`);
     }
     lines.push('');
   }
@@ -303,7 +304,7 @@ export function reportToMarkdown(report: ReportsOverviewResponse): string {
     lines.push('| Placa | Receita | Custo | Líquido |');
     lines.push('|---|---|---|---|');
     for (const v of report.vehicleRanking.topUnprofitable) {
-      lines.push(`| ${v.plate} | ${centsToBRL(v.revenueCents)} | ${centsToBRL(v.costCents)} | ${centsToBRL(v.netCents)} |`);
+      lines.push(`| ${formatPlate(v.plate)} | ${centsToBRL(v.revenueCents)} | ${centsToBRL(v.costCents)} | ${centsToBRL(v.netCents)} |`);
     }
     lines.push('');
   }
@@ -314,7 +315,7 @@ export function reportToMarkdown(report: ReportsOverviewResponse): string {
     lines.push('| Nome | Receita |');
     lines.push('|---|---|');
     for (const d of report.driverRanking.topRevenue) {
-      lines.push(`| ${d.name} | ${centsToBRL(d.revenueCents)} |`);
+      lines.push(`| ${formatPersonName(d.name)} | ${centsToBRL(d.revenueCents)} |`);
     }
     lines.push('');
   }
@@ -325,7 +326,7 @@ export function reportToMarkdown(report: ReportsOverviewResponse): string {
     lines.push('| Nome | Multas abertas | Charges abertas | Total |');
     lines.push('|---|---|---|---|');
     for (const d of report.driverRanking.topProblematic) {
-      lines.push(`| ${d.name} | ${centsToBRL(d.unpaidFinesCents)} | ${centsToBRL(d.unpaidChargesCents)} | ${centsToBRL(d.totalProblematicCents)} |`);
+      lines.push(`| ${formatPersonName(d.name)} | ${centsToBRL(d.unpaidFinesCents)} | ${centsToBRL(d.unpaidChargesCents)} | ${centsToBRL(d.totalProblematicCents)} |`);
     }
     lines.push('');
   }

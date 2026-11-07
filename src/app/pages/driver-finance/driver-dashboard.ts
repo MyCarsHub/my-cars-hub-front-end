@@ -56,6 +56,7 @@ import { DriverNextCharge } from '../driver-area/rental/driver-next-charge';
 import { DriverOverdueNotice } from '../driver-area/rental/driver-overdue-notice';
 import { LedgerEntrySheet } from './ledger-entry-sheet';
 import { ArrowSelect } from './arrow-select';
+import { PlatePipe } from '../../pipes/plate.pipe';
 
 const WEEKDAY_HEAD = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -94,7 +95,7 @@ function latest<K, V>(requests: Subject<K>, call: (key: K) => Observable<V>) {
 @Component({
   selector: 'app-driver-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AlertBanner, ArrowSelect, DriverNextCharge, DriverOverdueNotice, LedgerEntrySheet, MembersSheet, RouterLink],
+  imports: [PlatePipe, AlertBanner, ArrowSelect, DriverNextCharge, DriverOverdueNotice, LedgerEntrySheet, MembersSheet, RouterLink],
   providers: [DriverFinanceClock],
   host: { class: 'block' },
   templateUrl: './driver-dashboard.html',

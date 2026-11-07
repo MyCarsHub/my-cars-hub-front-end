@@ -33,6 +33,7 @@ import {
 } from './admin-users-view';
 import { companyRoleLabel } from '../../../utils/role-labels';
 import { ContactBar } from '../contact/contact-bar';
+import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 interface PendingAction {
   kind: 'DEACTIVATE' | 'ACTIVATE';
@@ -50,6 +51,7 @@ const MEMBERSHIP_STATUS_LABELS: Record<string, string> = {
   selector: 'app-admin-user-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PersonNamePipe,
     BackLink,
     DefaultPageLayout,
     PageCard,

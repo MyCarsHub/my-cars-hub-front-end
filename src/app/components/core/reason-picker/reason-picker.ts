@@ -65,7 +65,12 @@ let nextId = 0;
           [value]="note()"
           (input)="note.set($any($event.target).value)"
         ></textarea>
-        <span class="text-xs text-fg-subtle">Não vai para o cliente nem para a trilha de auditoria.</span>
+        <span class="flex justify-between gap-3 text-xs text-fg-subtle">
+          <span>{{ noteHint() }}</span>
+          @if (noteCounter()) {
+            <span class="tabular-nums" data-testid="reason-note-count">{{ note().length }}/500</span>
+          }
+        </span>
       </label>
     }
   `,
@@ -74,6 +79,10 @@ export class ReasonPicker {
   readonly options = input.required<ReasonOption[]>();
   readonly legend = input('Motivo');
   readonly showNote = input(true);
+  /** Mostra o contador "n/500" da observação (opt-in). */
+  readonly noteCounter = input(false);
+  /** Texto de apoio abaixo da observação. */
+  readonly noteHint = input('Não vai para o cliente nem para a trilha de auditoria.');
   /** 2 (padrão) para rótulos curtos; 1 quando cada opção tem uma explicação longa. */
   readonly columns = input<1 | 2>(2);
   readonly reason = model<string | null>(null);

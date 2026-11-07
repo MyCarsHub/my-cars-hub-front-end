@@ -48,7 +48,7 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
   imports: [PageCard],
   host: { class: 'block min-w-0 h-full' },
   template: `
-    <app-page-card [title]="title()" [fill]="true">
+    <app-page-card [title]="title()" [fill]="true" [truncateTitle]="!reserveTitle()" [reserveTitleLines]="reserveTitle()">
       <div class="px-4 sm:px-6 pb-5 min-w-0 flex-1">
         @if (subtitle()) {
           <p class="text-xs text-fg-muted mb-3">{{ subtitle() }}</p>
@@ -56,11 +56,12 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
         @if (layout() === 'bars') {
           @if (rows().length) {
             <ol data-rank-bars class="flex items-end gap-2 h-44 min-w-0">
-              @for (row of rows(); track row.id) {
+              @for (row of rows(); track row.id; let i = $index) {
                 <li data-rank-row class="flex-1 min-w-0 h-full flex flex-col justify-end items-center gap-1.5">
                   <span class="text-[11px] font-semibold text-fg tabular-nums whitespace-nowrap">{{ row.short ?? row.value }}</span>
                   <span
-                    class="w-full rounded-t-xl rounded-b-md grid place-items-start justify-items-center pt-1.5 text-xs font-bold text-white min-h-8"
+                    class="bar-rise w-full rounded-t-xl rounded-b-md grid place-items-start justify-items-center pt-1.5 text-xs font-bold text-white min-h-8"
+                    [style.--stagger-i]="i"
                     [class.bg-primary-500]="row.rank === 1"
                     [class.bg-primary-500/60]="row.rank === 2"
                     [class.bg-primary-500/45]="row.rank === 3"
@@ -81,22 +82,22 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
             <div data-rank-podium class="space-y-2 min-w-0">
               <div
                 data-rank-row
-                class="flex items-center gap-3 min-w-0 rounded-2xl bg-emerald-600 text-white px-3 py-2.5"
+                class="flex items-center gap-3 min-w-0 h-14 rounded-2xl bg-emerald-600 text-white px-3"
               >
                 <span class="size-9 shrink-0 grid place-items-center rounded-full bg-white/20 text-xs font-bold" aria-hidden="true">{{ rows()[0].initials }}</span>
                 <span class="flex flex-col min-w-0 flex-1">
-                  <span class="text-sm font-semibold break-words" data-hero-name>{{ rows()[0].name }}</span>
-                  <span class="text-xs text-white/80 break-words"><span class="sr-only">1º lugar </span>1º{{ rows()[0].sub ? ' · ' + rows()[0].sub : '' }}</span>
+                  <span class="text-sm font-semibold truncate" data-hero-name [title]="rows()[0].name">{{ rows()[0].name }}</span>
+                  <span class="text-xs text-white/80 truncate"><span class="sr-only">1º lugar </span>1º{{ rows()[0].sub ? ' · ' + rows()[0].sub : '' }}</span>
                 </span>
                 <span class="shrink-0 text-sm font-semibold tabular-nums">{{ rows()[0].value }}</span>
               </div>
               <ol class="grid grid-cols-2 gap-2 min-w-0">
                 @for (row of rows().slice(1); track row.id) {
-                  <li data-rank-row class="flex items-center gap-2 min-w-0 rounded-xl bg-surface-muted px-2.5 py-2 text-xs">
+                  <li data-rank-row data-rank-chip class="flex items-center gap-2 min-w-0 h-12 rounded-xl bg-surface-muted px-2.5 text-xs">
                     <span class="size-6 shrink-0 grid place-items-center rounded-full bg-surface-sunken text-[10px] font-bold text-fg-body" aria-hidden="true">{{ row.initials }}</span>
                     <span class="flex flex-col min-w-0 flex-1">
-                      <span class="break-words font-medium text-fg">{{ row.name }}</span>
-                      <span class="text-fg-muted tabular-nums break-words">{{ row.value }}</span>
+                      <span class="truncate font-medium text-fg" [title]="row.name">{{ row.name }}</span>
+                      <span class="truncate text-fg-muted tabular-nums">{{ row.value }}</span>
                     </span>
                   </li>
                 }
@@ -150,6 +151,8 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
 export class RankingCard {
   readonly title = input.required<string>();
   readonly subtitle = input<string | null>(null);
+  /** Wrap the title on up to two lines and reserve both (cards side by side stay aligned). */
+  readonly reserveTitle = input(false);
   readonly items = input.required<readonly RankingItem[]>();
   /** How many rows to show. */
   readonly limit = input(5);

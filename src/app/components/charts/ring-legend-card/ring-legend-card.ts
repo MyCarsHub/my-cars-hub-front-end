@@ -48,7 +48,7 @@ export function ringGradient(slices: readonly RingSlice[], gap: string): string 
   imports: [PageCard],
   host: { class: 'block min-w-0 h-full' },
   template: `
-    <app-page-card [title]="title()" [fill]="true">
+    <app-page-card [title]="title()" [fill]="true" [truncateTitle]="!reserveTitle()" [reserveTitleLines]="reserveTitle()">
       @if (subtitle()) {
         <p data-subtitle class="px-4 sm:px-6 -mt-1 pb-3 text-xs text-fg-muted">{{ subtitle() }}</p>
       }
@@ -64,7 +64,7 @@ export function ringGradient(slices: readonly RingSlice[], gap: string): string 
           <div
             data-ring
             role="img"
-            class="relative size-28 sm:size-32 shrink-0 rounded-full"
+            class="ring-in relative size-28 sm:size-32 shrink-0 rounded-full"
             [attr.aria-label]="title() + ': ' + summary()"
             [style.background]="gradient()"
           >
@@ -91,7 +91,7 @@ export function ringGradient(slices: readonly RingSlice[], gap: string): string 
             }
           </div>
         }
-        <ul class="w-full min-w-0 space-y-2.5" aria-label="Legenda">
+        <ul class="w-full min-w-0 space-y-1.5 sm:space-y-2.5" aria-label="Legenda">
           @for (row of rows(); track row.label) {
             <li data-legend-row class="flex items-center justify-between gap-3 text-sm min-w-0">
               <span class="inline-flex items-center gap-2 min-w-0 text-fg-body">
@@ -123,6 +123,8 @@ export class RingLegendCard {
   readonly layout = input<'ring' | 'bar'>('ring');
   /** One line under the title (e.g. the plan capacity). */
   readonly subtitle = input<string | null>(null);
+  /** Wrap the title on up to two lines and reserve both (cards side by side stay aligned). */
+  readonly reserveTitle = input(false);
   /** Caption under the number in the middle of the ring. */
   readonly totalLabel = input('total');
   /** Colour of the gap between slices; should match the card surface. */

@@ -1,5 +1,16 @@
 import type { ExpenseBreakdownDto } from './dashboard.types';
 
+/**
+ * Rótulos das medidas do relatório: a tela e as exportações (PDF, XLSX, Markdown) leem daqui,
+ * para nunca divergirem. Receita = caixa (estornos abatidos); A receber = só o que ainda vai vencer.
+ */
+export const REPORT_LABELS = {
+  received: 'Receita recebida',
+  receivedHint: 'dinheiro recebido no período, estornos abatidos',
+  receivable: 'A receber (ainda a vencer)',
+  receivableHint: 'cobranças pendentes com vencimento de hoje em diante',
+} as const;
+
 export interface GatewayRevenue {
   provider: string;
   amountCents: number;
@@ -14,7 +25,7 @@ export interface MonthlyPoint {
 
 export interface FinancialSummary {
   grossRevenueCents: number;
-  /** SUM of PENDING charges with due_date in the current window (money owed / expected). */
+  /** A receber: cobranças de aluguel PENDING com vencimento de hoje em diante (nada atrasado, sem caução). */
   accruedRevenueCents: number;
   revenueByGateway: GatewayRevenue[];
   operatingCostCents: number;

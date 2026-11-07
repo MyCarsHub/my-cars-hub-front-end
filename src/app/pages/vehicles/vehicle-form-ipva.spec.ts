@@ -16,8 +16,8 @@ import { VehiclesService } from '../../services/vehicles.service';
 import { IpvaInstallment, IpvaYear } from '../../types/vehicle-ipva.types';
 
 /**
- * IPVA em parcelas no formulário do veículo (cadastro e edição): adicionar, editar e remover
- * parcelas, dinheiro pt-BR mascarado, e o legado plano reenviado intacto na edição.
+ * IPVA em série no formulário do veículo (cadastro e edição): Valor da parcela, Parcelas,
+ * Início e Vencimento geram as parcelas; as já existentes só aparecem resumidas.
  */
 describe('VehicleForm — IPVA em parcelas', () => {
   const VEHICLE_ID = 'veh-1';
@@ -32,9 +32,7 @@ describe('VehicleForm — IPVA em parcelas', () => {
 
   interface FormApi {
     form: { patchValue: (v: unknown) => void };
-    ipvaRows: { length: number; at: (i: number) => { patchValue: (v: unknown) => void } };
-    addIpvaRow: () => void;
-    removeIpvaRow: (i: number) => void;
+    toggleIpva: () => void;
     submit: () => void;
   }
   const api = () => fixture.componentInstance as unknown as FormApi;
@@ -161,62 +159,70 @@ describe('VehicleForm — IPVA em parcelas', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('o card de IPVA não tem mais o valor único: nada de type=number nem Status Automático', async () => {
+  function fill(amount: string, count: string, start: string, day: string): void {
+    api().toggleIpva();
+    fixture.detectChanges();
+    type('#veiculo-ipva-amount', amount);
+    type('#veiculo-ipva-installments', count);
+    type('#veiculo-ipva-start', start);
+    type('#veiculo-ipva-due-day', day);
+  }
+
+  it('o card é um gerador de série: quatro campos, sem Parcela N / Remover / Adicionar parcela, sem type=number', async () => {
     await setup('create');
-    expect(el().querySelector('#veiculo-ipva-amount')).toBeNull();
-    expect(el().querySelector('#veiculo-ipva-status')).toBeNull();
-    expect(el().querySelector('[data-testid="ipva-add"]')).not.toBeNull();
+    api().toggleIpva();
+    fixture.detectChanges();
+    const labels = Array.from(el().querySelectorAll('app-ipva-installments-fields label')).map(
+      (l) => l.textContent?.replace('*', '').trim(),
+    );
+    expect(labels).toEqual(['Valor da parcela (R$)', 'Parcelas', 'Início', 'Vencimento (dia)']);
+    expect(el().querySelector('[data-testid="ipva-add"]')).toBeNull();
+    expect(el().textContent).not.toContain('Remover parcela');
+    expect(el().textContent).not.toContain('Adicionar parcela');
     expect(el().querySelector('app-ipva-installments-fields input[type="number"]')).toBeNull();
+    expect((el().querySelector('#veiculo-ipva-amount') as HTMLInputElement).type).toBe('text');
   });
 
-  it('cadastro: três parcelas viram três POSTs, no exercício do vencimento, em centavos', async () => {
+  it('cadastro: valor + 3 parcelas + início + dia geram 3 POSTs com datas mensais e centavos exatos', async () => {
     await setup('create');
-    for (let i = 0; i < 3; i++) api().addIpvaRow();
-    fixture.detectChanges();
-    const due = ['2026-03-10', '2026-04-10', '2027-01-10'];
-    const money = ['1.234,56', '1.234,56', '99,90'];
-    due.forEach((d, i) => {
-      type(`#veiculo-ipva-due-${i}`, d);
-      type(`#veiculo-ipva-amount-${i}`, money[i]);
-    });
+    fill('333,33', '3', '2026-11', '10');
+    expect(el().querySelector('[data-testid="ipva-preview"]')?.textContent).toContain('3x de R$ 333,33');
 
     api().submit();
 
-    expect(create).toHaveBeenCalledTimes(1);
-    // Legado plano vai nulo no cadastro: não há o que espelhar.
-    expect(create.mock.calls[0][0]).toMatchObject({
-      ipvaAmount: null,
-      ipvaDueDate: null,
-      ipvaStatus: null,
-    });
+    expect(create.mock.calls[0][0]).toMatchObject({ ipvaAmount: null, ipvaDueDate: null, ipvaStatus: null });
     expect(add.mock.calls.map((c) => [c[0], c[1], c[2]])).toEqual([
-      [VEHICLE_ID, 2026, { dueDate: '2026-03-10', amountCents: 123_456 }],
-      [VEHICLE_ID, 2026, { dueDate: '2026-04-10', amountCents: 123_456 }],
-      [VEHICLE_ID, 2027, { dueDate: '2027-01-10', amountCents: 9_990 }],
+      [VEHICLE_ID, 2026, { dueDate: '2026-11-10', amountCents: 33_333 }],
+      [VEHICLE_ID, 2026, { dueDate: '2026-12-10', amountCents: 33_333 }],
+      [VEHICLE_ID, 2027, { dueDate: '2027-01-10', amountCents: 33_333 }],
     ]);
   });
 
-  it('o campo de valor aceita 1.234,56 como texto e mascara o milhar ao digitar', async () => {
+  it('dia 31 vira o último dia do mês curto e não arrasta para os seguintes', async () => {
     await setup('create');
-    api().addIpvaRow();
-    fixture.detectChanges();
-    const input = el().querySelector('#veiculo-ipva-amount-0') as HTMLInputElement;
-    expect(input.type).toBe('text');
-    type('#veiculo-ipva-amount-0', '1234,56');
-    expect(input.value).toBe('1.234,56');
-    expect(input.getAttribute('aria-invalid')).not.toBe('true');
+    fill('100,00', '3', '2027-01', '31');
+    api().submit();
+    expect(add.mock.calls.map((c) => c[2].dueDate)).toEqual(['2027-01-31', '2027-02-28', '2027-03-31']);
   });
 
-  it('linha incompleta bloqueia o salvar com o aviso do IPVA', async () => {
+  it('combinação inválida bloqueia o salvar com o aviso do IPVA', async () => {
     await setup('create');
-    api().addIpvaRow();
+    fill('100,00', '13', '2026-11', '32');
     api().submit();
     fixture.detectChanges();
     expect(create).not.toHaveBeenCalled();
-    expect(el().innerHTML).toContain('Verifique as parcelas do IPVA.');
+    expect(add).not.toHaveBeenCalled();
+    expect(el().innerHTML).toContain('Verifique os campos do IPVA.');
   });
 
-  it('edição: carrega as parcelas, edita uma (PUT), remove outra (DELETE), reenvia o legado intacto', async () => {
+  it('bloco fechado: salvar não manda parcela nenhuma', async () => {
+    await setup('create');
+    api().submit();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(add).not.toHaveBeenCalled();
+  });
+
+  it('edição com parcela paga: resumo "1 de 3 pagas" e salvar sem gerar não toca em nada', async () => {
     await setup('edit', [
       year(2026, [
         inst('a', 1, '2026-03-10', 30_000),
@@ -224,40 +230,38 @@ describe('VehicleForm — IPVA em parcelas', () => {
         inst('c', 3, '2026-05-10', 30_000, true),
       ]),
     ]);
-    expect(api().ipvaRows.length).toBe(3);
-    // Parcela paga: sem botão de remover e campos travados.
-    expect(el().querySelector('[data-testid="ipva-remove-2"]')).toBeNull();
-    expect((el().querySelector('#veiculo-ipva-amount-2') as HTMLInputElement).disabled).toBe(true);
+    const summary = el().querySelector('[data-testid="ipva-summary"]')?.textContent ?? '';
+    expect(summary).toContain('1 de 3');
+    expect(summary).toContain('900,00');
+    expect(el().querySelector('app-ipva-installments-fields')).toBeNull();
 
-    type('#veiculo-ipva-amount-0', '450,00');
-    api().removeIpvaRow(1);
-    fixture.detectChanges();
     api().submit();
 
-    expect(update).toHaveBeenCalledTimes(1);
-    // Nulos aqui fariam o backend apagar a parcela espelhada do ano: vai o valor carregado.
     expect(update.mock.calls[0][1]).toMatchObject({
       ipvaAmount: 90_000,
       ipvaDueDate: '2026-03-10',
       ipvaStatus: 'PENDING',
     });
-    expect(remove).toHaveBeenCalledWith(VEHICLE_ID, 2026, 'b');
-    expect(put).toHaveBeenCalledWith(VEHICLE_ID, 2026, 'a', {
-      dueDate: '2026-03-10',
-      amountCents: 45_000,
-    });
     expect(add).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('edição: gerar uma série só acrescenta; as existentes (pagas inclusive) não recebem PUT nem DELETE', async () => {
+    await setup('edit', [year(2026, [inst('c', 1, '2026-03-10', 30_000, true)])]);
+    fill('450,00', '2', '2026-06', '15');
+    api().submit();
+    expect(add.mock.calls.map((c) => c[2])).toEqual([
+      { dueDate: '2026-06-15', amountCents: 45_000 },
+      { dueDate: '2026-07-15', amountCents: 45_000 },
+    ]);
+    expect(put).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it('falha no meio: para na primeira, avisa que o veículo foi salvo e o retry só reenvia o que faltou', async () => {
     await setup('create');
-    api().addIpvaRow();
-    api().addIpvaRow();
-    fixture.detectChanges();
-    type('#veiculo-ipva-due-0', '2026-03-10');
-    type('#veiculo-ipva-amount-0', '100,00');
-    type('#veiculo-ipva-due-1', '2026-04-10');
-    type('#veiculo-ipva-amount-1', '100,00');
+    fill('100,00', '2', '2026-03', '10');
     add.mockImplementationOnce((_v: string, y: number, p: { dueDate: string }) =>
       of(year(y, [inst('n1', 1, p.dueDate, 10_000)])),
     );
@@ -271,7 +275,6 @@ describe('VehicleForm — IPVA em parcelas', () => {
     expect(el().innerHTML).toContain('O veículo foi salvo');
 
     api().submit();
-    // Segundo envio: PUT do veículo de novo, mas só a parcela 2 volta a ser mandada.
     expect(create).toHaveBeenCalledTimes(1);
     expect(add).toHaveBeenCalledTimes(3);
     expect(add.mock.calls[2][2]).toMatchObject({ dueDate: '2026-04-10' });
