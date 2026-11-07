@@ -12,7 +12,7 @@ import { PageCard } from '../../../components/core/page-card/page-card';
   imports: [PageCard],
   host: { class: 'block min-w-0 h-full', 'aria-busy': 'true' },
   template: `
-    <app-page-card [title]="title()" [fill]="true" [truncateTitle]="true">
+    <app-page-card [title]="title()" [fill]="true" [truncateTitle]="!reserveTitle()" [reserveTitleLines]="reserveTitle()">
       <div class="px-4 pb-5 sm:px-6 min-w-0 flex-1 flex flex-col">
         <div data-skeleton-body class="w-full flex-1 rounded-xl bg-surface-sunken animate-pulse" [class]="bodyClass()"></div>
       </div>
@@ -23,4 +23,6 @@ export class CardSkeleton {
   readonly title = input.required<string>();
   /** Tailwind height classes of the body (the real card's content height). */
   readonly bodyClass = input('min-h-40');
+  /** Same two-line title slot as the real card (cards side by side). */
+  readonly reserveTitle = input(false);
 }

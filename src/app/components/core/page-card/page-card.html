@@ -19,6 +19,7 @@
       <ng-content select="[cardIcon]" />
       <h2
         class="font-semibold text-fg-body"
+        [class]="reserveTitleLines() ? 'md:min-h-12' : ''"
         [class.truncate]="truncateTitle()"
         [attr.title]="truncateTitle() ? title() : null"
       >{{ title() }}</h2>

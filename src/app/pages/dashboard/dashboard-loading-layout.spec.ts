@@ -82,11 +82,26 @@ describe('DashboardHome — loading layout', () => {
 });
 
 describe('DashboardHome — row of four cards', () => {
-  it('card headers are single truncated lines so the lists below start at the same height', () => {
+  it('every header is either one truncated line or a reserved two-line slot, so the bodies below start at the same height', () => {
     const host = render(NEVER);
     const titles = Array.from(host.querySelectorAll('[data-board] app-card-skeleton h2'));
     expect(titles.length).toBeGreaterThan(0);
-    for (const t of titles) expect(t.className).toContain('truncate');
+    for (const t of titles) {
+      expect(t.className.includes('truncate') || t.className.includes('md:min-h-12')).toBe(true);
+    }
+  });
+
+  it('the money, vehicle and driver cards of the last row reserve two lines and wrap instead of an ellipsis', () => {
+    const host = render(NEVER);
+    for (const sel of ['[data-money-skeleton]', '[data-ranking-skeleton]']) {
+      const cards = Array.from(host.querySelectorAll(sel));
+      expect(cards.length).toBeGreaterThan(0);
+      for (const c of cards) {
+        const h2 = c.querySelector('h2')!;
+        expect(h2.className).toContain('md:min-h-12');
+        expect(h2.className).not.toContain('truncate');
+      }
+    }
   });
 });
 

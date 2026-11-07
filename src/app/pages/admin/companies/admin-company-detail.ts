@@ -246,7 +246,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
 
   /**
    * Financeiro do mês (FEAT-0480). Gerenciado = volume das cobranças de ALUGUEL por mês de
-   * vencimento; recebido = parte já paga; atraso = vencida e não paga. Sem bloco: "—".
+   * vencimento; recebido = dinheiro pago no mês (pelo mês do pagamento, não do vencimento); atraso = vencida e não paga. Sem bloco: "—".
    */
   protected readonly financeTiles = computed<FinanceTile[]>(() => {
     const detail = this.detail();

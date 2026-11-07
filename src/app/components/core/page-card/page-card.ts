@@ -53,6 +53,12 @@ export class PageCard {
    * use it so a long title never makes one header taller than its neighbours.
    */
   truncateTitle = input(false);
+  /**
+   * Reserve two title lines from md up and let the title wrap (no ellipsis): cards that sit side
+   * by side keep the same header height and their bodies start on the same line, even when one
+   * title needs a second line.
+   */
+  reserveTitleLines = input(false);
   readonly toggled = output<boolean>();
 
   /** ID único para o `aria-controls` do chevron. */

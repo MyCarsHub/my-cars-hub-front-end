@@ -175,7 +175,7 @@ describe('DashboardHome — overview blocks (FEAT-0468)', () => {
     const { host } = render(summaryWith(overview));
     expect(host.querySelectorAll('[data-expenses-block]').length).toBe(0);
     const labels = Array.from(host.querySelectorAll('[data-kpi-grid] > div[app-kpi-card]')).map((c) => text(c));
-    for (const l of ['Faturado', 'Recebido', 'Despesas', 'Lucro', 'Ocupação', 'Inadimplência']) {
+    for (const l of ['Faturado', 'Recebido', 'Despesas', 'Lucro', 'Ocupação', 'Em atraso']) {
       expect(labels.some((t) => t.startsWith(l))).toBe(true);
     }
   });

@@ -14,6 +14,7 @@ import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { ReportsService } from '../../services/reports.service';
+import { REPORT_LABELS } from '../../types/reports.types';
 import {
   exportReportExcel,
   exportReportPdf,
@@ -68,6 +69,7 @@ export class Relatorios implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
 
+  protected readonly labels = REPORT_LABELS;
   protected readonly report = this.reportsService.overview;
   protected readonly loading = this.reportsService.loading;
 
