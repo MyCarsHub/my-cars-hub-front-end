@@ -57,6 +57,31 @@ describe('CompanyContactGate', () => {
     expect(results).toEqual([true]);
   });
 
+  it('after a server refusal the notice opens even when the pre-check fails (network error)', () => {
+    const results: boolean[] = [];
+    gate.promptAfterServerRefusal().subscribe((ok) => results.push(ok));
+    http.expectOne(url).flush(null, { status: 503, statusText: 'down' });
+    const n = notices.current();
+    expect(n?.form).toBe('company-contact');
+    expect(n?.items).toEqual([]);
+    notices.resolve(n!.id);
+    expect(results).toEqual([true]);
+  });
+
+  it('after a server refusal the notice opens even when the pre-check says complete', () => {
+    gate.promptAfterServerRefusal().subscribe();
+    http.expectOne(url).flush({ complete: true, missing: [], fillPath: '' });
+    expect(notices.current()?.form).toBe('company-contact');
+  });
+
+  it('a failed pre-check alone fails open (the backend stays the authoritative gate)', () => {
+    const results: boolean[] = [];
+    gate.ensureComplete().subscribe((ok) => results.push(ok));
+    http.expectOne(url).flush(null, { status: 503, statusText: 'down' });
+    expect(results).toEqual([true]);
+    expect(notices.current()).toBeNull();
+  });
+
   it('does not proceed when the user leaves the notice', () => {
     const results: boolean[] = [];
     gate.ensureComplete().subscribe((ok) => results.push(ok));

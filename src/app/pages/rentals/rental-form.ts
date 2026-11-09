@@ -89,6 +89,9 @@ import { formatPlate } from '../../utils/display-format';
 import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
 import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
+const CONTACT_STILL_INCOMPLETE_COPY =
+  'Os dados de contato da locadora ainda estão incompletos. Confira em Configurações > Dados de contato e tente de novo.';
+
 @Component({
   selector: 'app-rental-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -113,6 +116,8 @@ export class RentalForm implements OnInit {
   private readonly asaasService = inject(AsaasIntegrationService);
   private readonly contractTemplateService = inject(ContractTemplateService);
   private readonly contactGate = inject(CompanyContactGate);
+  /** FEAT-0563: o reenvio após o 400 de contato incompleto acontece no máximo uma vez por clique. */
+  private contactRetried = false;
   private readonly draftService = inject(RentalDraftService);
   private readonly sessionService = inject(SessionService);
   private readonly apiErrors = inject(ApiErrorService);
@@ -1138,6 +1143,7 @@ export class RentalForm implements OnInit {
     }
     this.error.set(null);
     clearServerErrors(this.form);
+    this.contactRetried = false;
 
     const editingId = this.editingId();
     if (editingId) {
@@ -1444,11 +1450,21 @@ export class RentalForm implements OnInit {
   private failCreate(err: HttpErrorResponse, fallback: string): void {
     this.chargeConfirmOpen.set(false);
     this.pendingCreate = null;
-    // FEAT-0563 (fallback do servidor): a pré-checagem não pegou; abre o mesmo aviso e, ao salvar, repete o create.
+    // FEAT-0563 (fallback do servidor): a pré-checagem não pegou. O aviso abre SEMPRE (sem depender
+    // da pré-checagem) e, ao completar, o create é repetido UMA única vez. Se o servidor recusar de
+    // novo, o erro fica visível no banner e nada se repete.
     if (isCompanyContactIncomplete(err)) {
       this.apiErrors.claim(err);
-      this.contactGate.ensureComplete().subscribe((ok) => {
-        if (ok) this.submit();
+      if (this.contactRetried) {
+        this.contactRetried = false;
+        this.error.set(CONTACT_STILL_INCOMPLETE_COPY);
+        this.revealError();
+        return;
+      }
+      this.contactRetried = true;
+      this.contactGate.promptAfterServerRefusal().subscribe((ok) => {
+        if (ok) this.continueCreate();
+        else this.contactRetried = false;
       });
       return;
     }

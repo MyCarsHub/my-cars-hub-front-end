@@ -33,6 +33,7 @@ describe('RentalForm — contato da locadora (FEAT-0563)', () => {
 
   let create: ReturnType<typeof vi.fn>;
   let ensureComplete: ReturnType<typeof vi.fn>;
+  let promptAfterServerRefusal: ReturnType<typeof vi.fn>;
 
   function visit() {
     TestBed.resetTestingModule();
@@ -47,7 +48,7 @@ describe('RentalForm — contato da locadora (FEAT-0563)', () => {
           removeItem: (k: string) => store.delete(k), getCompanyRoleFromToken: () => 'OWNER' } },
         { provide: VehiclesService, useValue: { list: () => of({ content: [VEHICLE], page: 0, size: 500, total: 1 }) } },
         { provide: DriverService, useValue: { list: () => of({ content: [DRIVER], page: 0, size: 500, total: 1 }) } },
-        { provide: CompanyContactGate, useValue: { ensureComplete } },
+        { provide: CompanyContactGate, useValue: { ensureComplete, promptAfterServerRefusal } },
         { provide: RentalService, useValue: { getById: () => EMPTY, preflight: () => EMPTY, create } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
@@ -64,6 +65,7 @@ describe('RentalForm — contato da locadora (FEAT-0563)', () => {
   beforeEach(() => {
     create = vi.fn().mockReturnValue(of({ id: 'rental-novo' }));
     ensureComplete = vi.fn().mockReturnValue(of(true));
+    promptAfterServerRefusal = vi.fn().mockReturnValue(of(true));
   });
 
   it('com o contato completo, cria como antes (a porta só pergunta)', () => {
@@ -101,16 +103,33 @@ describe('RentalForm — contato da locadora (FEAT-0563)', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('fallback: o 400 COMPANY_CONTACT_INCOMPLETE do servidor abre o aviso e, ao completar, repete o create', () => {
-    create
-      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({
-        status: 400, error: { code: 'COMPANY_CONTACT_INCOMPLETE', message: 'faltam dados' } })))
-      .mockReturnValueOnce(of({ id: 'rental-novo' }));
-    // 1ª chamada: a pré-checagem passa (ex.: falhou aberta); 2ª: o servidor recusou e o aviso resolve.
-    ensureComplete.mockReturnValueOnce(of(true)).mockReturnValueOnce(of(true)).mockReturnValue(of(true));
+  const refusal = () => throwError(() => new HttpErrorResponse({
+    status: 400, error: { code: 'COMPANY_CONTACT_INCOMPLETE', message: 'faltam dados' } }));
+
+  it('fallback: o 400 abre o popup SEM depender da pré-checagem e, ao completar, repete o create uma vez', () => {
+    create.mockReturnValueOnce(refusal()).mockReturnValueOnce(of({ id: 'rental-novo' }));
     const { cmp } = visit();
     cmp.submit();
-    expect(ensureComplete).toHaveBeenCalledTimes(3);
+    expect(promptAfterServerRefusal).toHaveBeenCalledTimes(1);
+    expect(ensureComplete).toHaveBeenCalledTimes(1);
     expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it('segunda recusa depois do popup: erro visível, sem laço', () => {
+    create.mockReturnValue(refusal());
+    const { cmp, fixture } = visit();
+    cmp.submit();
+    fixture.detectChanges();
+    expect(promptAfterServerRefusal).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(fixture.nativeElement.textContent).toContain('ainda estão incompletos');
+  });
+
+  it('sair do popup sem preencher não repete o create', () => {
+    create.mockReturnValue(refusal());
+    promptAfterServerRefusal.mockReturnValue(of(false));
+    const { cmp } = visit();
+    cmp.submit();
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });

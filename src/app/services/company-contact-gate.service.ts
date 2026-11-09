@@ -42,8 +42,10 @@ export function isCompanyContactIncomplete(error: unknown): boolean {
  * FEAT-0563 — porta do "contato da locadora está completo?" antes de criar aluguel.
  *
  * A regra de completude mora no backend (uma só); aqui só se pergunta e se mostra o aviso.
- * Falha da pré-checagem (rede, 5xx) NÃO bloqueia: o servidor recusa o create com o código acima
- * e o fallback abre o mesmo aviso.
+ * Falha da pré-checagem (rede, 5xx) NÃO bloqueia por si só: `readiness()` falha ABERTO (complete:true)
+ * porque a trava autoritativa é o backend, que recusa o create com o código acima. Esse "aberto" é só
+ * uma dica de UX, nunca uma permissão: quando o servidor recusa, `promptAfterServerRefusal()` abre o
+ * aviso SEM consultar a pré-checagem de novo.
  */
 @Injectable({ providedIn: 'root' })
 export class CompanyContactGate {
@@ -66,6 +68,21 @@ export class CompanyContactGate {
         context: new HttpContext().set(SILENT_HTTP_ERRORS, true),
       })
       .pipe(catchError(() => of({ complete: true, missing: [], fillPath: FILL_PATH })));
+  }
+
+  /**
+   * O servidor devolveu COMPANY_CONTACT_INCOMPLETE: o aviso com o formulário abre SEMPRE, não importa
+   * o que a pré-checagem diz (ela pode ter falhado aberta). Se ela responder com a lista do que falta,
+   * o aviso a mostra; se não, abre sem a lista. `true` quando o usuário completou no aviso.
+   */
+  promptAfterServerRefusal(): Observable<boolean> {
+    return this.readiness().pipe(
+      switchMap((r) =>
+        this.notices
+          .enqueue(this.noticeFor(r.complete ? { ...r, missing: [] } : r))
+          .pipe(map((outcome) => outcome === 'resolved')),
+      ),
+    );
   }
 
   /**
