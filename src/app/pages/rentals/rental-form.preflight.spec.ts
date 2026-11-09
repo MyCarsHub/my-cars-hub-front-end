@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vite
 
 import { RentalForm } from './rental-form';
 import { RentalService } from './rental.service';
+import { CompanyContactGate } from '../../services/company-contact-gate.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
 import { AsaasIntegrationService } from '../company-settings/integrations/asaas-integration.service';
@@ -100,6 +101,7 @@ describe('RentalForm — preflight (FIX-0754)', () => {
         },
         { provide: VehiclesService, useValue: { list: () => of(vehiclePage) } },
         { provide: DriverService, useValue: { list: () => of(driverPage) } },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         {
           provide: RentalService,
           useValue: {
