@@ -48,7 +48,7 @@ import { Notice, NoticeOutcome, NoticesService } from './notices.service';
               </div>
             }
             @if (n.form === 'company-contact') {
-              <app-company-contact-quick-form (saved)="onResolved(n)" />
+              <app-company-contact-quick-form [signerReadOnly]="n.signerReadOnly === true" (saved)="onResolved(n)" />
             }
           </div>
           <div sheetFooter class="grid gap-2">

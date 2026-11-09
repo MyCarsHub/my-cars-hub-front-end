@@ -5,6 +5,7 @@ import {
   ElementRef,
   OnInit,
   inject,
+  input,
   output,
   signal,
 } from '@angular/core';
@@ -61,6 +62,11 @@ function clean(value: string | null | undefined): string {
       >
         Tentar de novo
       </button>
+    } @else if (signerBlocked()) {
+      <app-alert-banner
+        variant="info"
+        message="Falta definir quem assina o contrato. Só o proprietário pode preencher o nome e o cargo do representante: peça a ele em Configurações > Dados de contato."
+      />
     } @else {
       <form [formGroup]="form" (ngSubmit)="save()" class="grid grid-cols-1 gap-4" novalidate data-testid="contact-quick-form">
         <app-form-field label="Telefone" controlId="qc-phone" [required]="true" [control]="form.controls.phone" [messages]="m.phone">
@@ -105,7 +111,7 @@ function clean(value: string | null | undefined): string {
         </div>
 
         <app-form-field label="Nome do representante" controlId="qc-rep" [required]="true" [control]="form.controls.representativeName" [messages]="m.required"
-                        hint="Quem assina o contrato pela locadora.">
+                        [hint]="signerReadOnly() ? 'Só o proprietário altera quem assina o contrato.' : 'Quem assina o contrato pela locadora.'">
           <input appFieldControl type="text" autocomplete="name" formControlName="representativeName" maxlength="200" [class]="inputClass" />
         </app-form-field>
 
@@ -140,6 +146,9 @@ export class CompanyContactQuickForm implements OnInit {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly destroyRef = inject(DestroyRef);
 
+  /** Gerente: nome e cargo de quem assina aparecem como estão, sem edição (o backend recusa a mudança). */
+  readonly signerReadOnly = input(false);
+
   /** Os dados foram salvos no servidor. */
   readonly saved = output<void>();
 
@@ -148,6 +157,8 @@ export class CompanyContactQuickForm implements OnInit {
   protected readonly loadError = signal<string | null>(null);
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
+  /** Somente leitura E vazio: não há o que mostrar nem como preencher; só a mensagem. */
+  protected readonly signerBlocked = signal(false);
   protected readonly cepHint = signal('Preenche o endereço sozinho.');
 
   protected readonly m = {
@@ -215,6 +226,7 @@ export class CompanyContactQuickForm implements OnInit {
       next: (snapshot) => {
         this.snapshot = snapshot;
         this.prefill(snapshot);
+        this.applySignerMode(snapshot);
         this.loading.set(false);
       },
       error: (err: unknown) => {
@@ -238,10 +250,27 @@ export class CompanyContactQuickForm implements OnInit {
       addressDistrict: c.addressDistrict ?? '',
       addressCity: c.addressCity ?? '',
       addressUf: c.addressUf ?? '',
-      representativeName: c.representativeName ?? identity?.name ?? '',
+      // O gerente nunca sugere o próprio nome como assinante: ele não pode gravá-lo.
+      representativeName: c.representativeName ?? (this.signerReadOnly() ? '' : (identity?.name ?? '')),
       representativeRole: c.representativeRole ?? '',
     });
     this.lastCep = normalizeCep(c.addressCep ?? '');
+  }
+
+  private applySignerMode(snapshot: CompanyContactSnapshot): void {
+    const f = this.form.controls;
+    if (!this.signerReadOnly()) {
+      f.representativeName.enable();
+      f.representativeRole.enable();
+      this.signerBlocked.set(false);
+      return;
+    }
+    // Desabilitado: fora da validação, mas continua em getRawValue com o valor existente, que é o que o PUT reenvia.
+    f.representativeName.disable();
+    f.representativeRole.disable();
+    this.signerBlocked.set(
+      !clean(snapshot.contact.representativeName) || !clean(snapshot.contact.representativeRole),
+    );
   }
 
   protected onPhoneInput(event: Event): void {

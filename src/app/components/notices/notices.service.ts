@@ -28,6 +28,8 @@ export interface Notice {
   blocking?: boolean;
   /** Formulário inline (o usuário resolve sem sair da tela). */
   form?: NoticeForm;
+  /** Só para `company-contact`: nome e cargo de quem assina ficam somente leitura (gerente). */
+  signerReadOnly?: boolean;
   /** Atalho para uma página (ex.: `/configuracoes/contato`). */
   link?: NoticeLink;
   /** Texto do botão de sair; padrão "Agora não". */

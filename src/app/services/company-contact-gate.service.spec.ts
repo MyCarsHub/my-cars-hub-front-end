@@ -90,8 +90,8 @@ describe('CompanyContactGate', () => {
     expect(results).toEqual([false]);
   });
 
-  it('gives a non-owner the ask-the-owner copy and NO form (single capability check)', () => {
-    role = 'MANAGER';
+  it('gives a role that cannot save the contact (driver) the ask-the-owner copy and NO form', () => {
+    role = 'DRIVER';
     expect(gate.canFillContact()).toBe(false);
     const n = gate.noticeFor({ complete: false, missing: [{ field: 'phone', label: 'telefone' }], fillPath: '' });
     expect(n.form).toBeUndefined();
@@ -99,10 +99,39 @@ describe('CompanyContactGate', () => {
     expect(n.message).toContain('proprietário');
   });
 
-  it('flipping the capability alone is enough to offer the form', () => {
+  it('the manager can fill the contact: form offered with the signer read-only', () => {
+    role = 'MANAGER';
+    expect(gate.canFillContact()).toBe(true);
+    expect(gate.canEditSigner()).toBe(false);
+    const n = gate.noticeFor({ complete: false, missing: [{ field: 'phone', label: 'telefone' }], fillPath: '' });
+    expect(n.form).toBe('company-contact');
+    expect(n.signerReadOnly).toBe(true);
+  });
+
+  it('the manager with the signer missing gets the ask-the-owner-to-fill-the-signer message, no form', () => {
+    role = 'MANAGER';
+    const n = gate.noticeFor({
+      complete: false,
+      missing: [{ field: 'phone', label: 'telefone' }, { field: 'representativeName', label: 'nome do representante' }],
+      fillPath: '',
+    });
+    expect(n.form).toBeUndefined();
+    expect(n.link).toBeUndefined();
+    expect(n.title).toContain('quem assina');
+    expect(n.message).toContain('Peça ao proprietário');
+  });
+
+  it('the owner gets the form with the signer editable', () => {
     role = 'OWNER';
     expect(gate.canFillContact()).toBe(true);
-    expect(gate.noticeFor({ complete: false, missing: [], fillPath: '' }).form).toBe('company-contact');
+    expect(gate.canEditSigner()).toBe(true);
+    const n = gate.noticeFor({
+      complete: false,
+      missing: [{ field: 'representativeName', label: 'nome do representante' }],
+      fillPath: '',
+    });
+    expect(n.form).toBe('company-contact');
+    expect(n.signerReadOnly).toBe(false);
   });
 
   it('a failed pre-check does not block (the server refuses with the code and the fallback takes over)', () => {

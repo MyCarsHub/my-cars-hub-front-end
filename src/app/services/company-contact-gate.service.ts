@@ -20,6 +20,12 @@ export const CONTACT_NOTICE_ID = 'company-contact-incomplete';
 
 const FILL_PATH = '/configuracoes/contato';
 
+const SIGNER_FIELDS = ['representativeName', 'representativeRole'];
+
+function missesSigner(readiness: ContactReadiness): boolean {
+  return readiness.missing.some((m) => SIGNER_FIELDS.includes(m.field));
+}
+
 /** O 400 do create de aluguel que manda abrir o aviso de contato. */
 export function isCompanyContactIncomplete(error: unknown): boolean {
   if (!(error instanceof HttpErrorResponse) || error.status !== 400) return false;
@@ -54,11 +60,19 @@ export class CompanyContactGate {
   private readonly notices = inject(NoticesService);
 
   /**
-   * UMA verificação de capacidade: quem pode salvar o contato da locadora.
-   * Hoje só o dono (o `PUT /companies/me` responde 403 ao gerente). Quando a regra de permissão
-   * mudar no backend, é este o único ponto a virar.
+   * UMA verificação de capacidade: quem pode salvar o contato da locadora (telefone, e-mail e endereço).
+   * Dono e gerente. O backend é a trava autoritativa: o gerente só altera esses campos.
    */
   canFillContact(): boolean {
+    const role = this.session.getCompanyRoleFromToken();
+    return role === 'OWNER' || role === 'MANAGER';
+  }
+
+  /**
+   * Quem assina o contrato (nome e cargo do representante) só o dono altera; o gerente vê o valor
+   * existente, somente leitura (o backend recusa a mudança com 403).
+   */
+  canEditSigner(): boolean {
     return this.session.getCompanyRoleFromToken() === 'OWNER';
   }
 
@@ -101,6 +115,18 @@ export class CompanyContactGate {
 
   noticeFor(readiness: ContactReadiness): Notice {
     const items = readiness.missing.map((m) => m.label);
+    if (this.canFillContact() && !this.canEditSigner() && missesSigner(readiness)) {
+      // Gerente + assinante vazio: o formulário não teria saída (ele não pode preencher o assinante).
+      return {
+        id: CONTACT_NOTICE_ID,
+        type: 'REMINDER',
+        title: 'Falta definir quem assina o contrato',
+        message:
+          'O contrato leva o nome e o cargo de quem assina pela locadora, e só o proprietário pode preenchê-los. Peça ao proprietário para preencher o assinante em Configurações > Dados de contato; depois você cria o aluguel.',
+        items,
+        dismissLabel: 'Entendi',
+      };
+    }
     if (this.canFillContact()) {
       return {
         id: CONTACT_NOTICE_ID,
@@ -110,6 +136,7 @@ export class CompanyContactGate {
           'O contrato do aluguel leva o contato da locadora. Preencha o que falta abaixo e seguimos com o aluguel que você estava criando.',
         items,
         form: 'company-contact',
+        signerReadOnly: !this.canEditSigner(),
         link: { label: 'Abrir em Configurações', route: FILL_PATH },
         dismissLabel: 'Voltar ao aluguel',
       };

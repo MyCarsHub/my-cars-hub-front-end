@@ -12,7 +12,7 @@ describe('CompanyContactQuickForm', () => {
   const save = vi.fn();
   const lookup = vi.fn();
 
-  function setup(contact = EMPTY_COMPANY_CONTACT) {
+  function setup(contact = EMPTY_COMPANY_CONTACT, signerReadOnly = false) {
     save.mockReset().mockReturnValue(of({ name: 'Locadora', contact }));
     lookup.mockReset().mockReturnValue(of({ street: 'Rua das Flores', district: 'Centro', city: 'Campinas', uf: 'SP' }));
     TestBed.resetTestingModule();
@@ -29,6 +29,7 @@ describe('CompanyContactQuickForm', () => {
       ],
     });
     const fixture = TestBed.createComponent(CompanyContactQuickForm);
+    fixture.componentRef.setInput('signerReadOnly', signerReadOnly);
     fixture.detectChanges();
     return fixture;
   }
@@ -99,5 +100,39 @@ describe('CompanyContactQuickForm', () => {
     const inputs = Array.from((f.nativeElement as HTMLElement).querySelectorAll('input'));
     expect(inputs.length).toBeGreaterThan(0);
     for (const i of inputs) expect(i.className).toContain('text-base');
+  });
+  describe('manager (signer read-only)', () => {
+    const withSigner = {
+      ...EMPTY_COMPANY_CONTACT,
+      representativeName: 'João Dono',
+      representativeRole: 'Sócio',
+    };
+
+    it('shows the existing signer disabled, never suggests the manager name, and resends the signer unchanged', () => {
+      const f = setup(withSigner, true);
+      expect(input(f, 'qc-rep').value).toBe('João Dono');
+      expect(input(f, 'qc-rep').disabled).toBe(true);
+      expect(input(f, 'qc-role').value).toBe('Sócio');
+      expect(input(f, 'qc-role').disabled).toBe(true);
+      type(input(f, 'qc-phone'), '11987654321');
+      type(input(f, 'qc-cep'), '13010111');
+      f.detectChanges();
+      type(input(f, 'qc-number'), '10');
+      f.detectChanges();
+      (f.nativeElement as HTMLElement).querySelector('form')!.dispatchEvent(new Event('submit'));
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(save.mock.calls[0][1]).toMatchObject({
+        representativeName: 'João Dono',
+        representativeRole: 'Sócio',
+        phone: '(11) 98765-4321',
+      });
+    });
+
+    it('with an empty signer shows only the ask-the-owner message, no form', () => {
+      const f = setup(EMPTY_COMPANY_CONTACT, true);
+      expect(f.nativeElement.querySelector('form')).toBeNull();
+      expect(f.nativeElement.textContent).toContain('proprietário');
+      expect(save).not.toHaveBeenCalled();
+    });
   });
 });
