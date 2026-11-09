@@ -43,7 +43,12 @@ const DUE_LOOK = {
 };
 
 export const CASHFLOW_KIND_META: Record<CashflowKind, KindMeta> = {
-    RENTAL_RECEIPT: { label: 'Recebimento de aluguel', ...IN_LOOK, icon: 'rental' },
+    RENTAL_RECEIPT_PAID: { label: 'Aluguel recebido', ...IN_LOOK, icon: 'rental' },
+    RENTAL_RECEIPT_DUE: { label: 'Aluguel a receber', ...DUE_LOOK, icon: 'rental' },
+    RENTAL_RECEIPT_OVERDUE: { label: 'Aluguel em atraso', ...PAID_LOOK, icon: 'rental' },
+    DEPOSIT_RECEIPT_PAID: { label: 'Caução recebida', ...IN_LOOK, icon: 'rental' },
+    DEPOSIT_RECEIPT_DUE: { label: 'Caução a receber', ...DUE_LOOK, icon: 'rental' },
+    DEPOSIT_RECEIPT_OVERDUE: { label: 'Caução em atraso', ...PAID_LOOK, icon: 'rental' },
     MAINTENANCE_PAID: { label: 'Manutenção paga', ...PAID_LOOK, icon: 'maintenance' },
     MAINTENANCE_SCHEDULED: { label: 'Manutenção agendada', ...DUE_LOOK, icon: 'maintenance' },
     FINE_PAID: { label: 'Multa paga', ...PAID_LOOK, icon: 'fine' },
