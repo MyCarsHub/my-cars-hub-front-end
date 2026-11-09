@@ -106,13 +106,19 @@ export interface RevenueByEntityDto {
 
 /**
  * Every kind the backend puts in `finance.cashflow`.
- * - `RENTAL_RECEIPT` (IN): revenue projected per rental billing frequency
+ * - `RENTAL_RECEIPT_*` / `DEPOSIT_RECEIPT_*` (IN): the real charges on their due date, rent and
+ *   caução; `_PAID` received, `_OVERDUE` past due and unpaid, `_DUE` still to come (FIX-0875)
  * - `MAINTENANCE_PAID` / `MAINTENANCE_SCHEDULED` (OUT): maintenance costs
  * - `*_PAID` (OUT) money that left; `*_DUE` (OUT) money still to leave — fines, IPVA
  *   installments, insurance and financing installments (STORY-VEHICLE-FINANCE)
  */
 export type CashflowKind =
-    | 'RENTAL_RECEIPT'
+    | 'RENTAL_RECEIPT_PAID'
+    | 'RENTAL_RECEIPT_OVERDUE'
+    | 'RENTAL_RECEIPT_DUE'
+    | 'DEPOSIT_RECEIPT_PAID'
+    | 'DEPOSIT_RECEIPT_OVERDUE'
+    | 'DEPOSIT_RECEIPT_DUE'
     | 'MAINTENANCE_PAID'
     | 'MAINTENANCE_SCHEDULED'
     | 'FINE_PAID'

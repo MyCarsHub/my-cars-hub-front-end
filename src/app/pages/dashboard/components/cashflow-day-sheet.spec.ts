@@ -59,4 +59,13 @@ describe('CashflowDaySheet — tipos de fluxo de caixa', () => {
     // A pagar = soma das seis saídas (10+20+…+60 mil centavos = R$ 2.100,00).
     expect((host.textContent ?? '').replace(/\s+/g, ' ')).toContain('R$ 2.100,00');
   });
+
+  it('FIX-0875: rent and caução receipts are labelled by charge state', () => {
+    expect(cashflowKindMeta('RENTAL_RECEIPT_PAID').label).toBe('Aluguel recebido');
+    expect(cashflowKindMeta('RENTAL_RECEIPT_OVERDUE').label).toBe('Aluguel em atraso');
+    expect(cashflowKindMeta('RENTAL_RECEIPT_DUE').label).toBe('Aluguel a receber');
+    expect(cashflowKindMeta('DEPOSIT_RECEIPT_PAID').label).toBe('Caução recebida');
+    expect(cashflowKindMeta('DEPOSIT_RECEIPT_OVERDUE').label).toBe('Caução em atraso');
+    expect(cashflowKindMeta('DEPOSIT_RECEIPT_DUE').label).toBe('Caução a receber');
+  });
 });
