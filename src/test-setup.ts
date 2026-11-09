@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+
 /**
  * Cada arquivo de spec comeca com o `sessionStorage` VAZIO.
  *
