@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { RentalForm } from './rental-form';
 import { RentalService } from './rental.service';
+import { CompanyContactGate } from '../../services/company-contact-gate.service';
 import { SessionService } from '../../services/session.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
@@ -46,6 +47,7 @@ describe('RentalForm — encargo em R$ abaixo do valor da cobranca (FIX-0750)', 
         },
         { provide: VehiclesService, useValue: { list: () => of(emptyPage) } },
         { provide: DriverService, useValue: { list: () => of(emptyPage) } },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         { provide: RentalService, useValue: { getById: () => EMPTY, preflight: () => EMPTY, create: createSpy } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },

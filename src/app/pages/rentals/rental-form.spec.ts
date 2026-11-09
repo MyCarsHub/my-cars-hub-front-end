@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 
 import { RentalForm } from './rental-form';
 import { RentalService } from './rental.service';
+import { CompanyContactGate } from '../../services/company-contact-gate.service';
 import { SessionService } from '../../services/session.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
@@ -41,6 +42,7 @@ describe('RentalForm picker filters', () => {
         { provide: ActivatedRoute, useValue: activatedRoute },
         { provide: VehiclesService, useValue: { list: vehiclesList } },
         { provide: DriverService, useValue: { list: driversList } },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         {
           provide: RentalService,
           useValue: { getById: vi.fn().mockReturnValue(EMPTY), preflight: () => EMPTY },
@@ -263,6 +265,7 @@ describe('RentalForm período nos pickers', () => {
         },
         { provide: VehiclesService, useValue: { list: vehiclesList } },
         { provide: DriverService, useValue: { list: driversList } },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         { provide: RentalService, useValue: { getById: () => EMPTY, preflight: () => EMPTY, create: vi.fn() } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
@@ -485,6 +488,7 @@ describe('RentalForm seleção que deixa de valer no novo período', () => {
         },
         { provide: VehiclesService, useValue: { list: vehiclesList } },
         { provide: DriverService, useValue: { list: driversList } },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         { provide: RentalService, useValue: { getById: () => EMPTY, preflight: () => EMPTY, create: vi.fn() } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
@@ -613,6 +617,7 @@ describe('RentalForm retirada dentro do período', () => {
           provide: DriverService,
           useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
         },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         { provide: RentalService, useValue: { getById: () => EMPTY, preflight: () => EMPTY, create: createSpy } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
@@ -803,6 +808,7 @@ describe('RentalForm rascunho (ida-e-volta pras integrações)', () => {
             list: () => of({ content: [DRAFT_DRIVER], page: 0, size: 500, total: 1 }),
           },
         },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         { provide: RentalService, useValue: { getById: () => EMPTY, preflight: () => EMPTY, create: createSpy } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
@@ -1000,6 +1006,7 @@ describe('RentalForm CTAs de configuração por papel', () => {
           provide: DriverService,
           useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
         },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         { provide: RentalService, useValue: { getById: () => EMPTY, preflight: () => EMPTY, create: () => EMPTY } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
@@ -1181,6 +1188,7 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
           provide: DriverService,
           useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
         },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         { provide: RentalService, useValue: { getById: () => EMPTY, preflight: () => EMPTY, create: vi.fn() } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
@@ -1326,6 +1334,7 @@ describe('RentalForm carregamento do status Asaas', () => {
           provide: DriverService,
           useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
         },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         { provide: RentalService, useValue: { getById: () => EMPTY, preflight: () => EMPTY, create: vi.fn() } },
         {
           provide: AsaasIntegrationService,
@@ -1470,6 +1479,7 @@ describe('RentalForm — valor do periodo com mascara de milhar (FIX-0261)', () 
           provide: DriverService,
           useValue: { list: () => of({ content: [DRIVER], page: 0, size: 500, total: 1 }) },
         },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         {
           provide: RentalService,
           useValue: {
@@ -1831,6 +1841,7 @@ describe('RentalForm — confirmação da cobrança automática', () => {
           provide: DriverService,
           useValue: { list: () => of({ content: [DRIVER], page: 0, size: 500, total: 1 }) },
         },
+        { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
         {
           provide: RentalService,
           useValue: { getById: () => EMPTY, preflight: () => EMPTY, create: createSpy, chargePreview: previewSpy },
