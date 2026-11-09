@@ -52,6 +52,28 @@ if (typeof localStorage !== 'undefined') {
 }
 
 /**
+ * Every spec file starts on REAL timers.
+ *
+ * The Angular builder runs vitest with `isolate: false`, so a worker is reused
+ * across spec files and `vi.useFakeTimers()` outlives the file that called it.
+ * A spec that never calls `vi.useRealTimers()` hands frozen timers to whichever
+ * file the same worker picks up next.
+ *
+ * The defect behind this line: `rental-contract-card.signature-sheet.spec.ts`
+ * left fake timers on, and `oauth-success.spec.ts`, when it landed right after
+ * it on the same worker, hung in `fixture.whenStable()` — the real Router's
+ * navigation and the zoneless change-detection scheduler both wait on timers
+ * that no longer fire. Only the tests using the real Router hung; the ones with
+ * a mocked Router passed. It looked like a slow runner and survived two timeout
+ * raises, because a hang has no ceiling high enough.
+ *
+ * Which file follows which on a worker depends on runner timing, so the failure
+ * showed up only in CI and only on some runs. Resetting here makes the order
+ * irrelevant; a spec that needs fake timers still turns them on itself.
+ */
+vi.useRealTimers();
+
+/**
  * Global Vitest setup (registered in `angular.json` → `test.options.setupFiles`).
  *
  * JSDOM's `Blob` does not implement `arrayBuffer()`. Production code relies on
