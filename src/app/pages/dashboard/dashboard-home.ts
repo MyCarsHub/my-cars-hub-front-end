@@ -434,8 +434,12 @@ export class DashboardHome {
 
     /**
      * Em atraso caption: the overdue share of the period's Faturado (`4,3% do faturado`) from
-     * `overdueRateBp`; with no rate (Faturado zero, or a backend that does not send it) the old
-     * caption (how many charges are behind the amount) stands, never a percent.
+     * `overdueRateBp`. Faturado counts rent and the deposit, and so does the overdue figure that
+     * sits under the percent (`overdueInPeriodCents`). The amount on the card is the whole stock
+     * overdue today, so when it is larger than the in-period part (an older period is also late)
+     * the caption says the total includes earlier periods, instead of letting the percent
+     * pass for amount / Faturado. With no rate (Faturado zero, or a backend that does not send
+     * it) the old caption (how many charges are behind the amount) stands, never a percent.
      */
     protected readonly overdueDetailLabel = computed(() => {
         const f = this.summary()?.finance;
@@ -443,7 +447,12 @@ export class DashboardHome {
         const bp = f.overdueRateBp;
         if (typeof bp === 'number' && Number.isFinite(bp)) {
             const pct = (bp / 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-            return `${pct}% do faturado`;
+            const inPeriod = f.overdueInPeriodCents;
+            const stockOutsidePeriod =
+                typeof inPeriod === 'number' && f.overdueChargesCents > inPeriod;
+            return stockOutsidePeriod
+                ? `${pct}% do faturado · total com períodos anteriores`
+                : `${pct}% do faturado`;
         }
         const n = this.summary()?.alerts?.overdueCharges?.count ?? 0;
         return n > 0 ? `${n} ${n === 1 ? 'cobrança' : 'cobranças'}` : 'cobranças vencidas ou falhas';

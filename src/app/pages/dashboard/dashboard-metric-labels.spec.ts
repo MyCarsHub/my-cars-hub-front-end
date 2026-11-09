@@ -83,7 +83,7 @@ describe('DashboardHome — metric labels', () => {
   it('Faturado says it is by due date', () => {
     // The caption shows when there is no delta chip to compare with (nothing before, nothing now).
     const { host } = render(summary({ revenueCents: 0, receivedCents: 0, resultCents: 0 }));
-    expect(text(host.querySelector('[data-billed-card]'))).toContain('cobranças com vencimento no período');
+    expect(text(host.querySelector('[data-billed-card]'))).toContain('aluguel e caução com vencimento no período');
     expect(text(host)).not.toContain('contratos assinados');
   });
 
@@ -144,6 +144,22 @@ describe('DashboardHome — metric labels', () => {
     expect(card.startsWith('Em atraso')).toBe(true);
     expect(card).toContain('4,3% do faturado');
     expect(card).not.toContain('Inadimplência');
+  });
+
+  it('Em atraso: Teste case, deposit counted on both sides, 2.000 over 4.400 is 45,5% and the caption is plain', () => {
+    const { host } = render(summary({
+      revenueCents: 440000, overdueChargesCents: 200000, overdueInPeriodCents: 200000, overdueRateBp: 4545,
+    }));
+    const card = text(host.querySelector('[data-overdue-kpi]'));
+    expect(card).toContain('45,5% do faturado');
+    expect(card).not.toContain('períodos anteriores');
+  });
+
+  it('Em atraso says the total includes earlier periods when the stock is larger than the in-period part', () => {
+    const { host } = render(summary({
+      revenueCents: 440000, overdueChargesCents: 280000, overdueInPeriodCents: 200000, overdueRateBp: 4545,
+    }));
+    expect(text(host.querySelector('[data-overdue-kpi]'))).toContain('45,5% do faturado · total com períodos anteriores');
   });
 
   it('Em atraso hides the percent when overdueRateBp is null (Faturado zero)', () => {
