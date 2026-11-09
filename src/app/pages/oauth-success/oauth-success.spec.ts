@@ -10,15 +10,10 @@ import { AuthService } from '../../services/auth.service';
 import { SessionService } from '../../services/session.service';
 import { MeResponse } from '../../types/me-response.type';
 
-const RUNNER_STALL_HOOK_TIMEOUT_MS = 60_000;
-
 describe('OauthSuccess', () => {
   let component: OauthSuccess;
   let fixture: ComponentFixture<OauthSuccess>;
 
-  // TestBed is reset between tests, so the compile cannot move to beforeAll. The cold compile on a
-  // stalled CI worker is the slow part: give this hook its own ceiling (RUNNER_STALL_HOOK_TIMEOUT_MS)
-  // instead of raising the global hookTimeout, which would also hide real hangs elsewhere.
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [OauthSuccess],
@@ -41,7 +36,7 @@ describe('OauthSuccess', () => {
     fixture = TestBed.createComponent(OauthSuccess);
     component = fixture.componentInstance;
     await fixture.whenStable();
-  }, RUNNER_STALL_HOOK_TIMEOUT_MS);
+  });
 
   it('should create', () => {
     expect(component).toBeTruthy();
