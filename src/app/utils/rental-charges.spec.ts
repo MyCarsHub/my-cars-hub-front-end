@@ -58,6 +58,27 @@ describe('criterios de cobranca no gateway', () => {
     expect(hasGatewayCharges([charge({ externalId: 'pay_9' })])).toBe(true);
   });
 
+  /**
+   * FIX-0122/FIX-0476 — o backend emite `provider: 'INTERNAL'` (V56) para a multa
+   * por atraso, sem `externalId` nem `checkoutUrl`, e devolve `refundedAt` em toda
+   * linha. Esta fixture so compila se o tipo descrever o payload real.
+   */
+  it('cobranca INTERNAL aberta e vencida nao e cobranca no gateway', () => {
+    const multa = charge({
+      kind: 'OVERDUE_FEE',
+      provider: 'INTERNAL',
+      externalId: null,
+      checkoutUrl: null,
+      refundedAt: null,
+      dueDate: '2026-09-01',
+    });
+
+    expect(isOpenChargeStatus(multa.status)).toBe(true);
+    expect(hasGatewayCharges([multa])).toBe(false);
+    expect(overdueUnpaidGatewayCharges([multa], TODAY)).toEqual([]);
+    expect(shouldWarnAboutGatewayCharges([multa], TODAY)).toBe(false);
+  });
+
   describe('em aberto e ainda nao vencidas', () => {
     it('entram — sao as que o encerramento apaga sem perguntar', () => {
       const abertas = [charge({ dueDate: '2026-09-20' })];

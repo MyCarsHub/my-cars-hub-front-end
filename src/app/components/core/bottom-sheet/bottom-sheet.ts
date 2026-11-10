@@ -92,19 +92,21 @@ let nextId = 0;
                   <p class="mt-0.5 text-sm text-fg-subtle break-words">{{ subtitle() }}</p>
                 }
               </div>
-              <button
-                type="button"
-                class="press -mr-2 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full
-                       text-fg-subtle hover:bg-canvas hover:text-fg
-                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                aria-label="Fechar"
-                data-testid="bottom-sheet-close"
-                (click)="requestClose()"
-              >
-                <svg viewBox="0 0 20 20" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                  <path d="M5 5l10 10M15 5L5 15" stroke-linecap="round" />
-                </svg>
-              </button>
+              @if (closable()) {
+                <button
+                  type="button"
+                  class="press -mr-2 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full
+                         text-fg-subtle hover:bg-canvas hover:text-fg
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                  aria-label="Fechar"
+                  data-testid="bottom-sheet-close"
+                  (click)="requestClose()"
+                >
+                  <svg viewBox="0 0 20 20" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M5 5l10 10M15 5L5 15" stroke-linecap="round" />
+                  </svg>
+                </button>
+              }
             </div>
           </header>
           <div
@@ -142,6 +144,8 @@ export class BottomSheet implements OnInit, OnDestroy {
    * enquanto houver mais conteúdo abaixo. Opt-in: as demais folhas não mudam.
    */
   readonly quietScroll = input(false);
+  /** `false` esconde o X (aviso bloqueante): quem usa deve oferecer a saída por um botão. */
+  readonly closable = input(true);
   readonly closed = output<void>();
 
   protected readonly titleId = `bottom-sheet-title-${++nextId}`;

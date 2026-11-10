@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BOTTOM_SHEET_LEAVE_MS } from '../../../components/core/bottom-sheet/bottom-sheet';
 import { DriverService } from '../../../services/driver.service';
@@ -55,6 +55,11 @@ describe('RentalContractCard signature sheet', () => {
         { provide: NotificationService, useValue: { push: vi.fn() } },
       ],
     });
+  });
+
+  // The worker is reused by the next spec file: fake timers left on here freeze its timers.
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   function open() {

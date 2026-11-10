@@ -178,7 +178,7 @@
             [loading]="loading() && !summary()"
             [value]="f ? f.revenueCents : null"
             [delta]="billingKpiDelta()"
-            [detail]="f && !billingKpiDelta() ? 'cobranças com vencimento no período' : null"
+            [detail]="f && !billingKpiDelta() ? 'aluguel e caução com vencimento no período' : null"
         ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" /></svg></div>
         <div
             app-kpi-card
@@ -264,7 +264,7 @@
     -->
     <section
         class="mb-4 grid gap-4 grid-cols-1 items-stretch"
-        [class.xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]]="hasResult() || pending()"
+        [class.xl:grid-cols-[minmax(0,1fr)_374px]]="hasResult() || pending()"
         data-result-section
     >
         @if (hasResult()) {
@@ -294,8 +294,9 @@
             <app-card-skeleton title="Recebido vs lucro" bodyClass="min-h-[22rem]" data-chart-skeleton />
         }
         <app-page-card class="dash-enter" style="--stagger-i: 1" title="Calendário financeiro" [fill]="true">
-            <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1">
+            <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1 flex flex-col">
                 <app-financial-calendar
+                    class="block lg:flex-1 lg:min-h-0"
                     [events]="calendarCashflow()"
                     [selectedDate]="selectedDay()"
                     (daySelect)="onDaySelect($event)"

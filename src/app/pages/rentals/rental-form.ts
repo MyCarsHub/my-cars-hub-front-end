@@ -43,6 +43,7 @@ import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dial
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { ApiErrorService } from '../../services/api-error.service';
+import { CompanyContactGate, isCompanyContactIncomplete } from '../../services/company-contact-gate.service';
 import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
@@ -88,6 +89,9 @@ import { formatPlate } from '../../utils/display-format';
 import { VehicleLabelPipe } from '../../pipes/vehicle-label.pipe';
 import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
+const CONTACT_STILL_INCOMPLETE_COPY =
+  'Os dados de contato da locadora ainda estão incompletos. Confira em Configurações > Dados de contato e tente de novo.';
+
 @Component({
   selector: 'app-rental-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -111,6 +115,9 @@ export class RentalForm implements OnInit {
   private readonly driverService = inject(DriverService);
   private readonly asaasService = inject(AsaasIntegrationService);
   private readonly contractTemplateService = inject(ContractTemplateService);
+  private readonly contactGate = inject(CompanyContactGate);
+  /** FEAT-0563: o reenvio após o 400 de contato incompleto acontece no máximo uma vez por clique. */
+  private contactRetried = false;
   private readonly draftService = inject(RentalDraftService);
   private readonly sessionService = inject(SessionService);
   private readonly apiErrors = inject(ApiErrorService);
@@ -1136,6 +1143,7 @@ export class RentalForm implements OnInit {
     }
     this.error.set(null);
     clearServerErrors(this.form);
+    this.contactRetried = false;
 
     const editingId = this.editingId();
     if (editingId) {
@@ -1143,6 +1151,17 @@ export class RentalForm implements OnInit {
       return;
     }
 
+    // FEAT-0563: antes de qualquer prévia/cobrança, a locadora precisa ter o contato completo.
+    // O aviso deixa o usuário completar SEM sair da tela; o formulário (e o rascunho) ficam intactos.
+    this.saving.set(true);
+    this.contactGate.ensureComplete().subscribe((ok) => {
+      this.saving.set(false);
+      if (ok) this.continueCreate();
+    });
+  }
+
+  /** Segue o create depois que o contato da locadora está completo. */
+  private continueCreate(): void {
     const payload = this.buildCreatePayload();
     if (payload.automaticCharge === true) {
       // Cobrança automática: criar o aluguel JÁ dispara as cobranças no Asaas, e
@@ -1431,6 +1450,24 @@ export class RentalForm implements OnInit {
   private failCreate(err: HttpErrorResponse, fallback: string): void {
     this.chargeConfirmOpen.set(false);
     this.pendingCreate = null;
+    // FEAT-0563 (fallback do servidor): a pré-checagem não pegou. O aviso abre SEMPRE (sem depender
+    // da pré-checagem) e, ao completar, o create é repetido UMA única vez. Se o servidor recusar de
+    // novo, o erro fica visível no banner e nada se repete.
+    if (isCompanyContactIncomplete(err)) {
+      this.apiErrors.claim(err);
+      if (this.contactRetried) {
+        this.contactRetried = false;
+        this.error.set(CONTACT_STILL_INCOMPLETE_COPY);
+        this.revealError();
+        return;
+      }
+      this.contactRetried = true;
+      this.contactGate.promptAfterServerRefusal().subscribe((ok) => {
+        if (ok) this.continueCreate();
+        else this.contactRetried = false;
+      });
+      return;
+    }
     if (this.claimPreflightError(err)) return;
     if (this.claimFeeBelowChargeError(err)) return;
     const { formMessage } = this.apiErrors.handleForm(err, this.form, fallback);

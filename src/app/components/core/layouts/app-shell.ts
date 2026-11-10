@@ -17,6 +17,7 @@ import { LayoutStore } from './layout.store';
 import { BillingAccessService } from '../../../services/billing-access.service';
 import { SessionService } from '../../../services/session.service';
 import { PaywallDialog } from '../../paywall-dialog/paywall-dialog';
+import { NoticesPopup } from '../../notices/notices-popup';
 import { NotificationBell } from '../../notification-bell/notification-bell';
 import { ImpersonationService } from '../../../services/impersonation.service';
 import { TourSpotlight } from '../../tour/tour-spotlight';
@@ -35,7 +36,7 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Sidebar, AdminSidebar, PaywallDialog, NotificationBell, TourSpotlight, DriverTopBar, ThemeToggle],
+  imports: [RouterOutlet, Sidebar, AdminSidebar, PaywallDialog, NoticesPopup, NotificationBell, TourSpotlight, DriverTopBar, ThemeToggle],
   animations: [
     trigger('contentMargin', [
       state('expanded', style({ marginLeft: '260px' })),
@@ -120,6 +121,7 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
         </div>
       </main>
     </div>
+    <app-notices-popup />
     <app-paywall-dialog
       [open]="paywallOpen()"
       [reason]="access.reason()"

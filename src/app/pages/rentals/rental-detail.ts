@@ -859,6 +859,23 @@ export class RentalDetail implements OnInit {
     );
   }
 
+  /**
+   * FIX-0473 — frase de EXIBIÇÃO para a linha sem "Pagar": a contestada (sem
+   * ação nenhuma) e a aberta no Asaas sem link. Só lê o que o DTO já traz; não
+   * cria ação nem chamada. O motorista não vê o cronograma desta tela.
+   */
+  protected chargeNoActionNote(charge: RentalChargeDto): string | null {
+    if (this.isDriver) return null;
+    if (charge.kind === 'CAUCAO' && this.caucaoReceivedOutside()) return null;
+    if (charge.status === 'DISPUTED') {
+      return 'Pagamento contestado no Asaas. Enquanto a contestação estiver aberta, esta cobrança não tem ação por aqui.';
+    }
+    if (this.PAYABLE_STATUSES.includes(charge.status) && !!charge.externalId && !charge.checkoutUrl) {
+      return 'Esta cobrança está no Asaas sem link de pagamento, por isso não há “Pagar”. Use “Sincronizar com o Asaas” para conferir a situação.';
+    }
+    return null;
+  }
+
   protected chargeKindLabel(kind: RentalChargeDto['kind']): string {
     return chargeKindLabel(kind);
   }

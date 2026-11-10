@@ -316,6 +316,10 @@
                   [ngTemplateOutlet]="reconcileLine"
                   [ngTemplateOutletContext]="{ $implicit: cc, name: 'da caução' }"
                 />
+                <ng-container
+                  [ngTemplateOutlet]="noActionNoteTpl"
+                  [ngTemplateOutletContext]="{ $implicit: cc, compact: true }"
+                />
               </li>
             </ul>
 
@@ -360,6 +364,10 @@
                       <ng-container
                         [ngTemplateOutlet]="reconcileNoteTpl"
                         [ngTemplateOutletContext]="{ $implicit: cc }"
+                      />
+                      <ng-container
+                        [ngTemplateOutlet]="noActionNoteTpl"
+                        [ngTemplateOutletContext]="{ $implicit: cc, compact: false }"
                       />
                     </td>
                     <td class="py-2.5 pr-4 text-right">
@@ -667,6 +675,10 @@
                     [ngTemplateOutlet]="failureNoteTpl"
                     [ngTemplateOutletContext]="{ $implicit: charge, compact: true }"
                   />
+                  <ng-container
+                    [ngTemplateOutlet]="noActionNoteTpl"
+                    [ngTemplateOutletContext]="{ $implicit: charge, compact: true }"
+                  />
                 </li>
               }
             </ul>
@@ -729,6 +741,10 @@
                         />
                         <ng-container
                           [ngTemplateOutlet]="failureNoteTpl"
+                          [ngTemplateOutletContext]="{ $implicit: charge, compact: false }"
+                        />
+                        <ng-container
+                          [ngTemplateOutlet]="noActionNoteTpl"
                           [ngTemplateOutletContext]="{ $implicit: charge, compact: false }"
                         />
                       </td>
@@ -962,6 +978,21 @@
       [class.mt-1]="!compact"
     >
       Gerada de novo {{ charge.reissueCount === 1 ? '1 vez' : charge.reissueCount + ' vezes' }}
+    </p>
+  }
+</ng-template>
+
+<!-- FIX-0473 — por que a linha não tem "Pagar" (contestada; aberta no Asaas sem link). Só texto. -->
+<ng-template #noActionNoteTpl let-charge let-compact="compact">
+  @if (chargeNoActionNote(charge); as note) {
+    <p
+      data-testid="charge-no-action-note"
+      class="text-fg-muted text-xs leading-snug"
+      [class.basis-full]="compact"
+      [class.mt-1]="!compact"
+      [class.max-w-xs]="!compact"
+    >
+      {{ note }}
     </p>
   }
 </ng-template>

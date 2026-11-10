@@ -12,7 +12,7 @@ import type { CashflowEventDto } from '../../../types/dashboard.types';
 describe('FinancialCalendar — canvas parity', () => {
   const ev = (date: string, direction: 'IN' | 'OUT', amountCents: number): CashflowEventDto => ({
     date,
-    kind: direction === 'IN' ? 'RENTAL_RECEIPT' : 'FINE_PAID',
+    kind: direction === 'IN' ? 'RENTAL_RECEIPT_DUE' : 'FINE_PAID',
     direction,
     amountCents,
     label: 'x',
@@ -77,7 +77,7 @@ describe('FinancialCalendar — canvas parity', () => {
   it('a day with two events shows two dots and no count badge or text beyond the number', () => {
     const { host } = render();
     const ten = cellOf(host, 10);
-    expect(ten.querySelectorAll('span').length).toBe(3); // number + 2 dots
+    expect(ten.querySelectorAll('[data-dot]').length).toBe(2); // 2 dots; the rest is the number only
     expect(ten.textContent!.replace(/\s/g, '')).toBe('10');
   });
 
@@ -131,5 +131,26 @@ describe('FinancialCalendar — canvas parity', () => {
     fixture.detectChanges();
     expect(host.querySelector('[data-calendar-month]')!.textContent!.trim()).toBe('Dezembro de 2026');
     expect(spy).toHaveBeenCalledWith('2026-12');
+  });
+
+  it('FIX-0875: real charges with the caução give Recebimentos 4.400, Pagamentos 1.500, Saldo 2.900', () => {
+    const charge = (date: string, kind: CashflowEventDto['kind'], cents: number): CashflowEventDto => ({
+      date, kind, direction: 'IN', amountCents: cents, label: 'x',
+    });
+    const fixture = TestBed.createComponent(FinancialCalendar);
+    fixture.componentRef.setInput('events', [
+      charge('2026-11-03', 'DEPOSIT_RECEIPT_OVERDUE', 120000),
+      charge('2026-11-03', 'RENTAL_RECEIPT_OVERDUE', 80000),
+      charge('2026-11-10', 'RENTAL_RECEIPT_DUE', 80000),
+      charge('2026-11-17', 'RENTAL_RECEIPT_DUE', 80000),
+      charge('2026-11-24', 'RENTAL_RECEIPT_DUE', 80000),
+      { date: '2026-11-15', kind: 'FINANCING_DUE', direction: 'OUT', amountCents: 150000, label: 'x' },
+    ]);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const tile = (k: string) => host.querySelector(`[data-tile="${k}"]`)!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(tile('in')).toMatch(/^Recebimentos\s*R\$\s?4\.400$/);
+    expect(tile('out')).toMatch(/^Pagamentos\s*R\$\s?1\.500$/);
+    expect(tile('balance')).toMatch(/^Saldo projetado\s*R\$\s?2\.900$/);
   });
 });

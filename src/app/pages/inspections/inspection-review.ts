@@ -47,6 +47,8 @@ import {
 } from './inspection-view';
 import { INSPECTIONS_ROOT } from './driver/driver-inspection-guide';
 import { DetailField, DriverInspectionDetail } from './driver/driver-inspection-detail';
+import { InspectionPhotoStamp } from './inspection-photo-stamp';
+import { VehicleIcon } from '../vehicles/components/vehicle-icon/vehicle-icon';
 import { formatPlate } from '../../utils/display-format';
 import { PersonNamePipe } from '../../pipes/person-name.pipe';
 
@@ -90,6 +92,8 @@ function notBlank(control: AbstractControl): ValidationErrors | null {
     FormField,
     FieldControl,
     DriverInspectionDetail,
+    InspectionPhotoStamp,
+    VehicleIcon,
   ],
   templateUrl: './inspection-review.html',
 })
@@ -179,8 +183,17 @@ export class InspectionReview implements OnInit {
   protected readonly frames = computed<AngleFrame[]>(() => {
     const list = this.photos();
     if (list === null) return [];
-    return buildFrames(list, this.inspection()?.requiredAngles);
+    const current = this.inspection();
+    return buildFrames(list, current?.requiredAngles, current?.photoLocationEnabled === true);
   });
+
+  /** A localizacao das fotos esta ligada: a pagina explica a hora e o local de cada foto. */
+  protected readonly photoLocationEnabled = computed(
+    () => this.inspection()?.photoLocationEnabled === true,
+  );
+
+  /** Alguma foto tem hora gravada (fotos antigas nao tem): so entao o aviso faz sentido. */
+  protected readonly hasStamps = computed(() => this.frames().some((f) => f.when !== null));
 
   protected readonly receivedCount = computed(
     () => this.frames().filter((f) => f.hasPhoto).length,

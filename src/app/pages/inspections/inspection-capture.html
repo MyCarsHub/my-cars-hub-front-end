@@ -34,6 +34,14 @@
     [fullScreen]="false"
   />
 } @else if (isDriver && !error() && inspection()) {
+  @if (locationDenied() && canCapture()) {
+    <div data-location-denied class="px-4 pt-3">
+      <app-alert-banner
+        variant="warning"
+        message="Localização não autorizada: as fotos ficam sem local e a hora continua registrada."
+      />
+    </div>
+  }
   <!--
     THE DRIVER: the owner's guided capture (one angle per screen, odometer, review, send).
     Same component underneath: the shutter opens the live camera below, and each photo is
@@ -185,6 +193,19 @@
           <p class="text-sm text-fg-muted">
             Toque em qualquer ângulo para fotografar. A ordem é sua.
           </p>
+          @if (locationEnabled() && !locationDenied()) {
+            <p data-location-note class="text-sm text-fg-muted">
+              Cada foto guarda a hora e o local em que foi tirada, com o endereço aproximado.
+            </p>
+          }
+          @if (locationDenied()) {
+            <div data-location-denied>
+              <app-alert-banner
+                variant="warning"
+                message="Localização não autorizada: as fotos ficam sem local e a hora continua registrada."
+              />
+            </div>
+          }
         }
 
         <!--

@@ -145,10 +145,17 @@ export interface RentalChargeDto {
   kind: ChargeKind;
   amount: number; // cents
   status: ChargeStatus;
-  provider: 'ASAAS';
+  /**
+   * FIX-0122/FIX-0476 — `INTERNAL` desde a V56 (multa por atraso, nunca vai ao gateway).
+   * NÃO use para saber se a cobrança existe no Asaas: linhas legadas continuam `ASAAS`
+   * sem nunca terem ido lá. Quem prova existência no gateway é o `externalId`.
+   */
+  provider: 'ASAAS' | 'INTERNAL';
   externalId: string | null;
   checkoutUrl: string | null;
   paidAt: string | null; // ISO
+  /** Quando o estorno foi registrado. O backend sempre manda a chave; nulo se não houve. */
+  refundedAt?: string | null; // ISO
   /** V29+/#46 — per-period bookkeeping. Null for legacy RENTAL_TOTAL/CAUCAO. */
   dueDate: string | null; // yyyy-MM-dd
   periodIndex: number | null;
@@ -525,13 +532,12 @@ export type ChargeStatusSource = Pick<RentalChargeDto, 'status' | 'dueDate'>;
  *  - `dueDate` nulo NÃO é atraso (linhas legadas `RENTAL_TOTAL`/`CAUCAO`);
  *  - estritamente ANTES de hoje — vencer hoje ainda não é atraso.
  *
- * DIVERGÊNCIA CONHECIDA, ainda aberta. O dashboard NÃO usa esta regra: lá o
- * critério é `status='PENDING' AND COALESCE(due_date, created_date + INTERVAL
- * '30 days') < CURRENT_DATE`. Ou seja, uma `PENDING` com `dueDate` nulo criada
- * há mais de 30 dias conta como atrasada no dashboard e continua "Pendente"
- * aqui. O frontend NÃO consegue fechar essa lacuna: `RentalChargeDto` não
- * carrega data de criação. Unificar as duas regras é outro nó — não tente
- * resolver aqui.
+ * Mesma regra da inadimplência do dashboard (`SQL_OVERDUE_CHARGES_FROM_WHERE`
+ * em `DashboardRepositoryImpl`): lá, uma `PENDING` só é vencida com `due_date`
+ * não nulo e anterior ao "hoje" do fuso de negócio. O FIX-0124 apagou o antigo
+ * palpite `COALESCE(due_date, created_date + 30 dias)`, que fazia as duas telas
+ * divergirem. O dashboard também soma `FAILED` e `PAST_DUE`; aqui essas já
+ * chegam com o próprio chip, então não precisam ser derivadas.
  *
  * `today` é OBRIGATÓRIO de propósito. Um default `= todayInBusinessTz()`
  * deixaria qualquer chamador futuro reabrir um segundo relógio sem querer, que
