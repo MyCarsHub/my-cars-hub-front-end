@@ -172,9 +172,7 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
 
       vi.advanceTimersByTime(2000);
 
-      const confirmations = notifications.push.mock.calls.filter(
-        (call) => call[0] === 'success',
-      );
+      const confirmations = notifications.push.mock.calls.filter((call) => call[0] === 'success');
       expect(confirmations).toHaveLength(1);
       expect(confirmations[0]).toEqual(['success', '3 fotos enviadas.']);
     });
@@ -313,6 +311,37 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
       const inputs = root.querySelectorAll<HTMLInputElement>('input[type=file]');
       return { camera: inputs[0], gallery: inputs[1] };
     }
+
+    /**
+     * FIX-0637 — causa NOMEADA da "folha com rotulos vazios" / `spyOn(undefined)`:
+     * nao e ordem de `detectChanges` nem fixture compartilhada, e o VALOR do
+     * token no sessionStorage. Com papel DRIVER o card renderiza a camera ao
+     * vivo e nenhum `input[type=file]`, entao `pickers()` devolve `undefined`
+     * e a folha de origem nao e a do seletor. Forcar a condicao falha sempre; sem ela
+     * (storage limpo pelo `beforeEach` de topo, FIX-0638) o bloco passa sempre.
+     */
+    it('token DRIVER no storage tira os inputs de arquivo e abre a camera (a causa do flake)', () => {
+      setCoarsePointer(true);
+      const payload = { role: 'DRIVER', exp: Math.floor(Date.now() / 1000) + 3600 };
+      sessionStorage.setItem('token', `header.${btoa(JSON.stringify(payload))}.signature`);
+
+      const fixture = makeFixture();
+      const { camera, gallery } = pickers(fixture);
+      expect(camera).toBeUndefined();
+      expect(gallery).toBeUndefined();
+      slotButton(fixture).click();
+      fixture.detectChanges();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('app-live-camera-sheet'),
+      ).not.toBeNull();
+    });
+
+    it('com o storage limpo os dois inputs de arquivo existem (condicao nao forcada)', () => {
+      setCoarsePointer(true);
+      const { camera, gallery } = pickers(makeFixture());
+      expect(camera).toBeDefined();
+      expect(gallery).toBeDefined();
+    });
 
     it('em tela de toque abre a folha com os dois botões rotulados', () => {
       setCoarsePointer(true);
@@ -516,7 +545,6 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
       }
     });
   });
-
 
   /**
    * A REGRA POR PAPEL: o motorista fotografa AO VIVO, sem seletor; dono e gerente
