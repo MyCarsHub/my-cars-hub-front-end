@@ -54,7 +54,7 @@ describe('DashboardHome — loading layout', () => {
     expect(host.querySelectorAll('[data-cash-skeleton]')).toHaveLength(1);
     expect(host.querySelectorAll('[data-ranking-skeleton]')).toHaveLength(2);
     // same two-column chart row as the loaded page: the calendar is NOT alone on the row
-    expect(host.querySelector('[data-result-section]')!.className).toContain('xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]');
+    expect(host.querySelector('[data-result-section]')!.className).toContain('xl:grid-cols-[minmax(0,1fr)_374px]');
     expect(host.querySelector('[data-result-section]')!.children).toHaveLength(2);
     expect(host.querySelector('[data-distributions]')!.className).toContain('xl:col-span-8');
   });

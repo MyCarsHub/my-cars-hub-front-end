@@ -1,4 +1,4 @@
-<div class="min-w-0" data-financial-calendar>
+<div class="min-w-0 lg:flex lg:flex-col lg:h-full lg:min-h-0" data-financial-calendar>
     <!-- Header: month subtitle left, Hoje + arrows right (pulled up beside the card title from sm) -->
     <div class="flex items-center justify-between gap-2 mb-4 sm:h-12 sm:-mt-[3.25rem]">
         <p class="text-xs text-fg-muted sm:self-end min-w-0 truncate" data-calendar-month>{{ monthLabel() }}</p>
@@ -6,11 +6,12 @@
             <button
                 type="button"
                 class="size-11 rounded-xl bg-surface-sunken text-fg-soft hover:text-fg focus:outline-none
+                       lg:size-9 lg:rounded-[10px] lg:border lg:border-edge lg:bg-transparent
                        focus-visible:ring-2 focus-visible:ring-primary-400 flex items-center justify-center"
                 aria-label="Mês anterior"
                 (click)="prevMonth()"
             >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                <svg class="lg:size-3.5" width="16" height="16" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M15 18l-6-6 6-6" />
                 </svg>
@@ -18,6 +19,7 @@
             <button
                 type="button"
                 class="min-h-11 px-3.5 rounded-xl bg-surface-sunken text-fg-soft text-sm font-medium hover:text-fg
+                       lg:min-h-9 lg:px-3 lg:rounded-[10px] lg:border lg:border-edge lg:bg-transparent lg:text-xs lg:font-normal
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                 (click)="goToday()"
             >
@@ -26,11 +28,12 @@
             <button
                 type="button"
                 class="size-11 rounded-xl bg-surface-sunken text-fg-soft hover:text-fg focus:outline-none
+                       lg:size-9 lg:rounded-[10px] lg:border lg:border-edge lg:bg-transparent
                        focus-visible:ring-2 focus-visible:ring-primary-400 flex items-center justify-center"
                 aria-label="Próximo mês"
                 (click)="nextMonth()"
             >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                <svg class="lg:size-3.5" width="16" height="16" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M9 6l6 6-6 6" />
                 </svg>
@@ -43,29 +46,34 @@
         without the cap they grew with the card (205px squares when the card took the whole row).
         23rem = ~49px cells, like the canvas; narrower cards (phones) keep filling their width.
     -->
-    <div class="mx-auto w-full max-w-[23rem]" data-calendar-board>
+    <div class="mx-auto w-full max-w-[23rem] lg:max-w-none lg:mx-0 lg:flex-1 lg:min-h-0 lg:flex lg:flex-col" data-calendar-board>
     <!-- Weekday header: single letters -->
     <div class="grid grid-cols-7 gap-1 mb-1.5">
         @for (w of weekdays; track $index) {
-            <div class="min-w-0 text-xs text-fg-subtle text-center" [attr.aria-label]="w.name" data-weekday>
+            <div class="min-w-0 text-xs lg:text-[11px] lg:py-0.5 text-fg-subtle text-center" [attr.aria-label]="w.name" data-weekday>
                 {{ w.letter }}
             </div>
         }
     </div>
 
     <!-- Grid: square cells, day number + dots only -->
-    <div class="grid grid-cols-7 gap-1">
+    <div class="grid grid-cols-7 gap-1 lg:flex-1 lg:min-h-0 lg:auto-rows-fr">
         @for (cell of cells(); track $index) {
             @if (cell.isPad) {
-                <div class="min-w-0 aspect-square rounded-xl bg-surface-sunken/40"></div>
+                <div class="min-w-0 aspect-square rounded-xl bg-surface-sunken/40 lg:aspect-auto lg:min-h-[2.375rem] lg:rounded-[10px] lg:border lg:border-edge"></div>
             } @else {
                 <button
                     type="button"
                     class="min-w-0 aspect-square rounded-xl bg-surface-sunken flex items-center justify-center gap-0.5
                            text-sm tabular-nums transition-colors
+                           lg:aspect-auto lg:min-h-[2.375rem] lg:rounded-[10px] lg:border lg:items-start lg:justify-start
+                           lg:px-[7px] lg:py-1.5 lg:text-xs lg:font-semibold lg:text-left
                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                     [class.border-2]="cell.isToday"
                     [class.border-primary-500]="cell.isToday"
+                    [class.lg:border-primary-500]="cell.isToday"
+                    [class.lg:border-edge]="!cell.isToday"
+                    [class.lg:bg-primary-500/12]="cell.isToday"
                     [class.font-semibold]="cell.isToday"
                     [class.text-primary-500]="cell.isToday"
                     [class.text-fg-body]="!cell.isToday"
@@ -76,13 +84,19 @@
                     [attr.data-today]="cell.isToday ? '' : null"
                     (click)="onCellClick(cell)"
                 >
-                    <span>{{ cell.dayOfMonth }}</span>
-                    @if (cell.inCount > 0) {
-                        <span class="shrink-0 size-1.5 rounded-full bg-emerald-500" data-dot="in" aria-hidden="true"></span>
-                    }
-                    @if (cell.outCount > 0) {
-                        <span class="shrink-0 size-1.5 rounded-full bg-red-500" data-dot="out" aria-hidden="true"></span>
-                    }
+                    <!-- `contents` below lg keeps the mobile centred number+dots; from lg the number sits
+                         top-left and the dots top-right, as in the canvas. -->
+                    <span class="contents lg:flex lg:w-full lg:items-center lg:justify-between">
+                        <span>{{ cell.dayOfMonth }}</span>
+                        <span class="contents lg:flex lg:gap-[3px]">
+                            @if (cell.inCount > 0) {
+                                <span class="shrink-0 size-1.5 rounded-full bg-emerald-500 lg:dark:bg-emerald-400" data-dot="in" aria-hidden="true"></span>
+                            }
+                            @if (cell.outCount > 0) {
+                                <span class="shrink-0 size-1.5 rounded-full bg-red-500 lg:dark:bg-rose-400" data-dot="out" aria-hidden="true"></span>
+                            }
+                        </span>
+                    </span>
                 </button>
             }
         }
@@ -91,23 +105,23 @@
 
     <!-- Month tiles (they double as the legend): label + value only -->
     <div class="grid grid-cols-3 gap-2 mt-4">
-        <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5" data-tile="in">
-            <p class="flex items-center gap-1 text-xs text-fg-muted">
-                <span class="shrink-0 size-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
+        <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5 lg:px-2.5 lg:py-2" data-tile="in">
+            <p class="flex items-center gap-1 text-xs lg:text-[11px] text-fg-muted">
+                <span class="shrink-0 size-1.5 rounded-full bg-emerald-500 lg:dark:bg-emerald-400" aria-hidden="true"></span>
                 <span class="min-w-0">Recebimentos</span>
             </p>
-            <p class="text-sm sm:text-base font-semibold text-emerald-600 dark:text-emerald-300 tabular-nums break-words">{{ inLabel() }}</p>
+            <p class="text-sm sm:text-base lg:text-sm lg:font-bold font-semibold text-emerald-600 dark:text-emerald-300 lg:dark:text-emerald-400 tabular-nums break-words">{{ inLabel() }}</p>
         </div>
-        <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5" data-tile="out">
-            <p class="flex items-center gap-1 text-xs text-fg-muted">
-                <span class="shrink-0 size-1.5 rounded-full bg-red-500" aria-hidden="true"></span>
+        <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5 lg:px-2.5 lg:py-2" data-tile="out">
+            <p class="flex items-center gap-1 text-xs lg:text-[11px] text-fg-muted">
+                <span class="shrink-0 size-1.5 rounded-full bg-red-500 lg:dark:bg-rose-400" aria-hidden="true"></span>
                 <span class="min-w-0">Pagamentos</span>
             </p>
-            <p class="text-sm sm:text-base font-semibold text-red-600 dark:text-red-300 tabular-nums break-words">{{ outLabel() }}</p>
+            <p class="text-sm sm:text-base lg:text-sm lg:font-bold font-semibold text-red-600 dark:text-red-300 lg:dark:text-rose-400 tabular-nums break-words">{{ outLabel() }}</p>
         </div>
-        <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5" data-tile="balance">
-            <p class="text-xs text-fg-muted">Saldo projetado</p>
-            <p class="text-sm sm:text-base font-semibold text-fg-body tabular-nums break-words">{{ balanceLabel() }}</p>
+        <div class="min-w-0 rounded-xl bg-surface-sunken px-3 py-2.5 lg:px-2.5 lg:py-2" data-tile="balance">
+            <p class="text-xs lg:text-[11px] text-fg-muted">Saldo projetado</p>
+            <p class="text-sm sm:text-base lg:text-sm lg:font-bold font-semibold text-fg-body tabular-nums break-words">{{ balanceLabel() }}</p>
         </div>
     </div>
 </div>
