@@ -1733,6 +1733,57 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       });
     });
 
+    /**
+     * FIX-0473 (reduzido) — só EXIBIÇÃO: a linha diz por que falta a ação, sem
+     * botão novo e sem chamada nova ao backend de cobrança.
+     */
+    describe('FIX-0473 — frase quando a cobrança não tem "Pagar"', () => {
+      const notes = (fixture: ComponentFixture<RentalDetail>) =>
+        (Array.from(
+          fixture.nativeElement.querySelectorAll('[data-testid="charge-no-action-note"]'),
+        ) as HTMLElement[]).map((n) => (n.textContent ?? '').replace(/\s+/g, ' ').trim());
+
+      it('DISPUTED: sem menu, a linha explica a contestação (mobile + desktop)', async () => {
+        const { fixture, http } = await mountDetail(ACTIVE_AUTO([OPEN({ status: 'DISPUTED' })]));
+
+        expect(triggers(fixture).length).toBe(0);
+        const found = notes(fixture);
+        expect(found.length).toBe(2);
+        expect(found[0]).toContain('Pagamento contestado no Asaas');
+        expect(http.match(() => true).length, 'nenhuma chamada nova').toBe(0);
+      });
+
+      it('caução DISPUTED também explica', async () => {
+        const { fixture } = await mountDetail(
+          ACTIVE_AUTO([OPEN({ kind: 'CAUCAO', periodIndex: null, status: 'DISPUTED' })], {
+            caucaoAmount: 50_000,
+          }),
+        );
+        expect(notes(fixture).length).toBe(2);
+      });
+
+      it('aberta no Asaas sem link: explica a falta do "Pagar" e o menu segue só com Sincronizar', async () => {
+        const { fixture, http } = await mountDetail(ACTIVE_AUTO([OPEN({ checkoutUrl: null })]));
+
+        const found = notes(fixture);
+        expect(found.length).toBe(2);
+        expect(found[0]).toContain('sem link de pagamento');
+        expect(openFirstMenu(fixture)).toEqual(['Sincronizar com o Asaas']);
+        expect(http.match(() => true).length, 'nenhuma chamada nova').toBe(0);
+      });
+
+      it.each([
+        ['aberta com link', { status: 'PENDING' as const }],
+        ['local, sem link nem id', { externalId: null, checkoutUrl: null }],
+        ['FAILED', { status: 'FAILED' as const, checkoutUrl: null }],
+        ['PAID', { status: 'PAID' as const, paidAt: '2026-08-02T10:00:00Z' }],
+        ['CANCELED', { status: 'CANCELED' as const }],
+      ])('sem frase: %s', async (_, over) => {
+        const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN(over)]));
+        expect(notes(fixture)).toEqual([]);
+      });
+    });
+
     describe('o detalhe para o motorista é só de consulta', () => {
       const labeled = (fixture: ComponentFixture<RentalDetail>, label: string) =>
         Array.from(fixture.nativeElement.querySelectorAll('button, a') as NodeListOf<HTMLElement>)
