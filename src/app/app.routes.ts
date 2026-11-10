@@ -708,6 +708,47 @@ export const routes: Routes = [
                         data: { pageTitle: 'IPVA' },
                     },
                     {
+                        // FEAT-0425 — Gastos da locadora (primeiro nível do menu, antes de
+                        // Relatórios). O back-end nega tudo ao DRIVER; o `roleGuard` casa com o item.
+                        path: 'gastos',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import('./pages/expenses/expenses-list').then(
+                                        (m) => m.ExpensesList
+                                    ),
+                                data: { pageTitle: 'Gastos' },
+                            },
+                            {
+                                path: 'novo',
+                                loadComponent: () =>
+                                    import('./pages/expenses/expense-form').then(
+                                        (m) => m.ExpenseForm
+                                    ),
+                                data: { pageTitle: 'Lançar gasto' },
+                            },
+                            {
+                                path: ':id',
+                                loadComponent: () =>
+                                    import('./pages/expenses/expense-detail').then(
+                                        (m) => m.ExpenseDetail
+                                    ),
+                                data: { pageTitle: 'Detalhes do gasto' },
+                            },
+                            {
+                                path: ':id/editar',
+                                loadComponent: () =>
+                                    import('./pages/expenses/expense-form').then(
+                                        (m) => m.ExpenseForm
+                                    ),
+                                data: { pageTitle: 'Editar gasto' },
+                            },
+                        ],
+                    },
+                    {
                         path: 'relatorios',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         loadComponent: () =>

@@ -82,4 +82,20 @@ describe('Relatorios — custo operacional por categoria', () => {
   it('has no breakdown section when the backend does not send one', () => {
     expect(render(report()).querySelector('[data-operating-cost-breakdown]')).toBeNull();
   });
+
+  it('FEAT-0424: mostra a linha Gastos e a nota "Locadora toda" so quando ha gasto sem veiculo', () => {
+    const base = { maintenance: 0, fines: 0, ipva: 0, insurance: 0, financing: 0 };
+    const withWide = render(
+      report({ expenseBreakdown: { ...base, expenses: 45000 }, companyWideExpensesCents: 45000 }),
+    );
+    expect(text(withWide.querySelector('li[data-expense="expenses"]'))).toContain('R$ 450,00');
+    expect(text(withWide.querySelector('[data-company-wide-expenses]'))).toContain('Locadora toda: R$ 450,00');
+
+    for (const extra of [{ companyWideExpensesCents: 0 }, {}]) {
+      const host = render(report({ expenseBreakdown: { ...base, expenses: 0 }, ...extra }));
+      expect(host.querySelector('[data-company-wide-expenses]')).toBeNull();
+      expect(host.querySelector('li[data-expense="expenses"]')).toBeNull();
+      expect(host.querySelectorAll('li[data-expense]').length).toBe(5);
+    }
+  });
 });

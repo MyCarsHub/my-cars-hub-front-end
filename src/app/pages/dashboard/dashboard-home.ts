@@ -74,6 +74,7 @@ const COST_CATEGORY_META: Record<string, StatusMeta> = {
     IPVA: { label: 'IPVA', color: '#ec4899' },
     INSURANCE: { label: 'Seguro', color: '#f59e0b' },
     FINANCING: { label: 'Financiamento', color: '#8b5cf6' },
+    EXPENSES: { label: 'Gastos', color: '#14b8a6' },
 };
 
 const MONTH_LONG = [
@@ -426,6 +427,20 @@ export class DashboardHome {
         return { chip: `margem ${pct}%`, text: 'recebido + vendas − despesas', tone: pct < 0 ? 'bad' : 'neutral' };
     });
 
+    /**
+     * Despesas caption. With Gastos that have no vehicle in the window, says how much of the total
+     * is "locadora toda" (FEAT-0424): it is already INSIDE the total and is never spread by car.
+     * Zero or absent (company without Gastos, or an older back-end): the caption is what it was.
+     */
+    protected readonly expensesDetail = computed(() => {
+        const f = this.summary()?.finance;
+        if (!f) return null;
+        const wide = f.companyWideExpensesCents ?? 0;
+        return wide > 0
+            ? `tudo que saiu no período, com ${formatBRLWhole(wide)} da locadora toda`
+            : 'tudo que saiu no período';
+    });
+
     /** Lucro caption: the formula, always; the margin chip replaces it only when there is a margin. */
     protected readonly resultKpiDetail = computed(() => {
         const f = this.summary()?.finance;
@@ -544,7 +559,10 @@ export class DashboardHome {
 
     /** Where each real received goes: what is left (profit) first, then each cost category. */
     protected readonly costSlices = computed<RingSlice[]>(() => {
-        const costs = (this.overview()?.costByCategory ?? []).map((c) => {
+        const costs = (this.overview()?.costByCategory ?? [])
+            // Gastos is zero-filled by the back-end: hide it at 0 so a company without Gastos sees the same ring and legend as before.
+            .filter((c) => c.category !== 'EXPENSES' || c.amountCents > 0)
+            .map((c) => {
             const meta = COST_CATEGORY_META[c.category] ?? { label: c.category, color: '#9ca3af' };
             return { label: meta.label, value: c.amountCents, color: meta.color };
         });

@@ -13,7 +13,14 @@ import {
 } from '../../../types/dashboard.types';
 
 /** Desenho do ícone da linha (traço 2, 24x24). */
-export type CashflowIcon = 'rental' | 'maintenance' | 'fine' | 'ipva' | 'insurance' | 'financing';
+export type CashflowIcon =
+    | 'rental'
+    | 'maintenance'
+    | 'fine'
+    | 'ipva'
+    | 'insurance'
+    | 'financing'
+    | 'expense';
 
 export interface KindMeta {
     label: string;
@@ -58,6 +65,7 @@ export const CASHFLOW_KIND_META: Record<CashflowKind, KindMeta> = {
     INSURANCE_PAID: { label: 'Seguro pago', ...PAID_LOOK, icon: 'insurance' },
     INSURANCE_DUE: { label: 'Seguro a vencer', ...DUE_LOOK, icon: 'insurance' },
     FINANCING_PAID: { label: 'Parcela de financiamento paga', ...PAID_LOOK, icon: 'financing' },
+    EXPENSE_PAID: { label: 'Gasto pago', ...PAID_LOOK, icon: 'expense' },
     FINANCING_DUE: { label: 'Parcela de financiamento a vencer', ...DUE_LOOK, icon: 'financing' },
 };
 
@@ -158,6 +166,10 @@ export function cashflowKindMeta(kind: string): KindMeta {
                                                 @case ('fine') {
                                                     <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                                                     <path d="M12 9v4" /><path d="M12 17h.01" />
+                                                }
+                                                @case ('expense') {
+                                                    <path d="M6 3h12v18l-3-2l-3 2l-3-2l-3 2z" />
+                                                    <path d="M9 8h6" /><path d="M9 12h6" />
                                                 }
                                                 @case ('ipva') {
                                                     <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />

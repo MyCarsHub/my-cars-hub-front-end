@@ -14,6 +14,7 @@ const CHIP: Record<ExpenseCategory, string> = {
   ipva: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
   insurance: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
   financing: 'bg-primary-100 text-primary-700 dark:bg-primary-500/15 dark:text-primary-400',
+  expenses: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300',
 };
 
 /**
@@ -28,7 +29,7 @@ const CHIP: Record<ExpenseCategory, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (rows().length > 0) {
-      <ul class="grid gap-x-3 gap-y-3 grid-cols-2 @md:grid-cols-3 @2xl:grid-cols-5" [attr.aria-label]="ariaLabel()">
+      <ul class="grid gap-x-3 gap-y-3" [class]="columns()" [attr.aria-label]="ariaLabel()">
         @for (row of rows(); track row.key) {
           <li class="flex items-center gap-2.5 min-w-0 min-h-[44px]" [attr.data-expense]="row.key">
             <span class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center" [class]="chip(row.key)" aria-hidden="true">
@@ -48,6 +49,9 @@ const CHIP: Record<ExpenseCategory, string> = {
                   }
                   @case ('insurance') {
                     <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+                  }
+                  @case ('expenses') {
+                    <path d="M6 3h12v18l-3-2l-3 2l-3-2l-3 2z" /><path d="M9 8h6" /><path d="M9 12h6" />
                   }
                   @case ('financing') {
                     <path d="M3 21h18" /><path d="M5 21V10" /><path d="M19 21V10" /><path d="M9 21v-7" /><path d="M15 21v-7" />
@@ -76,6 +80,13 @@ export class ExpenseBreakdown {
   readonly ariaLabel = input('Despesas por categoria');
 
   protected readonly rows = computed(() => expenseRows(this.breakdown()));
+
+  /** Cinco linhas cabem em 5 colunas; com seis (Gastos) fica 3x2, sem linha órfã. */
+  protected readonly columns = computed(() =>
+    this.rows().length > 5
+      ? 'grid-cols-2 @md:grid-cols-3'
+      : 'grid-cols-2 @md:grid-cols-3 @2xl:grid-cols-5',
+  );
 
   protected chip(key: ExpenseCategory): string {
     return CHIP[key];

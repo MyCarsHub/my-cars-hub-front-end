@@ -62,4 +62,23 @@ describe('ExpenseBreakdown', () => {
     expect(v.className).toContain('whitespace-nowrap');
     expect(host.querySelector('[data-expense-share]')).not.toBeNull();
   });
+
+  it('com Gastos são seis linhas em 3 colunas (sem linha órfã) e a de Gastos mostra o valor', () => {
+    const host = render({ maintenance: 100, fines: 100, ipva: 100, insurance: 100, financing: 100, expenses: 45000 });
+    expect(host.querySelectorAll('li[data-expense]').length).toBe(6);
+    const cls = host.querySelector('ul')!.className;
+    expect(cls).toContain('@md:grid-cols-3');
+    expect(cls).not.toContain('grid-cols-5');
+    const row = text(host.querySelector('li[data-expense="expenses"]'));
+    expect(row).toContain('Gastos');
+    expect(row).toContain('R$ 450,00');
+    expect(host.querySelector('li[data-expense="expenses"] span[aria-hidden="true"]')?.className).toMatch(/bg-/);
+  });
+
+  it('com expenses = 0 o layout é exatamente o de antes: cinco linhas, 5 colunas, sem Gastos', () => {
+    const host = render({ maintenance: 100, fines: 100, ipva: 100, insurance: 100, financing: 100, expenses: 0 });
+    expect(host.querySelectorAll('li[data-expense]').length).toBe(5);
+    expect(host.querySelector('li[data-expense="expenses"]')).toBeNull();
+    expect(host.querySelector('ul')!.className).toContain('@2xl:grid-cols-5');
+  });
 });

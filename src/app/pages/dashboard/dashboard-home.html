@@ -203,7 +203,7 @@
             [stagger]="2"
             [loading]="loading() && !summary()"
             [value]="f ? f.expensesCents : null"
-            [detail]="f ? 'tudo que saiu no período' : null"
+            [detail]="expensesDetail()"
         ><svg kpiIcon xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z M8 8h8 M8 12h8 M8 16h5" /></svg></div>
         <div
             app-kpi-card
