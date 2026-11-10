@@ -78,6 +78,9 @@ export function photoStamp(photo: InspectionPhoto | null, locationEnabled: boole
     when = captured;
   }
 
+  // Localização desligada: nenhuma linha de local, qualquer que seja o que ficou gravado.
+  if (!locationEnabled) return { when, where: null, whereMissing: false, mapUrl: null };
+
   const suffix = photo.approximate ? ' (aproximado)' : '';
   const address = photo.address?.trim();
   if (address) {
@@ -93,10 +96,9 @@ export function photoStamp(photo: InspectionPhoto | null, locationEnabled: boole
       mapUrl: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
     };
   }
-  if (photo.locationStatus) {
+  if (photo.locationStatus && photo.locationStatus !== 'GRANTED') {
     const where = photo.locationStatus === 'DENIED' ? NO_PLACE_DENIED : NO_PLACE_DEVICE;
     return { when, where, whereMissing: true, mapUrl: null };
   }
-  if (!locationEnabled) return { when, where: null, whereMissing: false, mapUrl: null };
   return { when, where: NO_PLACE, whereMissing: true, mapUrl: null };
 }

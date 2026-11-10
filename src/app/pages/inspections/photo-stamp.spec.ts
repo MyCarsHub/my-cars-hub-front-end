@@ -125,4 +125,19 @@ describe('photoStamp — hora e local de cada foto', () => {
     expect(s.when).toBe('02/11 23:32:12');
     expect(s.where).toBeNull();
   });
+
+  it('localização desligada: status já gravado não vira linha de local', () => {
+    for (const locationStatus of ['GRANTED', 'DENIED', 'TIMEOUT'] as const) {
+      const s = photoStamp(photo({ capturedAt: CAPTURED, receivedAt: RECEIVED, locationStatus }), false);
+      expect(s.where).toBeNull();
+    }
+  });
+
+  it('concedida sem posição nem endereço: local não informado', () => {
+    const s = photoStamp(
+      photo({ capturedAt: CAPTURED, receivedAt: RECEIVED, locationStatus: 'GRANTED' }),
+      true,
+    );
+    expect(s.where).toBe(NO_PLACE);
+  });
 });
