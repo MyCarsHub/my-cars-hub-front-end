@@ -10,10 +10,11 @@ import { RentalChargeDto } from '../types/rental.types';
  * resolvido porque viu a tela certa.
  *
  * >>> O SINAL E O `externalId`, NAO O `provider` E NAO O `automaticCharge` <<<
- * `RentalChargeDto.provider` e tipado como o literal 'ASAAS' (rental.types.ts:112):
- * ele vale 'ASAAS' em TODA cobranca, inclusive nas que nunca foram ao gateway.
- * Um criterio baseado nele seria sempre verdadeiro — exatamente o defeito que
- * estamos consertando, so que escrito de outro jeito.
+ * `RentalChargeDto.provider` vale 'ASAAS' ou 'INTERNAL' (V56: a multa por atraso
+ * nasce 'INTERNAL'). Mas as linhas legadas continuam 'ASAAS' mesmo sem nunca
+ * terem ido ao gateway, entao um criterio baseado nele acusaria cobranca no
+ * Asaas onde nao existe — exatamente o defeito que estamos consertando, so que
+ * escrito de outro jeito.
  * `automaticCharge` tambem nao serve: e a flag do ALUGUEL, diz o que foi pedido
  * na criacao, nao o que existe hoje no gateway (a mesma armadilha ja documentada
  * para a caucao em `end-rental-dialog.ts`).
@@ -24,8 +25,9 @@ import { RentalChargeDto } from '../types/rental.types';
  * Status de cobranca que ainda pode ser cobrada — nao foi paga nem encerrada.
  *
  * >>> FAILED ENTRA, e a ausencia dele era o defeito (FIX-0433) <<<
- * `FAILED` aqui NAO significa "falhou ao criar a cobranca": e OVERDUE promovido
- * por job no gateway. Sao cobrancas VIVAS, vencidas, ainda cobraveis. Sem elas
+ * `FAILED` NAO significa so "falhou ao criar a cobranca" (o caso V118, com
+ * `failureNotice`): tambem e OVERDUE promovido por job no gateway. Essas sao
+ * cobrancas VIVAS, vencidas, ainda cobraveis. Sem elas
  * no conjunto, um aluguel com 17 cobrancas nessa situacao (caso real da UBLOC,
  * ativo desde 02/08) aparecia na tela como se estivesse em dia.
  *
@@ -55,7 +57,7 @@ export function hasGatewayCharges(charges: readonly RentalChargeDto[]): boolean 
  * Cobrancas em aberto que AINDA NAO VENCERAM e existem no gateway — as que o
  * encerramento apaga no Asaas sem perguntar.
  *
- * Sem `dueDate` (RENTAL_TOTAL/CAUCAO legados, ver rental.types.ts:117) conta
+ * Sem `dueDate` (RENTAL_TOTAL/CAUCAO legados, ver `RentalChargeDto.dueDate`) conta
  * como nao vencida: o encerramento as apaga, e omitir do aviso esconderia o que
  * vai acontecer.
  */
