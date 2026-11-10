@@ -25,12 +25,14 @@ import { DefaultPageLayout } from '../../components/layout/default-page-layout/d
 import { ApiErrorService } from '../../services/api-error.service';
 import { ImageCompressionService } from '../../services/image-compression.service';
 import { InspectionsService } from '../../services/inspections.service';
+import { PhotoLocationService, isoWithOffset } from '../../services/photo-location.service';
 import { SessionService } from '../../services/session.service';
 import {
   INSPECTION_ODOMETER_MAX_KM,
   Inspection,
   InspectionKind,
   InspectionStatus,
+  PhotoCaptureMeta,
 } from '../../types/inspection.types';
 import { parsePtBrNumber } from '../../utils/ptbr-number';
 import { formatKm } from './inspection-view';
@@ -94,6 +96,8 @@ interface FailedUpload {
   readonly file: File;
   readonly message: string;
   readonly retryable: boolean;
+  /** Hora e local DO DISPARO: o reenvio manda os mesmos, nunca os da hora do reenvio. */
+  readonly meta: PhotoCaptureMeta;
 }
 
 /**
@@ -142,6 +146,7 @@ export class InspectionCapture implements OnInit, OnDestroy {
   private readonly session = inject(SessionService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly compression = inject(ImageCompressionService);
+  private readonly location = inject(PhotoLocationService);
   private readonly destroyRef = inject(DestroyRef);
   /** Where the inspection screens live (`/vistorias`; the local demo mounts them elsewhere). */
   protected readonly root = inject(INSPECTIONS_ROOT);
@@ -294,6 +299,24 @@ export class InspectionCapture implements OnInit, OnDestroy {
    */
   protected readonly canCapture = computed(() => this.status() === 'PENDING');
 
+  /** A localizacao das fotos esta ligada no servidor para esta vistoria. */
+  protected readonly locationEnabled = computed(
+    () => this.inspection()?.photoLocationEnabled === true,
+  );
+
+  /** A pessoa negou a localizacao nesta captura: a tela avisa que as fotos vao sem local. */
+  protected readonly locationDenied = computed(
+    () => this.locationEnabled() && this.location.state() === 'denied',
+  );
+
+  /**
+   * Pede a localizacao UMA vez, no inicio da captura, e so com a flag ligada no servidor e
+   * a vistoria aceitando foto. Desligada, o navegador nunca pergunta.
+   */
+  private startLocationIfNeeded(): void {
+    if (this.locationEnabled() && this.canCapture()) this.location.start();
+  }
+
   /**
    * URL assinada por angulo, de `GET /inspections/{id}/photos`.
    *
@@ -425,6 +448,7 @@ export class InspectionCapture implements OnInit, OnDestroy {
       next: (created) => {
         this.inspection.set(created);
         this.loading.set(false);
+        this.startLocationIfNeeded();
         // A URL passa a apontar para a vistoria criada: recarregar a página ou voltar
         // a ela depois retoma em vez de abrir uma segunda vistoria do mesmo carro.
         this.goTo(created.id);
@@ -465,6 +489,7 @@ export class InspectionCapture implements OnInit, OnDestroy {
         this.loadingId = null;
         this.inspection.set(found);
         this.loading.set(false);
+        this.startLocationIfNeeded();
         // Quem CONTINUA uma vistoria precisa ver o que ja fotografou: sem isto, reabrir a
         // tela mostrava quadros vazios para angulos que estao no servidor.
         this.loadPhotos(id);
@@ -508,7 +533,7 @@ export class InspectionCapture implements OnInit, OnDestroy {
     if (this.uploading()) return;
     const failed = this.failures()[angle];
     if (!failed?.retryable) return;
-    this.upload(angle, failed.file);
+    this.upload(angle, failed.file, failed.meta);
   }
 
   protected closeCamera(): void {
@@ -553,6 +578,8 @@ export class InspectionCapture implements OnInit, OnDestroy {
     for (const url of Object.values(this.previewByAngle())) {
       URL.revokeObjectURL(url);
     }
+    // Saiu da captura: para de acompanhar a posicao do aparelho.
+    this.location.stop();
   }
 
   /** Foto da galeria — só chega aqui para OWNER/MANAGER; o template esconde do motorista. */
@@ -560,13 +587,26 @@ export class InspectionCapture implements OnInit, OnDestroy {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
-    if (file) void this.send(angle, file);
+    // Galeria: nem a hora nem o local do envio descrevem a foto. Vai so a origem; a tela e o
+    // laudo mostram a hora de recebimento rotulada "enviada da galeria". A hora do arquivo
+    // (`lastModified`) nunca passa por hora do disparo.
+    if (file) void this.send(angle, file, { source: 'GALLERY' });
   }
 
   protected onCaptured(file: File): void {
     const angle = this.activeAngle();
     this.activeAngle.set(null);
-    if (angle) void this.send(angle, file);
+    // Hora e local tomados NO DISPARO, antes da compressao e da rede.
+    if (angle) void this.send(angle, file, this.shutterMeta());
+  }
+
+  /** Hora do aparelho (com fuso) e a leitura de posicao mais recente, no instante da foto. */
+  private shutterMeta(): PhotoCaptureMeta {
+    return {
+      source: 'CAMERA',
+      capturedAt: isoWithOffset(new Date()),
+      ...(this.locationEnabled() ? this.location.snapshot() : {}),
+    };
   }
 
   private dropFailure(angle: string): void {
@@ -578,8 +618,14 @@ export class InspectionCapture implements OnInit, OnDestroy {
     });
   }
 
-  private recordFailure(angle: string, file: File, message: string, retryable: boolean): void {
-    this.failures.update((map) => ({ ...map, [angle]: { file, message, retryable } }));
+  private recordFailure(
+    angle: string,
+    file: File,
+    message: string,
+    retryable: boolean,
+    meta: PhotoCaptureMeta,
+  ): void {
+    this.failures.update((map) => ({ ...map, [angle]: { file, message, retryable, meta } }));
     this.uploadError.set(message);
   }
 
@@ -592,7 +638,7 @@ export class InspectionCapture implements OnInit, OnDestroy {
    * recusa acima de 8 MB, entao subir o original era perder a foto na rede para ouvir
    * um 413. O servico de compressao nunca lanca; sem decodificar, devolve o original.
    */
-  private async send(angle: string, raw: File): Promise<void> {
+  private async send(angle: string, raw: File, meta: PhotoCaptureMeta): Promise<void> {
     const current = this.inspection();
     if (!current || this.uploading() || !this.canCapture()) return;
 
@@ -614,11 +660,12 @@ export class InspectionCapture implements OnInit, OnDestroy {
         file,
         'Esta foto é grande demais para enviar (limite de 8 MB). Fotografe de novo.',
         false,
+        meta,
       );
       return;
     }
 
-    this.upload(angle, file);
+    this.upload(angle, file, meta);
   }
 
   /**
@@ -627,7 +674,7 @@ export class InspectionCapture implements OnInit, OnDestroy {
    * A resposta traz `capturedAngles` atualizado, então o progresso vem do SERVIDOR e
    * não de um contador local que poderia divergir depois de um erro.
    */
-  private upload(angle: string, file: File): void {
+  private upload(angle: string, file: File, meta: PhotoCaptureMeta): void {
     const current = this.inspection();
     if (!current) return;
 
@@ -636,7 +683,7 @@ export class InspectionCapture implements OnInit, OnDestroy {
     this.dropFailure(angle);
     this.sending.set({ angle, phase: 'uploading' });
 
-    this.service.uploadPhoto(current.id, angle, file).subscribe({
+    this.service.uploadPhoto(current.id, angle, file, meta).subscribe({
       next: (updated) => {
         this.inspection.set(updated);
         this.uploading.set(false);
@@ -661,6 +708,7 @@ export class InspectionCapture implements OnInit, OnDestroy {
               'Esta vistoria não aceita mais fotos. Atualize a tela para ver o estado dela.',
             ),
             false,
+            meta,
           );
           this.refreshStatus(current.id);
           return;
@@ -677,6 +725,7 @@ export class InspectionCapture implements OnInit, OnDestroy {
             'Não foi possível enviar esta foto. Ela não se perdeu — reenvie.',
           ),
           true,
+          meta,
         );
       },
     });

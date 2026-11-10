@@ -9,6 +9,8 @@ import { ImageCompressionService } from '../../services/image-compression.servic
 import { InspectionsService } from '../../services/inspections.service';
 import { SessionService } from '../../services/session.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { PhotoLocationService } from '../../services/photo-location.service';
+import { signal } from '@angular/core';
 import type { Inspection, InspectionReviewResult } from '../../types/inspection.types';
 
 /**
@@ -278,7 +280,8 @@ describe('InspectionCapture', () => {
     cmp.onFilePicked({ target: input } as unknown as Event, 'BACK');
     await flush(fixture);
 
-    expect(uploadPhoto).toHaveBeenCalledWith('insp-1', 'BACK', file);
+    // Galeria: vai so a origem — nem hora nem local do envio passam pelos da foto.
+    expect(uploadPhoto).toHaveBeenCalledWith('insp-1', 'BACK', file, { source: 'GALLERY' });
     expect(text(fixture)).toContain('1 de 3 fotos');
   });
   /**
@@ -1221,7 +1224,12 @@ describe('InspectionCapture', () => {
         .triggerEventHandler('captured', new File(['x'], 'f.jpg', { type: 'image/jpeg' }));
       await flush(fixture);
 
-      expect(uploadPhoto).toHaveBeenCalledWith('insp-1', 'FRONT', expect.any(File));
+      expect(uploadPhoto).toHaveBeenCalledWith(
+        'insp-1',
+        'FRONT',
+        expect.any(File),
+        expect.objectContaining({ source: 'CAMERA', capturedAt: expect.any(String) }),
+      );
       expect(q(fixture, '[data-use-photo]')).not.toBeNull();
       q<HTMLButtonElement>(fixture, '[data-use-photo]')!.click();
       fixture.detectChanges();
@@ -1426,6 +1434,123 @@ describe('InspectionCapture', () => {
 
       expect(q(fixture, 'app-driver-inspection-wizard')).toBeNull();
       expect(text(fixture)).toContain('0 de 3 fotos');
+    });
+  });
+
+  /**
+   * HORA E LOCAL NO DISPARO (pedido do dono 2026-11-09). A hora e a posicao sao tomadas no
+   * instante da foto, a localizacao e pedida UMA vez no inicio da captura e so com a flag
+   * ligada no servidor, e o reenvio manda os valores ORIGINAIS.
+   */
+  describe('hora e local da foto', () => {
+    let start: ReturnType<typeof vi.fn>;
+    let snapshot: ReturnType<typeof vi.fn>;
+    let state: ReturnType<typeof signal<string>>;
+
+    function withLocation(enabled: boolean): ComponentFixture<InspectionCapture> {
+      configure({ id: 'insp-1' }, {});
+      getOne.mockReturnValue(of({ ...inspection, photoLocationEnabled: enabled }));
+      start = vi.fn();
+      state = signal('granted');
+      snapshot = vi.fn().mockReturnValue({
+        locationStatus: 'GRANTED',
+        latitude: -23.561414,
+        longitude: -46.655881,
+        accuracy: 12,
+      });
+      TestBed.overrideProvider(PhotoLocationService, {
+        useValue: { start, stop: vi.fn(), snapshot, state },
+      });
+      return render();
+    }
+
+    function shoot(fixture: ComponentFixture<InspectionCapture>, angle: string, file: File): void {
+      const cmp = fixture.componentInstance as unknown as {
+        openCamera(a: string): void;
+        onCaptured(f: File): void;
+      };
+      cmp.openCamera(angle);
+      cmp.onCaptured(file);
+    }
+
+    it('flag desligada: nunca pede a localizacao, mas manda a hora do disparo', async () => {
+      const fixture = withLocation(false);
+      const file = new File(['x'], 'f.jpg', { type: 'image/jpeg' });
+
+      shoot(fixture, 'FRONT', file);
+      await flush(fixture);
+
+      expect(start).not.toHaveBeenCalled();
+      expect(snapshot).not.toHaveBeenCalled();
+      const meta = uploadPhoto.mock.calls[0][3];
+      expect(meta.source).toBe('CAMERA');
+      expect(meta.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
+      expect(meta.latitude).toBeUndefined();
+      expect(meta.locationStatus).toBeUndefined();
+    });
+
+    it('flag ligada: pede UMA vez ao abrir e a foto leva a posicao do disparo', async () => {
+      const fixture = withLocation(true);
+      expect(start).toHaveBeenCalledTimes(1);
+
+      shoot(fixture, 'FRONT', new File(['x'], 'a.jpg', { type: 'image/jpeg' }));
+      await flush(fixture);
+      shoot(fixture, 'BACK', new File(['y'], 'b.jpg', { type: 'image/jpeg' }));
+      await flush(fixture);
+
+      expect(start).toHaveBeenCalledTimes(1);
+      expect(uploadPhoto.mock.calls[0][3]).toMatchObject({
+        source: 'CAMERA',
+        locationStatus: 'GRANTED',
+        latitude: -23.561414,
+        longitude: -46.655881,
+        accuracy: 12,
+      });
+    });
+
+    it('o reenvio manda a hora e a posicao ORIGINAIS, nao as da hora do reenvio', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        vi.setSystemTime(new Date('2026-11-09T12:00:00Z'));
+        const fixture = withLocation(true);
+        uploadPhoto.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+        shoot(fixture, 'FRONT', new File(['x'], 'a.jpg', { type: 'image/jpeg' }));
+        await flush(fixture);
+        const original = uploadPhoto.mock.calls[0][3];
+
+        vi.setSystemTime(new Date('2026-11-09T12:30:00Z'));
+        snapshot.mockReturnValue({ locationStatus: 'DENIED' });
+        uploadPhoto.mockReturnValue(of(inspection));
+        (fixture.nativeElement as HTMLElement)
+          .querySelector<HTMLButtonElement>('[data-retry-upload]')
+          ?.click();
+        fixture.detectChanges();
+
+        expect(uploadPhoto).toHaveBeenCalledTimes(2);
+        expect(uploadPhoto.mock.calls[1][3]).toEqual(original);
+        expect(new Date(original.capturedAt).toISOString()).toBe('2026-11-09T12:00:00.000Z');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('localizacao negada: a foto segue e a tela avisa que vai sem local', async () => {
+      const fixture = withLocation(true);
+      state.set('denied');
+      snapshot.mockReturnValue({ locationStatus: 'DENIED' });
+      fixture.detectChanges();
+
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-location-denied]'),
+      ).not.toBeNull();
+
+      shoot(fixture, 'FRONT', new File(['x'], 'a.jpg', { type: 'image/jpeg' }));
+      await flush(fixture);
+      expect(uploadPhoto.mock.calls[0][3]).toMatchObject({
+        source: 'CAMERA',
+        locationStatus: 'DENIED',
+      });
+      expect(uploadPhoto.mock.calls[0][3].latitude).toBeUndefined();
     });
   });
 });

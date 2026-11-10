@@ -9,6 +9,7 @@ import type {
   InspectionPhoto,
 } from '../../types/inspection.types';
 import { angleLabel } from './angle-label';
+import { photoStamp } from './photo-stamp';
 import { formatVehicleLabel, formatPlate } from '../../utils/display-format';
 
 /**
@@ -163,6 +164,14 @@ export interface AngleFrame {
   readonly photoId: string | null;
   /** Quando a foto foi tirada, legivel (`dd/MM/yyyy HH:mm`). `null` sem foto ou sem data. */
   readonly takenAt: string | null;
+  /** Linha da HORA sob a foto (`photo-stamp.ts`); `null` = foto antiga ou sem foto. */
+  readonly when: string | null;
+  /** Linha do LOCAL sob a foto; `null` = nao mostrar. */
+  readonly where: string | null;
+  /** O local falta: a linha vai em ambar, como no desenho. */
+  readonly whereMissing: boolean;
+  /** Link do mapa quando so ha a coordenada. */
+  readonly mapUrl: string | null;
 }
 
 /*
@@ -187,6 +196,7 @@ const LEGACY: Readonly<Record<string, string>> = {
 export function buildFrames(
   photos: readonly InspectionPhoto[],
   requiredAngles: readonly string[] | null | undefined,
+  locationEnabled = false,
 ): AngleFrame[] {
   const byAngle = new Map<string, InspectionPhoto>();
   for (const photo of photos) {
@@ -203,6 +213,7 @@ export function buildFrames(
 
   return [...ordered, ...extras].map((angle) => {
     const photo = byAngle.get(angle) ?? null;
+    const stamp = photoStamp(photo, locationEnabled);
     return {
       angle,
       label: angleLabel(angle),
@@ -210,6 +221,10 @@ export function buildFrames(
       signedUrl: photo?.signedUrl ?? null,
       photoId: photo?.id ?? null,
       takenAt: photo ? formatDateTime(photo.createdDate) : null,
+      when: stamp.when,
+      where: stamp.where,
+      whereMissing: stamp.whereMissing,
+      mapUrl: stamp.mapUrl,
     };
   });
 }

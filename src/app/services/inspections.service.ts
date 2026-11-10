@@ -12,6 +12,7 @@ import {
   InspectionPhoto,
   InspectionReviewResult,
   InspectionSummary,
+  PhotoCaptureMeta,
   SubmitInspectionRequest,
 } from '../types/inspection.types';
 import { TenantResetRegistry } from './tenant-reset.registry';
@@ -142,9 +143,26 @@ export class InspectionsService {
    * custa as 13. Subindo uma a uma, custa uma — e a resposta traz `capturedAngles`
    * atualizado, então a tela não precisa adivinhar o que já foi.
    */
-  uploadPhoto(id: string, angle: string, file: File): Observable<Inspection> {
+  uploadPhoto(
+    id: string,
+    angle: string,
+    file: File,
+    meta: PhotoCaptureMeta | null = null,
+  ): Observable<Inspection> {
     const body = new FormData();
     body.append('file', file);
+    // Hora e local do DISPARO, como partes opcionais do multipart. So vai o que existe:
+    // parte vazia seria lida pelo servidor como ausente, mas polui o pedido.
+    if (meta) {
+      body.append('source', meta.source);
+      if (meta.capturedAt) body.append('capturedAt', meta.capturedAt);
+      if (meta.locationStatus) body.append('locationStatus', meta.locationStatus);
+      if (meta.latitude != null && meta.longitude != null) {
+        body.append('latitude', String(meta.latitude));
+        body.append('longitude', String(meta.longitude));
+        if (meta.accuracy != null) body.append('accuracy', String(meta.accuracy));
+      }
+    }
     return this.http.post<Inspection>(
       `${BASE}/${id}/photos/${encodeURIComponent(angle)}`,
       body,
