@@ -68,4 +68,12 @@ describe('CashflowDaySheet — tipos de fluxo de caixa', () => {
     expect(cashflowKindMeta('DEPOSIT_RECEIPT_OVERDUE').label).toBe('Caução em atraso');
     expect(cashflowKindMeta('DEPOSIT_RECEIPT_DUE').label).toBe('Caução a receber');
   });
+
+  it('FEAT-0569: Gasto pago (EXPENSE_PAID) e saída em vermelho com rótulo e ícone próprios', () => {
+    const meta = cashflowKindMeta('EXPENSE_PAID');
+    expect(meta.label).toBe('Gasto pago');
+    expect(meta.icon).toBe('expense');
+    expect(meta.color).toBe(CASHFLOW_KIND_META.FINE_PAID.color);
+    expect(CASHFLOW_KIND_META.EXPENSE_PAID).toBe(meta);
+  });
 });

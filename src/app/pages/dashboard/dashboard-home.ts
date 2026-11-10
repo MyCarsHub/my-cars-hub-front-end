@@ -74,6 +74,7 @@ const COST_CATEGORY_META: Record<string, StatusMeta> = {
     IPVA: { label: 'IPVA', color: '#ec4899' },
     INSURANCE: { label: 'Seguro', color: '#f59e0b' },
     FINANCING: { label: 'Financiamento', color: '#8b5cf6' },
+    EXPENSES: { label: 'Gastos', color: '#14b8a6' },
 };
 
 const MONTH_LONG = [
@@ -424,6 +425,20 @@ export class DashboardHome {
         if (!(base > 0)) return null;
         const pct = Math.round((f.resultCents / base) * 100);
         return { chip: `margem ${pct}%`, text: 'recebido + vendas − despesas', tone: pct < 0 ? 'bad' : 'neutral' };
+    });
+
+    /**
+     * Despesas caption. With Gastos that have no vehicle in the window, says how much of the total
+     * is "locadora toda" (FEAT-0424): it is already INSIDE the total and is never spread by car.
+     * Zero or absent (company without Gastos, or an older back-end): the caption is what it was.
+     */
+    protected readonly expensesDetail = computed(() => {
+        const f = this.summary()?.finance;
+        if (!f) return null;
+        const wide = f.companyWideExpensesCents ?? 0;
+        return wide > 0
+            ? `tudo que saiu no período, com ${formatBRLWhole(wide)} da locadora toda`
+            : 'tudo que saiu no período';
     });
 
     /** Lucro caption: the formula, always; the margin chip replaces it only when there is a margin. */

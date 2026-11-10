@@ -17,6 +17,7 @@ const ORDER: readonly { key: ExpenseCategory; label: string }[] = [
   { key: 'ipva', label: 'IPVA' },
   { key: 'insurance', label: 'Seguro' },
   { key: 'financing', label: 'Financiamento' },
+  { key: 'expenses', label: 'Gastos' },
 ];
 
 /**

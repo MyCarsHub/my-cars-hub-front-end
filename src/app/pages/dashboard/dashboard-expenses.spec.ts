@@ -131,4 +131,18 @@ describe('DashboardHome — despesas por categoria e alerta de IPVA', () => {
       render(summaryWith({}, { ipva: { count: 2 } }), 'DRIVER').host.querySelector('[data-ipva-alert]'),
     ).toBeNull();
   });
+
+  it('FEAT-0424: com Gastos sem veículo, a legenda de Despesas diz quanto é da locadora toda', () => {
+    const { host } = render(summaryWith({ expensesCents: 150000, companyWideExpensesCents: 45000 }));
+    expect(text(host.querySelector('[data-expenses-kpi]'))).toContain('R$ 450 da locadora toda');
+  });
+
+  it('empresa sem Gastos (zero) ou back-end anterior (ausente): a legenda é a de sempre', () => {
+    for (const extra of [{ companyWideExpensesCents: 0 }, {}]) {
+      const { host } = render(summaryWith({ expensesCents: 150000, ...extra }));
+      const caption = text(host.querySelector('[data-expenses-kpi]'));
+      expect(caption).toContain('tudo que saiu no período');
+      expect(caption).not.toContain('locadora toda');
+    }
+  });
 });

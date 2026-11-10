@@ -31,6 +31,8 @@ export interface FinancialSummary {
   operatingCostCents: number;
   /** `operatingCostCents` por categoria. Opcional: backend anterior não envia. */
   expenseBreakdown?: ExpenseBreakdownDto;
+  /** FEAT-0424 — parte dos Gastos SEM veículo ("Locadora toda"), já dentro de `operatingCostCents`. Opcional. */
+  companyWideExpensesCents?: number;
   netProfitCents: number;
   monthlyRevenue: MonthlyPoint[];
 }

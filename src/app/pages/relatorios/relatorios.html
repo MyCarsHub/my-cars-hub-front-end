@@ -176,6 +176,12 @@
           <app-page-card title="Custo operacional por categoria">
             <div class="p-4 min-w-0">
               <app-expense-breakdown [breakdown]="breakdown" ariaLabel="Custo operacional por categoria" />
+              @if ((r.financial.companyWideExpensesCents ?? 0) > 0) {
+                <p class="mt-3 text-xs text-gray-500 dark:text-fg-subtle" data-company-wide-expenses>
+                  Locadora toda: <b class="font-semibold tabular-nums text-gray-700 dark:text-fg-soft">{{ formatBRL(r.financial.companyWideExpensesCents ?? 0) }}</b>
+                  em Gastos sem veículo. Já está no custo operacional e não entra na rentabilidade por carro.
+                </p>
+              }
             </div>
           </app-page-card>
         </section>
