@@ -145,10 +145,17 @@ export interface RentalChargeDto {
   kind: ChargeKind;
   amount: number; // cents
   status: ChargeStatus;
-  provider: 'ASAAS';
+  /**
+   * FIX-0122/FIX-0476 — `INTERNAL` desde a V56 (multa por atraso, nunca vai ao gateway).
+   * NÃO use para saber se a cobrança existe no Asaas: linhas legadas continuam `ASAAS`
+   * sem nunca terem ido lá. Quem prova existência no gateway é o `externalId`.
+   */
+  provider: 'ASAAS' | 'INTERNAL';
   externalId: string | null;
   checkoutUrl: string | null;
   paidAt: string | null; // ISO
+  /** Quando o estorno foi registrado. O backend sempre manda a chave; nulo se não houve. */
+  refundedAt?: string | null; // ISO
   /** V29+/#46 — per-period bookkeeping. Null for legacy RENTAL_TOTAL/CAUCAO. */
   dueDate: string | null; // yyyy-MM-dd
   periodIndex: number | null;
