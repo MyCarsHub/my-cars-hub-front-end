@@ -1,0 +1,158 @@
+<app-default-page-layout
+  [title]="isEdit() ? 'Editar gasto' : 'Lançar gasto'"
+  description="Registre uma despesa ou imposto da locadora."
+>
+  @if (loading()) {
+    <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
+      Carregando…
+    </div>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6" novalidate>
+      @if (error(); as formError) {
+        <app-alert-banner variant="error" [message]="formError" />
+      }
+
+      <app-page-card title="Gasto">
+        <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <app-form-field
+            label="Categoria"
+            controlId="expense-category"
+            [required]="true"
+            hint="Manutenção, multa, IPVA, seguro e financiamento são lançados nas telas deles."
+            [control]="form.controls.category"
+            [messages]="categoryMessages"
+          >
+            <select
+              appFieldControl
+              formControlName="category"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-base text-fg-body
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+            >
+              @for (opt of categoryOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </app-form-field>
+
+          <app-form-field
+            label="Valor (R$)"
+            controlId="expense-amount"
+            [required]="true"
+            [control]="form.controls.amountReais"
+            [messages]="amountMessages"
+          >
+            <!-- type="text": `type="number"` recusa a vírgula do teclado pt-BR e impede a máscara. -->
+            <input
+              appFieldControl
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              placeholder="250,00"
+              formControlName="amountReais"
+              (input)="onMoneyInput($event)"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-base text-fg-body tabular-nums
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+            />
+          </app-form-field>
+
+          <app-form-field
+            label="Data do gasto"
+            controlId="expense-date"
+            [required]="true"
+            hint="O gasto conta no mês desta data."
+            [control]="form.controls.expenseDate"
+            [messages]="dateMessages"
+          >
+            <input
+              appFieldControl
+              type="date"
+              formControlName="expenseDate"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-base text-fg-body
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+            />
+          </app-form-field>
+
+          <app-form-field
+            label="Veículo"
+            controlId="expense-vehicle"
+            hint="Opcional. Com veículo entra na rentabilidade do carro; sem veículo, só no total da locadora."
+            [control]="form.controls.vehicleId"
+          >
+            <select
+              appFieldControl
+              formControlName="vehicleId"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-base text-fg-body
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+            >
+              <option value="">Nenhum</option>
+              @for (v of vehicles(); track v.id) {
+                <option [value]="v.id">{{ vehicleOption(v) }}</option>
+              }
+            </select>
+          </app-form-field>
+
+          <app-form-field
+            class="md:col-span-2"
+            label="Descrição"
+            controlId="expense-description"
+            [required]="true"
+            [hint]="isOther() ? 'Obrigatória. Em Outros, diga o que foi o gasto.' : 'Obrigatória.'"
+            [control]="form.controls.description"
+            [messages]="descriptionMessages"
+          >
+            <input
+              appFieldControl
+              type="text"
+              [attr.maxlength]="descriptionMax"
+              formControlName="description"
+              placeholder="Ex: Lavagem completa"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-base text-fg-body
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+            />
+          </app-form-field>
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Como entra no painel">
+        <div class="p-4 sm:p-6 space-y-3" data-expense-effect>
+          <p class="text-sm text-fg-muted">
+            Este gasto soma em Despesas
+            @if (effectMonth(); as m) { de {{ m }} } @else { do mês }
+            e diminui o Lucro do mesmo mês, no painel e nos relatórios.
+          </p>
+          <div class="flex items-baseline justify-between gap-3 text-sm">
+            <span class="text-fg-muted">Despesas do mês</span>
+            <b class="font-semibold text-fg tabular-nums text-right" data-effect-expenses>
+              {{ effectAmount() ? '+ ' + effectAmount() : 'informe o valor' }}
+            </b>
+          </div>
+          <div class="flex items-baseline justify-between gap-3 text-sm">
+            <span class="text-fg-muted">Lucro do mês</span>
+            <b class="font-semibold text-fg tabular-nums text-right" data-effect-profit>
+              {{ effectAmount() ? 'diminui ' + effectAmount() : 'informe o valor' }}
+            </b>
+          </div>
+        </div>
+      </app-page-card>
+
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
+        <button
+          type="button"
+          (click)="cancel()"
+          class="w-full sm:w-auto min-h-11 px-5 py-3 rounded-xl text-sm font-medium text-fg-soft
+                 bg-surface border border-edge hover:bg-surface-muted"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          [disabled]="saving()"
+          class="w-full sm:w-auto min-h-11 px-5 py-3 rounded-xl text-sm font-semibold bg-primary-500 text-white
+                 hover:bg-primary-600 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {{ saving() ? 'Salvando…' : (isEdit() ? 'Salvar alterações' : 'Salvar gasto') }}
+        </button>
+      </div>
+    </form>
+  }
+</app-default-page-layout>
