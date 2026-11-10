@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { HttpEventType } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 
 import { RentalInspectionCard } from './rental-inspection-card';
 import { RentalService, RentalStateSnapshot } from '../rental.service';
@@ -84,6 +84,8 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
   }
 
   beforeEach(() => {
+    // FIX-0638 (auto-defesa): token DRIVER sujo faz o card abrir a camera ao vivo.
+    sessionStorage.clear();
     vi.clearAllMocks();
     state.set({
       documents: [],
@@ -111,6 +113,8 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
   });
 
   afterEach(() => {
+    // FIX-0638 (parar de poluir): o bloco de papel escreve token DRIVER.
+    sessionStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -621,6 +625,57 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
 
       expect(host.querySelector('app-live-camera-sheet')).toBeNull();
       expect(host.querySelector('input[type="file"]')).not.toBeNull();
+    });
+  });
+
+  /**
+   * FIX-0638 — o spec e VITIMA e POLUIDOR do mesmo `sessionStorage`: o bloco de
+   * papel escreve token DRIVER, e um token DRIVER sujo faz o card renderizar a
+   * camera ao vivo em vez dos inputs de arquivo (`pickers()` vira undefined).
+   * O `beforeEach` de topo limpa (auto-defesa) e o `afterEach` limpa (para de
+   * poluir). As duas linhas parecem redundantes; os tres blocos abaixo rodam em
+   * sequencia, depois de tudo, e falham se qualquer uma sair. `beforeAll` roda
+   * ANTES do `beforeEach` de topo e DEPOIS do `afterEach` do teste anterior, e
+   * por isso enxerga o que cada gancho deixou (ou nao).
+   */
+  describe('isolamento do sessionStorage entre testes do arquivo', () => {
+    describe('1. um teste suja o storage', () => {
+      it('escreve token DRIVER, como o bloco de papel faz', () => {
+        const payload = { role: 'DRIVER', exp: Math.floor(Date.now() / 1000) + 3600 };
+        sessionStorage.setItem('token', `header.${btoa(JSON.stringify(payload))}.signature`);
+        sessionStorage.setItem('selectedRole', 'DRIVER');
+        expect(sessionStorage.getItem('token')).not.toBeNull();
+      });
+    });
+
+    describe('2. o afterEach do teste anterior deixa o storage limpo', () => {
+      let leftBehind = -1;
+      beforeAll(() => {
+        leftBehind = sessionStorage.length;
+        sessionStorage.clear();
+      });
+
+      it('nao ha sobra do teste que sujou (falha se o afterEach perder a limpeza)', () => {
+        expect(leftBehind).toBe(0);
+      });
+    });
+
+    describe('3. o beforeEach limpa um storage ja sujo por fora', () => {
+      beforeAll(() => {
+        const payload = { role: 'DRIVER', exp: Math.floor(Date.now() / 1000) + 3600 };
+        sessionStorage.setItem('token', `header.${btoa(JSON.stringify(payload))}.signature`);
+        sessionStorage.setItem('selectedRole', 'DRIVER');
+      });
+      afterAll(() => {
+        sessionStorage.clear();
+      });
+
+      it('chega limpo e o card renderiza os inputs de arquivo, nao a camera (falha se o beforeEach perder a limpeza)', () => {
+        expect(sessionStorage.getItem('token')).toBeNull();
+        const fixture = makeFixture();
+        const host = fixture.nativeElement as HTMLElement;
+        expect(host.querySelectorAll('input[type=file]').length).toBeGreaterThan(0);
+      });
     });
   });
 });
