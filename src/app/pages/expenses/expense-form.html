@@ -6,6 +6,13 @@
     <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
       Carregando…
     </div>
+  } @else if (loadFailed()) {
+    <div class="rounded-2xl bg-surface border border-rose-200 dark:border-rose-500/30 p-8 text-center space-y-3">
+      <p class="text-rose-700 dark:text-rose-300 text-sm" role="alert">{{ error() }}</p>
+      <a routerLink="/gastos" class="inline-flex items-center min-h-11 text-sm text-primary-700 dark:text-primary-400 font-medium">
+        Voltar para a lista
+      </a>
+    </div>
   } @else {
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6" novalidate>
       @if (error(); as formError) {
@@ -66,6 +73,7 @@
             <input
               appFieldControl
               type="date"
+              [attr.max]="maxDate"
               formControlName="expenseDate"
               class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-base text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"

@@ -559,7 +559,10 @@ export class DashboardHome {
 
     /** Where each real received goes: what is left (profit) first, then each cost category. */
     protected readonly costSlices = computed<RingSlice[]>(() => {
-        const costs = (this.overview()?.costByCategory ?? []).map((c) => {
+        const costs = (this.overview()?.costByCategory ?? [])
+            // Gastos is zero-filled by the back-end: hide it at 0 so a company without Gastos sees the same ring and legend as before.
+            .filter((c) => c.category !== 'EXPENSES' || c.amountCents > 0)
+            .map((c) => {
             const meta = COST_CATEGORY_META[c.category] ?? { label: c.category, color: '#9ca3af' };
             return { label: meta.label, value: c.amountCents, color: meta.color };
         });

@@ -145,4 +145,25 @@ describe('DashboardHome — despesas por categoria e alerta de IPVA', () => {
       expect(caption).not.toContain('locadora toda');
     }
   });
+
+  it('anel de custos: a fatia Gastos so existe com valor; a 0 o anel e o de antes', () => {
+    const cost = (expenses: number) =>
+      ({
+        ...summaryWith({ resultCents: 1000 }),
+        overview: {
+          monthlyResult: [],
+          receivedByDay: { currentMonth: [], previousMonth: [] },
+          costByCategory: [
+            { category: 'MAINTENANCE', amountCents: 500, shareBp: 5000 },
+            { category: 'EXPENSES', amountCents: expenses, shareBp: 0 },
+          ],
+        },
+      }) as unknown as DashboardSummaryDto;
+    const labels = (s: DashboardSummaryDto) =>
+      (render(s).fixture.componentInstance as unknown as { costSlices: () => { label: string }[] })
+        .costSlices()
+        .map((x) => x.label);
+    expect(labels(cost(0))).not.toContain('Gastos');
+    expect(labels(cost(45000))).toContain('Gastos');
+  });
 });

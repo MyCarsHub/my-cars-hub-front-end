@@ -74,4 +74,11 @@ describe('ExpenseBreakdown', () => {
     expect(row).toContain('R$ 450,00');
     expect(host.querySelector('li[data-expense="expenses"] span[aria-hidden="true"]')?.className).toMatch(/bg-/);
   });
+
+  it('com expenses = 0 o layout é exatamente o de antes: cinco linhas, 5 colunas, sem Gastos', () => {
+    const host = render({ maintenance: 100, fines: 100, ipva: 100, insurance: 100, financing: 100, expenses: 0 });
+    expect(host.querySelectorAll('li[data-expense]').length).toBe(5);
+    expect(host.querySelector('li[data-expense="expenses"]')).toBeNull();
+    expect(host.querySelector('ul')!.className).toContain('@2xl:grid-cols-5');
+  });
 });

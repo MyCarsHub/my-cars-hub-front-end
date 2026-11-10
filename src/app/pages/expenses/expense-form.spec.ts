@@ -1,6 +1,8 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { todayInBusinessTz } from '../../utils/business-clock';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiErrorService } from '../../services/api-error.service';
@@ -169,5 +171,39 @@ describe('ExpenseForm', () => {
       expect(c.className).toContain('text-base');
       expect(c.className).not.toMatch(/\btext-(xs|sm)\b/);
     }
+  });
+
+  it('data depois do mês atual é recusada: a lista não passa do mês atual, o formulário também não', () => {
+    const { fixture, api, el } = setup();
+    api.form.patchValue({ description: 'x', expenseDate: '2999-01-01' });
+    type(el, fixture, '10,00');
+    api.submit();
+    expect(api.form.controls['expenseDate'].errors).toEqual({ maxDate: true });
+    expect(create).not.toHaveBeenCalled();
+    api.form.patchValue({ expenseDate: todayInBusinessTz() });
+    expect(api.form.controls['expenseDate'].valid).toBe(true);
+  });
+
+  it('editar um gasto que não carregou (404) não deixa formulário nem salvar', () => {
+    TestBed.resetTestingModule();
+    update = vi.fn();
+    TestBed.configureTestingModule({
+      imports: [ExpenseForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'gone' } } } },
+        { provide: ExpensesService, useValue: { create: vi.fn(), update, getOne: () => throwError(() => new HttpErrorResponse({ status: 404 })) } },
+        { provide: VehiclesService, useValue: { list: vi.fn().mockReturnValue(of({ content: [] })) } },
+        { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(ExpenseForm);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('form')).toBeNull();
+    expect(el.querySelector('[role="alert"]')).not.toBeNull();
+    (fixture.componentInstance as unknown as FormApi).submit();
+    expect(update).not.toHaveBeenCalled();
   });
 });

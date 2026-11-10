@@ -94,6 +94,8 @@ describe('Relatorios — custo operacional por categoria', () => {
     for (const extra of [{ companyWideExpensesCents: 0 }, {}]) {
       const host = render(report({ expenseBreakdown: { ...base, expenses: 0 }, ...extra }));
       expect(host.querySelector('[data-company-wide-expenses]')).toBeNull();
+      expect(host.querySelector('li[data-expense="expenses"]')).toBeNull();
+      expect(host.querySelectorAll('li[data-expense]').length).toBe(5);
     }
   });
 });

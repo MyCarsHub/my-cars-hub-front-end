@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { By } from '@angular/platform-browser';
@@ -205,5 +206,38 @@ describe('ExpensesList', () => {
     const el = host(create('error'));
     expect(el.querySelector('app-alert-banner')).not.toBeNull();
     expect(el.querySelector('[data-expenses-empty]')).toBeNull();
+  });
+
+  it('excluir a unica linha da ultima pagina volta uma pagina (sem lista em branco)', () => {
+    const many = Array.from({ length: 21 }, (_, i) => exp({ id: `m${i}`, description: `g${i}` }));
+    const fixture = create(many);
+    const el = host(fixture);
+    const inst = fixture.componentInstance as unknown as { next: () => void; page: () => number };
+    inst.next();
+    fixture.detectChanges();
+    expect(inst.page()).toBe(1);
+    expect(el.querySelectorAll('[data-expense-id]').length).toBe(1);
+
+    listMonth.mockReturnValue(of(many.slice(0, 20)));
+    const dialog = fixture.debugElement.query(By.directive(ConfirmDialog)).componentInstance as ConfirmDialog;
+    (fixture.componentInstance as unknown as { askDelete: (e: Expense) => void }).askDelete(many[20]);
+    dialog.confirmed.emit();
+    fixture.detectChanges();
+    expect(inst.page()).toBe(0);
+    expect(el.querySelectorAll('[data-expense-id]').length).toBe(20);
+  });
+
+  it('excluir com 404 (ja apagado em outro lugar) mostra o erro e atualiza a lista', () => {
+    const fixture = create(ROWS);
+    remove.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+    listMonth.mockClear();
+    listMonth.mockReturnValue(of(ROWS.slice(1)));
+    const dialog = fixture.debugElement.query(By.directive(ConfirmDialog)).componentInstance as ConfirmDialog;
+    (fixture.componentInstance as unknown as { askDelete: (e: Expense) => void }).askDelete(ROWS[0]);
+    dialog.confirmed.emit();
+    fixture.detectChanges();
+    expect(listMonth).toHaveBeenCalledTimes(1);
+    expect(host(fixture).querySelector('[data-expense-id="e1"]')).toBeNull();
+    expect(host(fixture).querySelector('app-alert-banner')).not.toBeNull();
   });
 });

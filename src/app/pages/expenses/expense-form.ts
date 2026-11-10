@@ -9,7 +9,7 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { PageCard } from '../../components/core/page-card/page-card';
@@ -30,7 +30,14 @@ import {
 import { VehicleListItem } from '../../types/vehicle.types';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import { formatPlate, formatVehicleLabel } from '../../utils/display-format';
-import { expenseAmountValidator, monthName, monthOf, notBlankValidator } from '../../utils/expenses-view';
+import {
+  expenseAmountValidator,
+  lastDayOfMonth,
+  maxDateValidator,
+  monthName,
+  monthOf,
+  notBlankValidator,
+} from '../../utils/expenses-view';
 import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
 import { formatPtBrMoney } from '../../utils/ptbr-number';
 import { ptBrMoneyCents } from '../../utils/validators/ptbr-money.validator';
@@ -42,7 +49,7 @@ import { ptBrMoneyCents } from '../../utils/validators/ptbr-money.validator';
 @Component({
   selector: 'app-expense-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl],
+  imports: [ReactiveFormsModule, RouterLink, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl],
   templateUrl: './expense-form.html',
 })
 export class ExpenseForm implements OnInit {
@@ -62,7 +69,12 @@ export class ExpenseForm implements OnInit {
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
+  /** Editing a gasto that could not be loaded (404...): there is nothing to save over. */
+  protected readonly loadFailed = signal(false);
   protected readonly vehicles = signal<VehicleListItem[]>([]);
+
+  /** Same bound as the list stepper (it stops at the current month). */
+  protected readonly maxDate = lastDayOfMonth(todayInBusinessTz());
 
   protected readonly categoryMessages = { required: 'Escolha a categoria.' };
   protected readonly amountMessages = {
@@ -71,7 +83,10 @@ export class ExpenseForm implements OnInit {
     max: 'O valor máximo de um gasto é R$ 100.000.000,00.',
     moneyFormat: 'Informe um valor válido (ex.: 1.200,00).',
   };
-  protected readonly dateMessages = { required: 'Informe a data do gasto.' };
+  protected readonly dateMessages = {
+    required: 'Informe a data do gasto.',
+    maxDate: 'A data do gasto não pode passar do mês atual.',
+  };
   protected readonly descriptionMessages = {
     required: 'Descreva o gasto. Em Outros, diga o que foi.',
     maxlength: `A descrição pode ter até ${EXPENSE_DESCRIPTION_MAX} caracteres.`,
@@ -81,7 +96,7 @@ export class ExpenseForm implements OnInit {
     category: ['FUEL' as ExpenseCategoryKey, [Validators.required]],
     // TEXTO pt-BR no controle (máscara de milhar), centavos no corpo.
     amountReais: ['', [expenseAmountValidator()]],
-    expenseDate: [todayInBusinessTz(), [Validators.required]],
+    expenseDate: [todayInBusinessTz(), [Validators.required, maxDateValidator(this.maxDate)]],
     vehicleId: [''],
     description: ['', [notBlankValidator(), Validators.maxLength(EXPENSE_DESCRIPTION_MAX)]],
   });
@@ -130,6 +145,7 @@ export class ExpenseForm implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.error.set(this.apiErrors.messageFor(err, 'Gasto não encontrado.'));
+        this.loadFailed.set(true);
         this.loading.set(false);
       },
     });
@@ -157,7 +173,7 @@ export class ExpenseForm implements OnInit {
   }
 
   protected submit(): void {
-    if (this.saving()) return;
+    if (this.saving() || this.loadFailed()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.error.set('Verifique os campos destacados e tente novamente.');

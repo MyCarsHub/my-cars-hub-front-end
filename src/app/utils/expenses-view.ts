@@ -73,6 +73,18 @@ export function notBlankValidator(): ValidatorFn {
     typeof control.value === 'string' && control.value.trim() !== '' ? null : { required: true };
 }
 
+/** Last day (`yyyy-MM-dd`) of the month of `today`: the list stepper stops at that month, so the form stops there too. */
+export function lastDayOfMonth(today: string): string {
+  const [y, m] = today.split('-').map(Number);
+  return `${today.slice(0, 7)}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+}
+
+/** Date no later than `max`: a gasto the list could never show is refused up front. */
+export function maxDateValidator(max: string): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null =>
+    typeof control.value === 'string' && control.value > max ? { maxDate: true } : null;
+}
+
 export interface CategoryCount {
   readonly value: ExpenseCategoryKey | 'ALL';
   readonly label: string;

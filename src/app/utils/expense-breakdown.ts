@@ -26,7 +26,11 @@ const ORDER: readonly { key: ExpenseCategory; label: string }[] = [
  */
 export function expenseRows(breakdown: Partial<ExpenseBreakdownDto> | null | undefined): ExpenseRow[] {
   if (!breakdown) return [];
-  const present = ORDER.filter(({ key }) => typeof breakdown[key] === 'number');
+  // `expenses` (Gastos) only appears when there is something: the back-end always sends it (0 for a
+  // company that never posted one), and a zero row would change the layout of every such company.
+  const present = ORDER.filter(
+    ({ key }) => typeof breakdown[key] === 'number' && (key !== 'expenses' || breakdown[key] !== 0),
+  );
   const total = present.reduce((sum, { key }) => sum + (breakdown[key] ?? 0), 0);
   return present.map(({ key, label }) => {
     const cents = breakdown[key] ?? 0;

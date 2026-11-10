@@ -36,10 +36,10 @@ describe('expenseRows', () => {
     expect(rows).toHaveLength(5);
   });
 
-  it('empresa SEM gastos (expenses = 0): os cinco valores e as partes são os de antes', () => {
+  it('empresa SEM gastos (expenses = 0): a linha Gastos some e o resto é idêntico ao de antes', () => {
     const before = expenseRows({ maintenance: 100, fines: 300, ipva: 0, insurance: 0, financing: 0 });
     const after = expenseRows({ maintenance: 100, fines: 300, ipva: 0, insurance: 0, financing: 0, expenses: 0 });
-    expect(after.slice(0, 5)).toEqual(before);
-    expect(after[5]).toMatchObject({ key: 'expenses', cents: 0, share: 0 });
+    expect(after).toEqual(before);
+    expect(after).toHaveLength(5);
   });
 });

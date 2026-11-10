@@ -6,8 +6,9 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 
 import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
@@ -63,7 +64,6 @@ export class ExpensesList implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
-  private readonly router = inject(Router);
 
   private readonly currentMonth = todayInBusinessTz().slice(0, 7);
 
@@ -142,6 +142,8 @@ export class ExpensesList implements OnInit {
         if (asked !== this.month()) return; // resposta de um mês que já saiu da tela
         this.items.set(list);
         this.loading.set(false);
+        // A delete can leave the current page past the end (last row of the last page): step back.
+        if (this.page() >= this.totalPages()) this.page.set(this.totalPages() - 1);
       },
       error: (err: unknown) => {
         this.apiErrors.claim(err);
@@ -198,10 +200,6 @@ export class ExpensesList implements OnInit {
     return e.vehicleLabel.split(' · ').slice(1).join(' · ');
   }
 
-  protected openDetail(e: Expense): void {
-    this.router.navigate(['/gastos', e.id]);
-  }
-
   protected askDelete(e: Expense, event?: Event): void {
     event?.stopPropagation();
     this.deleting.set(e);
@@ -228,6 +226,8 @@ export class ExpensesList implements OnInit {
         this.deletingBusy.set(false);
         this.deleting.set(null);
         this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível excluir o gasto.'));
+        // 404: the gasto is already gone (deleted elsewhere): refresh so the row leaves the list.
+        if (err instanceof HttpErrorResponse && err.status === 404) this.load();
       },
     });
   }
