@@ -264,7 +264,7 @@
     -->
     <section
         class="mb-4 grid gap-4 grid-cols-1 items-stretch"
-        [class.xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]]="hasResult() || pending()"
+        [class.xl:grid-cols-[minmax(0,1fr)_374px]]="hasResult() || pending()"
         data-result-section
     >
         @if (hasResult()) {
@@ -294,8 +294,9 @@
             <app-card-skeleton title="Recebido vs lucro" bodyClass="min-h-[22rem]" data-chart-skeleton />
         }
         <app-page-card class="dash-enter" style="--stagger-i: 1" title="Calendário financeiro" [fill]="true">
-            <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1">
+            <div class="px-4 pb-4 sm:px-6 min-w-0 flex-1 flex flex-col">
                 <app-financial-calendar
+                    class="block lg:flex-1 lg:min-h-0"
                     [events]="calendarCashflow()"
                     [selectedDate]="selectedDay()"
                     (daySelect)="onDaySelect($event)"

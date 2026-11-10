@@ -77,7 +77,7 @@ describe('FinancialCalendar — canvas parity', () => {
   it('a day with two events shows two dots and no count badge or text beyond the number', () => {
     const { host } = render();
     const ten = cellOf(host, 10);
-    expect(ten.querySelectorAll('span').length).toBe(3); // number + 2 dots
+    expect(ten.querySelectorAll('[data-dot]').length).toBe(2); // 2 dots; the rest is the number only
     expect(ten.textContent!.replace(/\s/g, '')).toBe('10');
   });
 
