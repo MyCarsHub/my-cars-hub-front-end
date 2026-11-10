@@ -33,6 +33,7 @@ import { formatPlate, formatVehicleLabel } from '../../utils/display-format';
 import {
   expenseAmountValidator,
   lastDayOfMonth,
+  lastExpenseMonth,
   maxDateValidator,
   monthName,
   monthOf,
@@ -73,8 +74,9 @@ export class ExpenseForm implements OnInit {
   protected readonly loadFailed = signal(false);
   protected readonly vehicles = signal<VehicleListItem[]>([]);
 
-  /** Same bound as the list stepper (it stops at the current month). */
-  protected readonly maxDate = lastDayOfMonth(todayInBusinessTz());
+  /** Future dates are allowed, up to the same last month the list stepper reaches. */
+  private readonly lastMonth = lastExpenseMonth(todayInBusinessTz());
+  protected readonly maxDate = lastDayOfMonth(this.lastMonth);
 
   protected readonly categoryMessages = { required: 'Escolha a categoria.' };
   protected readonly amountMessages = {
@@ -85,7 +87,7 @@ export class ExpenseForm implements OnInit {
   };
   protected readonly dateMessages = {
     required: 'Informe a data do gasto.',
-    maxDate: 'A data do gasto não pode passar do mês atual.',
+    maxDate: `A data do gasto pode ir até ${monthName(this.lastMonth)}.`,
   };
   protected readonly descriptionMessages = {
     required: 'Descreva o gasto. Em Outros, diga o que foi.',

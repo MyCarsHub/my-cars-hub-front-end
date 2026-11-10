@@ -31,6 +31,7 @@ import { formatPlate, formatVehicleLabel } from '../../utils/display-format';
 import {
   categoryCounts,
   filterExpenses,
+  lastExpenseMonth,
   monthName,
   monthTitle,
   shiftMonth,
@@ -66,6 +67,8 @@ export class ExpensesList implements OnInit {
   private readonly notifications = inject(NotificationService);
 
   private readonly currentMonth = todayInBusinessTz().slice(0, 7);
+  /** Future gastos (a scheduled IPVA) live in their own month: "next" goes up to the form's last month. */
+  private readonly lastMonth = lastExpenseMonth(todayInBusinessTz());
 
   protected readonly month = signal(this.currentMonth);
   protected readonly items = signal<Expense[]>([]);
@@ -85,8 +88,7 @@ export class ExpensesList implements OnInit {
 
   protected readonly monthTitle = computed(() => monthTitle(this.month()));
   protected readonly monthLower = computed(() => monthName(this.month()));
-  /** Não há gasto no futuro para ver: o botão "próximo" para no mês corrente. */
-  protected readonly canGoNext = computed(() => this.month() < this.currentMonth);
+  protected readonly canGoNext = computed(() => this.month() < this.lastMonth);
 
   protected readonly summary = computed(() => summarize(this.items()));
   protected readonly pills = computed<FilterChipOption<ExpenseCategoryKey | 'ALL'>[]>(() =>
@@ -126,7 +128,7 @@ export class ExpensesList implements OnInit {
 
   protected step(delta: number): void {
     const next = shiftMonth(this.month(), delta);
-    if (delta > 0 && next > this.currentMonth) return;
+    if (delta > 0 && next > this.lastMonth) return;
     this.month.set(next);
     this.category.set('ALL');
     this.page.set(0);

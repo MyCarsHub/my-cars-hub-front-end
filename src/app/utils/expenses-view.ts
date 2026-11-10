@@ -73,7 +73,18 @@ export function notBlankValidator(): ValidatorFn {
     typeof control.value === 'string' && control.value.trim() !== '' ? null : { required: true };
 }
 
-/** Last day (`yyyy-MM-dd`) of the month of `today`: the list stepper stops at that month, so the form stops there too. */
+/**
+ * How many months past the current one a gasto may be dated (a scheduled IPVA, for instance).
+ * The list stepper and the form share this bound, so every gasto saved can be found in the list.
+ */
+export const EXPENSE_MONTHS_AHEAD = 12;
+
+/** Last `yyyy-MM` a gasto may fall in, counted from `today` (`yyyy-MM-dd`) by EXPENSE_MONTHS_AHEAD. */
+export function lastExpenseMonth(today: string): string {
+  return shiftMonth(monthOf(today), EXPENSE_MONTHS_AHEAD);
+}
+
+/** Last day (`yyyy-MM-dd`) of the month of a `yyyy-MM-dd` (or `yyyy-MM`) date. */
 export function lastDayOfMonth(today: string): string {
   const [y, m] = today.split('-').map(Number);
   return `${today.slice(0, 7)}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;

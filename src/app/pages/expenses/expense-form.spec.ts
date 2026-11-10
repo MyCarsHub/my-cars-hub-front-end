@@ -10,6 +10,7 @@ import { ExpensesService } from '../../services/expenses.service';
 import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { Expense } from '../../types/expense.types';
+import { EXPENSE_MONTHS_AHEAD, lastDayOfMonth, shiftMonth } from '../../utils/expenses-view';
 import { ExpenseForm } from './expense-form';
 
 type FormApi = {
@@ -173,15 +174,27 @@ describe('ExpenseForm', () => {
     }
   });
 
-  it('data depois do mês atual é recusada: a lista não passa do mês atual, o formulário também não', () => {
+  it('data num mês futuro (IPVA agendado) é aceita e vai ao back-end como está', () => {
     const { fixture, api, el } = setup();
-    api.form.patchValue({ description: 'x', expenseDate: '2999-01-01' });
+    const future = `${shiftMonth(todayInBusinessTz().slice(0, 7), 3)}-15`;
+    api.form.patchValue({ description: 'IPVA agendado', expenseDate: future });
+    type(el, fixture, '10,00');
+    expect(api.form.controls['expenseDate'].valid).toBe(true);
+    api.submit();
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ expenseDate: future }));
+  });
+
+  it('o último dia do último mês do seletor é aceito; um dia depois é recusado', () => {
+    const { fixture, api, el } = setup();
+    const lastMonth = shiftMonth(todayInBusinessTz().slice(0, 7), EXPENSE_MONTHS_AHEAD);
+    api.form.patchValue({ expenseDate: lastDayOfMonth(lastMonth) });
+    expect(api.form.controls['expenseDate'].valid).toBe(true);
+
+    api.form.patchValue({ description: 'x', expenseDate: `${shiftMonth(lastMonth, 1)}-01` });
     type(el, fixture, '10,00');
     api.submit();
     expect(api.form.controls['expenseDate'].errors).toEqual({ maxDate: true });
     expect(create).not.toHaveBeenCalled();
-    api.form.patchValue({ expenseDate: todayInBusinessTz() });
-    expect(api.form.controls['expenseDate'].valid).toBe(true);
   });
 
   it('editar um gasto que não carregou (404) não deixa formulário nem salvar', () => {
