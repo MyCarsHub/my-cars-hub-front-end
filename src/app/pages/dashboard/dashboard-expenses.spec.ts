@@ -131,4 +131,39 @@ describe('DashboardHome — despesas por categoria e alerta de IPVA', () => {
       render(summaryWith({}, { ipva: { count: 2 } }), 'DRIVER').host.querySelector('[data-ipva-alert]'),
     ).toBeNull();
   });
+
+  it('FEAT-0424: com Gastos sem veículo, a legenda de Despesas diz quanto é da locadora toda', () => {
+    const { host } = render(summaryWith({ expensesCents: 150000, companyWideExpensesCents: 45000 }));
+    expect(text(host.querySelector('[data-expenses-kpi]'))).toContain('R$ 450 da locadora toda');
+  });
+
+  it('empresa sem Gastos (zero) ou back-end anterior (ausente): a legenda é a de sempre', () => {
+    for (const extra of [{ companyWideExpensesCents: 0 }, {}]) {
+      const { host } = render(summaryWith({ expensesCents: 150000, ...extra }));
+      const caption = text(host.querySelector('[data-expenses-kpi]'));
+      expect(caption).toContain('tudo que saiu no período');
+      expect(caption).not.toContain('locadora toda');
+    }
+  });
+
+  it('anel de custos: a fatia Gastos so existe com valor; a 0 o anel e o de antes', () => {
+    const cost = (expenses: number) =>
+      ({
+        ...summaryWith({ resultCents: 1000 }),
+        overview: {
+          monthlyResult: [],
+          receivedByDay: { currentMonth: [], previousMonth: [] },
+          costByCategory: [
+            { category: 'MAINTENANCE', amountCents: 500, shareBp: 5000 },
+            { category: 'EXPENSES', amountCents: expenses, shareBp: 0 },
+          ],
+        },
+      }) as unknown as DashboardSummaryDto;
+    const labels = (s: DashboardSummaryDto) =>
+      (render(s).fixture.componentInstance as unknown as { costSlices: () => { label: string }[] })
+        .costSlices()
+        .map((x) => x.label);
+    expect(labels(cost(0))).not.toContain('Gastos');
+    expect(labels(cost(45000))).toContain('Gastos');
+  });
 });

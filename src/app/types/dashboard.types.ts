@@ -128,7 +128,8 @@ export type CashflowKind =
     | 'INSURANCE_DUE'
     | 'INSURANCE_PAID'
     | 'FINANCING_DUE'
-    | 'FINANCING_PAID';
+    | 'FINANCING_PAID'
+    | 'EXPENSE_PAID';
 
 /** Cash-flow event on a specific day (kinds: see {@link CashflowKind}). */
 export interface CashflowEventDto {
@@ -154,6 +155,11 @@ export interface ExpenseBreakdownDto {
     ipva: number;
     insurance: number;
     financing: number;
+    /**
+     * Gastos da locadora (FEAT-0424, `company_expenses`). Opcional: um back-end anterior não o
+     * envia, e aí a linha some em vez de virar um R$ 0,00 que afirmaria um fato falso.
+     */
+    expenses?: number;
 }
 
 export interface FinanceDto {
@@ -192,6 +198,11 @@ export interface FinanceDto {
      * só tem manutenção e multas (os dois campos acima) para mostrar.
      */
     expenseBreakdown?: ExpenseBreakdownDto;
+    /**
+     * FEAT-0424 — parte dos Gastos do período SEM veículo ("Locadora toda"). Já está DENTRO de
+     * `expensesCents`; nunca é rateada por carro. Opcional: back-end anterior não envia.
+     */
+    companyWideExpensesCents?: number;
     /**
      * A receber: parte do Faturado do período ainda PENDENTE com vencimento de hoje em diante.
      * (Antes: PENDING criadas na janela.)
@@ -327,7 +338,7 @@ export interface OverdueAgingDto {
 }
 
 export interface CostCategoryDto {
-    category: 'MAINTENANCE' | 'FINES' | 'IPVA' | 'INSURANCE' | 'FINANCING' | string;
+    category: 'MAINTENANCE' | 'FINES' | 'IPVA' | 'INSURANCE' | 'FINANCING' | 'EXPENSES' | string;
     amountCents: number;
     /** Basis points (10000 = 100%). */
     shareBp: number;

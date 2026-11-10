@@ -1,0 +1,127 @@
+<app-default-page-layout [title]="expense()?.description ?? 'Detalhes do gasto'">
+  <a
+    pageBack
+    routerLink="/gastos"
+    class="inline-flex items-center gap-1.5 min-h-11 text-[13px] text-fg-muted hover:text-fg"
+  >
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6l6 6" /></svg>
+    Gastos
+  </a>
+
+  @if (loading()) {
+    <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
+      Carregando…
+    </div>
+  } @else if (error(); as loadError) {
+    <div class="rounded-2xl bg-surface border border-rose-200 dark:border-rose-500/30 p-8 text-center space-y-3">
+      <p class="text-rose-700 dark:text-rose-300 text-sm" role="alert">{{ loadError }}</p>
+      <a routerLink="/gastos" class="inline-flex items-center min-h-11 text-sm text-primary-700 dark:text-primary-400 font-medium">
+        Voltar para a lista
+      </a>
+    </div>
+  } @else if (expense(); as e) {
+    <div class="space-y-4 sm:space-y-6">
+      <!-- Editar e Excluir: no topo no computador, no fim da página no celular. -->
+      <div class="hidden lg:flex justify-end gap-3" data-actions-top>
+        <app-detail-actions [editRouterLink]="['/gastos', e.id, 'editar']" (delete)="askDelete()" />
+      </div>
+
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <app-status-chip tone="neutral" data-expense-category>{{ e.categoryLabel }}</app-status-chip>
+        <p class="text-base text-fg-muted">
+          {{ e.vehicleId ? 'Gasto do veículo' : 'Gasto da locadora' }} · {{ date(e.expenseDate) }}
+          @if (e.vehicleId) { · {{ plate(e) }} }
+        </p>
+      </div>
+
+      @if (actionError(); as actionMessage) {
+        <app-alert-banner variant="error" [message]="actionMessage" />
+      }
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <app-painted-card tone="orange" class="lg:col-span-3" data-expense-value-card>
+          <span class="text-xs uppercase tracking-wider text-white/90">Valor do gasto</span>
+          <span class="text-4xl sm:text-5xl font-bold tabular-nums tracking-tight leading-tight" data-expense-amount>{{ money(e.amountCents) }}</span>
+          <span class="text-[13px] text-white/95">Conta em {{ monthLabel() }}, pela data do gasto ({{ date(e.expenseDate) }}).</span>
+        </app-painted-card>
+
+        <section class="rounded-2xl bg-surface border border-edge p-4 sm:p-5 min-w-0" aria-labelledby="expense-sec-main">
+          <h2 id="expense-sec-main" class="text-[13px] font-semibold text-fg-muted mb-3">Gasto</h2>
+          <dl class="space-y-4 text-sm">
+            <div>
+              <dt class="text-xs text-fg-subtle">Categoria</dt>
+              <dd class="font-semibold text-fg">{{ e.categoryLabel }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-fg-subtle">Data</dt>
+              <dd class="font-semibold text-fg tabular-nums">{{ date(e.expenseDate) }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-fg-subtle">Descrição</dt>
+              <dd class="font-semibold text-fg break-words">{{ e.description }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="rounded-2xl bg-surface border border-edge p-4 sm:p-5 min-w-0" aria-labelledby="expense-sec-vehicle">
+          <h2 id="expense-sec-vehicle" class="text-[13px] font-semibold text-fg-muted mb-3">Veículo</h2>
+          <dl class="space-y-4 text-sm">
+            @if (e.vehicleId) {
+              <div>
+                <dt class="text-xs text-fg-subtle">{{ model(e) }}</dt>
+                <dd class="font-semibold text-fg tabular-nums">{{ plate(e) }}</dd>
+              </div>
+              <div>
+                <dt class="text-xs text-fg-subtle">Entra em</dt>
+                <dd class="font-semibold text-fg">Rentabilidade do carro</dd>
+              </div>
+            } @else {
+              <div>
+                <dt class="text-xs text-fg-subtle">Veículo</dt>
+                <dd class="font-semibold text-fg">Locadora toda</dd>
+              </div>
+              <div>
+                <dt class="text-xs text-fg-subtle">Entra em</dt>
+                <dd class="font-semibold text-fg">Só no total da locadora</dd>
+              </div>
+            }
+          </dl>
+        </section>
+
+        <section class="rounded-2xl bg-surface border border-edge p-4 sm:p-5 min-w-0" aria-labelledby="expense-sec-effect">
+          <h2 id="expense-sec-effect" class="text-[13px] font-semibold text-fg-muted mb-3">Efeito no painel</h2>
+          <dl class="space-y-4 text-sm">
+            <div>
+              <dt class="text-xs text-fg-subtle">Despesas de {{ monthLabel() }}</dt>
+              <dd class="font-semibold text-fg tabular-nums">+ {{ money(e.amountCents) }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-fg-subtle">Lucro de {{ monthLabel() }}</dt>
+              <dd class="font-semibold text-fg tabular-nums">− {{ money(e.amountCents) }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-fg-subtle">Calendário financeiro</dt>
+              <dd class="font-semibold text-fg">Saída em {{ date(e.expenseDate) }}</dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+
+      <div class="lg:hidden w-full" data-actions-bottom>
+        <app-detail-actions [editRouterLink]="['/gastos', e.id, 'editar']" (delete)="askDelete()" />
+      </div>
+    </div>
+  }
+</app-default-page-layout>
+
+<app-confirm-dialog
+  [open]="deleteOpen()"
+  title="Excluir este gasto?"
+  [message]="'O gasto de ' + (expense() ? money(expense()!.amountCents) : '') + ' sai de Despesas de ' + monthLabel() + ' e o Lucro do mês sobe o mesmo valor. Não dá para desfazer.'"
+  confirmLabel="Excluir gasto"
+  cancelLabel="Manter gasto"
+  variant="danger"
+  [busy]="deleting()"
+  (confirmed)="confirmDelete()"
+  (cancelled)="cancelDelete()"
+/>
