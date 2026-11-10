@@ -155,13 +155,14 @@
             class="grid grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2.5"
           >
             @for (frame of frames(); track frame.angle) {
+              <div class="min-w-0">
               @if (frame.hasPhoto) {
                 <button
                   type="button"
                   data-driver-photo
                   (click)="openPhoto.emit(frame.angle)"
                   [attr.aria-label]="'Ver foto: ' + frame.label"
-                  class="relative aspect-square rounded-xl overflow-hidden border border-edge
+                  class="relative block w-full aspect-square rounded-xl overflow-hidden border border-edge
                          bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                 >
                   @if (frame.signedUrl; as url) {
@@ -181,7 +182,7 @@
               } @else {
                 <div
                   data-driver-photo-missing
-                  class="aspect-square rounded-xl border border-dashed border-edge-strong bg-surface-muted flex
+                  class="w-full aspect-square rounded-xl border border-dashed border-edge-strong bg-surface-muted flex
                          flex-col items-center justify-center gap-1.5 p-1.5 text-center text-fg-faint"
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -192,6 +193,13 @@
                   <span class="text-xs leading-tight text-fg-muted">{{ frame.label }}</span>
                 </div>
               }
+              <app-inspection-photo-stamp
+                [when]="frame.when"
+                [where]="frame.where"
+                [whereMissing]="frame.whereMissing"
+                [mapUrl]="frame.mapUrl"
+              />
+              </div>
             }
           </div>
           @if (canRetryPhotos()) {

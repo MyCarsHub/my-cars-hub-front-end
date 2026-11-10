@@ -1408,4 +1408,112 @@ describe('InspectionReview — detalhes da vistoria', () => {
       expect(approveBtn(fixture)?.className).toContain('sm:w-auto');
     });
   });
+
+  // ============================================================ hora e local por foto
+
+  /**
+   * Pedido do dono 2026-11-09 (desenho DtVistoria.dc.html): sob cada foto, o relogio com a
+   * hora e o pino com o local, com rotulo honesto para negado, aparelho, galeria e foto antiga.
+   */
+  describe('hora e local de cada foto', () => {
+    const CAPTURED = '2026-11-02T23:32:12-03:00';
+    const RECEIVED = '2026-11-03T02:32:20Z';
+
+    function stamped(): InspectionPhoto[] {
+      return ALL_PHOTOS.map((p) => {
+        if (p.angle === 'FRONT') {
+          return {
+            ...p,
+            capturedAt: CAPTURED,
+            receivedAt: RECEIVED,
+            address: 'Av. Paulista, 1578 · Bela Vista, São Paulo/SP',
+            captureSource: 'CAMERA' as const,
+            locationStatus: 'GRANTED' as const,
+          };
+        }
+        if (p.angle === 'ENGINE') {
+          return { ...p, capturedAt: CAPTURED, receivedAt: RECEIVED, locationStatus: 'DENIED' as const };
+        }
+        if (p.angle === 'TRUNK') {
+          return { ...p, receivedAt: RECEIVED, captureSource: 'GALLERY' as const };
+        }
+        if (p.angle === 'DASHBOARD') {
+          return {
+            ...p,
+            capturedAt: CAPTURED,
+            receivedAt: RECEIVED,
+            latitude: -23.5614,
+            longitude: -46.6559,
+            approximate: true,
+          };
+        }
+        return p; // foto antiga: sem hora gravada
+      });
+    }
+
+    const item = (f: ComponentFixture<InspectionReview>, label: string) =>
+      host(f).querySelector<HTMLButtonElement>(`[aria-label="Ampliar foto: ${label}"]`)!
+        .closest('li') as HTMLElement;
+
+    it('mostra hora e endereço sob a foto, e o aviso do topo e da legenda', () => {
+      const fixture = renderWith({ photoLocationEnabled: true }, stamped());
+      const front = item(fixture, 'Frente');
+
+      expect(front.querySelector('[data-photo-when]')?.textContent).toContain('02/11 23:32:12');
+      expect(front.querySelector('[data-photo-where]')?.textContent).toContain(
+        'Av. Paulista, 1578 · Bela Vista, São Paulo/SP',
+      );
+      expect(q(fixture, '[data-photo-stamp-notice]')?.textContent).toContain(
+        'Cada foto guarda a hora e o local',
+      );
+      expect(q(fixture, '[data-photo-stamp-caption]')).not.toBeNull();
+    });
+
+    it('negado, galeria e coordenada têm rótulo honesto', () => {
+      const fixture = renderWith({ photoLocationEnabled: true }, stamped());
+
+      expect(item(fixture, 'Motor').querySelector('[data-photo-where]')?.textContent).toContain(
+        'Sem local (não autorizado)',
+      );
+      const trunk = item(fixture, 'Porta-malas');
+      expect(trunk.querySelector('[data-photo-when]')?.textContent).toContain(
+        'Enviada da galeria · 02/11 23:32:20',
+      );
+      expect(trunk.querySelector('[data-photo-where]')?.textContent).toContain(
+        'Sem local (foto da galeria)',
+      );
+      const map = item(fixture, 'Painel').querySelector<HTMLAnchorElement>('[data-photo-map]');
+      expect(map?.textContent).toContain('-23.5614, -46.6559 (aproximado)');
+      expect(map?.getAttribute('href')).toContain('query=-23.5614,-46.6559');
+      expect(map?.getAttribute('rel')).toContain('noopener');
+    });
+
+    it('foto antiga não ganha linhas', () => {
+      const fixture = renderWith({ photoLocationEnabled: true }, stamped());
+      const back = item(fixture, 'Traseira');
+
+      expect(back.querySelector('[data-photo-when]')).toBeNull();
+      expect(back.querySelector('[data-photo-where]')).toBeNull();
+    });
+
+    it('localização desligada: só a hora, sem a linha do local nem a legenda', () => {
+      const plain = stamped().map((p) =>
+        p.angle === 'FRONT' ? { ...p, address: null, locationStatus: null, captureSource: 'CAMERA' as const } : p,
+      );
+      const fixture = renderWith({ photoLocationEnabled: false }, plain);
+      const front = item(fixture, 'Frente');
+
+      expect(front.querySelector('[data-photo-when]')?.textContent).toContain('02/11 23:32:12');
+      expect(front.querySelector('[data-photo-where]')).toBeNull();
+      expect(q(fixture, '[data-photo-stamp-caption]')).toBeNull();
+    });
+
+    it('o motorista vê as mesmas linhas na página dele', () => {
+      role = 'DRIVER';
+      const fixture = renderWith({ photoLocationEnabled: true }, stamped());
+
+      expect(text(fixture)).toContain('02/11 23:32:12');
+      expect(text(fixture)).toContain('Sem local (não autorizado)');
+    });
+  });
 });

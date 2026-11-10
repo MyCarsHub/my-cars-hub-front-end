@@ -4,6 +4,7 @@ import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import type { InspectionStatus } from '../../../types/inspection.types';
 import type { AngleFrame } from '../inspection-view';
+import { InspectionPhotoStamp } from '../inspection-photo-stamp';
 
 /** One line of "Resumo". */
 export interface DetailField {
@@ -20,7 +21,7 @@ export interface DetailField {
 @Component({
   selector: 'app-driver-inspection-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, AlertBanner, DefaultPageLayout],
+  imports: [RouterLink, AlertBanner, DefaultPageLayout, InspectionPhotoStamp],
   templateUrl: './driver-inspection-detail.html',
 })
 export class DriverInspectionDetail {

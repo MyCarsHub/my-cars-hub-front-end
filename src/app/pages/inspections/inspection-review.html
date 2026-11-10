@@ -248,6 +248,29 @@
               {{ photoSummary() }}
             </p>
 
+            <!-- Hora e local de cada foto: o aviso do desenho aprovado (DtVistoria.dc.html). -->
+            @if (photoLocationEnabled()) {
+              <p
+                data-photo-stamp-notice
+                class="flex items-center gap-2.5 rounded-xl bg-sky-500/10 px-3.5 py-2.5 text-[13px]
+                       leading-snug text-sky-800 dark:text-sky-200"
+              >
+                <span class="shrink-0"><app-vehicle-icon name="map-pin" [size]="16" [strokeWidth]="2" /></span>
+                Cada foto guarda a hora e o local em que foi tirada, registrados pelo aparelho do
+                motorista, com o endereço aproximado. Aparecem aqui e no laudo.
+              </p>
+            } @else if (hasStamps()) {
+              <p
+                data-photo-stamp-notice
+                class="flex items-center gap-2.5 rounded-xl bg-sky-500/10 px-3.5 py-2.5 text-[13px]
+                       leading-snug text-sky-800 dark:text-sky-200"
+              >
+                <span class="shrink-0"><app-vehicle-icon name="clock" [size]="16" [strokeWidth]="2" /></span>
+                Cada foto guarda a hora em que foi tirada, registrada pelo aparelho do motorista.
+                Aparece aqui e no laudo.
+              </p>
+            }
+
             <!--
               A GRADE: quadros QUADRADOS tracejados. Com foto, a imagem cobre o quadro e o nome
               do angulo vai numa faixa embaixo; sem foto, a camera e o nome — sem texto
@@ -298,9 +321,23 @@
                       <span class="text-[13px] text-fg-muted leading-tight">{{ frame.label }}</span>
                     </div>
                   }
+                  <app-inspection-photo-stamp
+                    [when]="frame.when"
+                    [where]="frame.where"
+                    [whereMissing]="frame.whereMissing"
+                    [mapUrl]="frame.mapUrl"
+                  />
                 </li>
               }
             </ul>
+
+            @if (photoLocationEnabled()) {
+              <p data-photo-stamp-caption class="text-xs text-fg-muted leading-relaxed">
+                O local é o endereço aproximado da localização do aparelho no instante da foto. Se o
+                motorista não permitir a localização, a foto fica sem local e a hora continua
+                registrada.
+              </p>
+            }
           }
 
           <!--
@@ -476,7 +513,9 @@
                 {{ pdfName() }}
               </span>
               <span class="text-xs text-fg-subtle">
-                Laudo gerado a partir das {{ totalCount() || 14 }} fotos
+                Laudo gerado a partir das {{ totalCount() || 14 }} fotos{{
+                  photoLocationEnabled() ? ', com hora e local de cada uma.' : ''
+                }}
               </span>
             </div>
           </div>

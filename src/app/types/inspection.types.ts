@@ -89,6 +89,12 @@ export interface Inspection {
   readonly previousOdometerKm?: number | null;
   /** `odometerKm - previousOdometerKm`, calculado pelo servidor. A tela NAO recalcula. */
   readonly kmDriven?: number | null;
+  /**
+   * A localizacao das fotos esta ligada no servidor (`APP_INSPECTIONS_PHOTO_LOCATION_ENABLED`).
+   * Desligada (ou ausente): a captura NUNCA pede a localizacao e a tela nao mostra a linha do
+   * local; a hora continua.
+   */
+  readonly photoLocationEnabled?: boolean;
 }
 
 /**
@@ -153,6 +159,43 @@ export interface InspectionPhoto {
   readonly signedUrl: string | null;
   /** Quando a foto foi enviada (ISO). */
   readonly createdDate: string;
+  /** Hora do APARELHO no disparo (ISO com fuso). Ausente = foto antiga ou nao informada. */
+  readonly capturedAt?: string | null;
+  /** Hora do SERVIDOR ao receber (ISO). Ausente = foto anterior aos metadados. */
+  readonly receivedAt?: string | null;
+  /** Endereco aproximado, quando ja resolvido. */
+  readonly address?: string | null;
+  /** `NONE`, `PENDING`, `OK`, `FAILED`; ausente em foto antiga. */
+  readonly addressStatus?: string | null;
+  /** A hora do aparelho e a do servidor diferem alem do limite do servidor. */
+  readonly clockSkew?: boolean;
+  /** `CAMERA` ou `GALLERY`; ausente em foto antiga. */
+  readonly captureSource?: PhotoCaptureSource | null;
+  /** Resposta do aparelho ao pedido de localizacao. */
+  readonly locationStatus?: PhotoLocationStatus | null;
+  /** Coordenada ARREDONDADA, so enquanto nao ha endereco (link do mapa). */
+  readonly latitude?: number | null;
+  readonly longitude?: number | null;
+  /** A precisao do aparelho passou do limite do servidor: local aproximado. */
+  readonly approximate?: boolean;
+}
+
+export type PhotoCaptureSource = 'CAMERA' | 'GALLERY';
+export type PhotoLocationStatus = 'GRANTED' | 'DENIED' | 'UNAVAILABLE' | 'TIMEOUT';
+
+/**
+ * O que vai junto da foto no upload, tirado NO DISPARO (nunca na hora do envio): um reenvio
+ * depois de falha de rede manda estes mesmos valores.
+ */
+export interface PhotoCaptureMeta {
+  readonly source: PhotoCaptureSource;
+  /** ISO-8601 com o fuso do aparelho. Ausente na galeria. */
+  readonly capturedAt?: string;
+  readonly latitude?: number;
+  readonly longitude?: number;
+  /** Raio de precisao em metros, como o aparelho informou. */
+  readonly accuracy?: number;
+  readonly locationStatus?: PhotoLocationStatus;
 }
 
 export interface InspectionReviewResult {
