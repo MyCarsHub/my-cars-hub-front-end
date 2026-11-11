@@ -1067,6 +1067,16 @@ export const routes: Routes = [
                                 data: { pageTitle: 'Editar post' },
                             },
                             {
+                                // Novidades (avisos de produto): so o Dono; o servidor confere de novo.
+                                path: 'novidades',
+                                canActivate: [capabilityGuard('novidades.gerir')],
+                                loadComponent: () =>
+                                    import('./pages/admin/announcements/admin-announcements').then(
+                                        (m) => m.AdminAnnouncements,
+                                    ),
+                                data: { pageTitle: 'Novidades' },
+                            },
+                            {
                                 path: 'suporte',
                                 loadComponent: () =>
                                     import('./pages/admin/support/admin-support-list').then(
