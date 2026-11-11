@@ -1,0 +1,176 @@
+<app-default-page-layout
+  title="Novidades"
+  description="Avisos de produto que aparecem uma vez para cada pessoa, quando ela entra no app. Só o dono da plataforma publica."
+>
+  <div class="space-y-4 lg:space-y-6 pb-[env(safe-area-inset-bottom)]">
+    @if (actionError(); as err) {
+      <div data-testid="action-error"><app-alert-banner variant="error" [message]="err" /></div>
+    }
+
+    @if (!loadError() && items().length > 0) {
+      <div class="flex md:justify-end">
+        <button
+          type="button"
+          data-testid="create-announcement"
+          (click)="openNew()"
+          class="press press-soft inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-5
+                 text-base font-semibold text-white shadow-sm hover:bg-primary-600 md:w-auto md:text-sm
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          Nova novidade
+        </button>
+      </div>
+    }
+
+    <section class="rounded-2xl border border-edge bg-surface p-4 shadow-sm md:p-6" aria-label="Lista de novidades">
+      @if (loading() && items().length === 0) {
+        <div class="space-y-3" role="status" aria-label="Carregando novidades" data-testid="skeleton">
+          @for (i of [1, 2, 3]; track i) {
+            <div class="h-16 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          }
+        </div>
+      } @else if (loadError()) {
+        <div class="flex flex-col items-center gap-2.5 px-3 pb-8 pt-10 text-center" role="alert" data-testid="load-error">
+          <span class="grid size-14 place-items-center rounded-2xl bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5M12 16.5h.01M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0" /></svg>
+          </span>
+          <h2 class="mt-1 text-lg font-semibold text-fg">Não foi possível carregar as novidades</h2>
+          <p class="max-w-[440px] text-sm text-fg-muted">A lista não chegou do servidor. Nada foi alterado e nenhuma novidade deixou de aparecer para os clientes.</p>
+          <button
+            type="button"
+            data-testid="retry"
+            (click)="load()"
+            class="press mt-2 inline-flex min-h-12 items-center gap-2 rounded-xl border border-edge bg-surface px-5 text-base font-semibold text-fg-soft
+                   hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
+            Tentar de novo
+          </button>
+        </div>
+      } @else if (items().length === 0) {
+        <div class="flex flex-col items-center gap-2.5 px-3 pb-8 pt-10 text-center" data-testid="empty">
+          <span class="grid size-14 place-items-center rounded-2xl bg-surface-sunken text-fg-soft">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1M15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12" /></svg>
+          </span>
+          <h2 class="mt-1 text-lg font-semibold text-fg">Nenhuma novidade ainda</h2>
+          <p class="max-w-[440px] text-sm text-fg-muted">Escreva o aviso de uma mudança do produto. Ele aparece uma vez para cada dono, gerente ou motorista, conforme o público que você escolher.</p>
+          <button
+            type="button"
+            data-testid="empty-create"
+            (click)="openNew()"
+            class="press mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-5 text-base font-semibold text-white
+                   hover:bg-primary-600 sm:w-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            Escrever a primeira
+          </button>
+        </div>
+      } @else {
+        <div class="flex flex-col gap-4">
+          <app-pill-tabs ariaLabel="Filtrar por situação" [options]="tabs()" [value]="filter()" (selected)="setFilter($event)" />
+
+          <div>
+            <div
+              class="hidden grid-cols-[minmax(0,2.6fr)_minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1fr)_44px] gap-x-4 px-2.5 pb-2.5 md:grid"
+              aria-hidden="true"
+            >
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">Novidade</span>
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">Público</span>
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">Período</span>
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">Situação</span>
+              <span></span>
+            </div>
+            <ul class="flex flex-col gap-1" data-testid="announcements-list" aria-label="Novidades">
+              @for (row of rows(); track row.a.id) {
+                <li
+                  class="relative flex flex-wrap gap-x-[18px] gap-y-2.5 rounded-xl px-1 py-3.5 transition-colors hover:bg-surface-muted
+                         md:grid md:min-h-12 md:grid-cols-[minmax(0,2.6fr)_minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1fr)_44px] md:items-center md:gap-x-4 md:px-2.5"
+                  data-testid="announcement-row"
+                >
+                  <div class="flex min-w-0 basis-full flex-col gap-0.5 pr-12 md:basis-auto md:pr-0">
+                    <span class="text-[10px] uppercase tracking-wider text-fg-subtle md:hidden">Novidade</span>
+                    <button
+                      type="button"
+                      class="min-h-11 w-fit max-w-full break-words text-left text-[15px] font-semibold text-fg hover:text-primary-700 md:truncate
+                             dark:hover:text-primary-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+                      data-testid="row-title"
+                      (click)="open(row.a)"
+                    >{{ row.a.title }}</button>
+                    <span class="text-xs text-fg-subtle" data-testid="row-sub">{{ row.sub }}</span>
+                  </div>
+                  <div class="flex min-w-0 flex-col gap-0.5">
+                    <span class="text-[10px] uppercase tracking-wider text-fg-subtle md:hidden">Público</span>
+                    <span class="text-sm text-fg" data-testid="row-audience">{{ row.aud }}</span>
+                    <span class="text-xs text-fg-subtle">{{ row.audSub }}</span>
+                  </div>
+                  <div class="flex min-w-0 flex-col gap-0.5">
+                    <span class="text-[10px] uppercase tracking-wider text-fg-subtle md:hidden">Período</span>
+                    <span class="text-sm text-fg tabular-nums" data-testid="row-period">{{ row.period }}</span>
+                    <span class="text-xs text-fg-subtle">{{ row.periodSub }}</span>
+                  </div>
+                  <div class="flex min-w-0 flex-col items-start gap-0.5">
+                    <span class="text-[10px] uppercase tracking-wider text-fg-subtle md:hidden">Situação</span>
+                    <app-status-chip [tone]="row.chip.tone" [colorClass]="row.chip.colorClass" size="sm" data-testid="row-status">{{ row.status }}</app-status-chip>
+                  </div>
+                  <div class="absolute right-0 top-1.5 flex justify-end md:static">
+                    <app-actions-menu [label]="'Ações de ' + row.a.title" [menuWidth]="232">
+                      @switch (row.a.status) {
+                        @case ('PUBLISHED') {
+                          <button type="button" role="menuitem" data-testid="menu-edit" (click)="open(row.a)"
+                            class="min-h-[44px] w-full px-4 py-3 text-left text-sm text-fg-soft hover:bg-surface-muted">Editar</button>
+                          <button type="button" role="menuitem" data-testid="menu-preview" (click)="open(row.a)"
+                            class="min-h-[44px] w-full px-4 py-3 text-left text-sm text-fg-soft hover:bg-surface-muted">Ver prévia</button>
+                          <button type="button" role="menuitem" data-testid="menu-unpublish" (click)="askUnpublish(row.a)"
+                            class="min-h-[44px] w-full px-4 py-3 text-left text-sm text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10">Encerrar agora</button>
+                        }
+                        @case ('DRAFT') {
+                          <button type="button" role="menuitem" data-testid="menu-edit" (click)="open(row.a)"
+                            class="min-h-[44px] w-full px-4 py-3 text-left text-sm text-fg-soft hover:bg-surface-muted">Editar</button>
+                          <button type="button" role="menuitem" data-testid="menu-publish" (click)="publish(row.a)"
+                            class="min-h-[44px] w-full px-4 py-3 text-left text-sm font-semibold text-primary-700 hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-500/10">Publicar</button>
+                          <button type="button" role="menuitem" data-testid="menu-delete" (click)="askDelete(row.a)"
+                            class="min-h-[44px] w-full px-4 py-3 text-left text-sm text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10">Excluir rascunho</button>
+                        }
+                        @default {
+                          <button type="button" role="menuitem" data-testid="menu-view" (click)="open(row.a)"
+                            class="min-h-[44px] w-full px-4 py-3 text-left text-sm text-fg-soft hover:bg-surface-muted">Ver</button>
+                          <button type="button" role="menuitem" data-testid="menu-duplicate" (click)="duplicate(row.a)"
+                            class="min-h-[44px] w-full px-4 py-3 text-left text-sm text-fg-soft hover:bg-surface-muted">Duplicar como rascunho</button>
+                        }
+                      }
+                    </app-actions-menu>
+                  </div>
+                </li>
+              }
+            </ul>
+          </div>
+          <p class="text-xs text-fg-subtle" role="status" aria-live="polite" data-testid="footer">{{ footer() }}</p>
+        </div>
+      }
+    </section>
+  </div>
+
+  <app-back-link link="/admin" label="Voltar para o painel admin" />
+</app-default-page-layout>
+
+@if (sheet(); as s) {
+  <app-announcement-sheet
+    [announcement]="s.announcement"
+    [duplicate]="s.duplicate"
+    (saved)="onSaved($event)"
+    (closed)="closeSheet()"
+  />
+}
+
+<app-confirm-dialog
+  [open]="confirm() !== null"
+  [title]="confirmTitle()"
+  [message]="confirmMessage()"
+  [confirmLabel]="confirm()?.kind === 'delete' ? 'Excluir' : 'Encerrar'"
+  cancelLabel="Voltar"
+  variant="danger"
+  [busy]="confirmBusy()"
+  (confirmed)="doConfirm()"
+  (cancelled)="cancelConfirm()"
+/>

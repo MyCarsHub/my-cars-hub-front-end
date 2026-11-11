@@ -23,7 +23,8 @@ export type AdminCapabilityCode =
   | 'admins.gerir'
   | 'suporte.atender'
   | 'blog'
-  | 'plataforma.operar';
+  | 'plataforma.operar'
+  | 'novidades.gerir';
 
 export interface AdminSelf {
   userId: string;

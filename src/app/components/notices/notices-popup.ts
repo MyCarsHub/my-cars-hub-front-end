@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { Router } from '@angular/router';
 import { BottomSheet } from '../core/bottom-sheet/bottom-sheet';
 import { CompanyContactQuickForm } from './company-contact-quick-form';
@@ -79,6 +80,7 @@ import { Notice, NoticeOutcome, NoticesService } from './notices.service';
 export class NoticesPopup {
   protected readonly notices = inject(NoticesService);
   private readonly router = inject(Router);
+  private readonly doc = inject(DOCUMENT);
   private readonly sheet = viewChild(BottomSheet);
   private pending: NoticeOutcome = 'dismissed';
   private target: string | null = null;
@@ -94,7 +96,14 @@ export class NoticesPopup {
   }
 
   protected openLink(notice: Notice): void {
-    this.target = notice.link?.route ?? null;
+    const route = notice.link?.route ?? null;
+    if (route && /^https:\/\//i.test(route)) {
+      // Endereço externo: abre já, dentro do gesto do clique (bloqueador de popup), em outra aba.
+      this.doc.defaultView?.open(route, '_blank', 'noopener,noreferrer');
+      this.target = null;
+    } else {
+      this.target = route;
+    }
     this.finishWith('dismissed');
   }
 

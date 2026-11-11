@@ -1,0 +1,256 @@
+<app-bottom-sheet [title]="title()" [subtitle]="subtitle()" size="xl" [busy]="busy()" (closed)="closed.emit()">
+  <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start" data-testid="announcement-sheet" [formGroup]="form">
+    <div class="flex min-w-0 flex-col gap-6">
+      <label class="flex flex-col gap-2 text-sm font-medium text-fg-soft">
+        <span class="flex items-baseline justify-between gap-3">
+          <span>Título</span>
+          <span class="text-xs font-normal text-fg-subtle tabular-nums">{{ state().title.length }}/{{ limits.title }}</span>
+        </span>
+        <input
+          type="text"
+          formControlName="title"
+          [maxLength]="limits.title"
+          placeholder="Ex.: Gastos da locadora no painel"
+          data-testid="field-title"
+          class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
+                 focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-70"
+        />
+      </label>
+
+      <label class="flex flex-col gap-2 text-sm font-medium text-fg-soft">
+        <span class="flex items-baseline justify-between gap-3">
+          <span>Texto</span>
+          <span class="text-xs font-normal text-fg-subtle tabular-nums">{{ state().body.length }}/{{ limits.body }}</span>
+        </span>
+        <textarea
+          formControlName="body"
+          rows="5"
+          [maxLength]="limits.body"
+          placeholder="O que mudou e por que importa, em poucas frases."
+          data-testid="field-body"
+          class="min-h-[120px] w-full resize-y rounded-xl border border-edge-field bg-surface px-3 py-3 text-base text-fg
+                 focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-70"
+        ></textarea>
+        <span class="text-xs font-normal text-fg-subtle">Texto simples, sem formatação. Quebra de linha vale.</span>
+      </label>
+
+      <fieldset class="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+        <legend class="mb-2 p-0 text-sm font-medium text-fg-soft">
+          O que mudou
+          <span class="text-xs font-normal text-fg-subtle">(opcional, até {{ limits.items }} itens curtos; aparecem como etiquetas)</span>
+        </legend>
+        @for (ctrl of itemControls; track ctrl; let i = $index) {
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              [formControl]="ctrl"
+              [maxLength]="limits.item"
+              [attr.aria-label]="'Item ' + (i + 1)"
+              placeholder="Item curto"
+              data-testid="field-item"
+              class="min-h-12 w-full min-w-0 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
+                     focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-70"
+            />
+            @if (mode() !== 'view') {
+              <button
+                type="button"
+                class="press grid size-12 shrink-0 place-items-center rounded-xl bg-surface-sunken text-fg-muted hover:text-fg
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                [attr.aria-label]="'Remover item ' + (i + 1)"
+                (click)="removeItem(i)"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            }
+          </div>
+        }
+        @if (canAddItem() && mode() !== 'view') {
+          <button
+            type="button"
+            class="press inline-flex min-h-11 items-center gap-1.5 self-start rounded-lg px-1 text-sm font-semibold text-primary-700
+                   dark:text-primary-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            data-testid="add-item"
+            (click)="addItem()"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            Adicionar item
+          </button>
+        }
+      </fieldset>
+
+      <fieldset class="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+        <legend class="mb-2 p-0 text-sm font-medium text-fg-soft">Link <span class="text-xs font-normal text-fg-subtle">(opcional)</span></legend>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="flex flex-col gap-2 text-sm font-medium text-fg-soft">
+            Endereço
+            <input
+              type="text"
+              inputmode="url"
+              autocomplete="off"
+              formControlName="linkUrl"
+              placeholder="/gastos"
+              data-testid="field-link-url"
+              class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
+                     focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-70"
+            />
+          </label>
+          <label class="flex flex-col gap-2 text-sm font-medium text-fg-soft">
+            Texto do botão
+            <input
+              type="text"
+              formControlName="linkLabel"
+              [maxLength]="limits.linkLabel"
+              placeholder="Ver Gastos"
+              data-testid="field-link-label"
+              class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
+                     focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-70"
+            />
+          </label>
+        </div>
+        @if (linkError(); as msg) {
+          <span role="alert" class="text-sm text-rose-600 dark:text-rose-300" data-testid="link-error">{{ msg }}</span>
+        } @else {
+          <span class="text-xs text-fg-subtle">Página do app (começa com /) ou endereço https. Sem link, o aviso tem só o botão Entendi.</span>
+        }
+      </fieldset>
+
+      <fieldset class="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+        <legend class="mb-2 p-0 text-sm font-medium text-fg-soft">Quem vê</legend>
+        <label
+          class="flex cursor-pointer items-start gap-3 rounded-2xl px-4 py-3.5 transition-colors"
+          [class]="state().loc ? 'bg-primary-50 dark:bg-primary-500/10' : 'bg-surface-sunken'"
+        >
+          <input type="checkbox" formControlName="loc" data-testid="aud-locadora" class="mt-0.5 size-5 shrink-0 accent-primary-500" />
+          <span class="flex flex-col gap-0.5">
+            <b class="text-base font-semibold text-fg">Locadoras (dono e gerente)</b>
+            <span class="text-xs text-fg-subtle">Todas as empresas. Aparece no painel da locadora.</span>
+          </span>
+        </label>
+        <label
+          class="flex cursor-pointer items-start gap-3 rounded-2xl px-4 py-3.5 transition-colors"
+          [class]="state().mot ? 'bg-primary-50 dark:bg-primary-500/10' : 'bg-surface-sunken'"
+        >
+          <input type="checkbox" formControlName="mot" data-testid="aud-motorista" class="mt-0.5 size-5 shrink-0 accent-primary-500" />
+          <span class="flex flex-col gap-0.5">
+            <b class="text-base font-semibold text-fg">Motoristas</b>
+            <span class="text-xs text-fg-subtle">Aparece na área do motorista. Escreva para quem dirige.</span>
+          </span>
+        </label>
+        @if (noAudience() && mode() !== 'view') {
+          <span role="alert" class="text-sm text-rose-600 dark:text-rose-300" data-testid="no-audience">Escolha pelo menos um público para publicar.</span>
+        }
+      </fieldset>
+
+      <fieldset class="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+        <legend class="mb-2 p-0 text-sm font-medium text-fg-soft">Período</legend>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="flex flex-col gap-2 text-sm font-medium text-fg-soft">
+            Começa em
+            <input
+              type="date"
+              formControlName="startsOn"
+              data-testid="field-starts"
+              class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
+                     focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-70"
+            />
+          </label>
+          <label class="flex flex-col gap-2 text-sm font-medium text-fg-soft">
+            Termina em
+            <input
+              type="date"
+              formControlName="endsOn"
+              data-testid="field-ends"
+              class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
+                     focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-70"
+            />
+          </label>
+        </div>
+        @if (periodError(); as msg) {
+          <span role="alert" class="text-sm text-rose-600 dark:text-rose-300">{{ msg }}</span>
+        } @else {
+          <span class="text-xs text-fg-subtle">Sem início, começa no dia em que você publicar. Sem fim, fica no ar até você encerrar. Quem já leu não vê de novo.</span>
+        }
+      </fieldset>
+    </div>
+
+    <aside class="flex min-w-0 flex-col gap-3.5 lg:sticky lg:top-0" aria-label="Prévia">
+      <div class="flex flex-col gap-1">
+        <b class="text-base font-semibold text-fg">Prévia</b>
+        <span class="text-xs text-fg-subtle">Como aparece na próxima vez que a pessoa entrar. Uma novidade por vez.</span>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <div class="flex w-fit gap-1 rounded-3xl bg-surface-sunken p-1" role="group" aria-label="Aparelho">
+          <button type="button" data-testid="device-phone" [attr.aria-pressed]="device() === 'phone'" (click)="pickDevice('phone')"
+            class="press min-h-11 rounded-full px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            [class]="device() === 'phone' ? 'bg-primary-500 text-white' : 'text-fg-soft'">Celular</button>
+          <button type="button" data-testid="device-desk" [attr.aria-pressed]="device() === 'desk'" (click)="pickDevice('desk')"
+            class="press min-h-11 rounded-full px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            [class]="device() === 'desk' ? 'bg-primary-500 text-white' : 'text-fg-soft'">Computador</button>
+        </div>
+        @if (showAreas()) {
+          <div class="flex w-fit gap-1 rounded-3xl bg-surface-sunken p-1" role="group" aria-label="Área">
+            <button type="button" data-testid="area-locadora" [attr.aria-pressed]="area() === 'LOCADORA'" (click)="pickArea('LOCADORA')"
+              class="press min-h-11 rounded-full px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              [class]="area() === 'LOCADORA' ? 'bg-primary-500 text-white' : 'text-fg-soft'">Locadora</button>
+            <button type="button" data-testid="area-motorista" [attr.aria-pressed]="area() === 'MOTORISTA'" (click)="pickArea('MOTORISTA')"
+              class="press min-h-11 rounded-full px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              [class]="area() === 'MOTORISTA' ? 'bg-primary-500 text-white' : 'text-fg-soft'">Motorista</button>
+          </div>
+        }
+      </div>
+      <app-announcement-preview
+        [title]="state().title"
+        [body]="state().body"
+        [items]="state().items"
+        [linkLabel]="previewLink()"
+        [area]="area()"
+        [device]="device()"
+      />
+      @if (device() === 'desk') {
+        <span class="text-xs text-fg-subtle">Computador: janela no centro a partir de 1024 px. Celular: folha que sobe de baixo.</span>
+      }
+    </aside>
+  </div>
+
+  <div sheetFooter class="flex flex-col gap-3 pt-3">
+    @if (error(); as err) {
+      <div data-testid="sheet-error"><app-alert-banner variant="error" [message]="err" /></div>
+    }
+    <div class="grid grid-cols-2 gap-2.5 sm:flex sm:justify-end">
+      @switch (mode()) {
+        @case ('view') {
+          <button type="button" (click)="close()"
+            class="press min-h-12 rounded-xl border border-edge bg-surface px-5 text-base font-semibold text-fg-soft hover:bg-surface-muted
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Fechar</button>
+          <button type="button" data-testid="sheet-duplicate" (click)="startDuplicate()"
+            class="press min-h-12 rounded-xl bg-primary-500 px-5 text-base font-semibold text-white hover:bg-primary-600
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Duplicar como rascunho</button>
+        }
+        @case ('edit') {
+          @if (isPublished()) {
+            <button type="button" (click)="close()"
+              class="press min-h-12 rounded-xl border border-edge bg-surface px-5 text-base font-semibold text-fg-soft hover:bg-surface-muted
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Cancelar</button>
+            <button type="button" data-testid="sheet-save-changes" [disabled]="!canPublish()" (click)="saveChanges()"
+              class="press min-h-12 rounded-xl bg-primary-500 px-5 text-base font-semibold text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Salvar alterações</button>
+          } @else {
+            <ng-container *ngTemplateOutlet="draftActions" />
+          }
+        }
+        @default {
+          <ng-container *ngTemplateOutlet="draftActions" />
+        }
+      }
+    </div>
+  </div>
+</app-bottom-sheet>
+
+<ng-template #draftActions>
+  <button type="button" data-testid="sheet-save-draft" [disabled]="!canSave()" (click)="saveDraft()"
+    class="press min-h-12 rounded-xl border border-edge bg-surface px-5 text-base font-semibold text-fg-soft hover:bg-surface-muted disabled:opacity-40
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Salvar rascunho</button>
+  <button type="button" data-testid="sheet-publish" [disabled]="!canPublish()" (click)="publish()"
+    class="press min-h-12 rounded-xl bg-primary-500 px-5 text-base font-semibold text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">Publicar</button>
+</ng-template>

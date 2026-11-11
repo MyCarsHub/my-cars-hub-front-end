@@ -18,6 +18,7 @@ import { BillingAccessService } from '../../../services/billing-access.service';
 import { SessionService } from '../../../services/session.service';
 import { PaywallDialog } from '../../paywall-dialog/paywall-dialog';
 import { NoticesPopup } from '../../notices/notices-popup';
+import { NewsNoticesService } from '../../notices/news-notices.service';
 import { NotificationBell } from '../../notification-bell/notification-bell';
 import { ImpersonationService } from '../../../services/impersonation.service';
 import { TourSpotlight } from '../../tour/tour-spotlight';
@@ -157,6 +158,7 @@ export class AppShell implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly tour = inject(TourService);
   private readonly pastDue = inject(PastDueBannerStore);
+  private readonly news = inject(NewsNoticesService);
   /** "Depois" esconde o aviso de atraso até este instante (por empresa, nesta aba). */
   private readonly pastDueSnoozedUntil = signal(0);
 
@@ -258,6 +260,19 @@ export class AppShell implements OnInit, OnDestroy {
     effect(() => {
       if (!this.currentUrl().startsWith('/dashboard')) return;
       this.tour.maybeAutoStart();
+    });
+    // Novidades do produto: a mais antiga não lida, uma por sessão, no popup de avisos. Fora
+    // do onboarding (ainda sem empresa) e fora de `/admin` (lá quem está é o admin da
+    // plataforma). Vale para dono, gerente e motorista; o serviço ignora a sessão de suporte.
+    effect(() => {
+      const url = this.currentUrl();
+      if (url.startsWith('/onboarding') || isAdminAreaUrl(url)) return;
+      if (!this.session.isOnboardingCompleted()) return;
+      try {
+        this.news.maybeShow();
+      } catch {
+        // A novidade é um extra: nada nela pode derrubar a casca do app.
+      }
     });
   }
 

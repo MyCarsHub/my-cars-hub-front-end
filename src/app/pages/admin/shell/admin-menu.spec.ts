@@ -127,6 +127,7 @@ describe('Menu da administração — modelo da sidebar (FIX-0864)', () => {
       'Feedback',
       'Notificações',
       'Blog',
+      'Novidades',
     ]);
   });
 

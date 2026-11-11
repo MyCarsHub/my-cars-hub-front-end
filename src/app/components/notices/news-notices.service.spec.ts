@@ -1,0 +1,287 @@
+import { Component } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter, Router } from '@angular/router';
+import { of } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { environment } from '../../../environments/environment';
+import { CompanyContactService } from '../../services/company-contact.service';
+import { IMPERSONATION_STATE_KEY } from '../../services/impersonation.context';
+import { EMPTY_COMPANY_CONTACT } from '../../types/company-contact.types';
+import { UnreadAnnouncement } from '../../types/announcement.types';
+import { NEWS_SHOWN_KEY, NewsNoticesService } from './news-notices.service';
+import { NoticesPopup } from './notices-popup';
+import { NoticesService } from './notices.service';
+
+const UNREAD = `${environment.apiUrl}/announcements/unread`;
+const readUrl = (id: string) => `${environment.apiUrl}/announcements/${id}/read`;
+
+function b64url(obj: object): string {
+  return btoa(JSON.stringify(obj)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+function accessToken(): string {
+  return `${b64url({ alg: 'none' })}.${b64url({ companyId: 'c1', role: 'OWNER', exp: 4102444800 })}.sig`;
+}
+
+function news(id: string, extra: Partial<UnreadAnnouncement> = {}): UnreadAnnouncement {
+  return {
+    id,
+    title: `Título ${id}`,
+    body: `Texto ${id}`,
+    items: ['um', ''],
+    linkUrl: null,
+    linkLabel: null,
+    startsOn: '2026-11-01',
+    ...extra,
+  };
+}
+
+@Component({ imports: [NoticesPopup], template: '<app-notices-popup />' })
+class Host {}
+
+/**
+ * Cada `it` é uma "carga do app": TestBed novo = serviço novo. O `sessionStorage` é o da aba e
+ * sobrevive entre cargas, como num reload; `newSession()` limpa, como um novo login.
+ */
+describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
+  let http: HttpTestingController;
+  let service: NewsNoticesService;
+  let notices: NoticesService;
+
+  function boot(): void {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: CompanyContactService,
+          useValue: { load: () => of({ name: 'L', contact: EMPTY_COMPANY_CONTACT }), save: vi.fn() },
+        },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    service = TestBed.inject(NewsNoticesService);
+    notices = TestBed.inject(NoticesService);
+  }
+
+  function newSession(): void {
+    sessionStorage.clear();
+    sessionStorage.setItem('token', accessToken());
+    sessionStorage.setItem('id', 'u1');
+  }
+
+  function render() {
+    const f = TestBed.createComponent(Host);
+    f.detectChanges();
+    return f;
+  }
+  const q = (f: { nativeElement: HTMLElement }, sel: string) => f.nativeElement.querySelector<HTMLElement>(sel);
+
+  /** Fecha pelo caminho pedido e espera a animação do BottomSheet. */
+  function settle(f: { detectChanges(): void }): void {
+    vi.advanceTimersByTime(400);
+    TestBed.tick();
+    f.detectChanges();
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    newSession();
+    boot();
+  });
+
+  afterEach(() => {
+    http.verify();
+    vi.useRealTimers();
+    // isolate:false — nada desta suíte vaza para a vizinha.
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  it('enfileira a MAIS ANTIGA como NEWS, com "Entendi", texto simples e itens vazios fora', () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a'), news('b')]);
+    TestBed.tick();
+    f.detectChanges();
+    const current = notices.current();
+    expect(current?.id).toBe('news:a');
+    expect(current?.type).toBe('NEWS');
+    expect(current?.items).toEqual(['um']);
+    expect(q(f, '[data-testid="notice-dismiss"]')?.textContent?.trim()).toBe('Entendi');
+    expect(q(f, '[data-testid="notice-type"]')?.textContent).toContain('Novidade');
+  });
+
+  it('renderiza como texto: HTML no título/corpo não vira elemento', () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('x', { title: '<b>oi</b>', body: '<img src=x onerror=alert(1)>' })]);
+    TestBed.tick();
+    f.detectChanges();
+    const body = q(f, '[data-testid="notice-body"]')!;
+    expect(body.querySelector('img')).toBeNull();
+    expect(body.textContent).toContain('<img src=x onerror=alert(1)>');
+    expect(f.nativeElement.querySelector('h2 b')).toBeNull();
+  });
+
+  it('"Entendi" marca como lida UMA vez; reload na mesma sessão não mostra de novo nem busca', () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a')]);
+    TestBed.tick();
+    f.detectChanges();
+    q(f, '[data-testid="notice-dismiss"]')!.click();
+    settle(f);
+    const read = http.expectOne(readUrl('a'));
+    expect(read.request.method).toBe('POST');
+    read.flush(null, { status: 204, statusText: 'No Content' });
+    expect(notices.current()).toBeNull();
+    service.maybeShow();
+    http.expectNone(UNREAD);
+
+    // Reload: mesma aba, app novo.
+    boot();
+    render();
+    service.maybeShow();
+    http.expectNone(UNREAD);
+    expect(notices.current()).toBeNull();
+  });
+
+  it('marcada como lida, a próxima sessão não a vê (o servidor já não devolve)', () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a')]);
+    TestBed.tick();
+    f.detectChanges();
+    q(f, '[data-testid="notice-dismiss"]')!.click();
+    settle(f);
+    http.expectOne(readUrl('a')).flush(null, { status: 204, statusText: 'No Content' });
+
+    newSession();
+    boot();
+    render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([]);
+    TestBed.tick();
+    expect(notices.current()).toBeNull();
+  });
+
+  it('3 não lidas: uma por sessão, sempre a mais antiga que sobrou', () => {
+    const shown: string[] = [];
+    const all = [news('a'), news('b'), news('c')];
+    for (let session = 0; session < 3; session++) {
+      if (session > 0) {
+        newSession();
+        boot();
+      }
+      const f = render();
+      service.maybeShow();
+      service.maybeShow(); // o shell chama a cada navegação
+      http.expectOne(UNREAD).flush(all.slice(session));
+      TestBed.tick();
+      f.detectChanges();
+      shown.push(notices.current()!.id);
+      expect(notices.waiting()).toBe(0);
+      q(f, '[data-testid="notice-dismiss"]')!.click();
+      settle(f);
+      http.expectOne(readUrl(all[session].id)).flush(null, { status: 204, statusText: 'No Content' });
+      // Mesma sessão: nada mais aparece, mesmo com duas sobrando.
+      service.maybeShow();
+      http.expectNone(UNREAD);
+      expect(notices.current()).toBeNull();
+    }
+    expect(shown).toEqual(['news:a', 'news:b', 'news:c']);
+  });
+
+  it('falha da busca não bloqueia: nada na tela, nenhum erro, sem marca de sessão', () => {
+    render();
+    expect(() => {
+      service.maybeShow();
+      http.expectOne(UNREAD).flush('boom', { status: 500, statusText: 'Server Error' });
+      TestBed.tick();
+    }).not.toThrow();
+    expect(notices.current()).toBeNull();
+    expect(sessionStorage.getItem(`${NEWS_SHOWN_KEY}:u1`)).toBeNull();
+  });
+
+  it.each([
+    ['X', (f: { nativeElement: HTMLElement }) => q(f, '[data-testid="bottom-sheet-close"]')!.click()],
+    ['Esc', () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))],
+    ['link', (f: { nativeElement: HTMLElement }) => q(f, '[data-testid="notice-link"]')!.click()],
+  ])('%s também marca como lida, uma vez só', (_label, act) => {
+    const router = TestBed.inject(Router);
+    const nav = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a', { linkUrl: '/gastos', linkLabel: 'Ver Gastos' })]);
+    TestBed.tick();
+    f.detectChanges();
+    act(f);
+    settle(f);
+    http.expectOne(readUrl('a')).flush(null, { status: 204, statusText: 'No Content' });
+    http.expectNone(readUrl('a'));
+    expect(notices.current()).toBeNull();
+    if (_label === 'link') expect(nav).toHaveBeenCalledWith('/gastos');
+  });
+
+  it('link https abre em outra aba, sem o router', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a', { linkUrl: 'https://mycarshub.app.br/blog', linkLabel: 'Ler' })]);
+    TestBed.tick();
+    f.detectChanges();
+    q(f, '[data-testid="notice-link"]')!.click();
+    settle(f);
+    http.expectOne(readUrl('a')).flush(null, { status: 204, statusText: 'No Content' });
+    expect(open).toHaveBeenCalledWith('https://mycarshub.app.br/blog', '_blank', 'noopener,noreferrer');
+    expect(nav).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it('sessão de suporte ("Ver como") não busca e não marca como lida', () => {
+    sessionStorage.setItem(IMPERSONATION_STATE_KEY, '{"companyId":"c1"}');
+    render();
+    service.maybeShow();
+    http.expectNone(UNREAD);
+    expect(notices.current()).toBeNull();
+  });
+
+  it('sessão de suporte aberta com a novidade na tela: fechar não marca como lida', () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a')]);
+    TestBed.tick();
+    f.detectChanges();
+    sessionStorage.setItem(IMPERSONATION_STATE_KEY, '{"companyId":"c1"}');
+    q(f, '[data-testid="notice-dismiss"]')!.click();
+    settle(f);
+    http.expectNone(readUrl('a'));
+  });
+
+  it('lembrete bloqueante na tela tem prioridade: a novidade espera a fila esvaziar', () => {
+    const f = render();
+    notices.enqueue({ id: 'gate', type: 'REMINDER', title: 'Contato', message: 'Falta', blocking: true });
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a')]);
+    TestBed.tick();
+    f.detectChanges();
+    expect(notices.current()?.id).toBe('gate');
+    expect(notices.waiting()).toBe(0);
+    notices.dismiss('gate');
+    TestBed.tick();
+    f.detectChanges();
+    expect(notices.current()?.id).toBe('news:a');
+  });
+
+  it('sem token de empresa (antes de escolher empresa) não busca', () => {
+    sessionStorage.removeItem('token');
+    service.maybeShow();
+    http.expectNone(UNREAD);
+  });
+});
