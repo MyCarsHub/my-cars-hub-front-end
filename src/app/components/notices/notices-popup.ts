@@ -35,7 +35,7 @@ import { Notice, NoticeOutcome, NoticesService } from './notices.service';
             >
               {{ n.type === 'REMINDER' ? 'Lembrete' : 'Novidade' }}
             </span>
-            <p class="text-base text-fg-body">{{ n.message }}</p>
+            <p class="whitespace-pre-line break-words text-base text-fg-body" data-testid="notice-message">{{ n.message }}</p>
             @if (n.items?.length) {
               <div>
                 <p class="text-sm font-semibold text-fg">
@@ -102,7 +102,8 @@ export class NoticesPopup {
       this.doc.defaultView?.open(route, '_blank', 'noopener,noreferrer');
       this.target = null;
     } else {
-      this.target = route;
+      // Só rota do app (`/algo`, nunca `//host`); qualquer outra coisa é ignorada.
+      this.target = route && route.startsWith('/') && !route.startsWith('//') ? route : null;
     }
     this.finishWith('dismissed');
   }

@@ -7,6 +7,7 @@ import {
   IMPERSONATION_ADMIN_TOKEN_KEY,
   IMPERSONATION_STATE_KEY,
 } from '../../services/impersonation.context';
+import { SessionResetRegistry } from '../../services/session-reset.registry';
 import { SessionService } from '../../services/session.service';
 import { UnreadAnnouncement } from '../../types/announcement.types';
 import { Notice, NoticesService } from './notices.service';
@@ -41,8 +42,16 @@ export class NewsNoticesService {
   private attempted = false;
   /** Novidade buscada esperando a fila esvaziar. */
   private readonly pending = signal<UnreadAnnouncement | null>(null);
+  /**
+   * Sobe a cada logout: resposta de busca e desfecho de aviso que chegam depois pertencem à
+   * sessão anterior e são descartados (nunca mostrados nem marcados como lidos por outra pessoa).
+   */
+  private generation = 0;
+  /** Aviso de novidade enfileirado nesta sessão (para tirá-lo da fila no logout). */
+  private queuedId: string | null = null;
 
   constructor() {
+    inject(SessionResetRegistry).register(() => this.reset());
     effect(() => {
       const next = this.pending();
       if (!next || this.notices.current()) return;
@@ -72,8 +81,10 @@ export class NewsNoticesService {
       return;
     }
     this.attempted = true;
+    const gen = this.generation;
     this.unread().subscribe({
       next: (list) => {
+        if (gen !== this.generation) return;
         const oldest = Array.isArray(list) ? list[0] : undefined;
         if (!oldest || this.isSupportSession()) return;
         this.session.setItem(this.shownKey(), 'true');
@@ -95,10 +106,24 @@ export class NewsNoticesService {
         item.linkUrl && item.linkLabel ? { label: item.linkLabel, route: item.linkUrl } : undefined,
       dismissLabel: 'Entendi',
     };
+    const gen = this.generation;
+    this.queuedId = notice.id;
     this.notices.enqueue(notice).subscribe(() => {
-      if (this.isSupportSession()) return;
+      if (this.queuedId === notice.id) this.queuedId = null;
+      if (gen !== this.generation || this.isSupportSession()) return;
       this.markRead(item.id).subscribe({ error: () => void 0 });
     });
+  }
+
+  /** Logout: a próxima pessoa nesta mesma carga do app começa do zero. */
+  private reset(): void {
+    this.generation++;
+    this.attempted = false;
+    this.pending.set(null);
+    const queued = this.queuedId;
+    this.queuedId = null;
+    // Sai da fila sem marcar como lida (a geração já mudou).
+    if (queued) this.notices.dismiss(queued);
   }
 
   private isSupportSession(): boolean {

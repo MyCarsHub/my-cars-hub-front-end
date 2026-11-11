@@ -159,6 +159,7 @@
     [announcement]="s.announcement"
     [duplicate]="s.duplicate"
     (saved)="onSaved($event)"
+    (listChanged)="load()"
     (closed)="closeSheet()"
   />
 }

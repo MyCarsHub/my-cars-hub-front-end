@@ -13,7 +13,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Observable, switchMap } from 'rxjs';
+import { Observable, switchMap, tap } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -31,9 +31,18 @@ export type AnnouncementSheetMode = 'new' | 'edit' | 'view';
 
 /** Rota do app (`/algo`, nunca `//host`) ou `https://` — a mesma regra do servidor. */
 export function isAllowedLink(url: string): boolean {
-  if (/[\s\u0000-\u001f\u007f]/.test(url)) return false;
+  for (let i = 0; i < url.length; i++) {
+    const code = url.charCodeAt(i);
+    // Controle (0-31, 127) ou espaço de qualquer tipo: recusado.
+    if (code <= 32 || code === 127 || /\s/.test(url[i])) return false;
+  }
   if (url.startsWith('/')) return !url.startsWith('//') && !url.startsWith('/\\');
-  return /^https:\/\/./i.test(url);
+  if (url.length <= 8 || url.slice(0, 8).toLowerCase() !== 'https://') return false;
+  try {
+    return new URL(url).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 interface PreviewState {
@@ -72,12 +81,19 @@ export class AnnouncementSheet implements OnInit {
   /** Algo mudou no servidor (a lista recarrega). */
   readonly saved = output<AdminAnnouncement>();
   readonly closed = output<void>();
+  /** Um rascunho foi criado mesmo que o passo seguinte (publicar) tenha falhado: a lista recarrega. */
+  readonly listChanged = output<void>();
 
   protected readonly limits = ANNOUNCEMENT_LIMITS;
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   /** Duplicar a partir da tela de uma encerrada troca o modo para `new`. */
   private readonly duplicating = signal(false);
+  /**
+   * Id do rascunho criado por ESTA folha. Se "Publicar" criou e a publicação falhou, a nova
+   * tentativa atualiza e publica a mesma linha, em vez de criar outro rascunho.
+   */
+  private readonly createdId = signal<string | null>(null);
 
   protected readonly mode = computed<AnnouncementSheetMode>(() => {
     const a = this.announcement();
@@ -265,8 +281,16 @@ export class AnnouncementSheet implements OnInit {
 
   private persist(): Observable<AdminAnnouncement> {
     const req = this.request();
+    const created = this.createdId();
+    if (created) return this.service.update(created, req);
     const a = this.announcement();
-    return this.mode() === 'edit' && a ? this.service.update(a.id, req) : this.service.create(req);
+    if (this.mode() === 'edit' && a) return this.service.update(a.id, req);
+    return this.service.create(req).pipe(
+      tap((draft) => {
+        this.createdId.set(draft.id);
+        this.listChanged.emit();
+      }),
+    );
   }
 
   private request(): AnnouncementRequest {

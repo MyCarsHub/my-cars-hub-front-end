@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { environment } from '../../../environments/environment';
 import { CompanyContactService } from '../../services/company-contact.service';
 import { IMPERSONATION_STATE_KEY } from '../../services/impersonation.context';
+import { SessionService } from '../../services/session.service';
 import { EMPTY_COMPANY_CONTACT } from '../../types/company-contact.types';
 import { UnreadAnnouncement } from '../../types/announcement.types';
 import { NEWS_SHOWN_KEY, NewsNoticesService } from './news-notices.service';
@@ -95,8 +96,8 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
   });
 
   afterEach(() => {
-    http.verify();
     vi.useRealTimers();
+    http.verify();
     // isolate:false — nada desta suíte vaza para a vizinha.
     sessionStorage.clear();
     TestBed.resetTestingModule();
@@ -230,18 +231,21 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
 
   it('link https abre em outra aba, sem o router', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
-    const nav = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
-    const f = render();
-    service.maybeShow();
-    http.expectOne(UNREAD).flush([news('a', { linkUrl: 'https://mycarshub.app.br/blog', linkLabel: 'Ler' })]);
-    TestBed.tick();
-    f.detectChanges();
-    q(f, '[data-testid="notice-link"]')!.click();
-    settle(f);
-    http.expectOne(readUrl('a')).flush(null, { status: 204, statusText: 'No Content' });
-    expect(open).toHaveBeenCalledWith('https://mycarshub.app.br/blog', '_blank', 'noopener,noreferrer');
-    expect(nav).not.toHaveBeenCalled();
-    open.mockRestore();
+    try {
+      const nav = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+      const f = render();
+      service.maybeShow();
+      http.expectOne(UNREAD).flush([news('a', { linkUrl: 'https://mycarshub.app.br/blog', linkLabel: 'Ler' })]);
+      TestBed.tick();
+      f.detectChanges();
+      q(f, '[data-testid="notice-link"]')!.click();
+      settle(f);
+      http.expectOne(readUrl('a')).flush(null, { status: 204, statusText: 'No Content' });
+      expect(open).toHaveBeenCalledWith('https://mycarshub.app.br/blog', '_blank', 'noopener,noreferrer');
+      expect(nav).not.toHaveBeenCalled();
+    } finally {
+      open.mockRestore();
+    }
   });
 
   it('sessão de suporte ("Ver como") não busca e não marca como lida', () => {
@@ -277,6 +281,53 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
     TestBed.tick();
     f.detectChanges();
     expect(notices.current()?.id).toBe('news:a');
+  });
+
+  it('quebra de linha do texto chega ao popup (pre-line, sem HTML)', () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a', { body: 'Linha 1\nLinha 2' })]);
+    TestBed.tick();
+    f.detectChanges();
+    const msg = q(f, '[data-testid="notice-message"]')!;
+    expect(msg.textContent).toBe('Linha 1\nLinha 2');
+    expect(msg.classList.contains('whitespace-pre-line')).toBe(true);
+    expect(msg.querySelector('br')).toBeNull();
+  });
+
+  it('logout com a novidade de A esperando: B nunca vê nem marca a de A, e recebe a sua', () => {
+    const f = render();
+    notices.enqueue({ id: 'gate', type: 'REMINDER', title: 'Contato', message: 'Falta', blocking: true });
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a')]);
+    TestBed.tick();
+
+    // Logout de A (SessionService.clear roda o SessionResetRegistry) e login de B na mesma carga.
+    TestBed.inject(SessionService).clear();
+    sessionStorage.setItem('token', accessToken());
+    sessionStorage.setItem('id', 'u2');
+    notices.dismiss('gate');
+    TestBed.tick();
+    f.detectChanges();
+    expect(notices.current()).toBeNull();
+
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('b')]);
+    TestBed.tick();
+    expect(notices.current()?.id).toBe('news:b');
+  });
+
+  it('logout com a novidade de A NA TELA: sai da fila sem marcar como lida', () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a')]);
+    TestBed.tick();
+    f.detectChanges();
+    expect(notices.current()?.id).toBe('news:a');
+    TestBed.inject(SessionService).clear();
+    TestBed.tick();
+    expect(notices.current()).toBeNull();
+    http.expectNone(readUrl('a'));
   });
 
   it('sem token de empresa (antes de escolher empresa) não busca', () => {

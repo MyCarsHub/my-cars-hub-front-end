@@ -182,7 +182,8 @@ describe('AdminAnnouncements (F2)', () => {
     f.detectChanges();
     expect(notify.push).toHaveBeenCalledWith('success', 'Novidade publicada.');
     expect($('[data-testid="announcement-sheet"]')).toBeNull();
-    expect(service.list).toHaveBeenCalledTimes(2);
+    // Carga inicial + rascunho criado + publicada.
+    expect(service.list).toHaveBeenCalledTimes(3);
   });
 
   it('link inválido segura salvar; javascript: e //host não passam', () => {
@@ -191,6 +192,12 @@ describe('AdminAnnouncements (F2)', () => {
     expect(isAllowedLink('javascript:alert(1)')).toBe(false);
     expect(isAllowedLink('//evil.com')).toBe(false);
     expect(isAllowedLink('http://x.com')).toBe(false);
+    expect(isAllowedLink('/a b')).toBe(false);
+    expect(isAllowedLink('/a' + String.fromCharCode(0) + 'b')).toBe(false);
+    expect(isAllowedLink('https://x.com/' + String.fromCharCode(127))).toBe(false);
+    expect(isAllowedLink('https://')).toBe(false);
+    expect(isAllowedLink('HTTPS://x.com')).toBe(true);
+    expect(isAllowedLink('/\\evil.com')).toBe(false);
     const { f, el } = render();
     (el.querySelector('[data-testid="create-announcement"]') as HTMLElement).click();
     f.detectChanges();
@@ -200,6 +207,30 @@ describe('AdminAnnouncements (F2)', () => {
     type('[data-testid="field-link-label"]', 'Abrir', f);
     expect($('[data-testid="link-error"]')).not.toBeNull();
     expect(($('[data-testid="sheet-save-draft"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('criou mas a publicação falhou: a nova tentativa publica o MESMO rascunho, sem duplicar', () => {
+    service.publish
+      .mockReturnValueOnce(throwError(() => new Error('falhou')))
+      .mockImplementation((id: string) => of(ann({ id, status: 'PUBLISHED' })));
+    const { f, el } = render();
+    (el.querySelector('[data-testid="create-announcement"]') as HTMLElement).click();
+    f.detectChanges();
+    type('[data-testid="field-title"]', 'T', f);
+    type('[data-testid="field-body"]', 'B', f);
+    ($('[data-testid="aud-locadora"]') as HTMLInputElement).click();
+    f.detectChanges();
+
+    ($('[data-testid="sheet-publish"]') as HTMLButtonElement).click();
+    f.detectChanges();
+    expect($('[data-testid="sheet-error"]')).not.toBeNull();
+    expect(service.list).toHaveBeenCalledTimes(2); // o rascunho criado já aparece na lista
+
+    ($('[data-testid="sheet-publish"]') as HTMLButtonElement).click();
+    f.detectChanges();
+    expect(service.create).toHaveBeenCalledTimes(1);
+    expect(service.update).toHaveBeenCalledWith('n1', expect.objectContaining({ title: 'T' }));
+    expect(service.publish.mock.calls.map((c) => c[0])).toEqual(['n1', 'n1']);
   });
 
   it('menu ⋮ muda com a situação; rascunho sem público abre a folha em vez de publicar', () => {
