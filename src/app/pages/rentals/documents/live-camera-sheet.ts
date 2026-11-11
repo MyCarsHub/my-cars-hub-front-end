@@ -19,6 +19,49 @@ export type LiveCameraState = 'starting' | 'live' | 'denied' | 'unsupported';
  *  gerar um PNG gigante de um canvas de 12MP. */
 const CAPTURE_QUALITY = 0.92;
 
+/** Lado da amostra usada para detectar frame preto: pixels reais (sem
+ *  suavizacao), barato mesmo num frame de 12MP. */
+const BLACK_SAMPLE_SIZE = 64;
+
+/** Canal maximo (0-255) que ainda conta como "preto". Frame que a camera
+ *  ainda nao entregou e (0,0,0) exato; o limite so absorve arredondamento. */
+const BLACK_CHANNEL_MAX = 4;
+
+/** Teto para esperar o primeiro frame pintado via `requestVideoFrameCallback`.
+ *  Com o `<video>` invisivel alguns navegadores nao chamam o callback; a
+ *  prontidao real ja foi provada por `readyState` antes de chegar aqui. */
+const FIRST_FRAME_WAIT_MS = 800;
+
+/** Espera antes da unica nova tentativa quando o frame veio preto. */
+const BLACK_RETRY_WAIT_MS = 250;
+
+/** HTMLMediaElement.HAVE_CURRENT_DATA: ha um frame decodificado para desenhar. */
+const HAVE_CURRENT_DATA = 2;
+
+/** Copy mostrada quando o frame continua preto depois da nova tentativa. */
+export const BLACK_FRAME_MESSAGE = 'Não foi possível capturar a foto. Tire a foto de novo.';
+
+/**
+ * `true` quando TODOS os pixels amostrados sao pretos (RGBA; o alfa e
+ * ignorado). Foto noturna de verdade tem ruido do sensor acima do limite; um
+ * frame que a camera ainda nao entregou e uniformemente (0,0,0).
+ */
+export function isUniformlyBlack(rgba: ArrayLike<number>, channelMax = BLACK_CHANNEL_MAX): boolean {
+  if (rgba.length < 4) return true;
+  for (let i = 0; i + 3 < rgba.length; i += 4) {
+    if (rgba[i] > channelMax || rgba[i + 1] > channelMax || rgba[i + 2] > channelMax) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Video com frame decodificado e dimensao real — o unico estado em que
+ *  `drawImage` devolve a imagem da camera em vez de um retangulo preto. */
+export function hasDecodedFrame(video: HTMLVideoElement): boolean {
+  return video.readyState >= HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0;
+}
+
 /**
  * CAMERA AO VIVO — a unica origem de foto de vistoria para o MOTORISTA.
  *
@@ -35,6 +78,16 @@ const CAPTURE_QUALITY = 0.92;
  * estados `denied` e `unsupported` sao SEM SAIDA por design — so "tentar de
  * novo" ou cancelar. Quem nao consegue usar a camera nao envia foto por este
  * caminho, e o texto diz o que fazer (liberar nos ajustes do navegador).
+ *
+ * O DISPARO SO LIGA COM FRAME DE VERDADE: `srcObject` atribuido nao e camera
+ * pronta. Entre a atribuicao e o primeiro frame decodificado o `<video>` ou nao
+ * tem dimensao, ou ja tem a dimensao negociada (as vezes paisagem pequena) e
+ * nenhum pixel ainda — e `drawImage` nesse intervalo gera um JPEG todo preto,
+ * que chegou ao servidor como foto de vistoria. Por isso o estado so vira
+ * `live` depois de `loadeddata`/`playing` com `videoWidth > 0` (e, quando o
+ * navegador oferece, um `requestVideoFrameCallback`), e todo frame capturado
+ * passa por `isUniformlyBlack` antes de virar arquivo: preto tenta uma vez de
+ * novo e, se continuar preto, pede outra foto. NUNCA se envia frame preto.
  *
  * O STREAM MORRE COM A FOLHA: `stop()` em todos os tracks no fechamento e no
  * `ngOnDestroy`. Sem isso a luz da camera fica acesa no celular do motorista
@@ -107,6 +160,12 @@ const CAPTURE_QUALITY = 0.92;
         }
       </div>
 
+      @if (captureError()) {
+        <p class="shrink-0 px-6 pt-3 text-center text-sm font-semibold text-white" role="alert">
+          {{ captureError() }}
+        </p>
+      }
+
       <!-- Disparo: barra inferior, polegar. Some quando nao ha video vivo. -->
       <div class="shrink-0 pb-8 pt-4 flex items-center justify-center">
         <button
@@ -133,8 +192,12 @@ export class LiveCameraSheet implements OnDestroy {
 
   protected readonly state = signal<LiveCameraState>('starting');
   protected readonly capturing = signal(false);
+  protected readonly captureError = signal<string | null>(null);
 
   private stream: MediaStream | null = null;
+  /** Incrementa a cada parada do stream: a espera de frame de um stream antigo
+   *  nao pode ligar o disparo de um stream novo (ou de uma folha fechada). */
+  private generation = 0;
 
   constructor() {
     // Arranca sozinho: o motorista ja tocou no slot, pedir um segundo toque
@@ -149,6 +212,8 @@ export class LiveCameraSheet implements OnDestroy {
 
   protected async start(): Promise<void> {
     this.stopStream();
+    const generation = this.generation;
+    this.captureError.set(null);
     const media = navigator.mediaDevices;
     if (!media?.getUserMedia) {
       this.state.set('unsupported');
@@ -164,9 +229,19 @@ export class LiveCameraSheet implements OnDestroy {
         audio: false,
       });
       const video = this.videoRef()?.nativeElement;
-      if (video) {
-        video.srcObject = this.stream;
+      if (!video) return;
+      video.srcObject = this.stream;
+      // `autoplay` cobre a maioria; `play()` explicito cobre o iOS quando o
+      // atributo nao dispara depois de um `srcObject` programatico. Recusa
+      // aqui nao e permissao negada — a espera abaixo decide.
+      try {
+        void video.play()?.catch(() => undefined);
+      } catch {
+        // JSDOM nao implementa play(); o navegador real sim.
       }
+      // Disparo continua desligado ate haver frame real (ver bloco no topo).
+      await this.waitForFirstFrame(video);
+      if (generation !== this.generation) return;
       this.state.set('live');
     } catch {
       // Negada, em uso por outro app, ou sem dispositivo: para o motorista o
@@ -175,37 +250,116 @@ export class LiveCameraSheet implements OnDestroy {
     }
   }
 
-  protected capture(): void {
+  protected async capture(): Promise<void> {
     const video = this.videoRef()?.nativeElement;
     if (this.state() !== 'live' || !video || this.capturing()) return;
+    // Sem frame decodificado com dimensao real, `drawImage` so produz preto.
+    if (!hasDecodedFrame(video)) return;
 
+    this.capturing.set(true);
+    this.captureError.set(null);
+    try {
+      let frame = this.grabFrame(video);
+      // Sem contexto 2D nao ha frame: o JSDOM da suite e um deles. Nao e erro
+      // do usuario e nao deve virar foto vazia.
+      if (frame === null) return;
+      if (frame === 'black') {
+        // Uma nova tentativa: o primeiro frame depois de ligar (ou de a camera
+        // reajustar a exposicao) as vezes ainda vem vazio.
+        await this.nextFrame(video, BLACK_RETRY_WAIT_MS);
+        frame = hasDecodedFrame(video) ? this.grabFrame(video) : 'black';
+        if (frame === null) return;
+        if (frame === 'black') {
+          this.captureError.set(BLACK_FRAME_MESSAGE);
+          return;
+        }
+      }
+      const canvas = frame;
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/jpeg', CAPTURE_QUALITY),
+      );
+      if (!blob) return;
+      // Mesmo tipo que o seletor entrega; a compressao e o upload seguem o
+      // MESMO caminho depois daqui (ver `ingestFile` no card).
+      const file = new File([blob], `vistoria-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      this.stopStream();
+      this.captured.emit(file);
+    } finally {
+      this.capturing.set(false);
+    }
+  }
+
+  /**
+   * Desenha o frame atual num canvas do tamanho REAL do video (`videoWidth` x
+   * `videoHeight`, retrato no celular em pe). `null` = sem contexto 2D;
+   * `'black'` = o frame veio uniformemente preto.
+   */
+  private grabFrame(video: HTMLVideoElement): HTMLCanvasElement | 'black' | null {
     const width = video.videoWidth;
     const height = video.videoHeight;
-    if (!width || !height) return;
-
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
-    // Sem contexto 2D nao ha frame: o JSDOM da suite e um deles. Nao e erro do
-    // usuario e nao deve virar foto vazia.
-    if (!ctx) return;
-
-    this.capturing.set(true);
+    if (!ctx) return null;
     ctx.drawImage(video, 0, 0, width, height);
-    canvas.toBlob(
-      (blob) => {
-        this.capturing.set(false);
-        if (!blob) return;
-        // Mesmo tipo que o seletor entrega; a compressao e o upload seguem o
-        // MESMO caminho depois daqui (ver `ingestFile` no card).
-        const file = new File([blob], `vistoria-${Date.now()}.jpg`, { type: 'image/jpeg' });
-        this.stopStream();
-        this.captured.emit(file);
-      },
-      'image/jpeg',
-      CAPTURE_QUALITY,
-    );
+    return this.frameIsBlack(canvas) ? 'black' : canvas;
+  }
+
+  /** Reamostra o frame SEM suavizacao (pixels reais, nao media) e verifica se
+   *  todos sao pretos. Sem leitura possivel, nao bloqueia o motorista. */
+  private frameIsBlack(source: HTMLCanvasElement): boolean {
+    const sample = document.createElement('canvas');
+    sample.width = BLACK_SAMPLE_SIZE;
+    sample.height = BLACK_SAMPLE_SIZE;
+    const ctx = sample.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return false;
+    try {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(source, 0, 0, BLACK_SAMPLE_SIZE, BLACK_SAMPLE_SIZE);
+      return isUniformlyBlack(ctx.getImageData(0, 0, BLACK_SAMPLE_SIZE, BLACK_SAMPLE_SIZE).data);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Resolve quando o video tem frame decodificado com dimensao real
+   * (`loadeddata`/`playing`/`resize` + `hasDecodedFrame`) e, quando houver
+   * `requestVideoFrameCallback`, depois do primeiro frame apresentado.
+   */
+  private async waitForFirstFrame(video: HTMLVideoElement): Promise<void> {
+    if (!hasDecodedFrame(video)) {
+      await new Promise<void>((resolve) => {
+        const events = ['loadeddata', 'playing', 'resize', 'canplay'] as const;
+        const check = () => {
+          if (!hasDecodedFrame(video)) return;
+          events.forEach((e) => video.removeEventListener(e, check));
+          resolve();
+        };
+        events.forEach((e) => video.addEventListener(e, check));
+      });
+    }
+    await this.nextFrame(video, FIRST_FRAME_WAIT_MS);
+  }
+
+  /** Proximo frame apresentado (`requestVideoFrameCallback`) com teto de
+   *  tempo; sem a API, so o teto. */
+  private nextFrame(video: HTMLVideoElement, maxWaitMs: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(finish, maxWaitMs);
+      let done = false;
+      function finish(): void {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve();
+      }
+      const rvfc = (
+        video as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }
+      ).requestVideoFrameCallback;
+      if (typeof rvfc === 'function') rvfc.call(video, finish);
+    });
   }
 
   protected close(): void {
@@ -215,6 +369,7 @@ export class LiveCameraSheet implements OnDestroy {
 
   /** Desliga a camera de verdade: track a track. Idempotente. */
   private stopStream(): void {
+    this.generation++;
     const video = this.videoRef()?.nativeElement;
     if (video) video.srcObject = null;
     this.stream?.getTracks().forEach((track) => track.stop());
