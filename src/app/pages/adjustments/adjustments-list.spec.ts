@@ -125,6 +125,11 @@ describe('AdjustmentsList', () => {
     expect(text(el.querySelector('[data-kpi="received"]'))).toContain('R$ 380,00');
     expect(text(el.querySelector('[data-kpi="received"]'))).toContain('2 ajustes pagos');
     expect(text(el.querySelector('[data-kpi="overdue"]'))).toContain('nenhum atrasado');
+    // Ícones do canvas PgAjustes (relógio, check, alerta), decorativos.
+    for (const k of ['to-receive', 'received', 'overdue']) {
+      const icon = el.querySelector(`[data-kpi="${k}"] svg[data-kpi-icon]`);
+      expect(icon?.getAttribute('aria-hidden'), k).toBe('true');
+    }
   });
 
   it('uma linha por ajuste: motorista, motivo, vencimento e valor', () => {

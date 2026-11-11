@@ -37,7 +37,10 @@
     <!-- Números do mês: "A receber" é o cartão laranja; os outros dois são de apoio. -->
     <section class="grid grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr] gap-3" aria-label="Resumo do mês" data-adjustments-kpis>
       <app-painted-card tone="orange" class="col-span-2 lg:col-span-1 !p-4 !gap-1" data-kpi="to-receive">
-        <span class="text-xs uppercase tracking-wide text-white/90">A receber</span>
+        <span class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-white/90">
+          <svg data-kpi-icon width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0" /></svg>
+          A receber
+        </span>
         <span class="text-2xl sm:text-[26px] font-bold tabular-nums tracking-tight">{{ money(summary()?.toReceiveCents ?? 0) }}</span>
         <span class="text-xs text-white/90">
           @if (summary(); as s) {
@@ -52,7 +55,10 @@
         </span>
       </app-painted-card>
       <div class="rounded-2xl bg-surface border border-edge p-4 flex flex-col gap-1 min-w-0" data-kpi="received">
-        <span class="text-xs uppercase tracking-wide text-fg-muted">Recebido no mês</span>
+        <span class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-fg-muted">
+          <svg data-kpi-icon width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>
+          Recebido no mês
+        </span>
         <span class="text-xl font-bold text-fg tabular-nums">{{ money(summary()?.receivedCents ?? 0) }}</span>
         <span class="text-xs text-fg-muted">
           @if ((summary()?.receivedCount ?? 0) === 0) {
@@ -63,7 +69,10 @@
         </span>
       </div>
       <div class="rounded-2xl bg-surface border border-edge p-4 flex flex-col gap-1 min-w-0" data-kpi="overdue">
-        <span class="text-xs uppercase tracking-wide text-fg-muted">Atrasados</span>
+        <span class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-fg-muted">
+          <svg data-kpi-icon width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
+          Atrasados
+        </span>
         <span class="text-xl font-bold text-fg tabular-nums">{{ money(summary()?.overdueCents ?? 0) }}</span>
         <span class="text-xs text-fg-muted">
           @if ((summary()?.overdueCount ?? 0) === 0) {
