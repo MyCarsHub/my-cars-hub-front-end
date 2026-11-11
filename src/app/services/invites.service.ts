@@ -5,6 +5,7 @@ import { environment } from '../../environments/environment';
 import {
   CreateInviteRequest,
   CreateInviteResponse,
+  InvitableDriver,
   InviteResponse,
   ResendInviteResponse,
   withoutAcceptUrl,
@@ -82,6 +83,17 @@ export class InvitesService {
     return this.http
       .post<CreateInviteResponse>(BASE, payload)
       .pipe(tap((invite) => this._invites.update((list) => [withoutAcceptUrl(invite), ...list])));
+  }
+
+  /**
+   * `GET /v1/invites/invitable-drivers` — OWNER / MANAGER only. The drivers the Members
+   * page can invite right now: never invited or with an expired invite, not linked to an
+   * account. Not cached: the sheet reads it fresh every time it opens on Motorista.
+   */
+  invitableDrivers(): Observable<InvitableDriver[]> {
+    return this.http
+      .get<InvitableDriver[]>(`${BASE}/invitable-drivers`)
+      .pipe(map((list) => list ?? []));
   }
 
   /**

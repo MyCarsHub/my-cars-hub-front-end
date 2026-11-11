@@ -15,7 +15,7 @@ import { InvitesService } from '../../../services/invites.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import type { CompanyMemberResponse } from '../../../types/company-member.types';
-import type { InviteResponse } from '../../../types/invite.types';
+import type { InvitableDriver, InviteResponse } from '../../../types/invite.types';
 
 /**
  * The Members page, rendered for real with its children (cards, tables, sheets, invite
@@ -90,6 +90,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
   let inviteList: ReturnType<typeof vi.fn>;
   let create: ReturnType<typeof vi.fn>;
   let resendInvite: ReturnType<typeof vi.fn>;
+  let invitableDrivers: ReturnType<typeof vi.fn>;
   let cancelInvite: ReturnType<typeof vi.fn>;
   let remove: ReturnType<typeof vi.fn>;
   let success: ReturnType<typeof vi.fn>;
@@ -109,6 +110,8 @@ describe('CompanyMembers — pessoas da empresa', () => {
     invitesNever?: boolean;
     /** `selectedCompanyName` of the session — named in the WhatsApp text. */
     companyName?: string | null;
+    /** `GET /v1/invites/invitable-drivers` — what the Motorista option lists. */
+    invitable?: InvitableDriver[];
   }
 
   /** @param tokenRole the CALLER's role, read from the token — the `roleGuard` source. */
@@ -122,6 +125,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
       mobile = true,
       invitesNever = false,
       companyName = null,
+      invitable = [],
     }: RenderOptions = {},
   ): ComponentFixture<CompanyMembers> {
     TestBed.resetTestingModule();
@@ -177,6 +181,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
       of({ ...pendingInvite, id: 'inv-new', email: payload.email, role: payload.role }),
     );
     resendInvite = vi.fn(() => of(undefined));
+    invitableDrivers = vi.fn(() => of(invitable));
     cancelInvite = vi.fn(() => of(undefined));
 
     TestBed.configureTestingModule({
@@ -206,6 +211,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
             create,
             resend: resendInvite,
             cancel: cancelInvite,
+            invitableDrivers,
           },
         },
         {
@@ -1327,22 +1333,119 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(success).toHaveBeenCalledWith('Convite enviado para «patricia@empresa.com.br».');
   });
 
-  it('Motorista nao envia convite: explica e leva ao cadastro do motorista', async () => {
-    const f = render('OWNER');
-    const s = openInvite(f);
-    s.querySelector<HTMLButtonElement>('[data-role-option="DRIVER"]')?.click();
-    f.detectChanges();
-    expect(sheet(f)?.querySelector('[data-driver-banner]')?.textContent).toContain(
-      'Motoristas são convidados ao cadastrar o motorista',
-    );
-    const cta = sheet(f)?.querySelector<HTMLAnchorElement>('[data-driver-create]');
-    expect(cta?.getAttribute('href')).toBe('/motoristas/novo');
-    expect(sheet(f)?.querySelector('form')).toBeNull();
+  describe('Motorista: convidar quem ja esta cadastrado', () => {
+    const nunca: InvitableDriver = {
+      id: 'drv-1',
+      name: 'Ana Nunca',
+      email: 'ana@empresa.com.br',
+      lastInviteStatus: null,
+    };
+    const vencido: InvitableDriver = {
+      id: 'drv-2',
+      name: 'Bruno Vencido',
+      email: 'bruno@empresa.com.br',
+      lastInviteStatus: 'EXPIRED',
+    };
 
-    cta?.click();
-    await f.whenStable();
-    expect(TestBed.inject(Router).url).toBe('/motoristas/novo');
-    expect(create).not.toHaveBeenCalled();
+    function chooseDriver(f: ComponentFixture<CompanyMembers>): HTMLElement {
+      const s = openInvite(f);
+      s.querySelector<HTMLButtonElement>('[data-role-option="DRIVER"]')?.click();
+      f.detectChanges();
+      return sheet(f) as HTMLElement;
+    }
+
+    const rows = (s: HTMLElement): HTMLElement[] =>
+      Array.from(s.querySelectorAll<HTMLElement>('[data-invitable-driver]'));
+
+    it('lista os motoristas nunca convidados ou com convite vencido, vindos do servidor', () => {
+      const f = render('OWNER', { invitable: [nunca, vencido] });
+      const s = chooseDriver(f);
+
+      expect(invitableDrivers).toHaveBeenCalledTimes(1);
+      const list = rows(s);
+      expect(list.map((r) => r.getAttribute('data-invitable-driver'))).toEqual(['drv-1', 'drv-2']);
+      expect(list[0].textContent).toContain('Ana Nunca');
+      expect(list[0].textContent).toContain('ana@empresa.com.br');
+      expect(list[0].querySelector('[data-invitable-chip]')).toBeNull();
+      expect(buttonByText(list[0], 'Convidar')).toBeDefined();
+      expect(list[1].querySelector('[data-invitable-chip]')?.textContent).toContain('Convite expirado');
+      expect(buttonByText(list[1], 'Reenviar convite')).toBeDefined();
+    });
+
+    it('Convidar envia role DRIVER com o e-mail e o nome do cadastro e avisa a pagina', () => {
+      const f = render('MANAGER', {
+        roster: [owner, { ...manager, userId: ME }],
+        invitable: [nunca],
+      });
+      const s = chooseDriver(f);
+      buttonByText(rows(s)[0], 'Convidar')?.click();
+      f.detectChanges();
+
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(create).toHaveBeenCalledWith({
+        email: 'ana@empresa.com.br',
+        role: 'DRIVER',
+        name: 'Ana Nunca',
+      });
+      expect(success).toHaveBeenCalledWith('Convite enviado para «ana@empresa.com.br».');
+    });
+
+    it('com acceptUrl na resposta mostra o passo "Convite enviado" com o link', () => {
+      const f = render('OWNER', { invitable: [vencido] });
+      create.mockReturnValue(
+        of({
+          ...pendingInvite,
+          id: 'inv-new',
+          email: vencido.email,
+          role: 'DRIVER',
+          acceptUrl: 'https://mycarshub.app.br/convite/tok_drv',
+        }),
+      );
+      const s = chooseDriver(f);
+      buttonByText(rows(s)[0], 'Reenviar convite')?.click();
+      f.detectChanges();
+
+      expect(host(f).querySelector('[data-invite-sent]')?.textContent).toContain(vencido.email);
+      expect(host(f).querySelector<HTMLInputElement>('[data-share-link]')?.value).toBe(
+        'https://mycarshub.app.br/convite/tok_drv',
+      );
+    });
+
+    it('recusa do servidor aparece na folha e a lista continua', () => {
+      const f = render('OWNER', { invitable: [nunca] });
+      create.mockReturnValue(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 409,
+              error: { message: 'Já existe um convite pendente para o e-mail: ana@empresa.com.br' },
+            }),
+        ),
+      );
+      const s = chooseDriver(f);
+      buttonByText(rows(s)[0], 'Convidar')?.click();
+      f.detectChanges();
+
+      expect(sheet(f)?.textContent).toContain('Já existe um convite pendente');
+      expect(rows(sheet(f) as HTMLElement)).toHaveLength(1);
+      expect(success).not.toHaveBeenCalled();
+    });
+
+    it('sem ninguem para convidar explica e mantem o atalho para o cadastro', async () => {
+      const f = render('OWNER', { invitable: [] });
+      const s = chooseDriver(f);
+
+      expect(rows(s)).toHaveLength(0);
+      expect(s.querySelector('[data-invitable-empty]')?.textContent).toContain(
+        'Nenhum motorista para convidar',
+      );
+      const cta = s.querySelector<HTMLAnchorElement>('[data-driver-create]');
+      expect(cta?.getAttribute('href')).toBe('/motoristas/novo');
+      cta?.click();
+      await f.whenStable();
+      expect(TestBed.inject(Router).url).toBe('/motoristas/novo');
+      expect(create).not.toHaveBeenCalled();
+    });
   });
 
   it('formulario do gerenciador: obrigatorios bloqueiam o envio, com mensagens nos campos', () => {
