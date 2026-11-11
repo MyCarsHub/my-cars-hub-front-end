@@ -105,6 +105,10 @@ describe('driverChargeKindLabel', () => {
     expect(driverChargeKindLabel('CAUCAO')).toBe('Caução');
     expect(driverChargeKindLabel('OVERDUE_FEE')).toBe('Multa por atraso');
   });
+
+  it('V141 — Ajuste tem rótulo próprio, nunca "Aluguel"', () => {
+    expect(driverChargeKindLabel('ADJUSTMENT')).toBe('Ajuste');
+  });
 });
 
 describe('paidDayOf', () => {

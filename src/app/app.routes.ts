@@ -749,6 +749,40 @@ export const routes: Routes = [
                         ],
                     },
                     {
+                        // V141 — Ajustes (cobrança avulsa ao motorista): primeiro nível, logo depois
+                        // de Gastos. `/v1/adjustments` é OWNER + MANAGER; o DRIVER leva 403 no filtro.
+                        // Sem rota de edição: um ajuste emitido não se edita.
+                        path: 'ajustes',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import('./pages/adjustments/adjustments-list').then(
+                                        (m) => m.AdjustmentsList
+                                    ),
+                                data: { pageTitle: 'Ajustes' },
+                            },
+                            {
+                                path: 'novo',
+                                loadComponent: () =>
+                                    import('./pages/adjustments/adjustment-form').then(
+                                        (m) => m.AdjustmentForm
+                                    ),
+                                data: { pageTitle: 'Novo ajuste' },
+                            },
+                            {
+                                path: ':id',
+                                loadComponent: () =>
+                                    import('./pages/adjustments/adjustment-detail').then(
+                                        (m) => m.AdjustmentDetail
+                                    ),
+                                data: { pageTitle: 'Detalhes do ajuste' },
+                            },
+                        ],
+                    },
+                    {
                         path: 'relatorios',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         loadComponent: () =>

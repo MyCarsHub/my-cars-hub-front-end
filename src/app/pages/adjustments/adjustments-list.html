@@ -1,0 +1,258 @@
+<app-default-page-layout
+  title="Ajustes"
+  description="Cobranças avulsas a um motorista, fora das parcelas do aluguel. Pagas por Pix."
+>
+  <!-- Blocos separados por 16px (gap-4), como em Gastos; o layout padrão não dá espaço entre filhos. -->
+  <div class="flex flex-col gap-4" data-adjustments-stack>
+    <!-- Mês (pelo vencimento): o seletor fica acima dos números, que são sempre do mês escolhido. -->
+    <div class="flex flex-wrap items-center justify-between gap-3 -mt-2 sm:-mt-4">
+      <div
+        class="flex w-full sm:w-auto items-center gap-0.5 rounded-full bg-surface border border-edge p-0.5"
+        role="group"
+        aria-label="Mês dos ajustes"
+      >
+        <button
+          type="button"
+          class="size-11 rounded-full grid place-items-center text-fg hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          aria-label="Mês anterior"
+          data-month-prev
+          (click)="step(-1)"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6l6 6" /></svg>
+        </button>
+        <span class="flex-1 sm:min-w-44 text-center text-[15px] font-semibold text-fg" data-month-label aria-live="polite">{{ monthTitle() }}</span>
+        <button
+          type="button"
+          class="size-11 rounded-full grid place-items-center text-fg hover:bg-surface-muted disabled:opacity-35 disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          aria-label="Próximo mês"
+          data-month-next
+          [disabled]="!canGoNext()"
+          (click)="step(1)"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6l-6 6" /></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Números do mês: "A receber" é o cartão laranja; os outros dois são de apoio. -->
+    <section class="grid grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr] gap-3" aria-label="Resumo do mês" data-adjustments-kpis>
+      <app-painted-card tone="orange" class="col-span-2 lg:col-span-1 !p-4 !gap-1" data-kpi="to-receive">
+        <span class="text-xs uppercase tracking-wide text-white/90">A receber</span>
+        <span class="text-2xl sm:text-[26px] font-bold tabular-nums tracking-tight">{{ money(summary()?.toReceiveCents ?? 0) }}</span>
+        <span class="text-xs text-white/90">
+          @if (summary(); as s) {
+            @if (s.toReceiveCount === 0) {
+              nada pendente em {{ monthLower() }}
+            } @else {
+              {{ countLabel(s.toReceiveCount, 'pendente', 'pendentes') }}, de {{ countLabel(s.toReceiveDrivers, 'motorista', 'motoristas') }}
+            }
+          } @else {
+            &nbsp;
+          }
+        </span>
+      </app-painted-card>
+      <div class="rounded-2xl bg-surface border border-edge p-4 flex flex-col gap-1 min-w-0" data-kpi="received">
+        <span class="text-xs uppercase tracking-wide text-fg-muted">Recebido no mês</span>
+        <span class="text-xl font-bold text-fg tabular-nums">{{ money(summary()?.receivedCents ?? 0) }}</span>
+        <span class="text-xs text-fg-muted">
+          @if ((summary()?.receivedCount ?? 0) === 0) {
+            nenhum ajuste pago
+          } @else {
+            {{ countLabel(summary()!.receivedCount, 'ajuste pago', 'ajustes pagos') }}
+          }
+        </span>
+      </div>
+      <div class="rounded-2xl bg-surface border border-edge p-4 flex flex-col gap-1 min-w-0" data-kpi="overdue">
+        <span class="text-xs uppercase tracking-wide text-fg-muted">Atrasados</span>
+        <span class="text-xl font-bold text-fg tabular-nums">{{ money(summary()?.overdueCents ?? 0) }}</span>
+        <span class="text-xs text-fg-muted">
+          @if ((summary()?.overdueCount ?? 0) === 0) {
+            nenhum atrasado
+          } @else {
+            {{ countLabel(summary()!.overdueCount, 'atrasado', 'atrasados') }}
+          }
+        </span>
+      </div>
+    </section>
+
+    <section class="rounded-2xl bg-surface border border-edge p-4 sm:p-6 flex flex-col gap-4 min-w-0">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+          <h2 class="text-lg font-semibold text-fg">Ajustes por motorista</h2>
+          <p class="text-[13px] text-fg-muted" data-adjustments-subtitle>
+            {{ monthTitle() }} · {{ countLabel(monthCount(), 'ajuste', 'ajustes') }}
+          </p>
+        </div>
+        <a
+          routerLink="/ajustes/novo"
+          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-11 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold px-4 rounded-xl transition-colors"
+          data-new-adjustment
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          Novo ajuste
+        </a>
+      </div>
+
+      @if (error(); as listError) {
+        <app-alert-banner variant="error" [message]="listError" />
+      }
+
+      @if (empty()) {
+        <div class="flex flex-col items-center text-center gap-2.5 px-3 py-9" data-adjustments-empty>
+          <span class="size-14 rounded-2xl bg-surface-sunken grid place-items-center text-fg-soft" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4" /></svg>
+          </span>
+          <h3 class="text-lg font-semibold text-fg mt-1">Nenhum ajuste em {{ monthLower() }}</h3>
+          <p class="max-w-md text-sm leading-[21px] text-fg-muted">
+            Cobre de um motorista um valor fora das parcelas do aluguel, como combustível na devolução ou uma chave perdida. Ele paga por Pix.
+          </p>
+          <a
+            routerLink="/ajustes/novo"
+            class="mt-2 w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-11 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold px-4 rounded-xl transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            Criar primeiro ajuste
+          </a>
+        </div>
+      } @else {
+        <div class="flex flex-col gap-3">
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="relative flex-[5_1_260px] min-w-0">
+              <svg class="absolute left-3.5 top-3.5 text-fg-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+              <label class="sr-only" for="adjustments-search">Buscar</label>
+              <input
+                id="adjustments-search"
+                type="search"
+                autocomplete="off"
+                placeholder="Motorista ou motivo…"
+                [attr.maxlength]="queryMax"
+                [ngModel]="query()"
+                (ngModelChange)="setQuery($event)"
+                class="w-full min-h-11 pl-10 pr-3.5 text-base border border-edge-field rounded-xl bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+            </div>
+            <button
+              type="button"
+              class="sm:hidden w-full min-h-11 flex items-center gap-2.5 px-3.5 rounded-xl border border-edge-field text-[15px] text-fg"
+              [attr.aria-expanded]="filtersOpen()"
+              aria-controls="adjustments-filters"
+              (click)="filtersOpen.set(!filtersOpen())"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z" /></svg>
+              <span class="flex-1 text-left">Filtros</span>
+              <svg class="transition-transform" [class.rotate-180]="filtersOpen()" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6l6-6" /></svg>
+            </button>
+            <div id="adjustments-filters" class="w-full sm:w-auto sm:flex-[1_1_200px] sm:max-w-65" [class.max-sm:hidden]="!filtersOpen()">
+              <label class="sr-only" for="adjustments-driver">Motorista</label>
+              <select
+                id="adjustments-driver"
+                [ngModel]="driverId()"
+                (ngModelChange)="setDriver($event)"
+                class="w-full min-h-11 px-3 text-base border border-edge-field rounded-xl bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+              >
+                <option value="">Motorista: Todos</option>
+                @for (d of drivers(); track d.id) {
+                  <option [value]="d.id">{{ d.name }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <app-filter-chip-group
+            [options]="pills()"
+            [value]="status()"
+            [scrollable]="true"
+            ariaLabel="Status"
+            (selectionChange)="pickStatus($event)"
+          />
+        </div>
+
+        @if (loading() && rows().length === 0) {
+          <div class="space-y-2" aria-busy="true" data-adjustments-loading>
+            <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
+            <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
+            <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
+          </div>
+        }
+
+        @if (noMatch()) {
+          <p class="text-sm text-fg-muted text-center py-8" data-adjustments-no-match>Nenhum ajuste encontrado com esses filtros.</p>
+        }
+
+        @if (rows().length > 0) {
+          <div [attr.aria-busy]="loading()">
+            <!-- Sem linhas divisórias: quem separa é o espaço. -->
+            <div
+              class="hidden lg:grid grid-cols-[minmax(0,3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_44px] gap-x-4 px-2.5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-fg-muted"
+              aria-hidden="true"
+            >
+              <span>Motorista</span><span>Vencimento</span><span>Valor</span><span>Status</span><span></span>
+            </div>
+            <ul class="flex flex-col gap-1" data-adjustments-rows>
+              @for (a of rows(); track a.id) {
+                <li
+                  class="relative rounded-xl px-1 py-3.5 lg:px-2.5 hover:bg-surface-muted/70 flex flex-wrap gap-x-5 gap-y-2.5 lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_44px] lg:gap-x-4 lg:items-center"
+                  [attr.data-adjustment-id]="a.id"
+                >
+                  <div class="min-w-0 basis-full pr-11 lg:basis-auto lg:pr-0">
+                    <a
+                      [routerLink]="['/ajustes', a.id]"
+                      class="group flex items-center gap-3 min-w-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    >
+                      <span class="flex-none size-10 rounded-full bg-surface-sunken text-fg-soft grid place-items-center text-[13px] font-bold tracking-wide" aria-hidden="true">{{ initials(a.driverName) }}</span>
+                      <span class="min-w-0 flex flex-col gap-0.5">
+                        <span class="text-[15px] font-semibold text-fg truncate group-hover:text-primary-600">{{ a.driverName }}</span>
+                        <span class="text-[13px] text-fg-muted truncate">{{ a.description }}</span>
+                      </span>
+                    </a>
+                  </div>
+                  <div class="min-w-0">
+                    <span class="lg:hidden block text-[10px] uppercase tracking-wider text-fg-faint">Vencimento</span>
+                    <span class="text-sm text-fg tabular-nums">{{ date(a.dueDate) }}</span>
+                  </div>
+                  <div class="min-w-0">
+                    <span class="lg:hidden block text-[10px] uppercase tracking-wider text-fg-faint">Valor</span>
+                    <span class="text-sm font-semibold text-fg tabular-nums">{{ money(a.amountCents) }}</span>
+                  </div>
+                  <div class="min-w-0">
+                    <span class="lg:hidden block text-[10px] uppercase tracking-wider text-fg-faint">Status</span>
+                    <app-status-chip [tone]="meta(a).tone" data-adjustment-status>{{ meta(a).label }}</app-status-chip>
+                  </div>
+                  <div class="absolute top-1.5 right-0 lg:static">
+                    <app-actions-menu label="Ações do ajuste" [menuWidth]="224">
+                      <a
+                        role="menuitem"
+                        [routerLink]="['/ajustes', a.id]"
+                        class="flex items-center gap-2 px-3 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]"
+                      >Ver ajuste</a>
+                      @if (canCopyPix(a)) {
+                        <button
+                          type="button"
+                          role="menuitem"
+                          data-copy-pix
+                          [disabled]="copying() !== null"
+                          (click)="copyPix(a)"
+                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px] text-left disabled:opacity-60"
+                        >{{ copying() === a.id ? 'Copiando…' : 'Copiar Pix copia-e-cola' }}</button>
+                      }
+                    </app-actions-menu>
+                  </div>
+                </li>
+              }
+            </ul>
+          </div>
+
+          <div class="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 text-sm">
+            <p class="text-fg-muted" data-adjustments-footer>Mostrando {{ rows().length }} de {{ total() }}</p>
+            @if (totalPages() > 1) {
+              <div class="flex items-center gap-2 justify-end">
+                <button type="button" class="min-h-11 px-4 rounded-xl border border-edge hover:bg-surface-muted disabled:opacity-50" [disabled]="page() === 0" (click)="prev()">Anterior</button>
+                <button type="button" class="min-h-11 px-4 rounded-xl border border-edge hover:bg-surface-muted disabled:opacity-50" [disabled]="page() + 1 >= totalPages()" (click)="next()">Próxima</button>
+              </div>
+            }
+          </div>
+        }
+      }
+    </section>
+  </div>
+</app-default-page-layout>

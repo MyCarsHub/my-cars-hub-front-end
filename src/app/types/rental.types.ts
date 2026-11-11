@@ -2,7 +2,8 @@ import { OverdueFeeSummary } from './overdue.types';
 import { PagedResponse } from './paged.types';
 
 export type RentalStatus = 'RESERVED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED';
-export type ChargeKind = 'RENTAL_TOTAL' | 'RENTAL_PERIOD' | 'CAUCAO' | 'OVERDUE_FEE';
+/** `ADJUSTMENT` (V141): Ajuste, cobrança avulsa ao motorista. Nunca "Aluguel", nunca gerada de novo. */
+export type ChargeKind = 'RENTAL_TOTAL' | 'RENTAL_PERIOD' | 'CAUCAO' | 'OVERDUE_FEE' | 'ADJUSTMENT';
 export type ChargeStatus =
   | 'PENDING'
   | 'PAID'
@@ -570,6 +571,7 @@ export function chargeKindLabel(kind: ChargeKind): string {
     RENTAL_PERIOD: 'Aluguel — período',
     CAUCAO: 'Caução',
     OVERDUE_FEE: 'Multa por atraso',
+    ADJUSTMENT: 'Ajuste',
   };
   return map[kind];
 }

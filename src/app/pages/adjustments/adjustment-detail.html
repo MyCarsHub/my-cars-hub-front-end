@@ -1,0 +1,152 @@
+<app-default-page-layout
+  [title]="adjustment()?.driverName ?? 'Detalhes do ajuste'"
+  [description]="adjustment() ? 'Ajuste · ' + adjustment()!.description : ''"
+>
+  <a
+    pageBack
+    routerLink="/ajustes"
+    class="inline-flex items-center gap-1.5 min-h-11 text-[13px] text-fg-muted hover:text-fg"
+  >
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6l6 6" /></svg>
+    Ajustes
+  </a>
+  @if (meta(); as m) {
+    <app-status-chip pageBadge [tone]="m.tone" data-adjustment-status>{{ m.label }}</app-status-chip>
+  }
+
+  @if (loading()) {
+    <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
+      Carregando…
+    </div>
+  } @else if (error(); as loadError) {
+    <div class="rounded-2xl bg-surface border border-rose-200 dark:border-rose-500/30 p-8 text-center space-y-3">
+      <p class="text-rose-700 dark:text-rose-300 text-sm" role="alert">{{ loadError }}</p>
+      <a routerLink="/ajustes" class="inline-flex items-center min-h-11 text-sm text-primary-700 dark:text-primary-400 font-medium">
+        Voltar para a lista
+      </a>
+    </div>
+  } @else if (adjustment(); as a) {
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      @if (hero(); as h) {
+        @if (h.tone === 'plain') {
+          <section class="lg:col-span-3 rounded-2xl bg-surface border border-edge p-5 sm:p-6 flex flex-col gap-1 min-w-0" data-adjustment-value-card data-tone="plain">
+            <span class="text-xs uppercase tracking-wider text-fg-muted">{{ h.kicker }}</span>
+            <span class="text-4xl sm:text-5xl font-bold tabular-nums tracking-tight leading-tight text-fg" data-adjustment-amount>{{ money(a.amountCents) }}</span>
+            <span class="text-[13px] text-fg-muted">{{ h.text }}</span>
+            @if (a.status === 'ISSUING') {
+              <button
+                type="button"
+                data-refresh
+                (click)="load()"
+                class="mt-3 self-start min-h-11 px-4 rounded-xl border border-edge text-sm font-medium text-fg-soft hover:bg-surface-muted"
+              >Atualizar</button>
+            }
+          </section>
+        } @else {
+          <app-painted-card [tone]="h.tone === 'green' ? 'green' : 'orange'"class="lg:col-span-3" data-adjustment-value-card>
+            <span class="text-xs uppercase tracking-wider text-white/90">{{ h.kicker }}</span>
+            <span class="text-4xl sm:text-5xl font-bold tabular-nums tracking-tight leading-tight" data-adjustment-amount>{{ money(a.amountCents) }}</span>
+            <span class="text-[13px] text-white/95">{{ h.text }}</span>
+            @if (canCopyPix()) {
+              <button
+                type="button"
+                data-copy-pix
+                [disabled]="copying()"
+                (click)="copyPix()"
+                class="mt-3 self-start inline-flex items-center gap-2 min-h-12 px-5 rounded-xl bg-neutral-950 text-primary-400 font-semibold text-sm hover:bg-black disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8h11v11H8zM5 16V5h11" /></svg>
+                {{ copying() ? 'Copiando…' : 'Copiar Pix copia-e-cola' }}
+              </button>
+            }
+          </app-painted-card>
+        }
+      }
+
+      <section class="min-w-0" aria-labelledby="adjustment-sec-driver">
+        <h2 id="adjustment-sec-driver" class="text-[13px] font-semibold text-fg-soft mb-2 ml-1">Motorista</h2>
+        <div class="rounded-2xl bg-surface border border-edge p-4 sm:p-5 flex flex-col gap-3">
+          <div class="flex items-center gap-3">
+            <span class="flex-none size-9 rounded-xl bg-surface-sunken grid place-items-center text-fg-soft" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8a4 4 0 0 0 0 8" /></svg>
+            </span>
+            <div class="min-w-0">
+              <p class="text-base font-semibold text-fg truncate">{{ a.driver?.name ?? a.driverName }}</p>
+              @if (a.driver?.licenseCategory) {
+                <p class="text-[13px] text-fg-muted">CNH categoria {{ a.driver!.licenseCategory }}</p>
+              }
+            </div>
+          </div>
+          <dl class="flex flex-col gap-3 text-sm" data-driver-card>
+            @if (a.driver?.phoneMasked) {
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-fg-muted">Telefone</dt>
+                <dd class="font-semibold text-fg text-right tabular-nums">{{ a.driver!.phoneMasked }}</dd>
+              </div>
+            }
+            @if (a.driver) {
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-fg-muted">Outros ajustes</dt>
+                <dd class="font-semibold text-fg text-right">
+                  {{ a.driver.otherAdjustments === 0 ? 'nenhum' : a.driver.otherAdjustments + ' no histórico' }}
+                </dd>
+              </div>
+            }
+          </dl>
+        </div>
+      </section>
+
+      <section class="min-w-0" aria-labelledby="adjustment-sec-main">
+        <h2 id="adjustment-sec-main" class="text-[13px] font-semibold text-fg-soft mb-2 ml-1">Ajuste</h2>
+        <div class="rounded-2xl bg-surface border border-edge p-4 sm:p-5 flex flex-col gap-3">
+          <div class="flex items-center gap-3">
+            <span class="flex-none size-9 rounded-xl bg-surface-sunken grid place-items-center text-fg-soft" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4" /></svg>
+            </span>
+            <p class="min-w-0 text-base font-semibold text-fg break-words">{{ a.description }}</p>
+          </div>
+          <dl class="flex flex-col gap-3 text-sm">
+            <div class="flex items-center justify-between gap-3">
+              <dt class="text-fg-muted">Valor</dt>
+              <dd class="font-semibold text-fg text-right tabular-nums">{{ money(a.amountCents) }}</dd>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <dt class="text-fg-muted">Vencimento</dt>
+              <dd class="font-semibold text-fg text-right tabular-nums">{{ date(a.dueDate) }}</dd>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <dt class="text-fg-muted">Pagamento</dt>
+              <dd class="font-semibold text-fg text-right">Pix</dd>
+            </div>
+            @if (a.paidAmountCents !== null && a.paidAmountCents !== a.amountCents) {
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-fg-muted">Valor pago</dt>
+                <dd class="font-semibold text-fg text-right tabular-nums">{{ money(a.paidAmountCents) }}</dd>
+              </div>
+            }
+          </dl>
+        </div>
+      </section>
+
+      <section class="min-w-0" aria-labelledby="adjustment-sec-history">
+        <h2 id="adjustment-sec-history" class="text-[13px] font-semibold text-fg-soft mb-2 ml-1">Histórico</h2>
+        <div class="rounded-2xl bg-surface border border-edge p-4 sm:p-5">
+          @if (history().length > 0) {
+            <ul class="flex flex-col gap-3 text-sm" data-adjustment-history>
+              @for (h of history(); track $index) {
+                <li class="flex items-start justify-between gap-3">
+                  <span class="text-fg-soft min-w-0">{{ h.label }}</span>
+                  <b class="font-semibold text-fg text-right tabular-nums whitespace-nowrap">{{ h.when }}</b>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="text-sm text-fg-muted">
+              Criado{{ a.createdByName ? ' por ' + a.createdByName : '' }} em {{ dateTime(a.createdAt) }}
+            </p>
+          }
+        </div>
+      </section>
+    </div>
+  }
+</app-default-page-layout>

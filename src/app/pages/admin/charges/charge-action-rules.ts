@@ -11,8 +11,12 @@ export function canReceiveCharge(item: AdminChargeListItem): boolean {
   return RECEIVABLE_KINDS.includes(item.kind) && (item.status === 'PENDING' || item.status === 'PAST_DUE');
 }
 
-/** "Tentar de novo": FAILED e hoje ≤ vencimento (daysOverdue ≤ 0). Atrasada é prova: nunca. */
+/**
+ * "Tentar de novo": FAILED e hoje ≤ vencimento (daysOverdue ≤ 0). Atrasada é prova: nunca.
+ * Ajuste (V141) nunca: o back-end recusa com 409 e o dono decidiu que não há "Gerar de novo".
+ */
 export function canRetryCharge(item: AdminChargeListItem): boolean {
+  if (item.kind === 'ADJUSTMENT') return false;
   return item.status === 'FAILED' && item.dueDate !== null && item.daysOverdue <= 0;
 }
 

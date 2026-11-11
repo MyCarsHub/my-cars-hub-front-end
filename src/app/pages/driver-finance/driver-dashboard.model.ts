@@ -414,9 +414,13 @@ export function dayModel(cal: DriverCalendarData | null, date: string, rental: D
   };
 }
 
-/** `RENT` is the rent of the period; `OVERDUE_FEE` the late fee the rental company charges. */
+/**
+ * `RENT` is the rent of the period; `OVERDUE_FEE` the late fee the rental company charges;
+ * `ADJUSTMENT` (V141) a one-off charge with its own name, never "Aluguel".
+ */
 function chargeLabel(label: string, rental: DriverRentalContext | null): string {
   if (label === 'OVERDUE_FEE') return 'Multa por atraso do aluguel';
+  if (label === 'ADJUSTMENT') return 'Ajuste';
   return rental ? `Aluguel · ${rental.vehicleLabel}` : 'Aluguel';
 }
 

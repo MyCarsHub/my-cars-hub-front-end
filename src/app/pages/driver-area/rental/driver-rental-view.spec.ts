@@ -79,6 +79,10 @@ describe('driver-rental-view', () => {
       expect(chargeTitle(c({ kind: 'OVERDUE_FEE' }), 'WEEKLY')).toBe('Multa por atraso');
       expect(chargeTitle(c({ kind: 'RENTAL_TOTAL' }), 'WEEKLY')).toBe('Aluguel');
     });
+
+    it('V141 — Ajuste tem rótulo próprio, mesmo com periodIndex (a sequência do ajuste)', () => {
+      expect(chargeTitle(c({ kind: 'ADJUSTMENT', periodIndex: 2 }), 'WEEKLY')).toBe('Ajuste');
+    });
   });
 
   describe('buildHero', () => {
