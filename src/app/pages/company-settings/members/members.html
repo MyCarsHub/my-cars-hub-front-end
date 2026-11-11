@@ -253,6 +253,7 @@
   [canInviteManager]="canInviteManager"
   (closed)="closeInvite()"
   (sent)="onInviteSent($event)"
+  (resent)="onInviteResent($event)"
 />
 
 @if (pendingRemoval(); as target) {

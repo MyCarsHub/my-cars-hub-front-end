@@ -8,8 +8,10 @@ import {
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../../components/form-field/form-field';
@@ -21,7 +23,9 @@ import { InvitesService } from '../../../services/invites.service';
 import { SessionService } from '../../../services/session.service';
 import {
   CreateInviteRequest,
+  CreateInviteResponse,
   INVITE_TTL_LABEL,
+  InvitableDriver,
   InviteResponse,
   withoutAcceptUrl,
 } from '../../../types/invite.types';
@@ -34,14 +38,18 @@ import {
 import { applyMaskedPhoneInput, normalizePhone } from '../../../utils/phone-mask';
 import { companyRoleLabel } from '../../../utils/role-labels';
 import { cpfValidator } from '../../../utils/validators/cpf.validator';
+import { CHIP_TONE } from './members.model';
 import { MembersIcon } from './members-icon';
 import { MembersSheet } from './members-sheet';
 
 /** Same pattern as the onboarding and the /convites form: DDD + number, masked or not. */
 const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 const CREATE_FALLBACK = 'Não foi possível enviar o convite.';
+const INVITABLE_LOAD_FALLBACK = 'Não foi possível carregar os motoristas agora.';
+const CHIP =
+  'whitespace-nowrap inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium';
 
-/** Where a driver is invited today: the driver registration sends the invite on save. */
+/** Where a NEW driver is invited: the driver registration sends the invite on save. */
 export const DRIVER_CREATE_ROUTE = '/motoristas/novo';
 
 type Step = 'role' | 'manager' | 'sent';
@@ -62,8 +70,11 @@ interface SentInvite {
  * when the backend returned the accept link) confirms the e-mail and offers the link to copy
  * or send by WhatsApp.
  *
- * Drivers are NOT invited from here: the driver registration creates the invite when it is
- * saved, so the Motorista option explains that and links to it instead of submitting.
+ * Motorista lists the company's drivers the server says can be invited now (never invited or
+ * with an expired invite, no linked account — `GET /v1/invites/invitable-drivers`) and sends
+ * the invite with the e-mail and name of the registration, exactly like the driver detail
+ * page. A driver that does not exist yet is still registered first: the footer links to the
+ * registration, which sends the invite on save.
  * The caller sees Gerenciador whenever `canInviteManager` is true — owner AND manager, who
  * hold the same invite power. Without it only Motorista is offered (defensive: the page
  * never passes `false` to a role that can open it).
@@ -123,7 +134,7 @@ interface SentInvite {
             type="button"
             data-role-option="DRIVER"
             [attr.aria-pressed]="driverChosen()"
-            (click)="driverChosen.set(true)"
+            (click)="chooseDriver()"
             class="w-full text-left flex items-start gap-3 rounded-xl border p-4 min-h-[72px]
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
             [class]="
@@ -155,19 +166,84 @@ interface SentInvite {
             </span>
           </button>
           @if (driverChosen()) {
-            <div
-              data-driver-banner
-              role="status"
-              class="rounded-xl border p-3 text-sm flex items-start gap-2 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200"
-            >
-              <span class="shrink-0 mt-0.5 text-blue-600 dark:text-blue-300"><app-members-icon name="info" [size]="18" /></span>
-              <div class="flex-1 min-w-0 break-words">
-                <p class="font-semibold">Motoristas são convidados ao cadastrar o motorista.</p>
-                <p class="text-xs mt-0.5 leading-relaxed">
-                  Preencha o cadastro com o e-mail da pessoa. O convite sai automaticamente quando
-                  você salvar.
+            <div class="space-y-3 pt-1" data-invitable-drivers>
+              @if (createError(); as message) {
+                <app-alert-banner variant="error" [message]="message" />
+              }
+              @if (invitableLoading()) {
+                <p class="text-sm text-fg-muted" data-invitable-loading role="status">
+                  Carregando motoristas…
                 </p>
-              </div>
+              } @else if (invitableError(); as message) {
+                <app-alert-banner variant="error" [message]="message" />
+              } @else if (invitable().length === 0) {
+                <div
+                  data-invitable-empty
+                  role="status"
+                  class="rounded-xl border p-3 text-sm flex items-start gap-2 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200"
+                >
+                  <span class="shrink-0 mt-0.5 text-blue-600 dark:text-blue-300"><app-members-icon name="info" [size]="18" /></span>
+                  <div class="flex-1 min-w-0 break-words">
+                    <p class="font-semibold">Nenhum motorista para convidar.</p>
+                    <p class="text-xs mt-0.5 leading-relaxed">
+                      Todos os motoristas cadastrados já têm acesso ou um convite em aberto. Para
+                      um motorista novo, cadastre-o: o convite sai quando você salvar.
+                    </p>
+                  </div>
+                </div>
+              } @else {
+                <p class="text-xs text-fg-muted leading-relaxed" data-invitable-hint>
+                  Motoristas cadastrados sem acesso ao aplicativo e sem convite em aberto. Para
+                  convidar, o cadastro precisa ter e-mail.
+                </p>
+                <ul class="space-y-2" aria-label="Motoristas para convidar">
+                  @for (d of invitable(); track d.id) {
+                    <li
+                      [attr.data-invitable-driver]="d.id"
+                      class="rounded-xl border border-edge bg-surface p-3 flex items-center gap-3"
+                    >
+                      <div class="flex-1 min-w-0" [class.opacity-60]="!d.email">
+                        <p class="text-sm font-semibold text-fg break-words">{{ d.name }}</p>
+                        @if (d.email) {
+                          <p class="text-xs text-fg-muted break-all">{{ d.email }}</p>
+                        } @else {
+                          <p class="text-xs text-fg-muted" data-invitable-no-email>Sem e-mail cadastrado</p>
+                        }
+                        @if (d.email && d.lastInviteStatus === 'EXPIRED') {
+                          <span data-invitable-chip [class]="chip + ' mt-1 ' + roseTone">Convite expirado</span>
+                        }
+                      </div>
+                      @if (!d.email) {
+                        <a
+                          data-invitable-edit
+                          [routerLink]="driverEditLink(d)"
+                          class="shrink-0 min-h-11 px-4 rounded-xl text-sm font-semibold inline-flex items-center justify-center
+                                 border border-edge bg-surface text-fg hover:bg-surface-muted
+                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                        >
+                          Editar cadastro
+                        </a>
+                      } @else {
+                      <button
+                        type="button"
+                        (click)="inviteDriver(d)"
+                        [disabled]="sendingDriverId() !== null"
+                        [attr.aria-busy]="sendingDriverId() === d.id ? 'true' : null"
+                        class="shrink-0 min-h-11 px-4 rounded-xl text-sm font-semibold inline-flex items-center justify-center
+                               bg-primary-500 text-white hover:bg-primary-600 shadow-sm disabled:opacity-60
+                               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                      >
+                        @if (sendingDriverId() === d.id) {
+                          Enviando…
+                        } @else {
+                          {{ d.lastInviteStatus === 'EXPIRED' ? 'Reenviar convite' : 'Convidar' }}
+                        }
+                      </button>
+                      }
+                    </li>
+                  }
+                </ul>
+              }
             </div>
           }
         </div>
@@ -279,7 +355,7 @@ interface SentInvite {
                      bg-primary-500 text-white hover:bg-primary-600 shadow-sm
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
             >
-              Cadastrar motorista<app-members-icon name="arrowR" [size]="18" />
+              Cadastrar novo motorista<app-members-icon name="arrowR" [size]="18" />
             </a>
           </div>
         } @else {
@@ -301,12 +377,23 @@ export class InviteSheet {
   readonly closed = output<void>();
   /** The invite as the list stores it: the one-time link is NOT in this payload. */
   readonly sent = output<InviteResponse>();
+  /**
+   * An EXPIRED driver invite resent by id from the Motorista list (the e-mail it went to).
+   * Resending reuses the row, so the Members list gets no orphan "Expirado" next to a new one.
+   */
+  readonly resent = output<string>();
 
   protected readonly step = signal<Step>('role');
   protected readonly driverChosen = signal(false);
   protected readonly sending = signal(false);
   protected readonly createError = signal<string | null>(null);
   protected readonly sentInvite = signal<SentInvite | null>(null);
+  protected readonly invitable = signal<InvitableDriver[]>([]);
+  protected readonly invitableLoading = signal(false);
+  protected readonly invitableError = signal<string | null>(null);
+  protected readonly sendingDriverId = signal<string | null>(null);
+  protected readonly chip = CHIP;
+  protected readonly roseTone = CHIP_TONE.rose;
   protected readonly ttlLabel = INVITE_TTL_LABEL;
 
   protected readonly managerLabel = companyRoleLabel('MANAGER');
@@ -375,9 +462,123 @@ export class InviteSheet {
         return;
       }
       this.step.set('role');
-      this.driverChosen.set(!this.canInviteManager());
+      this.driverChosen.set(false);
       this.createError.set(null);
+      // A caller with a single option has it pre-chosen, and its list loads at once.
+      if (!this.canInviteManager()) untracked(() => this.chooseDriver());
     });
+  }
+
+  protected chooseDriver(): void {
+    this.driverChosen.set(true);
+    this.createError.set(null);
+    this.loadInvitableDrivers();
+  }
+
+  /** Only the latest read counts: tapping Motorista again drops the request in flight. */
+  private invitableRequest: Subscription | null = null;
+
+  private loadInvitableDrivers(): void {
+    this.invitableRequest?.unsubscribe();
+    this.invitableLoading.set(true);
+    this.invitableError.set(null);
+    this.invitableRequest = this.invites.invitableDrivers().subscribe({
+      next: (list) => {
+        this.invitable.set(list);
+        this.invitableLoading.set(false);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.invitable.set([]);
+        this.invitableLoading.set(false);
+        this.invitableError.set(this.apiErrors.messageFor(err, INVITABLE_LOAD_FALLBACK));
+      },
+    });
+  }
+
+  protected driverEditLink(driver: InvitableDriver): string {
+    return `/motoristas/${driver.id}/editar`;
+  }
+
+  /**
+   * Never invited (or a cancelled / accepted-then-removed invite): a NEW invite, same call as
+   * the driver detail page — the e-mail is the registration's contact e-mail (the accept links
+   * the driver by it), never one typed apart.
+   *
+   * Expired: the SAME invite is resent by id (`POST /v1/invites/resend/{id}`), exactly what
+   * the Members list does for an expired row. Creating a new one instead would leave the old
+   * EXPIRED row in the list, inflate the expired count and later answer 409 on its resend.
+   */
+  protected inviteDriver(driver: InvitableDriver): void {
+    const email = driver.email?.trim();
+    if (!email || this.sendingDriverId() !== null) return;
+    this.createError.set(null);
+    this.sendingDriverId.set(driver.id);
+
+    const expiredId = driver.lastInviteStatus === 'EXPIRED' ? driver.lastInviteId : null;
+    if (expiredId) {
+      this.invites.resend(expiredId).subscribe({
+        next: (response) => {
+          this.sendingDriverId.set(null);
+          this.onResent(email, response?.acceptUrl);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.sendingDriverId.set(null);
+          const specific = inviteErrorCopy(err, 'manage');
+          if (specific) {
+            this.apiErrors.claim(err);
+            this.createError.set(specific);
+            return;
+          }
+          // 400 from the resend ceiling carries the server sentence, which names the limit.
+          this.createError.set(this.apiErrors.messageFor(err, CREATE_FALLBACK));
+        },
+      });
+      return;
+    }
+
+    this.invites.create({ email, role: 'DRIVER', name: driver.name }).subscribe({
+      next: (invite) => {
+        this.sendingDriverId.set(null);
+        this.onCreated(invite);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.sendingDriverId.set(null);
+        // The server's own text: a creation 409 names its cause (pending invite / member).
+        this.createError.set(this.apiErrors.messageFor(err, CREATE_FALLBACK));
+      },
+    });
+  }
+
+  private onResent(email: string, acceptUrl: string | null | undefined): void {
+    const link = acceptUrl?.trim();
+    this.resent.emit(email);
+    if (link) {
+      const company = this.session.getItem('selectedCompanyName')?.trim();
+      this.sentInvite.set({ email, link, companyName: company || null });
+      this.step.set('sent');
+      return;
+    }
+    this.step.set('role');
+    this.driverChosen.set(false);
+    this.closed.emit();
+  }
+
+  /** Both paths (manager form, driver list) end here once the invite exists. */
+  private onCreated(invite: CreateInviteResponse): void {
+    const link = invite.acceptUrl?.trim();
+    const stored = withoutAcceptUrl(invite);
+    if (link) {
+      const company = this.session.getItem('selectedCompanyName')?.trim();
+      this.sentInvite.set({ email: invite.email, link, companyName: company || null });
+      this.step.set('sent');
+      this.sent.emit(stored);
+      return;
+    }
+    // No link in the answer: the e-mail was the only channel, so there is nothing to show.
+    this.step.set('role');
+    this.driverChosen.set(false);
+    this.sent.emit(stored);
+    this.closed.emit();
   }
 
   protected chooseManager(): void {
@@ -422,19 +623,7 @@ export class InviteSheet {
       next: (invite) => {
         this.sending.set(false);
         this.form.reset();
-        const link = invite.acceptUrl?.trim();
-        const stored = withoutAcceptUrl(invite);
-        if (link) {
-          const company = this.session.getItem('selectedCompanyName')?.trim();
-          this.sentInvite.set({ email: invite.email, link, companyName: company || null });
-          this.step.set('sent');
-          this.sent.emit(stored);
-          return;
-        }
-        // No link in the answer: the e-mail was the only channel, so there is nothing to show.
-        this.step.set('role');
-        this.sent.emit(stored);
-        this.closed.emit();
+        this.onCreated(invite);
       },
       error: (err: HttpErrorResponse) => {
         this.sending.set(false);
