@@ -88,7 +88,8 @@ export class InvitesService {
   /**
    * `GET /v1/invites/invitable-drivers` — OWNER / MANAGER only. The drivers the Members
    * page can invite right now: never invited or with an expired invite, not linked to an
-   * account. Not cached: the sheet reads it fresh every time it opens on Motorista.
+   * account (drivers without an e-mail come with `email: null`). Not cached: the sheet reads
+   * it fresh every time it opens on Motorista.
    */
   invitableDrivers(): Observable<InvitableDriver[]> {
     return this.http

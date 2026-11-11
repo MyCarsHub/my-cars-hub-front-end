@@ -112,13 +112,16 @@ export type InviteEmailDelivery = 'QUEUED' | 'SENT' | 'FAILED';
 
 /**
  * Item of `GET /v1/invites/invitable-drivers` (OWNER / MANAGER): a driver of the company
- * with a contact e-mail, no linked account and no live (PENDING within its deadline) or
- * ACCEPTED invite for that e-mail. `lastInviteStatus` is the most recent invite of that
- * e-mail (`EXPIRED` derived from the deadline), or `null` when it was never invited.
+ * with no linked account, no live (PENDING within its deadline) invite for its e-mail and
+ * whose e-mail is not an active member. `lastInviteStatus` is the most recent DRIVER invite of
+ * that e-mail (`EXPIRED` derived from the deadline), or `null` when it was never invited.
  */
 export interface InvitableDriver {
   id: string;
   name: string;
-  email: string;
+  /** `null` when the registration has no contact e-mail: listed, but it cannot be invited. */
+  email: string | null;
+  /** Latest DRIVER invite of that e-mail; an EXPIRED one is resent by this id. */
+  lastInviteId: string | null;
   lastInviteStatus: InviteStatus | null;
 }

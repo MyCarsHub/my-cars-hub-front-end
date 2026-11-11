@@ -11,6 +11,7 @@ import {
   untracked,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../../components/form-field/form-field';
@@ -185,14 +186,15 @@ interface SentInvite {
                   <div class="flex-1 min-w-0 break-words">
                     <p class="font-semibold">Nenhum motorista para convidar.</p>
                     <p class="text-xs mt-0.5 leading-relaxed">
-                      Os motoristas com e-mail já têm acesso ou um convite em aberto. Para um
-                      motorista novo, cadastre-o: o convite sai quando você salvar.
+                      Todos os motoristas cadastrados já têm acesso ou um convite em aberto. Para
+                      um motorista novo, cadastre-o: o convite sai quando você salvar.
                     </p>
                   </div>
                 </div>
               } @else {
-                <p class="text-xs text-fg-muted leading-relaxed">
-                  Motoristas cadastrados que ainda não têm acesso ao aplicativo.
+                <p class="text-xs text-fg-muted leading-relaxed" data-invitable-hint>
+                  Motoristas cadastrados sem acesso ao aplicativo e sem convite em aberto. Para
+                  convidar, o cadastro precisa ter e-mail.
                 </p>
                 <ul class="space-y-2" aria-label="Motoristas para convidar">
                   @for (d of invitable(); track d.id) {
@@ -200,13 +202,28 @@ interface SentInvite {
                       [attr.data-invitable-driver]="d.id"
                       class="rounded-xl border border-edge bg-surface p-3 flex items-center gap-3"
                     >
-                      <div class="flex-1 min-w-0">
+                      <div class="flex-1 min-w-0" [class.opacity-60]="!d.email">
                         <p class="text-sm font-semibold text-fg break-words">{{ d.name }}</p>
-                        <p class="text-xs text-fg-muted break-all">{{ d.email }}</p>
-                        @if (d.lastInviteStatus === 'EXPIRED') {
+                        @if (d.email) {
+                          <p class="text-xs text-fg-muted break-all">{{ d.email }}</p>
+                        } @else {
+                          <p class="text-xs text-fg-muted" data-invitable-no-email>Sem e-mail cadastrado</p>
+                        }
+                        @if (d.email && d.lastInviteStatus === 'EXPIRED') {
                           <span data-invitable-chip [class]="chip + ' mt-1 ' + roseTone">Convite expirado</span>
                         }
                       </div>
+                      @if (!d.email) {
+                        <a
+                          data-invitable-edit
+                          [routerLink]="driverEditLink(d)"
+                          class="shrink-0 min-h-11 px-4 rounded-xl text-sm font-semibold inline-flex items-center justify-center
+                                 border border-edge bg-surface text-fg hover:bg-surface-muted
+                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                        >
+                          Editar cadastro
+                        </a>
+                      } @else {
                       <button
                         type="button"
                         (click)="inviteDriver(d)"
@@ -222,6 +239,7 @@ interface SentInvite {
                           {{ d.lastInviteStatus === 'EXPIRED' ? 'Reenviar convite' : 'Convidar' }}
                         }
                       </button>
+                      }
                     </li>
                   }
                 </ul>
@@ -359,6 +377,11 @@ export class InviteSheet {
   readonly closed = output<void>();
   /** The invite as the list stores it: the one-time link is NOT in this payload. */
   readonly sent = output<InviteResponse>();
+  /**
+   * An EXPIRED driver invite resent by id from the Motorista list (the e-mail it went to).
+   * Resending reuses the row, so the Members list gets no orphan "Expirado" next to a new one.
+   */
+  readonly resent = output<string>();
 
   protected readonly step = signal<Step>('role');
   protected readonly driverChosen = signal(false);
@@ -452,10 +475,14 @@ export class InviteSheet {
     this.loadInvitableDrivers();
   }
 
+  /** Only the latest read counts: tapping Motorista again drops the request in flight. */
+  private invitableRequest: Subscription | null = null;
+
   private loadInvitableDrivers(): void {
+    this.invitableRequest?.unsubscribe();
     this.invitableLoading.set(true);
     this.invitableError.set(null);
-    this.invites.invitableDrivers().subscribe({
+    this.invitableRequest = this.invites.invitableDrivers().subscribe({
       next: (list) => {
         this.invitable.set(list);
         this.invitableLoading.set(false);
@@ -468,15 +495,48 @@ export class InviteSheet {
     });
   }
 
+  protected driverEditLink(driver: InvitableDriver): string {
+    return `/motoristas/${driver.id}/editar`;
+  }
+
   /**
-   * Same call as the driver detail page: the e-mail is the registration's contact e-mail
-   * (the accept links the driver by it), never one typed apart.
+   * Never invited (or a cancelled / accepted-then-removed invite): a NEW invite, same call as
+   * the driver detail page — the e-mail is the registration's contact e-mail (the accept links
+   * the driver by it), never one typed apart.
+   *
+   * Expired: the SAME invite is resent by id (`POST /v1/invites/resend/{id}`), exactly what
+   * the Members list does for an expired row. Creating a new one instead would leave the old
+   * EXPIRED row in the list, inflate the expired count and later answer 409 on its resend.
    */
   protected inviteDriver(driver: InvitableDriver): void {
-    if (this.sendingDriverId() !== null) return;
+    const email = driver.email?.trim();
+    if (!email || this.sendingDriverId() !== null) return;
     this.createError.set(null);
     this.sendingDriverId.set(driver.id);
-    this.invites.create({ email: driver.email, role: 'DRIVER', name: driver.name }).subscribe({
+
+    const expiredId = driver.lastInviteStatus === 'EXPIRED' ? driver.lastInviteId : null;
+    if (expiredId) {
+      this.invites.resend(expiredId).subscribe({
+        next: (response) => {
+          this.sendingDriverId.set(null);
+          this.onResent(email, response?.acceptUrl);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.sendingDriverId.set(null);
+          const specific = inviteErrorCopy(err, 'manage');
+          if (specific) {
+            this.apiErrors.claim(err);
+            this.createError.set(specific);
+            return;
+          }
+          // 400 from the resend ceiling carries the server sentence, which names the limit.
+          this.createError.set(this.apiErrors.messageFor(err, CREATE_FALLBACK));
+        },
+      });
+      return;
+    }
+
+    this.invites.create({ email, role: 'DRIVER', name: driver.name }).subscribe({
       next: (invite) => {
         this.sendingDriverId.set(null);
         this.onCreated(invite);
@@ -487,6 +547,20 @@ export class InviteSheet {
         this.createError.set(this.apiErrors.messageFor(err, CREATE_FALLBACK));
       },
     });
+  }
+
+  private onResent(email: string, acceptUrl: string | null | undefined): void {
+    const link = acceptUrl?.trim();
+    this.resent.emit(email);
+    if (link) {
+      const company = this.session.getItem('selectedCompanyName')?.trim();
+      this.sentInvite.set({ email, link, companyName: company || null });
+      this.step.set('sent');
+      return;
+    }
+    this.step.set('role');
+    this.driverChosen.set(false);
+    this.closed.emit();
   }
 
   /** Both paths (manager form, driver list) end here once the invite exists. */

@@ -3,7 +3,7 @@ import { Component, WritableSignal, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { NEVER, Observable, of, throwError } from 'rxjs';
+import { NEVER, Observable, Subject, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 
 import { CompanyMembers, MEMBERS_AUTO_REFRESH_MS } from './members';
@@ -1338,13 +1338,22 @@ describe('CompanyMembers — pessoas da empresa', () => {
       id: 'drv-1',
       name: 'Ana Nunca',
       email: 'ana@empresa.com.br',
+      lastInviteId: null,
       lastInviteStatus: null,
     };
     const vencido: InvitableDriver = {
       id: 'drv-2',
       name: 'Bruno Vencido',
       email: 'bruno@empresa.com.br',
+      lastInviteId: 'inv-old',
       lastInviteStatus: 'EXPIRED',
+    };
+    const semEmail: InvitableDriver = {
+      id: 'drv-3',
+      name: 'Carla Sem Email',
+      email: null,
+      lastInviteId: null,
+      lastInviteStatus: null,
     };
 
     function chooseDriver(f: ComponentFixture<CompanyMembers>): HTMLElement {
@@ -1390,25 +1399,88 @@ describe('CompanyMembers — pessoas da empresa', () => {
       expect(success).toHaveBeenCalledWith('Convite enviado para «ana@empresa.com.br».');
     });
 
-    it('com acceptUrl na resposta mostra o passo "Convite enviado" com o link', () => {
+    it('convite vencido e REENVIADO pelo id (sem criar outro) e mostra o link novo', () => {
       const f = render('OWNER', { invitable: [vencido] });
-      create.mockReturnValue(
-        of({
-          ...pendingInvite,
-          id: 'inv-new',
-          email: vencido.email,
-          role: 'DRIVER',
-          acceptUrl: 'https://mycarshub.app.br/convite/tok_drv',
-        }),
-      );
+      resendInvite.mockReturnValue(of({ acceptUrl: 'https://mycarshub.app.br/convite/tok_drv' }));
       const s = chooseDriver(f);
       buttonByText(rows(s)[0], 'Reenviar convite')?.click();
       f.detectChanges();
 
+      expect(resendInvite).toHaveBeenCalledTimes(1);
+      expect(resendInvite).toHaveBeenCalledWith('inv-old');
+      expect(create).not.toHaveBeenCalled();
+      expect(success).toHaveBeenCalledWith(
+        'Novo convite enviado para bruno@empresa.com.br. O link anterior deixou de valer.',
+      );
       expect(host(f).querySelector('[data-invite-sent]')?.textContent).toContain(vencido.email);
       expect(host(f).querySelector<HTMLInputElement>('[data-share-link]')?.value).toBe(
         'https://mycarshub.app.br/convite/tok_drv',
       );
+    });
+
+    it('nunca convidado com acceptUrl na criacao mostra o passo "Convite enviado"', () => {
+      const f = render('OWNER', { invitable: [nunca] });
+      create.mockReturnValue(
+        of({
+          ...pendingInvite,
+          id: 'inv-new',
+          email: nunca.email,
+          role: 'DRIVER',
+          acceptUrl: 'https://mycarshub.app.br/convite/tok_new',
+        }),
+      );
+      const s = chooseDriver(f);
+      buttonByText(rows(s)[0], 'Convidar')?.click();
+      f.detectChanges();
+
+      expect(resendInvite).not.toHaveBeenCalled();
+      expect(host(f).querySelector<HTMLInputElement>('[data-share-link]')?.value).toBe(
+        'https://mycarshub.app.br/convite/tok_new',
+      );
+    });
+
+    it('motorista sem e-mail aparece desabilitado, com o caminho para editar o cadastro', () => {
+      const f = render('OWNER', { invitable: [nunca, semEmail] });
+      const s = chooseDriver(f);
+
+      const row = rows(s).find((r) => r.getAttribute('data-invitable-driver') === 'drv-3');
+      expect(row?.querySelector('[data-invitable-no-email]')?.textContent).toContain(
+        'Sem e-mail cadastrado',
+      );
+      expect(row?.querySelector('button')).toBeNull();
+      expect(row?.querySelector('[data-invitable-edit]')?.getAttribute('href')).toBe(
+        '/motoristas/drv-3/editar',
+      );
+      expect(s.querySelector('[data-invitable-hint]')?.textContent).toContain(
+        'o cadastro precisa ter e-mail',
+      );
+    });
+
+    it('falha ao carregar a lista aparece na folha', () => {
+      const f = render('OWNER');
+      invitableDrivers.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 500, error: {} })),
+      );
+      const s = chooseDriver(f);
+
+      expect(s.textContent).toContain('Não foi possível carregar os motoristas agora.');
+      expect(rows(s)).toHaveLength(0);
+    });
+
+    it('enquanto envia, um segundo toque nao dispara outro convite', () => {
+      const f = render('OWNER', { invitable: [nunca, { ...nunca, id: 'drv-9', email: 'z@empresa.com.br' }] });
+      const pending = new Subject<InviteResponse>();
+      create.mockReturnValue(pending.asObservable());
+      const s = chooseDriver(f);
+      const first = buttonByText(rows(s)[0], 'Convidar') as HTMLButtonElement;
+      first.click();
+      f.detectChanges();
+      first.click();
+      buttonByText(rows(s)[1], 'Convidar')?.click();
+      f.detectChanges();
+
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(rows(s).every((r) => r.querySelector('button')?.disabled)).toBe(true);
     });
 
     it('recusa do servidor aparece na folha e a lista continua', () => {
