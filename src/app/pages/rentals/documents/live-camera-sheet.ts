@@ -12,7 +12,16 @@ import {
 } from '@angular/core';
 
 /** Estado da folha. `denied` e terminal ate o motorista tentar de novo. */
-export type LiveCameraState = 'starting' | 'live' | 'denied' | 'unsupported';
+export type LiveCameraState = 'starting' | 'live' | 'denied' | 'unsupported' | 'stalled';
+
+/** Teto para a camera concedida entregar o primeiro frame decodificado. Depois
+ *  disso a folha desliga a camera e oferece tentar de novo — nunca fica presa
+ *  em "Abrindo a câmera…" com a luz da camera acesa. */
+export const CAMERA_START_TIMEOUT_MS = 6000;
+
+/** Copy do estado `stalled`. */
+export const CAMERA_STALLED_MESSAGE =
+  'Não conseguimos mostrar a imagem da câmera. Toque em tentar de novo; se continuar, feche outros apps que estejam usando a câmera.';
 
 /** Qualidade do JPEG gerado do frame. A compressao real vem depois, no mesmo
  *  `ImageCompressionService` que o seletor de arquivo usa — aqui so evitamos
@@ -158,6 +167,23 @@ export function hasDecodedFrame(video: HTMLVideoElement): boolean {
             }
           </div>
         }
+
+        @if (state() === 'stalled') {
+          <!-- Permissao concedida, mas o video nao entregou frame no prazo. A
+               camera ja foi desligada; o toque em tentar de novo e um gesto
+               novo, que o iOS exige para deixar o play() rodar. -->
+          <div class="absolute inset-x-0 px-6 text-center space-y-3" role="alert">
+            <p class="text-base font-semibold text-white">A câmera não abriu</p>
+            <p class="text-sm leading-relaxed text-white/80">{{ stalledMessage }}</p>
+            <button
+              type="button"
+              (click)="start()"
+              class="min-h-[48px] px-5 rounded-xl bg-white text-neutral-900 text-sm font-semibold"
+            >
+              Tentar de novo
+            </button>
+          </div>
+        }
       </div>
 
       @if (captureError()) {
@@ -193,6 +219,7 @@ export class LiveCameraSheet implements OnDestroy {
   protected readonly state = signal<LiveCameraState>('starting');
   protected readonly capturing = signal(false);
   protected readonly captureError = signal<string | null>(null);
+  protected readonly stalledMessage = CAMERA_STALLED_MESSAGE;
 
   private stream: MediaStream | null = null;
   /** Incrementa a cada parada do stream: a espera de frame de um stream antigo
@@ -224,12 +251,23 @@ export class LiveCameraSheet implements OnDestroy {
       // `environment` = traseira. `ideal` e nao `exact` de proposito: num
       // aparelho sem camera traseira, `exact` falharia e cairia em "bloqueada",
       // acusando o usuario de negar o que ele nunca negou.
-      this.stream = await media.getUserMedia({
+      const stream = await media.getUserMedia({
         video: { facingMode: { ideal: 'environment' } },
         audio: false,
       });
+      if (generation !== this.generation) {
+        // Folha fechada (ou reiniciada) enquanto a permissao era pedida: o
+        // stream novo nao tem dono e precisa morrer aqui.
+        stopTracks(stream);
+        return;
+      }
+      this.stream = stream;
       const video = this.videoRef()?.nativeElement;
-      if (!video) return;
+      if (!video) {
+        this.stopStream();
+        this.state.set('stalled');
+        return;
+      }
       video.srcObject = this.stream;
       // `autoplay` cobre a maioria; `play()` explicito cobre o iOS quando o
       // atributo nao dispara depois de um `srcObject` programatico. Recusa
@@ -240,8 +278,15 @@ export class LiveCameraSheet implements OnDestroy {
         // JSDOM nao implementa play(); o navegador real sim.
       }
       // Disparo continua desligado ate haver frame real (ver bloco no topo).
-      await this.waitForFirstFrame(video);
+      const ready = await this.waitForFirstFrame(video, CAMERA_START_TIMEOUT_MS);
       if (generation !== this.generation) return;
+      if (!ready) {
+        // Sem frame no prazo: desliga a camera (apaga a luz) e oferece tentar
+        // de novo. Sem seletor de arquivo — ver o bloco no topo.
+        this.stopStream();
+        this.state.set('stalled');
+        return;
+      }
       this.state.set('live');
     } catch {
       // Negada, em uso por outro app, ou sem dispositivo: para o motorista o
@@ -256,6 +301,9 @@ export class LiveCameraSheet implements OnDestroy {
     // Sem frame decodificado com dimensao real, `drawImage` so produz preto.
     if (!hasDecodedFrame(video)) return;
 
+    // Fechar pelo X (ou reiniciar) durante a captura troca a geracao: o frame
+    // em voo nao pode mais virar foto depois do `cancelled`.
+    const generation = this.generation;
     this.capturing.set(true);
     this.captureError.set(null);
     try {
@@ -267,6 +315,7 @@ export class LiveCameraSheet implements OnDestroy {
         // Uma nova tentativa: o primeiro frame depois de ligar (ou de a camera
         // reajustar a exposicao) as vezes ainda vem vazio.
         await this.nextFrame(video, BLACK_RETRY_WAIT_MS);
+        if (generation !== this.generation) return;
         frame = hasDecodedFrame(video) ? this.grabFrame(video) : 'black';
         if (frame === null) return;
         if (frame === 'black') {
@@ -278,7 +327,7 @@ export class LiveCameraSheet implements OnDestroy {
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, 'image/jpeg', CAPTURE_QUALITY),
       );
-      if (!blob) return;
+      if (!blob || generation !== this.generation) return;
       // Mesmo tipo que o seletor entrega; a compressao e o upload seguem o
       // MESMO caminho depois daqui (ver `ingestFile` no card).
       const file = new File([blob], `vistoria-${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -324,23 +373,32 @@ export class LiveCameraSheet implements OnDestroy {
   }
 
   /**
-   * Resolve quando o video tem frame decodificado com dimensao real
+   * `true` quando o video tem frame decodificado com dimensao real
    * (`loadeddata`/`playing`/`resize` + `hasDecodedFrame`) e, quando houver
    * `requestVideoFrameCallback`, depois do primeiro frame apresentado.
+   * `false` quando o frame nao chega em `timeoutMs` (iOS recusando o `play()`,
+   * modo de economia de energia, camera tomada por outro app) — os ouvintes
+   * saem nos DOIS caminhos.
    */
-  private async waitForFirstFrame(video: HTMLVideoElement): Promise<void> {
+  private async waitForFirstFrame(video: HTMLVideoElement, timeoutMs: number): Promise<boolean> {
     if (!hasDecodedFrame(video)) {
-      await new Promise<void>((resolve) => {
+      const ready = await new Promise<boolean>((resolve) => {
         const events = ['loadeddata', 'playing', 'resize', 'canplay'] as const;
-        const check = () => {
-          if (!hasDecodedFrame(video)) return;
+        const finish = (ok: boolean) => {
+          clearTimeout(timer);
           events.forEach((e) => video.removeEventListener(e, check));
-          resolve();
+          resolve(ok);
         };
+        const check = () => {
+          if (hasDecodedFrame(video)) finish(true);
+        };
+        const timer = setTimeout(() => finish(false), timeoutMs);
         events.forEach((e) => video.addEventListener(e, check));
       });
+      if (!ready) return false;
     }
     await this.nextFrame(video, FIRST_FRAME_WAIT_MS);
+    return true;
   }
 
   /** Proximo frame apresentado (`requestVideoFrameCallback`) com teto de
@@ -372,7 +430,11 @@ export class LiveCameraSheet implements OnDestroy {
     this.generation++;
     const video = this.videoRef()?.nativeElement;
     if (video) video.srcObject = null;
-    this.stream?.getTracks().forEach((track) => track.stop());
+    stopTracks(this.stream);
     this.stream = null;
   }
+}
+
+function stopTracks(stream: MediaStream | null): void {
+  stream?.getTracks().forEach((track) => track.stop());
 }

@@ -2,7 +2,13 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { BLACK_FRAME_MESSAGE, LiveCameraSheet, isUniformlyBlack } from './live-camera-sheet';
+import {
+  BLACK_FRAME_MESSAGE,
+  CAMERA_STALLED_MESSAGE,
+  CAMERA_START_TIMEOUT_MS,
+  LiveCameraSheet,
+  isUniformlyBlack,
+} from './live-camera-sheet';
 
 /** Track que sabe dizer se `stop()` foi chamado — e o que o node exige provar. */
 function fakeTrack() {
@@ -294,6 +300,8 @@ describe('LiveCameraSheet', { timeout: 15000 }, () => {
    */
   describe('frame real antes do disparo', () => {
     let pixel: number[];
+    /** Quando definido, substitui `pixel`: valor por pixel (cena escura com ruido). */
+    let pixelAt: ((index: number) => number[]) | null;
     let drawCalls: number;
     let blobSizes: { width: number; height: number }[];
 
@@ -305,6 +313,7 @@ describe('LiveCameraSheet', { timeout: 15000 }, () => {
 
     beforeEach(() => {
       pixel = [120, 110, 100, 255];
+      pixelAt = null;
       drawCalls = 0;
       blobSizes = [];
       vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (
@@ -320,7 +329,7 @@ describe('LiveCameraSheet', { timeout: 15000 }, () => {
           },
           getImageData: (_x: number, _y: number, w: number, h: number) => {
             const data = new Uint8ClampedArray(w * h * 4);
-            for (let i = 0; i < data.length; i += 4) data.set(pixel, i);
+            for (let i = 0; i < data.length; i += 4) data.set(pixelAt ? pixelAt(i / 4) : pixel, i);
             return { data, width: w, height: h };
           },
         } as unknown as CanvasRenderingContext2D;
@@ -407,5 +416,84 @@ describe('LiveCameraSheet', { timeout: 15000 }, () => {
       expect(drawCalls).toBe(2);
       expect(blobSizes).toHaveLength(1);
     });
+
+    it('cena escura com ruido do sensor NAO e preto: a foto e aceita', async () => {
+      // Noite de verdade: quase tudo perto de zero, mas o sensor sempre deixa
+      // ruido acima do limite em algum canal.
+      pixelAt = (i) => (i % 7 === 0 ? [9, 6, 11, 255] : [1, 2, 0, 255]);
+      const fixture = await render();
+      shutter(fixture).click();
+
+      await vi.waitFor(() => expect(fixture.componentInstance.capturado()).not.toBeNull());
+      expect(drawCalls).toBe(1);
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(BLACK_FRAME_MESSAGE);
+    });
+
+    /** iOS < 15.4 nao tem `requestVideoFrameCallback`: so o teto curto vale. */
+    it('sem requestVideoFrameCallback a camera ainda liga e captura', async () => {
+      delete (HTMLVideoElement.prototype as unknown as Record<string, unknown>)[
+        'requestVideoFrameCallback'
+      ];
+      expect('requestVideoFrameCallback' in HTMLVideoElement.prototype).toBe(false);
+      const fixture = await render();
+      expect(shutter(fixture).disabled).toBe(false);
+
+      shutter(fixture).click();
+      await vi.waitFor(() => expect(fixture.componentInstance.capturado()).not.toBeNull(), {
+        timeout: 4000,
+      });
+      expect(blobSizes).toEqual([{ width: 1080, height: 1920 }]);
+    });
+
+    /**
+     * Frame que nunca chega (iOS recusando o play(), economia de energia,
+     * camera tomada por outro app): a folha NAO pode ficar presa em "Abrindo a
+     * câmera…" com a luz acesa. Desliga a camera, solta os ouvintes, explica e
+     * oferece tentar de novo.
+     */
+    it(
+      'frame que nunca chega: desliga a camera e oferece tentar de novo',
+      { timeout: CAMERA_START_TIMEOUT_MS + 8000 },
+      async () => {
+        videoState.readyState = 0;
+        videoState.videoWidth = 0;
+        videoState.videoHeight = 0;
+        const frameEvents = ['loadeddata', 'playing', 'resize', 'canplay'];
+        const added = vi.spyOn(HTMLVideoElement.prototype, 'addEventListener');
+        const removed = vi.spyOn(HTMLVideoElement.prototype, 'removeEventListener');
+        const fixture = TestBed.createComponent(Host);
+        fixture.detectChanges();
+        await settle(fixture);
+
+        await vi.waitFor(
+          () => {
+            fixture.detectChanges();
+            expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+              'A câmera não abriu',
+            );
+          },
+          { timeout: CAMERA_START_TIMEOUT_MS + 3000, interval: 200 },
+        );
+        const host = fixture.nativeElement as HTMLElement;
+        expect(host.textContent).toContain(CAMERA_STALLED_MESSAGE);
+        expect(host.textContent).not.toContain('Abrindo a');
+        // Luz da camera apagada.
+        expect(tracks.every((t) => t.stop.mock.calls.length >= 1)).toBe(true);
+        // Todo ouvinte de frame posto foi tirado.
+        const count = (spy: typeof added) =>
+          spy.mock.calls.filter(([type]) => frameEvents.includes(type as string)).length;
+        expect(count(added)).toBe(4);
+        expect(count(removed)).toBe(count(added));
+        expect(shutter(fixture).disabled).toBe(true);
+        expect(fixture.componentInstance.capturado()).toBeNull();
+
+        const retry = Array.from(host.querySelectorAll('button')).find((b) =>
+          b.textContent?.includes('Tentar de novo'),
+        ) as HTMLButtonElement;
+        expect(retry).toBeDefined();
+        retry.click();
+        await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2), { timeout: 4000 });
+      },
+    );
   });
 });
