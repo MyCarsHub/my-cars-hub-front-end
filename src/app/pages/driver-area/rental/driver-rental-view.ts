@@ -83,6 +83,8 @@ export function chargeTitle(charge: DriverCharge, frequency: RentalBillingFreque
       return 'Caução';
     case 'OVERDUE_FEE':
       return 'Multa por atraso';
+    case 'ADJUSTMENT':
+      return 'Ajuste';
     case 'RENTAL_PERIOD': {
       const words = frequency ? PERIOD_WORDS[frequency] : null;
       if (!words) return 'Aluguel';

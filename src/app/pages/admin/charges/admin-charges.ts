@@ -39,6 +39,7 @@ const KIND_LABELS: Record<string, string> = {
   RENTAL_PERIOD: 'Aluguel',
   CAUCAO: 'Caução',
   OVERDUE_FEE: 'Multa por atraso',
+  ADJUSTMENT: 'Ajuste',
 };
 
 /**

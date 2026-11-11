@@ -161,7 +161,10 @@ export class Relatorios implements OnInit {
     return r.driverRanking.topProblematic.map((d) => ({
       label: formatPersonName(d.name),
       value: d.totalProblematicCents,
-      hint: `Multas ${this.formatBRL(d.unpaidFinesCents)} · Cobranças ${this.formatBRL(d.unpaidChargesCents)}`,
+      // V141: o total já inclui os ajustes; a dica os mostra como terceira parte para fechar a conta.
+      hint:
+        `Multas ${this.formatBRL(d.unpaidFinesCents)} · Cobranças ${this.formatBRL(d.unpaidChargesCents)}` +
+        ((d.unpaidAdjustmentsCents ?? 0) > 0 ? ` · Ajustes ${this.formatBRL(d.unpaidAdjustmentsCents ?? 0)}` : ''),
     }));
   });
 
