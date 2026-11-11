@@ -191,6 +191,11 @@ export interface FailedChargeNoticeDto {
   message: string;
   autoRetrying: boolean;
   needsAttention: boolean;
+  /**
+   * V141 — o tipo da cobrança (`RentalChargeKindEnum`). Opcional: back-end anterior não manda.
+   * `ADJUSTMENT` nunca é gerado de novo (o back-end responde 409).
+   */
+  kind?: ChargeKind | null;
 }
 
 /** Desfecho de `POST /v1/rentals/{rentalId}/charges/{chargeId}/cancel`. */

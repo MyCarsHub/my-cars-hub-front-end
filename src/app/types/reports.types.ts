@@ -60,8 +60,12 @@ export interface DriverProblematicRow {
   driverId: string;
   name: string;
   unpaidFinesCents: number;
+  /** Cobranças do aluguel em aberto. Desde o V141 SEM os Ajustes (vêm em `unpaidAdjustmentsCents`). */
   unpaidChargesCents: number;
+  /** Multas + cobranças + ajustes: o total já inclui os ajustes. */
   totalProblematicCents: number;
+  /** V141 — Ajustes em aberto: PARTE de `totalProblematicCents`, nunca somar por cima. Ausente em back-end anterior. */
+  unpaidAdjustmentsCents?: number;
 }
 
 export interface DriverRanking {
