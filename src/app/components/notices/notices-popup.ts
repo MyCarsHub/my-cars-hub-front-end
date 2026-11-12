@@ -1,9 +1,38 @@
-import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { Router } from '@angular/router';
 import { BottomSheet } from '../core/bottom-sheet/bottom-sheet';
+import { NewsNoticeCard } from './news-notice-card';
 import { CompanyContactQuickForm } from './company-contact-quick-form';
 import { Notice, NoticeOutcome, NoticesService } from './notices.service';
+
+/**
+ * O pedaço do cartão v2 não baixou (rede ruim, aba velha depois de um deploy): a novidade sai da
+ * fila SEM ser marcada como lida, e o resto da fila (inclusive o lembrete bloqueante de contato)
+ * segue. Depois da renderização, para não escrever na fila no meio da detecção de mudanças.
+ */
+@Component({
+  selector: 'app-notice-discard',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: '',
+})
+export class NoticeDiscard {
+  readonly noticeId = input.required<string>();
+  private readonly notices = inject(NoticesService);
+
+  constructor() {
+    afterNextRender(() => this.notices.discard(this.noticeId()));
+  }
+}
 
 /**
  * Popup de avisos (lembretes e novidades), montado UMA vez no shell. Mostra o aviso da frente da
@@ -11,16 +40,50 @@ import { Notice, NoticeOutcome, NoticesService } from './notices.service';
  * o movimento, o foco preso e o `prefers-reduced-motion` vêm do `BottomSheet`.
  *
  * Aviso bloqueante: sem X, sem Esc, sem clique no fundo; sai só pelos botões do aviso.
+ * Novidade (NEWS) usa o visual v2 (`NewsNoticeCard` numa folha `bare`): topo de mídia ou laranja da
+ * marca, checklist, botão principal laranja; várias seguidas mostram "1 de 3" e "Próxima".
  * Sem linhas divisórias; o tipo aparece como texto no chip tingido (REMINDER laranja da marca,
  * NEWS neutro).
  */
 @Component({
   selector: 'app-notices-popup',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BottomSheet, CompanyContactQuickForm],
+  imports: [BottomSheet, CompanyContactQuickForm, NewsNoticeCard, NoticeDiscard],
   template: `
     @if (notices.current(); as notice) {
       @for (n of [notice]; track n.id) {
+        @if (n.type === 'NEWS') {
+          <!-- Lazy: o cartão v2 (e a mídia) só baixa quando há novidade — fora do bundle inicial. -->
+          @defer (on immediate) {
+          <app-bottom-sheet
+            variant="bare"
+            [title]="n.title"
+            [labelledBy]="newsTitleId"
+            [closable]="!n.blocking"
+            [busy]="!!n.blocking"
+            (closed)="onClosed(n)"
+          >
+            <app-news-notice-card
+              sheetBare
+              [titleId]="newsTitleId"
+              [title]="n.title"
+              [message]="n.message"
+              [items]="n.items"
+              [linkLabel]="n.link?.label ?? null"
+              [media]="n.media ?? null"
+              [audience]="n.audience ?? 'LOCADORA'"
+              [index]="newsIndex()"
+              [total]="newsTotal()"
+              [closable]="!n.blocking"
+              (linkRequested)="openLink(n)"
+              (dismissRequested)="onDismiss()"
+              (closeRequested)="onDismiss()"
+            />
+          </app-bottom-sheet>
+          } @error {
+            <app-notice-discard [noticeId]="n.id" data-testid="news-discard" />
+          }
+        } @else {
         <app-bottom-sheet
           [title]="n.title"
           [closable]="!n.blocking"
@@ -73,6 +136,7 @@ import { Notice, NoticeOutcome, NoticesService } from './notices.service';
             </button>
           </div>
         </app-bottom-sheet>
+        }
       }
     }
   `,
@@ -83,6 +147,16 @@ export class NoticesPopup {
   private readonly doc = inject(DOCUMENT);
   private readonly sheet = viewChild(BottomSheet);
   private pending: NoticeOutcome = 'dismissed';
+  protected readonly newsTitleId = 'news-notice-title';
+  /**
+   * Novidades já fechadas em sequência nesta leva (a fila do `NoticesService`). Cada uma é
+   * marcada como lida pela própria saída; isto só numera "1 de 3".
+   */
+  private readonly newsRun = signal(0);
+  protected readonly newsIndex = computed(() => this.newsRun() + 1);
+  protected readonly newsTotal = computed(
+    () => this.newsRun() + this.notices.queue().filter((n) => n.type === 'NEWS').length,
+  );
   private target: string | null = null;
 
   /** Aviso resolvido (ex.: dados salvos): fecha com a animação e conta como resolvido. */
@@ -115,6 +189,8 @@ export class NoticesPopup {
     this.target = null;
     if (outcome === 'resolved') this.notices.resolve(notice.id);
     else this.notices.dismiss(notice.id);
+    const next = this.notices.current();
+    this.newsRun.set(notice.type === 'NEWS' && next?.type === 'NEWS' ? this.newsRun() + 1 : 0);
     if (target) void this.router.navigateByUrl(target);
   }
 

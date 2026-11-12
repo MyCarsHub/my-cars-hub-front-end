@@ -64,4 +64,15 @@ describe('NoticesService', () => {
     service.resolve('zzz');
     expect(service.current()?.id).toBe('a');
   });
+
+  it('discard tira da fila sem desfecho (só completa) e o próximo assume', () => {
+    const seen: NoticeOutcome[] = [];
+    let completed = false;
+    service.enqueue(notice('a', { type: 'NEWS' })).subscribe({ next: (o) => seen.push(o), complete: () => (completed = true) });
+    service.enqueue(notice('b'));
+    service.discard('a');
+    expect(seen).toEqual([]);
+    expect(completed).toBe(true);
+    expect(service.current()?.id).toBe('b');
+  });
 });
