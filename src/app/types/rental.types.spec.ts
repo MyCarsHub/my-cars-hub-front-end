@@ -78,14 +78,15 @@ describe('CHARGE_STATUS_META (via chargeStatusInfo)', () => {
     REFUNDED: true,
     RELEASED: true,
     DISPUTED: true,
+    RENEGOTIATED: true,
   };
 
   /** `dueDate` nulo nunca deriva atraso, então cada status se mapeia em si mesmo. */
   const TODAY = '2026-08-25';
 
-  it('cobre os 8 status do enum do backend, sem nenhum undefined', () => {
+  it('cobre os 9 status do enum do backend, sem nenhum undefined', () => {
     const statuses = Object.keys(ALL_CHARGE_STATUSES) as ChargeStatus[];
-    expect(statuses).toHaveLength(8);
+    expect(statuses).toHaveLength(9);
 
     for (const status of statuses) {
       const info = chargeStatusInfo({ status, dueDate: null }, TODAY);
@@ -99,6 +100,13 @@ describe('CHARGE_STATUS_META (via chargeStatusInfo)', () => {
     expect(chargeStatusInfo({ status: 'DISPUTED', dueDate: null }, TODAY)).toEqual({
       label: 'Contestada',
       chip: 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300',
+    });
+  });
+
+  it('FEAT-0573: dá a RENEGOTIATED "Renegociada" em chip azul tingido, sem virar atraso', () => {
+    expect(chargeStatusInfo({ status: 'RENEGOTIATED', dueDate: '2020-01-05' }, TODAY)).toEqual({
+      label: 'Renegociada',
+      chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200',
     });
   });
 

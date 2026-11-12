@@ -1,0 +1,318 @@
+<app-bottom-sheet
+  title="Renegociar"
+  [subtitle]="subtitle()"
+  size="lg"
+  [busy]="busy()"
+  (closed)="closed.emit()"
+>
+  <div data-testid="renegotiate-sheet" [attr.data-step]="step()" class="flex flex-col gap-4">
+    <!-- Progresso: 4 segmentos, os feitos em laranja. -->
+    <div class="flex flex-col gap-2">
+      <div class="grid grid-cols-4 gap-1.5" aria-hidden="true">
+        @for (on of bar(); track $index) {
+          <span
+            class="h-1.5 rounded-full transition-colors duration-300 motion-reduce:transition-none"
+            [class]="on ? 'bg-primary-500' : 'bg-surface-strong'"
+          ></span>
+        }
+      </div>
+      <p class="text-sm text-fg-subtle" data-testid="renegotiate-step-label" aria-live="polite">
+        {{ stepLabel() }}
+      </p>
+    </div>
+
+    @if (error(); as err) {
+      <div class="enter-up" data-testid="renegotiate-error">
+        <app-alert-banner variant="error" [message]="err" />
+      </div>
+    }
+
+    @switch (step()) {
+      @case (1) {
+        <div class="enter-up flex flex-col gap-3">
+          <p class="text-base text-fg-body">
+            Escolha as cobranças que entram no acordo. Pode juntar caução e semanas, atrasadas ou não.
+          </p>
+          @if (options().length === 0) {
+            <p class="text-base text-fg-subtle">Não há cobrança em aberto para renegociar.</p>
+          }
+          <ul class="flex flex-col gap-2" role="list">
+            @for (o of options(); track o.charge.id) {
+              <li>
+                <label
+                  class="press flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors
+                         has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary-400"
+                  [class]="isSelected(o.charge.id)
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10'
+                    : 'border-edge hover:bg-canvas'"
+                  [attr.data-testid]="'renegotiate-option-' + o.charge.id"
+                >
+                  <input
+                    type="checkbox"
+                    class="h-5 w-5 shrink-0 accent-primary-500"
+                    [checked]="isSelected(o.charge.id)"
+                    (change)="toggle(o.charge.id)"
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-base font-medium text-fg">{{ o.label }}</span>
+                    <span class="block text-sm text-fg-subtle tabular-nums">{{ o.dueLabel }}</span>
+                  </span>
+                  <span class="flex shrink-0 flex-col items-end gap-1">
+                    <span class="text-base font-semibold text-fg tabular-nums">{{ money(o.charge.amount) }}</span>
+                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold" [class]="o.chip.chip">
+                      {{ o.chip.label }}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            }
+          </ul>
+          <div class="flex items-baseline justify-between gap-3 rounded-xl bg-surface-sunken px-4 py-3">
+            <span>
+              <span class="block text-sm font-semibold text-fg">Entram no acordo</span>
+              <span class="block text-sm text-fg-subtle">{{ selectedCaption() }}</span>
+            </span>
+            <span class="text-xl font-semibold text-fg tabular-nums" data-testid="renegotiate-original-total">
+              {{ money(originalTotal()) }}
+            </span>
+          </div>
+        </div>
+      }
+
+      @case (2) {
+        <div class="enter-up flex flex-col gap-4">
+          <label class="flex flex-col gap-1" for="rn-amount">
+            <span class="text-sm font-medium text-fg-muted">Valor do acordo (R$) <span class="text-rose-600" aria-hidden="true">*</span></span>
+            <input
+              id="rn-amount"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              placeholder="1.600,00"
+              data-testid="renegotiate-amount"
+              [formControl]="amount"
+              (input)="onAmountInput($event)"
+              aria-describedby="rn-amount-help"
+              class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums
+                     focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+            <span id="rn-amount-help" class="text-xs text-fg-subtle">Pode ser maior ou menor que o original.</span>
+          </label>
+
+          <dl class="flex flex-col gap-1.5 rounded-xl bg-surface-sunken px-4 py-3 text-base">
+            <div class="flex items-baseline justify-between gap-3">
+              <dt class="text-fg-subtle">{{ selected().length === 1 ? 'A cobrança somava' : 'As ' + selected().length + ' cobranças somavam' }}</dt>
+              <dd class="tabular-nums text-fg-body">{{ money(originalTotal()) }}</dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-3">
+              <dt class="text-fg-subtle">Diferença</dt>
+              <dd class="text-lg font-bold tabular-nums text-fg" data-testid="renegotiate-difference" aria-live="polite">
+                {{ signedMoney(difference()) }}
+              </dd>
+            </div>
+          </dl>
+
+          <fieldset class="flex flex-col gap-2">
+            <legend class="text-sm font-medium text-fg-muted">Como o motorista paga</legend>
+            <div class="grid grid-cols-2 gap-1 rounded-xl bg-surface-sunken p-1" role="radiogroup">
+              <button type="button" role="radio" class="press min-h-11 rounded-lg text-base font-medium transition-colors"
+                [attr.aria-checked]="payMode() === 'ONCE'"
+                [class]="payMode() === 'ONCE' ? 'bg-primary-500 text-white' : 'text-fg-soft'"
+                (click)="setPayMode('ONCE')">À vista</button>
+              <button type="button" role="radio" class="press min-h-11 rounded-lg text-base font-medium transition-colors"
+                [attr.aria-checked]="payMode() === 'SPLIT'"
+                [class]="payMode() === 'SPLIT' ? 'bg-primary-500 text-white' : 'text-fg-soft'"
+                data-testid="renegotiate-split"
+                (click)="setPayMode('SPLIT')">Parcelado</button>
+            </div>
+          </fieldset>
+
+          @if (payMode() === 'SPLIT') {
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1" for="rn-count">
+                <span class="text-sm font-medium text-fg-muted">Parcelas</span>
+                <input id="rn-count" type="number" inputmode="numeric" min="2" max="24" [value]="count()"
+                  data-testid="renegotiate-count" (change)="setCount($event)"
+                  class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
+              </label>
+              <div class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-fg-muted" id="rn-interval-label">Uma a cada</span>
+                <div class="flex gap-2" role="group" aria-labelledby="rn-interval-label">
+                  <input type="number" inputmode="numeric" min="1" [value]="intervalN()" aria-label="Quantidade"
+                    data-testid="renegotiate-interval-n" (change)="setIntervalN($event)"
+                    class="min-h-12 w-16 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
+                  <select aria-label="Unidade" [value]="intervalUnit()" data-testid="renegotiate-interval-unit" (change)="setIntervalUnit($event)"
+                    class="min-h-12 min-w-0 flex-1 rounded-xl border border-edge-field bg-surface px-2 text-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-400">
+                    @for (u of intervalUnits; track u.value) {
+                      <option [value]="u.value" [selected]="u.value === intervalUnit()">{{ intervalN() === 1 ? u.singular : u.plural }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+            </div>
+          }
+
+          <app-date-field
+            [label]="payMode() === 'SPLIT' ? 'Primeira parcela em' : 'Vence em'"
+            hint="De hoje em diante."
+            [min]="today()"
+            [value]="firstDueOrToday()"
+            (valueChange)="setFirstDue($event)"
+          />
+
+          @if (agreedCents() > 0) {
+            <section aria-labelledby="rn-preview-title" class="flex flex-col gap-2">
+              <h3 id="rn-preview-title" class="text-sm font-semibold text-fg">Prévia das parcelas</h3>
+              <ul class="flex flex-col gap-1.5" role="list" data-testid="renegotiate-instalments">
+                @for (p of instalments(); track $index) {
+                  <li class="enter-up flex items-baseline justify-between gap-3 rounded-xl bg-surface-sunken px-3 py-2.5" [style.--stagger-i]="$index">
+                    <span class="min-w-0">
+                      <span class="block text-base text-fg">Parcela {{ $index + 1 }}</span>
+                      <span class="block text-sm text-fg-subtle tabular-nums">{{ date(p.dueDate) }}</span>
+                    </span>
+                    <span class="text-right">
+                      <span class="block text-base font-semibold text-fg tabular-nums">{{ money(p.amountCents) }}</span>
+                      @if (fineShares(); as shares) {
+                        <span class="block text-xs text-fg-subtle tabular-nums">multa {{ money(shares[$index]) }}</span>
+                      }
+                    </span>
+                  </li>
+                }
+              </ul>
+              @if (fineShares()) {
+                <p class="text-sm text-fg-subtle">
+                  A multa por atraso do aluguel se divide pelas parcelas; os centavos que sobram vão na última. Os juros do aluguel valem em cada uma, se atrasar.
+                </p>
+              }
+              @for (p of step2Problems(); track p) {
+                <p class="text-sm font-medium text-rose-700 dark:text-rose-300" data-testid="renegotiate-problem">{{ p }}</p>
+              }
+            </section>
+          }
+        </div>
+      }
+
+      @case (3) {
+        <div class="enter-up flex flex-col gap-4">
+          <app-reason-picker
+            [options]="reasonOptions"
+            legend="Motivo"
+            [showNote]="false"
+            [reason]="reason()"
+            (reasonChange)="onReason($event)"
+          />
+          <label class="flex flex-col gap-1" for="rn-description">
+            <span class="text-sm font-medium text-fg-muted">Descrição <span class="text-rose-600" aria-hidden="true">*</span></span>
+            <textarea
+              id="rn-description"
+              rows="4"
+              maxlength="500"
+              data-testid="renegotiate-description"
+              aria-describedby="rn-description-help"
+              [value]="description()"
+              (input)="onDescription($event)"
+              class="rounded-xl border border-edge-field bg-surface px-3 py-2 text-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+            ></textarea>
+            <span id="rn-description-help" class="flex justify-between gap-3 text-xs text-fg-subtle">
+              <span>Conte o que foi combinado. Fica no histórico do aluguel.</span>
+              <span class="tabular-nums">{{ description().length }}/500</span>
+            </span>
+          </label>
+        </div>
+      }
+
+      @case (4) {
+        <div class="enter-up flex flex-col gap-4" data-testid="renegotiate-review">
+          @if (loadingPreview()) {
+            <div class="flex flex-col gap-2" aria-busy="true">
+              <div class="h-16 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-16 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            </div>
+          } @else if (preview(); as p) {
+            @if (p.blocker; as b) {
+              <app-alert-banner variant="error" [message]="b.message" data-testid="renegotiate-blocker" />
+            }
+            <section class="flex flex-col gap-2" aria-labelledby="rn-out">
+              <h3 id="rn-out" class="text-sm font-semibold text-fg">Saem de cobrança</h3>
+              <ul class="flex flex-col gap-1.5" role="list">
+                @for (o of selected(); track o.charge.id) {
+                  <li class="flex items-baseline justify-between gap-3 rounded-xl bg-surface-sunken px-3 py-2.5">
+                    <span class="min-w-0">
+                      <span class="block text-base text-fg">{{ o.label }}</span>
+                      <span class="block text-sm text-fg-subtle tabular-nums">{{ o.dueLabel }}</span>
+                    </span>
+                    <span class="text-base font-semibold text-fg tabular-nums">{{ money(o.charge.amount) }}</span>
+                  </li>
+                }
+              </ul>
+              <p class="text-sm text-fg-subtle">Continuam no histórico como Renegociada.</p>
+            </section>
+
+            <section class="flex flex-col gap-2" aria-labelledby="rn-in">
+              <h3 id="rn-in" class="text-sm font-semibold text-fg">Entram no lugar</h3>
+              <div class="flex items-baseline justify-between gap-3 rounded-xl bg-surface-sunken px-3 py-2.5">
+                <span class="min-w-0">
+                  <span class="block text-base text-fg" data-testid="renegotiate-in-summary">{{ instalmentsSummary() }}</span>
+                  <span class="block text-sm text-fg-subtle tabular-nums">{{ instalmentsDates() }}</span>
+                </span>
+                <span class="text-base font-semibold text-fg tabular-nums">{{ money(p.agreedTotalCents) }}</span>
+              </div>
+            </section>
+
+            <!-- Total do acordo, pintado de laranja: é o número que importa. -->
+            <div class="flex items-center justify-between gap-3 rounded-2xl bg-primary-500 px-4 py-3 text-white">
+              <span>
+                <span class="block text-sm font-semibold">Total do acordo</span>
+                <span class="block text-sm">Última parcela em {{ date(lastDue()) }}</span>
+              </span>
+              <span class="text-2xl font-bold tabular-nums" data-testid="renegotiate-total">{{ money(p.agreedTotalCents) }}</span>
+            </div>
+
+            <dl class="flex flex-col gap-1.5 rounded-xl bg-surface-sunken px-4 py-3 text-base">
+              <div class="flex items-baseline justify-between gap-3">
+                <dt class="text-fg-subtle">Diferença</dt>
+                <dd class="tabular-nums text-fg">{{ signedMoney(p.differenceCents) }}</dd>
+              </div>
+              <div class="flex items-baseline justify-between gap-3">
+                <dt class="text-fg-subtle">Motivo</dt>
+                <dd class="text-fg">{{ reasonLabel() }}</dd>
+              </div>
+            </dl>
+
+            @if (manual()) {
+              <app-alert-banner variant="info"
+                message="Sem cobrança automática: as parcelas ficam só registradas aqui. Quando receber, use Marcar como paga em cada uma." />
+            } @else {
+              <app-alert-banner variant="warning"
+                [message]="'Ao confirmar, ' + sourcesNames() + (selected().length === 1 ? ' deixa' : ' deixam') + ' de poder ser ' + (selected().length === 1 ? 'paga' : 'pagas') + ' e o motorista recebe ' + (p.instalments.length === 1 ? 'a parcela, com o seu Pix.' : 'as ' + p.instalments.length + ' parcelas, cada uma com o seu Pix.')" />
+            }
+          } @else if (error()) {
+            <button type="button" (click)="retryPreview()"
+              class="press min-h-12 self-start rounded-xl bg-surface-sunken px-5 text-base font-medium text-fg-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+              Tentar de novo
+            </button>
+          }
+        </div>
+      }
+    }
+  </div>
+
+  <div sheetFooter class="flex flex-col-reverse gap-2 lg:flex-row lg:justify-end lg:gap-3">
+    <button type="button" data-testid="renegotiate-back" [disabled]="busy()" (click)="back()"
+      class="press min-h-12 w-full rounded-xl bg-surface-sunken px-5 text-base font-medium text-fg-muted transition-colors hover:bg-surface-strong disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:w-auto">
+      {{ step() === 1 ? 'Cancelar' : 'Voltar' }}
+    </button>
+    @if (step() < 4) {
+      <button type="button" data-testid="renegotiate-next" [disabled]="!canContinue()" (click)="next()"
+        class="press min-h-12 w-full rounded-xl bg-primary-500 px-5 text-base font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 lg:w-auto">
+        Continuar
+      </button>
+    } @else {
+      <button type="button" data-testid="renegotiate-confirm" [disabled]="!canContinue()" (click)="confirm()"
+        class="press min-h-12 w-full rounded-xl px-5 text-base font-semibold text-white transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 lg:w-auto"
+        [class]="done() ? 'bg-emerald-600 focus-visible:ring-emerald-400' : 'bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-400'">
+        {{ done() ? 'Acordo criado' : busy() ? 'Criando acordo…' : 'Confirmar acordo' }}
+      </button>
+    }
+  </div>
+</app-bottom-sheet>

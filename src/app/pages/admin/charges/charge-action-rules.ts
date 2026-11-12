@@ -1,7 +1,7 @@
 import { AdminChargeListItem } from '../../../types/admin-charges.types';
 
 /** Tipos que o admin pode registrar como recebidos por fora. */
-export const RECEIVABLE_KINDS = ['CAUCAO', 'RENTAL_PERIOD', 'RENTAL_TOTAL'];
+export const RECEIVABLE_KINDS = ['CAUCAO', 'RENTAL_PERIOD', 'RENTAL_TOTAL', 'AGREEMENT'];
 
 /**
  * "Recebida por fora" (só admin, dono 29/10/2026): caução ou parcela do aluguel, PENDENTE ou

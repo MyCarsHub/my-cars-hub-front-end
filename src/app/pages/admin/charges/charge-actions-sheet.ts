@@ -70,6 +70,7 @@ const STATUS_TEXT: Record<string, string> = {
   PAID: 'Paga',
   CANCELED: 'Cancelada',
   REFUNDED: 'Estornada',
+  RENEGOTIATED: 'Renegociada',
   OVERDUE: 'Vencida',
   RECEIVED: 'Recebida',
   CONFIRMED: 'Confirmada',

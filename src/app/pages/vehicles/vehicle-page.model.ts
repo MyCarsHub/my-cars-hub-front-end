@@ -177,7 +177,8 @@ export function overdueLabel(items: readonly VehiclePendencia[]): string | null 
 
 // ------------------------------------------------------------------- cobranças
 
-const RENT_KINDS = new Set(['RENTAL_PERIOD', 'RENTAL_TOTAL']);
+// FEAT-0573 — parcela de acordo substitui aluguel renegociado: conta como aluguel.
+const RENT_KINDS = new Set(['RENTAL_PERIOD', 'RENTAL_TOTAL', 'AGREEMENT']);
 
 export function nextCharge(charges: readonly RentalChargeDto[]): RentalChargeDto | null {
   const open = charges

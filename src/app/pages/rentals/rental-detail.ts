@@ -80,6 +80,28 @@ import { RENTAL_STATUS_META } from '../../utils/status-maps';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import { formatPlate, formatVehicleLabel } from '../../utils/display-format';
 import { PersonNamePipe } from '../../pipes/person-name.pipe';
+import { FeatureFlagsService } from '../../services/feature-flags.service';
+import { ChargesFlexService } from './charges-flex/charges-flex.service';
+import { RenegotiateSheet, RenegotiableOption } from './charges-flex/renegotiate-sheet';
+import { ReceivedOutsideSheet } from './charges-flex/received-outside-sheet';
+import { AgreementSheet } from './charges-flex/agreement-sheet';
+import {
+  agreementName,
+  brDate,
+  brDayMonth,
+  flexChargeLabel,
+  isReceivableOutsideCharge,
+  isRenegotiableCharge,
+  periodWord,
+  renegotiatedTotalCents,
+} from './charges-flex/charges-flex';
+import { flexErrorMessage } from './charges-flex/flex-errors';
+import {
+  AgreementDto,
+  RECEIVED_OUTSIDE_ERROR_MESSAGES,
+  RECEIVED_OUTSIDE_REASON_OPTIONS,
+  ReceivedOutsideRequestDto,
+} from '../../types/agreement.types';
 
 @Component({
   selector: 'app-rental-detail',
@@ -99,6 +121,9 @@ import { PersonNamePipe } from '../../pipes/person-name.pipe';
     AlertBanner,
     NgTemplateOutlet,
     ActionsMenu,
+    RenegotiateSheet,
+    ReceivedOutsideSheet,
+    AgreementSheet,
   ],
   templateUrl: './rental-detail.html',
 })
@@ -435,16 +460,41 @@ export class RentalDetail implements OnInit {
   protected readonly scheduleCharges = computed<RentalChargeDto[]>(() => {
     const r = this.rental();
     if (!r) return [];
-    return r.charges
-      .filter((c) => c.kind !== 'CAUCAO')
+    const sorted = r.charges
+      .filter((c) => c.kind !== 'CAUCAO' && c.kind !== 'AGREEMENT')
       .slice()
       .sort((a, b) => {
         const ai = a.periodIndex ?? Number.MAX_SAFE_INTEGER;
         const bi = b.periodIndex ?? Number.MAX_SAFE_INTEGER;
         if (ai !== bi) return ai - bi;
+        // FEAT-0573 — parcelas do mesmo período em ordem (1, 2, 3).
+        const ii = (a.instalmentIndex ?? 1) - (b.instalmentIndex ?? 1);
+        if (ii !== 0) return ii;
         if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
         return 0;
       });
+    // FEAT-0573 — parcelas de acordo entram na lista pela data, entre os períodos (canvas D6).
+    // Sem acordo, a lista é exatamente a de antes.
+    const agreements = r.charges
+      .filter((c) => c.kind === 'AGREEMENT')
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.dueDate ?? '').localeCompare(b.dueDate ?? '') ||
+          (a.agreementSeq ?? 0) - (b.agreementSeq ?? 0) ||
+          (a.instalmentIndex ?? 1) - (b.instalmentIndex ?? 1),
+      );
+    if (agreements.length === 0) return sorted;
+    const out: RentalChargeDto[] = [];
+    let k = 0;
+    for (const c of sorted) {
+      while (k < agreements.length && c.dueDate && (agreements[k].dueDate ?? '') < c.dueDate) {
+        out.push(agreements[k++]);
+      }
+      out.push(c);
+    }
+    while (k < agreements.length) out.push(agreements[k++]);
+    return out;
   });
 
   /**
@@ -474,6 +524,23 @@ export class RentalDetail implements OnInit {
   /** True quando já existe uma linha CAUCAO (usado no card de caução). */
   protected readonly hasCaucaoRow = computed<boolean>(() => this.caucaoCharge() !== null);
 
+  /**
+   * FEAT-0573 — as linhas do cartão Caução. Caução dividida (parte i de N) mostra TODAS as
+   * partes do mesmo parcelamento; inteira (1 de 1) mostra só `caucaoCharge`, como sempre.
+   */
+  protected readonly caucaoRows = computed<RentalChargeDto[]>(() => {
+    const cc = this.caucaoCharge();
+    if (!cc) return [];
+    const count = cc.instalmentCount ?? 1;
+    if (count <= 1) return [cc];
+    const parts = (this.rental()?.charges ?? []).filter(
+      (c) => c.kind === 'CAUCAO' && (c.instalmentCount ?? 1) === count && c.status !== 'CANCELED',
+    );
+    const byIndex = new Map<number, RentalChargeDto>();
+    for (const p of parts) byIndex.set(p.instalmentIndex ?? 1, p); // a mais recente vence
+    return [...byIndex.values()].sort((a, b) => (a.instalmentIndex ?? 1) - (b.instalmentIndex ?? 1));
+  });
+
   /** SUM(amount) — status='PAID' em RENTAL_PERIOD + RENTAL_TOTAL (sem CAUCAO). */
   protected readonly paidCents = computed<number>(() =>
     this.scheduleCharges()
@@ -488,11 +555,28 @@ export class RentalDetail implements OnInit {
       .reduce((acc, c) => acc + c.amount, 0),
   );
 
+  /**
+   * Unidades do progresso. FEAT-0573: o progresso conta PERÍODOS, não linhas — as parcelas
+   * de um período são uma unidade (paga quando todas pagas) e as parcelas de acordo ficam
+   * fora (canvas: "Progresso continua contando só as 12 semanas"). Sem plano nem acordo,
+   * cada linha é uma unidade, exatamente como antes.
+   */
+  private readonly progressUnits = computed<RentalChargeDto[][]>(() => {
+    const units = new Map<string, RentalChargeDto[]>();
+    for (const c of this.scheduleCharges()) {
+      if (c.kind === 'AGREEMENT') continue;
+      const key =
+        (c.instalmentCount ?? 1) > 1 && c.periodIndex != null ? `P${c.periodIndex}` : `C${c.id}`;
+      units.set(key, [...(units.get(key) ?? []), c]);
+    }
+    return [...units.values()];
+  });
+
   protected readonly paidCount = computed<number>(
-    () => this.scheduleCharges().filter((c) => c.status === 'PAID').length,
+    () => this.progressUnits().filter((u) => u.every((c) => c.status === 'PAID')).length,
   );
 
-  protected readonly totalCount = computed<number>(() => this.scheduleCharges().length);
+  protected readonly totalCount = computed<number>(() => this.progressUnits().length);
 
   /**
    * Data de referência do atraso, congelada na montagem da tela.
@@ -544,7 +628,7 @@ export class RentalDetail implements OnInit {
     return open[0];
   });
 
-  protected readonly hasSchedule = computed<boolean>(() => this.totalCount() > 0);
+  protected readonly hasSchedule = computed<boolean>(() => this.scheduleCharges().length > 0);
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -568,6 +652,7 @@ export class RentalDetail implements OnInit {
           this.loadDriver(r.driverId);
         }
         this.loadHistory(r.id);
+        this.loadAgreements(r);
       },
       error: (err: HttpErrorResponse) => {
         this.error.set(this.apiErrors.messageFor(err, 'Aluguel não encontrado.'));
@@ -848,6 +933,9 @@ export class RentalDetail implements OnInit {
   /** Há ao menos um item? Sem item, o menu nem aparece (PAID/CANCELED do gateway). */
   protected hasChargeActions(charge: RentalChargeDto): boolean {
     return (
+      this.canRenegotiate(charge) ||
+      this.canReceiveOutside(charge) ||
+      this.canViewAgreement(charge) ||
       this.canPayCharge(charge) ||
       this.canViewChargeAtGateway(charge) ||
       this.canShareCharge(charge) ||
@@ -881,6 +969,15 @@ export class RentalDetail implements OnInit {
   }
 
   /**
+   * Rótulo da linha. FEAT-0573: parcela de período, parte da caução e parcela de acordo
+   * ganham "Semana 1, parcela 1 de 3" / "Acordo, parcela 1 de 4"; a cobrança inteira segue
+   * com o rótulo de sempre.
+   */
+  protected rowKindLabel(charge: RentalChargeDto): string {
+    return flexChargeLabel(charge, this.rental()?.billingFrequency) ?? chargeKindLabel(charge.kind);
+  }
+
+  /**
    * Número exibido no badge da linha do cronograma. Prefere `periodIndex`
    * quando presente (backend seta pra RENTAL_PERIOD); senão usa a posição
    * na lista ordenada +1.
@@ -895,6 +992,8 @@ export class RentalDetail implements OnInit {
    */
   protected rowBadge(charge: RentalChargeDto, indexInList: number): string {
     if (charge.kind === 'CAUCAO') return 'C';
+    // FEAT-0573 — "Ac" de Acordo: parcela de acordo fica fora da numeração dos períodos.
+    if (charge.kind === 'AGREEMENT') return 'Ac';
     // "M" de multa: a cobrança de atraso é one-off, não um período do
     // cronograma — numerá-la faria parecer que existe um período extra.
     if (charge.kind === 'OVERDUE_FEE') return 'M';
@@ -1130,7 +1229,9 @@ export class RentalDetail implements OnInit {
       charge.kind === 'RENTAL_TOTAL' ||
       charge.kind === 'RENTAL_PERIOD' ||
       charge.kind === 'CAUCAO' ||
-      charge.kind === 'OVERDUE_FEE'
+      charge.kind === 'OVERDUE_FEE' ||
+      // FEAT-0573 (H3) — parcela de acordo em aluguel manual: fica só registrada e é baixada aqui.
+      charge.kind === 'AGREEMENT'
     );
   }
 
@@ -1153,6 +1254,7 @@ export class RentalDetail implements OnInit {
     const c = this.markPaidTarget();
     if (!c) return '';
     if (c.kind === 'CAUCAO') return 'Caução';
+    if (c.kind === 'AGREEMENT') return this.shortChargeName(c);
     if (c.periodIndex != null) return `Período ${c.periodIndex + 1}`;
     return chargeKindLabel(c.kind);
   });
@@ -1644,6 +1746,297 @@ export class RentalDetail implements OnInit {
   protected backToList(): void {
     this.router.navigate(['/alugueis']);
   }
+
+  // ==================================================================
+  // FEAT-0573 — Cobranças flexíveis (renegociar, recebida por fora, acordo)
+  //
+  // Ações só com `CHARGES_FLEX` liberado para a conta (o backend recusa sem ele). Exibir o
+  // que já veio nos dados (Renegociada, parcela i de N, valor riscado) não depende da chave:
+  // sem plano nem acordo esses dados nem existem e a tela fica exatamente como hoje.
+  // ==================================================================
+
+  private readonly featureFlags = inject(FeatureFlagsService);
+  private readonly chargesFlexApi = inject(ChargesFlexService);
+  protected readonly chargesFlex = this.featureFlags.chargesFlex;
+  /** O mesmo "hoje" (fuso de negócio) dos chips, para as folhas. */
+  protected readonly flexToday = computed(() => this.today());
+
+  /** Acordos do aluguel (`GET .../agreements`), só carregados com a chave ligada. */
+  protected readonly agreements = signal<AgreementDto[]>([]);
+
+  private loadAgreements(r: RentalResponseDto): void {
+    if (!this.chargesFlex() || this.isDriver) return;
+    const hasAny = r.charges.some(
+      (c) => c.kind === 'AGREEMENT' || c.status === 'RENEGOTIATED' || !!c.renegotiatedInAgreementId,
+    );
+    if (!hasAny) {
+      this.agreements.set([]);
+      return;
+    }
+    this.chargesFlexApi.listAgreements(r.id).subscribe({
+      next: (list) => this.agreements.set(list ?? []),
+      // Só enfeita o rótulo do vínculo ("Acordo de 02/12"); sem a lista, o vínculo diz "Ver acordo".
+      error: (err: unknown) => this.apiErrors.claim(err),
+    });
+  }
+
+  private flexActionsAllowed(): boolean {
+    const r = this.rental();
+    return (
+      this.chargesFlex() &&
+      !!r &&
+      !this.isDriver &&
+      !this.readOnlySession() &&
+      r.status !== 'CANCELED'
+    );
+  }
+
+  /** "Renegociar": aberta e de tipo aceito (caução, período, total, parcela de acordo). Manual também. */
+  protected canRenegotiate(charge: RentalChargeDto): boolean {
+    return this.flexActionsAllowed() && isRenegotiableCharge(charge);
+  }
+
+  /**
+   * "Recebida por fora": só aluguel com cobrança automática (no manual tudo já é recebido
+   * por fora, e lá a ação é "Marcar como paga"). A caução já recebida por fora não oferece.
+   */
+  protected canReceiveOutside(charge: RentalChargeDto): boolean {
+    const r = this.rental();
+    if (!this.flexActionsAllowed() || !r || r.automaticCharge === false) return false;
+    if (charge.kind === 'CAUCAO' && this.caucaoReceivedOutside()) return false;
+    return isReceivableOutsideCharge(charge);
+  }
+
+  /** "Ver acordo": a cobrança entrou num acordo ou nasceu de um. */
+  protected canViewAgreement(charge: RentalChargeDto): boolean {
+    return this.chargesFlex() && !this.isDriver && !!this.agreementIdOf(charge);
+  }
+
+  private agreementIdOf(charge: RentalChargeDto): string | null {
+    return charge.renegotiatedInAgreementId ?? charge.agreementId ?? null;
+  }
+
+  /** Texto do vínculo na linha: "Acordo de 02/12" (ou "Ver acordo" sem a lista). */
+  protected agreementLinkLabel(charge: RentalChargeDto): string {
+    const id = this.agreementIdOf(charge);
+    const a = id ? this.agreements().find((x) => x.id === id) : null;
+    const seq = a?.seq ?? charge.renegotiatedInAgreementSeq ?? charge.agreementSeq ?? null;
+    if (a?.createdAt) return `${agreementName(seq)} de ${brDayMonth(a.createdAt.slice(0, 10))}`;
+    return seq && seq > 1 ? `Ver ${agreementName(seq).toLowerCase()}` : 'Ver acordo';
+  }
+
+  /** O valor cheio riscado ao lado do valor com desconto. */
+  protected originalAmount(charge: RentalChargeDto): number | null {
+    const o = charge.originalAmountCents;
+    return typeof o === 'number' && o > charge.amount ? o : null;
+  }
+
+  /** "Recebida por fora" ao lado do chip Pago (cobrança registrada pela locadora). */
+  protected receivedOutsideTag(charge: RentalChargeDto): boolean {
+    return charge.status === 'PAID' && charge.receivedOutside === true;
+  }
+
+  /** Quem registrou o pagamento — só com a chave ligada (sem ela, a linha fica como hoje). */
+  protected settledByLine(charge: RentalChargeDto): string | null {
+    if (!this.chargesFlex() || charge.status !== 'PAID' || !charge.settledBy?.name) return null;
+    return charge.receivedOutside
+      ? `Registrada por ${charge.settledBy.name}`
+      : `Marcada como paga por ${charge.settledBy.name}`;
+  }
+
+  /** Cartão "Renegociado": soma do que saiu de cobrança por acordo (caução inclusive). */
+  protected readonly renegotiatedCents = computed<number>(() =>
+    renegotiatedTotalCents(this.rental()?.charges ?? []),
+  );
+
+  protected readonly renegotiatedCaption = computed<string>(() => {
+    const n = (this.rental()?.charges ?? []).filter((c) => c.status === 'RENEGOTIATED').length;
+    return n === 1 ? '1 cobrança virou acordo' : `${n} cobranças viraram acordo`;
+  });
+
+  /** Nome curto da cobrança para as folhas ("Semana 2", "Caução", "Acordo, parcela 1 de 4"). */
+  protected shortChargeName(charge: RentalChargeDto): string {
+    const flex = flexChargeLabel(charge, this.rental()?.billingFrequency);
+    if (flex) return flex;
+    if (charge.kind === 'CAUCAO') return 'Caução';
+    if (charge.kind === 'RENTAL_PERIOD' && charge.periodIndex != null) {
+      return `${periodWord(this.rental()?.billingFrequency)} ${charge.periodIndex + 1}`;
+    }
+    return chargeKindLabel(charge.kind);
+  }
+
+  private dueSentence(charge: RentalChargeDto): string {
+    if (!charge.dueDate) return 'Sem vencimento';
+    return charge.dueDate < this.today()
+      ? `Venceu em ${brDate(charge.dueDate)}`
+      : `Vence em ${brDate(charge.dueDate)}`;
+  }
+
+  protected readonly flexSheetSubtitle = computed(() => {
+    const name = this.driverNameSig();
+    const plate = this.vehiclePlate();
+    return [name !== '—' ? name : '', plate !== '—' ? plate : ''].filter(Boolean).join(' · ') || null;
+  });
+
+  // ------- Renegociar (jornada D / H3) -------
+  protected readonly renegotiateFor = signal<string | null>(null);
+
+  protected readonly renegotiateOptions = computed<RenegotiableOption[]>(() => {
+    const r = this.rental();
+    if (!r) return [];
+    const caucao = r.charges.filter((c) => c.kind === 'CAUCAO');
+    return [...caucao, ...this.scheduleCharges()]
+      .filter((c) => isRenegotiableCharge(c))
+      .map((c) => ({
+        charge: c,
+        label: this.shortChargeName(c),
+        dueLabel: this.dueSentence(c),
+        chip: this.chargeStatusInfo(c),
+      }));
+  });
+
+  protected askRenegotiate(charge: RentalChargeDto): void {
+    if (!this.canRenegotiate(charge)) return;
+    this.renegotiateFor.set(charge.id);
+  }
+
+  protected onRenegotiateClosed(): void {
+    this.renegotiateFor.set(null);
+  }
+
+  protected onAgreementCreated(agreement: AgreementDto): void {
+    const r = this.rental();
+    const n = agreement.instalments?.length ?? 0;
+    const manual = r?.automaticCharge === false;
+    this.notifications.push(
+      'success',
+      manual || n === 0
+        ? 'Acordo criado.'
+        : n === 1
+          ? 'Acordo criado. A parcela já está com o motorista.'
+          : `Acordo criado. As ${n} parcelas já estão com o motorista.`,
+    );
+    if (agreement.chargeSync && agreement.chargeSync.failed > 0) {
+      this.chargeSyncNotice.set(agreement.chargeSync);
+    }
+    if (r) this.reloadRentalAndAgreements(r.id);
+  }
+
+  protected onFlexStale(): void {
+    const r = this.rental();
+    if (r) this.reloadRentalAndAgreements(r.id);
+  }
+
+  private reloadRentalAndAgreements(id: string): void {
+    this.rentalService.getById(id).subscribe({
+      next: (fresh: RentalResponseDto) => {
+        this.rental.set(fresh);
+        this.loadAgreements(fresh);
+      },
+    });
+  }
+
+  // ------- Ver acordo (jornada D7) -------
+  protected readonly agreementSheetId = signal<string | null>(null);
+  /** Lista de um item: o `@for` recria a folha quando a cadeia troca de acordo. */
+  protected readonly agreementSheetKeys = computed(() => {
+    const id = this.agreementSheetId();
+    return id ? [id] : [];
+  });
+
+  protected openAgreementFor(charge: RentalChargeDto): void {
+    const id = this.agreementIdOf(charge);
+    if (id && this.chargesFlex()) this.agreementSheetId.set(id);
+  }
+
+  protected openAgreement(id: string): void {
+    this.agreementSheetId.set(id);
+  }
+
+  protected onAgreementSheetClosed(id: string): void {
+    if (this.agreementSheetId() === id) this.agreementSheetId.set(null);
+  }
+
+  // ------- Recebida por fora (jornada E) -------
+  protected readonly receivedOutsideTarget = signal<RentalChargeDto | null>(null);
+  protected readonly receivedOutsideSheetOpen = signal(false);
+  protected readonly receivedOutsideDraft = signal<ReceivedOutsideRequestDto | null>(null);
+  protected readonly receivedOutsideConfirmOpen = signal(false);
+  protected readonly receivedOutsideBusy = signal(false);
+
+  protected readonly receivedOutsideSubtitle = computed(() => {
+    const c = this.receivedOutsideTarget();
+    return c ? `${this.shortChargeName(c)} · ${this.dueSentence(c).toLowerCase()}` : null;
+  });
+
+  protected readonly receivedOutsideMessage = computed(() => {
+    const c = this.receivedOutsideTarget();
+    const d = this.receivedOutsideDraft();
+    if (!c || !d) return '';
+    const reason = RECEIVED_OUTSIDE_REASON_OPTIONS.find((o) => o.value === d.reason)?.label ?? '';
+    return (
+      `${this.shortChargeName(c)} · ${this.formatCurrency(c.amount)} · recebida em ` +
+      `${brDate(d.receivedOn)} · ${reason}. Não dá para desfazer.`
+    );
+  });
+
+  protected askReceivedOutside(charge: RentalChargeDto): void {
+    if (!this.canReceiveOutside(charge)) return;
+    this.receivedOutsideDraft.set(null);
+    this.receivedOutsideTarget.set(charge);
+    this.receivedOutsideSheetOpen.set(true);
+  }
+
+  protected onReceivedOutsideSubmitted(draft: ReceivedOutsideRequestDto): void {
+    this.receivedOutsideDraft.set(draft);
+    this.receivedOutsideConfirmOpen.set(true);
+  }
+
+  protected onReceivedOutsideSheetClosed(): void {
+    this.receivedOutsideSheetOpen.set(false);
+    if (!this.receivedOutsideConfirmOpen()) this.receivedOutsideTarget.set(null);
+  }
+
+  /** "Voltar" no diálogo: reabre a folha com o que já foi preenchido. */
+  protected backToReceivedOutsideSheet(): void {
+    if (this.receivedOutsideBusy()) return;
+    this.receivedOutsideConfirmOpen.set(false);
+    this.receivedOutsideSheetOpen.set(true);
+  }
+
+  protected confirmReceivedOutside(): void {
+    const r = this.rental();
+    const c = this.receivedOutsideTarget();
+    const d = this.receivedOutsideDraft();
+    if (!r || !c || !d || this.receivedOutsideBusy()) return;
+    this.actionError.set(null);
+    this.receivedOutsideBusy.set(true);
+    this.chargesFlexApi.receivedOutside(r.id, c.id, d).subscribe({
+      next: (updated) => {
+        this.receivedOutsideBusy.set(false);
+        this.receivedOutsideConfirmOpen.set(false);
+        this.receivedOutsideTarget.set(null);
+        this.receivedOutsideDraft.set(null);
+        const current = this.rental();
+        if (current) {
+          this.rental.set({
+            ...current,
+            charges: current.charges.map((x) => (x.id === updated.id ? updated : x)),
+          });
+        }
+        this.notifications.push('success', `${this.shortChargeName(c)} registrada como recebida por fora.`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.receivedOutsideBusy.set(false);
+        this.receivedOutsideConfirmOpen.set(false);
+        this.receivedOutsideTarget.set(null);
+        const server = this.apiErrors.messageFor(err, 'Não foi possível registrar o recebimento.');
+        this.actionError.set(flexErrorMessage(err, RECEIVED_OUTSIDE_ERROR_MESSAGES, server));
+        this.reloadRentalAndAgreements(r.id);
+      },
+    });
+  }
+
 
   protected formatPlate(plate: string): string {
     return formatPlate(plate);

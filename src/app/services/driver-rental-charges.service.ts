@@ -58,6 +58,8 @@ const STATUSES: readonly ChargeStatus[] = [
   'REFUNDED',
   'RELEASED',
   'DISPUTED',
+  // FEAT-0573 — sem isto a cobrança renegociada viraria PENDING (dívida aberta sem botão).
+  'RENEGOTIATED',
 ];
 
 /** The payment link opens in the driver's browser: only https, never http, `javascript:` and co. */
@@ -85,6 +87,10 @@ function toCharge(raw: unknown): DriverCharge | null {
     dueDate: typeof r['dueDate'] === 'string' ? r['dueDate'] : null,
     periodIndex: typeof r['periodIndex'] === 'number' ? r['periodIndex'] : null,
     paidAt: typeof r['paidAt'] === 'string' ? r['paidAt'] : null,
+    // FEAT-0573 — aditivos: só copiados quando vêm, para a linha sem plano seguir igual.
+    ...(typeof r['instalmentIndex'] === 'number' ? { instalmentIndex: r['instalmentIndex'] } : {}),
+    ...(typeof r['instalmentCount'] === 'number' ? { instalmentCount: r['instalmentCount'] } : {}),
+    ...(typeof r['agreementSeq'] === 'number' ? { agreementSeq: r['agreementSeq'] } : {}),
     // A status this build does not know is an OPEN charge with no button: it stays on the
     // screen (the driver still owes it) but nothing here can say how to pay it.
     checkoutUrl: knownStatus ? safeLink(r['checkoutUrl']) : null,

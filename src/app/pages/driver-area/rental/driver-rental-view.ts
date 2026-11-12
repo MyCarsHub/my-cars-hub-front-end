@@ -78,7 +78,19 @@ const PERIOD_WORDS: Record<RentalBillingFrequency, { adjective: string; unit: st
 /** "Semana 10 · Aluguel semanal", "Caução", "Multa por atraso". The number comes FIRST: it
  * is what tells two rows apart on a narrow screen. */
 export function chargeTitle(charge: DriverCharge, frequency: RentalBillingFrequency | null): string {
+  const base = baseChargeTitle(charge, frequency);
+  // FEAT-0573 — parcela de acordo ou parte de uma cobrança dividida. Inteira (1 de 1): igual a hoje.
+  const count = charge.instalmentCount ?? 1;
+  const index = charge.instalmentIndex ?? 1;
+  if (charge.kind === 'AGREEMENT') return `${base} · parcela ${index} de ${count}`;
+  if (count > 1) return `${base} · ${charge.kind === 'CAUCAO' ? 'parte' : 'parcela'} ${index} de ${count}`;
+  return base;
+}
+
+function baseChargeTitle(charge: DriverCharge, frequency: RentalBillingFrequency | null): string {
   switch (charge.kind) {
+    case 'AGREEMENT':
+      return charge.agreementSeq && charge.agreementSeq > 1 ? `Acordo ${charge.agreementSeq}` : 'Acordo';
     case 'CAUCAO':
       return 'Caução';
     case 'OVERDUE_FEE':
@@ -147,6 +159,11 @@ function rowSub(charge: DriverCharge, today: string): string {
     return day ? `Pago em ${fullDate(day)}` : 'Pago';
   }
   if (!charge.dueDate) return 'Sem data de vencimento';
+  if (status === 'RENEGOTIATED') {
+    return charge.dueDate < today
+      ? `Venceu em ${fullDate(charge.dueDate)}`
+      : `Vencia em ${fullDate(charge.dueDate)}`;
+  }
   if (status === 'PAST_DUE') return `Venceu em ${fullDate(charge.dueDate)}`;
   if (charge.dueDate === today) return `Vence hoje, ${fullDate(charge.dueDate)}`;
   return `Vence ${weekday(charge.dueDate)}, ${fullDate(charge.dueDate)}`;
@@ -177,8 +194,13 @@ export function buildChargeList(
       payable: isPayable(charge, today),
     };
   };
+  // FEAT-0573 — a cobrança que entrou num acordo fica visível, depois das pagas, como
+  // "Renegociada" e sem botão: o motorista vê para onde ela foi.
+  const renegotiated = charges
+    .filter((c) => c.status === 'RENEGOTIATED')
+    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
   return {
-    rows: [...open.map(toRow), ...groups.history.map(toRow)],
+    rows: [...open.map(toRow), ...groups.history.map(toRow), ...renegotiated.map(toRow)],
     openCount: open.length,
     paidCount: groups.history.length,
   };

@@ -469,7 +469,8 @@ export function toCalendar(raw: unknown, month: string): DriverCalendarData {
 
 /** Settled charges: PAID, and DISPUTED (the money already left — the server's rule too). */
 const PAID = new Set(['PAID', 'DISPUTED']);
-const RENT_KINDS = new Set(['RENTAL_PERIOD', 'RENTAL_TOTAL']);
+// FEAT-0573 — parcela de acordo substitui aluguel renegociado: conta como aluguel.
+const RENT_KINDS = new Set(['RENTAL_PERIOD', 'RENTAL_TOTAL', 'AGREEMENT']);
 
 /** Tags the rental context with the rental's id (the dashboard's weekly-rent card needs it). */
 function withRentalId(
