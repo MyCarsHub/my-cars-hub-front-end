@@ -14,9 +14,6 @@ import { Notice, NoticesService } from './notices.service';
 
 const BASE = `${environment.apiUrl}/announcements`;
 
-/** Chave de sessão: já mostramos UMA novidade nesta sessão (por usuário). */
-export const NEWS_SHOWN_KEY = 'mch:news-shown';
-
 /** Prefixo do id do aviso na fila (`news:<id da novidade>`). */
 export const NEWS_NOTICE_PREFIX = 'news:';
 
@@ -24,9 +21,11 @@ export const NEWS_NOTICE_PREFIX = 'news:';
  * Novidades do produto entregues pelo servidor, mostradas no popup de avisos que JÁ existe
  * (`NoticesService` + `NoticesPopup`) — não há um segundo popup.
  *
- * - Uma por sessão: a mais antiga não lida. As demais esperam as próximas sessões.
+ * - Todas as não lidas, uma depois da outra, a mais antiga primeiro (ordem do servidor).
  * - Qualquer saída do aviso (Entendi, X, Esc, fundo, link) marca como lida UMA vez.
- * - Lembrete bloqueante na tela tem prioridade: a novidade só entra com a fila vazia.
+ * - Sem marca de sessão: o servidor só devolve as não lidas, então um reload no meio da
+ *   sequência retoma as que faltam e nunca repete as já fechadas.
+ * - Lembrete bloqueante na tela tem prioridade: cada novidade só entra com a fila vazia.
  * - Falha da busca nunca bloqueia o app: o erro é engolido e nada aparece.
  * - Sessão de suporte ("Ver como empresa") nem busca nem marca: o admin não pode "ler"
  *   a novidade no lugar do cliente (o servidor também recusa, 403).
@@ -40,8 +39,8 @@ export class NewsNoticesService {
 
   /** Uma tentativa por carga do app (o shell chama a cada navegação). */
   private attempted = false;
-  /** Novidade buscada esperando a fila esvaziar. */
-  private readonly pending = signal<UnreadAnnouncement | null>(null);
+  /** Novidades buscadas esperando a fila esvaziar, a próxima primeiro. */
+  private readonly pending = signal<readonly UnreadAnnouncement[]>([]);
   /**
    * Sobe a cada logout: resposta de busca e desfecho de aviso que chegam depois pertencem à
    * sessão anterior e são descartados (nunca mostrados nem marcados como lidos por outra pessoa).
@@ -53,9 +52,13 @@ export class NewsNoticesService {
   constructor() {
     inject(SessionResetRegistry).register(() => this.reset());
     effect(() => {
-      const next = this.pending();
+      const [next, ...rest] = this.pending();
       if (!next || this.notices.current()) return;
-      this.pending.set(null);
+      if (this.isSupportSession()) {
+        this.pending.set([]);
+        return;
+      }
+      this.pending.set(rest);
       this.show(next);
     });
   }
@@ -76,19 +79,14 @@ export class NewsNoticesService {
     if (this.isSupportSession()) return;
     // Só o token de empresa (ACCESS) tem público; sem empresa não há novidade.
     if (this.session.getCompanyIdFromToken() === null) return;
-    if (this.session.getItem(this.shownKey()) === 'true') {
-      this.attempted = true;
-      return;
-    }
     this.attempted = true;
     const gen = this.generation;
     this.unread().subscribe({
       next: (list) => {
         if (gen !== this.generation) return;
-        const oldest = Array.isArray(list) ? list[0] : undefined;
-        if (!oldest || this.isSupportSession()) return;
-        this.session.setItem(this.shownKey(), 'true');
-        this.pending.set(oldest);
+        const unread = Array.isArray(list) ? list.filter((a) => !!a?.id) : [];
+        if (!unread.length || this.isSupportSession()) return;
+        this.pending.set(unread);
       },
       error: () => void 0,
     });
@@ -134,7 +132,8 @@ export class NewsNoticesService {
   private reset(): void {
     this.generation++;
     this.attempted = false;
-    this.pending.set(null);
+    // Descarta TODAS as que esperavam, sem marcar nenhuma como lida.
+    this.pending.set([]);
     const queued = this.queuedId;
     this.queuedId = null;
     // Sai da fila sem marcar como lida (a geração já mudou).
@@ -146,9 +145,5 @@ export class NewsNoticesService {
       this.session.getItem(IMPERSONATION_STATE_KEY) !== null ||
       this.session.getItem(IMPERSONATION_ADMIN_TOKEN_KEY) !== null
     );
-  }
-
-  private shownKey(): string {
-    return `${NEWS_SHOWN_KEY}:${this.session.getUserId() ?? 'anon'}`;
   }
 }
