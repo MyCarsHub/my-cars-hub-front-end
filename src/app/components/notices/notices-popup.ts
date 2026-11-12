@@ -11,6 +11,7 @@ import {
 import { DOCUMENT } from '@angular/common';
 import { Router } from '@angular/router';
 import { BottomSheet } from '../core/bottom-sheet/bottom-sheet';
+import { classifyAppLink } from '../../utils/app-link';
 import { NewsNoticeCard } from './news-notice-card';
 import { CompanyContactQuickForm } from './company-contact-quick-form';
 import { Notice, NoticeOutcome, NoticesService } from './notices.service';
@@ -170,14 +171,15 @@ export class NoticesPopup {
   }
 
   protected openLink(notice: Notice): void {
-    const route = notice.link?.route ?? null;
-    if (route && /^https:\/\//i.test(route)) {
+    const view = this.doc.defaultView;
+    const link = classifyAppLink(notice.link?.route, view?.location?.host);
+    if (link?.kind === 'external') {
       // Endereço externo: abre já, dentro do gesto do clique (bloqueador de popup), em outra aba.
-      this.doc.defaultView?.open(route, '_blank', 'noopener,noreferrer');
+      view?.open(link.href, '_blank', 'noopener,noreferrer');
       this.target = null;
     } else {
-      // Só rota do app (`/algo`, nunca `//host`); qualquer outra coisa é ignorada.
-      this.target = route && route.startsWith('/') && !route.startsWith('//') ? route : null;
+      // Rota do app (inclusive `https://` do próprio app): mesma aba, onde a sessão vive.
+      this.target = link?.kind === 'internal' ? link.path : null;
     }
     this.finishWith('dismissed');
   }

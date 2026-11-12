@@ -186,6 +186,26 @@ describe('AdminAnnouncements (F2)', () => {
     expect(service.list).toHaveBeenCalledTimes(3);
   });
 
+  it('link com o endereço completo do próprio app é gravado como rota', () => {
+    const { f, el } = render();
+    (el.querySelector('[data-testid="create-announcement"]') as HTMLElement).click();
+    f.detectChanges();
+    TestBed.tick();
+    f.detectChanges();
+    type('[data-testid="field-title"]', 'Ajustes', f);
+    type('[data-testid="field-body"]', 'Veja os ajustes.', f);
+    type('[data-testid="field-link-url"]', 'https://www.mycarshub.app.br/ajustes', f);
+    type('[data-testid="field-link-label"]', 'Abrir Ajustes', f);
+    ($('[data-testid="aud-locadora"]') as HTMLInputElement).click();
+    f.detectChanges();
+    ($('[data-testid="sheet-publish"]') as HTMLButtonElement).click();
+    f.detectChanges();
+    const req = service.create.mock.calls[0][0] as AnnouncementRequest;
+    expect(req.linkUrl).toBe('/ajustes');
+    vi.advanceTimersByTime(400);
+    f.detectChanges();
+  });
+
   it('link inválido segura salvar; javascript: e //host não passam', () => {
     expect(isAllowedLink('/gastos')).toBe(true);
     expect(isAllowedLink('https://x.com')).toBe(true);

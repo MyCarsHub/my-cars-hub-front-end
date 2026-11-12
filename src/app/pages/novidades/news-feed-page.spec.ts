@@ -133,7 +133,7 @@ describe('NewsFeedPage (Novidades)', () => {
       0,
       [
         item('i', { linkUrl: '/gastos', linkLabel: 'Ver Gastos' }),
-        item('e', { linkUrl: 'https://mycarshub.app.br/blog', linkLabel: 'Ler' }),
+        item('e', { linkUrl: 'https://www.gov.br/denatran', linkLabel: 'Ler' }),
         item('j', { linkUrl: 'javascript:alert(1)', linkLabel: 'Não' }),
       ],
       false,
@@ -145,6 +145,27 @@ describe('NewsFeedPage (Novidades)', () => {
     const nav = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
     links[0].click();
     expect(nav).toHaveBeenCalledWith('/gastos');
+  });
+
+  it('https:// do próprio app (www e sem www) vira rota na mesma aba, com busca e âncora', () => {
+    const { flush, el } = render();
+    flush(
+      0,
+      [
+        item('w', { linkUrl: 'https://www.mycarshub.app.br/ajustes', linkLabel: 'Ajustes' }),
+        item('a', { linkUrl: 'https://mycarshub.app.br/gastos?mes=11#topo', linkLabel: 'Gastos' }),
+      ],
+      false,
+    );
+    const links = el.querySelectorAll<HTMLAnchorElement>('[data-testid="post-link"]');
+    expect(links.length).toBe(2);
+    expect(links[0].getAttribute('href')).toBe('/ajustes');
+    expect(links[0].hasAttribute('target')).toBe(false);
+    expect(links[1].getAttribute('href')).toBe('/gastos?mes=11#topo');
+    expect(links[1].hasAttribute('target')).toBe(false);
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    links[0].click();
+    expect(nav).toHaveBeenCalledWith('/ajustes');
   });
 
   it('Carregar mais traz a próxima página no fim da lista e some no fim', () => {
