@@ -165,6 +165,7 @@ describe('paridade nav x guard de rota', () => {
     '/ipva',
     '/motoristas',
     '/gastos',
+    '/ajustes',
     '/relatorios',
     '/alertas',
     '/roadmap',
@@ -187,10 +188,10 @@ describe('paridade nav x guard de rota', () => {
    * menu). Os numeros sao os da base medida por AST: 14 de topo, 11 filhos (Gastos, FEAT-0425, e o 14o) — o
    * item de topo a mais e o Painel do motorista (`/meu-painel`).
    */
-  it('a arvore do menu mantem a forma: 14 itens de topo, 11 filhos', () => {
+  it('a arvore do menu mantem a forma: 15 itens de topo (Ajustes, V141), 12 filhos', () => {
     const children = NAV_ITEMS.reduce((total, item) => total + (item.children?.length ?? 0), 0);
 
-    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 14, filhos: 12 });
+    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 15, filhos: 12 });
   });
 
   /**
@@ -349,10 +350,11 @@ describe('paridade nav x guard de rota', () => {
    * para dono e gerente. O back-end nega o DRIVER em todo verbo de /v1/expenses.
    */
   describe('Gastos', () => {
-    it('e raiz do menu, logo antes de Relatorios, e nao filho de Frota', () => {
+    it('e raiz do menu, seguida de Ajustes e Relatorios, e nao filho de Frota', () => {
       const index = NAV_ITEMS.findIndex((i) => i.route === '/gastos');
       expect(index).toBeGreaterThan(-1);
-      expect(NAV_ITEMS[index + 1]?.route).toBe('/relatorios');
+      expect(NAV_ITEMS[index + 1]?.route).toBe('/ajustes');
+      expect(NAV_ITEMS[index + 2]?.route).toBe('/relatorios');
       const frota = NAV_ITEMS.find((i) => i.label === 'Frota');
       expect(frota?.children?.some((c) => c.route === '/gastos')).toBe(false);
     });
@@ -367,6 +369,34 @@ describe('paridade nav x guard de rota', () => {
       }
       expect(navShows(item, 'DRIVER')).toBe(false);
       for (const route of ['/gastos', '/gastos/novo', '/gastos/abc', '/gastos/abc/editar']) {
+        expect(guardAllows(route, 'DRIVER'), `DRIVER entrou em ${route}`).toBe(false);
+      }
+    });
+  });
+
+  /**
+   * V141 — Ajustes: raiz do menu, logo depois de Gastos, so para dono e gerente. O back-end nega
+   * o DRIVER em todo verbo de /v1/adjustments; o motorista nao ve o item nem abre a tela.
+   */
+  describe('Ajustes', () => {
+    const ROUTES = ['/ajustes', '/ajustes/novo', '/ajustes/abc'];
+
+    it('e raiz do menu, nao filho de Frota', () => {
+      expect(NAV_ITEMS.some((i) => i.route === '/ajustes')).toBe(true);
+      const frota = NAV_ITEMS.find((i) => i.label === 'Frota');
+      expect(frota?.children?.some((c) => c.route === '/ajustes')).toBe(false);
+    });
+
+    it('dono e gerente veem o item e abrem todas as telas; o motorista nao ve nem abre', () => {
+      const item = navRoutes.find((i) => i.route === '/ajustes') as NavItem;
+      for (const role of ['OWNER', 'MANAGER'] as const) {
+        expect(navShows(item, role)).toBe(true);
+        for (const route of ROUTES) {
+          expect(guardAllows(route, role), `${role} barrado em ${route}`).toBe(true);
+        }
+      }
+      expect(navShows(item, 'DRIVER')).toBe(false);
+      for (const route of ROUTES) {
         expect(guardAllows(route, 'DRIVER'), `DRIVER entrou em ${route}`).toBe(false);
       }
     });

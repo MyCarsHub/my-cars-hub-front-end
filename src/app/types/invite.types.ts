@@ -109,3 +109,19 @@ export function withoutAcceptUrl(invite: CreateInviteResponse): InviteResponse {
 
 /** Delivery state of the invitation e-mail, when the backend reports it. */
 export type InviteEmailDelivery = 'QUEUED' | 'SENT' | 'FAILED';
+
+/**
+ * Item of `GET /v1/invites/invitable-drivers` (OWNER / MANAGER): a driver of the company
+ * with no linked account, no live (PENDING within its deadline) invite for its e-mail and
+ * whose e-mail is not an active member. `lastInviteStatus` is the most recent DRIVER invite of
+ * that e-mail (`EXPIRED` derived from the deadline), or `null` when it was never invited.
+ */
+export interface InvitableDriver {
+  id: string;
+  name: string;
+  /** `null` when the registration has no contact e-mail: listed, but it cannot be invited. */
+  email: string | null;
+  /** Latest DRIVER invite of that e-mail; an EXPIRED one is resent by this id. */
+  lastInviteId: string | null;
+  lastInviteStatus: InviteStatus | null;
+}

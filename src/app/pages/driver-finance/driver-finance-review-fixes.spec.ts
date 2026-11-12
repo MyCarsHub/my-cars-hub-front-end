@@ -326,6 +326,36 @@ describe('driver finance — review fixes', () => {
       ]);
       expect(events.some((e) => e.label.includes('OVERDUE_FEE'))).toBe(false);
     });
+
+    it('calendar: V141 ADJUSTMENT reads "Ajuste", never "Aluguel", due or paid', () => {
+      const cal = toCalendar(
+        {
+          month: '2026-11-01',
+          totals: { incomeCents: 0, outflowCents: 0, dueCents: 0, balanceCents: 0 },
+          truncated: false,
+          days: [
+            {
+              date: '2026-11-20',
+              incomeCents: 0,
+              outflowCents: 8000,
+              dueCents: 18000,
+              items: [
+                { id: 'a', type: 'CHARGE_DUE', label: 'ADJUSTMENT', amountCents: 18000, status: 'PENDING' },
+                { id: 'b', type: 'CHARGE_PAID', label: 'ADJUSTMENT', amountCents: 8000, status: 'PAID' },
+              ],
+            },
+          ],
+        },
+        '2026-11',
+      );
+      const rental = { vehicleLabel: 'Mobi', plate: null, periodAmount: 70000, periodDays: 7, startDate: '2026-10-01', nextCharge: null, charges: [] };
+      const events = dayModel(cal, '2026-11-20', rental).events;
+      expect(events.map((e) => `${e.kind} / ${e.label}`)).toEqual([
+        'Cobrança a vencer / Ajuste',
+        'Pago / Ajuste',
+      ]);
+      expect(events.some((e) => e.label.includes('Aluguel') || e.label.includes('ADJUSTMENT'))).toBe(false);
+    });
   });
 
   it('13 · a failed period read keeps the Dashboard and offers a retry', () => {

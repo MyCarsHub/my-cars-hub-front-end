@@ -42,7 +42,7 @@ export interface Notice {
  * - Um aviso por vez; os bloqueantes passam à frente dos demais (ordem de chegada dentro de cada grupo).
  * - `enqueue` devolve um Observable que emite UMA vez, com o desfecho, quando o aviso sai da fila —
  *   é como quem pediu o aviso (ex.: criar aluguel) sabe se pode seguir.
- * - A entrega de novidades pelo servidor NÃO existe na v1: hoje só o código enfileira.
+ * - Novidades do servidor entram pelo `NewsNoticesService` (uma por sessão, NEWS, não bloqueante).
  */
 @Injectable({ providedIn: 'root' })
 export class NoticesService {

@@ -135,6 +135,14 @@ export const ADMIN_MENU: readonly AdminMenuGroup[] = [
         icon: 'M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4zM8 8h8',
         capability: 'blog',
       },
+      {
+        // Só o Dono (novidades.gerir): o servidor recusa até a leitura da lista para os demais.
+        id: 'announcements',
+        label: 'Novidades',
+        route: '/admin/novidades',
+        icon: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1M15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
+        capability: 'novidades.gerir',
+      },
     ],
   },
   {

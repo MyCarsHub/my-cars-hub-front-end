@@ -898,6 +898,8 @@ export class RentalDetail implements OnInit {
     // "M" de multa: a cobrança de atraso é one-off, não um período do
     // cronograma — numerá-la faria parecer que existe um período extra.
     if (charge.kind === 'OVERDUE_FEE') return 'M';
+    // "A" de Ajuste (V141): cobrança avulsa, também fora da numeração dos períodos.
+    if (charge.kind === 'ADJUSTMENT') return 'A';
     return String(this.periodNumber(charge, indexInList));
   }
 
@@ -985,6 +987,8 @@ export class RentalDetail implements OnInit {
 
   protected canRetryCharge(charge: RentalChargeDto): boolean {
     // O motorista só consulta: quem gera de novo é a locadora (o backend recusa também).
+    // Ajuste (V141) nunca é gerado de novo: o backend responde 409 e o dono não quer o botão.
+    if (charge.kind === 'ADJUSTMENT') return false;
     return charge.status === 'FAILED' && !this.isDriver;
   }
 

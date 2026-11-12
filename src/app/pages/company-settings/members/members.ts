@@ -473,6 +473,15 @@ export class CompanyMembers implements OnInit {
    * The sheet is NOT closed here: it closes itself when there is no link to show, and stays
    * on its "sent" step when there is one.
    */
+  /** An expired driver invite resent from the invite sheet: same toast as a row resend. */
+  protected onInviteResent(email: string): void {
+    this.notifications.success(
+      'Novo convite enviado para ' + email + '. O link anterior deixou de valer.',
+    );
+    this.clearFilters();
+    this.invites.list().subscribe({ error: (e: HttpErrorResponse) => this.failLoad(e) });
+  }
+
   protected onInviteSent(invite: InviteResponse): void {
     this.notifications.success(`Convite enviado para «${invite.email}».`);
     this.clearFilters();

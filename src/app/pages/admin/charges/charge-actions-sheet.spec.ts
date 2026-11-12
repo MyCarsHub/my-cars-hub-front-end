@@ -103,6 +103,12 @@ describe('ChargeActionsSheet', () => {
     expect(q(render({ status: 'FAILED', daysOverdue: -3 }).nativeElement, 'action-retry')).not.toBeNull();
   });
 
+  it('V141 — Ajuste NUNCA oferece "tentar de novo", nem FAILED dentro do prazo (o back-end responde 409)', () => {
+    expect(
+      q(render({ kind: 'ADJUSTMENT', status: 'FAILED', daysOverdue: 0 }).nativeElement, 'action-retry'),
+    ).toBeNull();
+  });
+
   it('atrasada NUNCA oferece "tentar de novo" (FAILED vencida ou PAST_DUE) e explica a regra', () => {
     const failedLate: HTMLElement = render({ status: 'FAILED', daysOverdue: 1 }).nativeElement;
     expect(q(failedLate, 'action-retry')).toBeNull();

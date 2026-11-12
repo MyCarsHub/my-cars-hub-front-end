@@ -12,7 +12,7 @@ import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { Expense } from '../../types/expense.types';
 import { todayInBusinessTz } from '../../utils/business-clock';
-import { shiftMonth } from '../../utils/expenses-view';
+import { EXPENSE_MONTHS_AHEAD, shiftMonth } from '../../utils/expenses-view';
 import { ExpensesList } from './expenses-list';
 
 function exp(over: Partial<Expense>): Expense {
@@ -157,17 +157,34 @@ describe('ExpensesList', () => {
     expect(el.querySelector('[data-expenses-empty]')).toBeNull();
   });
 
-  it('o mês corrente trava o "próximo"; voltar recarrega o mês anterior', () => {
+  it('voltar recarrega o mês anterior', () => {
     const fixture = create(ROWS);
     const el = host(fixture);
-    expect(el.querySelector<HTMLButtonElement>('[data-month-next]')!.disabled).toBe(true);
     const current = todayInBusinessTz().slice(0, 7);
     expect(listMonth).toHaveBeenLastCalledWith(current);
 
     el.querySelector<HTMLButtonElement>('[data-month-prev]')!.click();
     fixture.detectChanges();
     expect(listMonth).toHaveBeenLastCalledWith(shiftMonth(current, -1));
-    expect(el.querySelector<HTMLButtonElement>('[data-month-next]')!.disabled).toBe(false);
+  });
+
+  it('o "próximo" avança para meses futuros e só trava no último mês aceito pelo formulário', () => {
+    const fixture = create(ROWS);
+    const el = host(fixture);
+    const next = () => el.querySelector<HTMLButtonElement>('[data-month-next]')!;
+    const current = todayInBusinessTz().slice(0, 7);
+    expect(next().disabled).toBe(false);
+
+    next().click();
+    fixture.detectChanges();
+    expect(listMonth).toHaveBeenLastCalledWith(shiftMonth(current, 1));
+
+    for (let i = 1; i < EXPENSE_MONTHS_AHEAD; i++) {
+      next().click();
+      fixture.detectChanges();
+    }
+    expect(listMonth).toHaveBeenLastCalledWith(shiftMonth(current, EXPENSE_MONTHS_AHEAD));
+    expect(next().disabled).toBe(true);
   });
 
   it('Excluir só chama o back-end depois de confirmar; cancelar não exclui', () => {

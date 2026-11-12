@@ -37,8 +37,15 @@ export const FAILED_NOTICES_COLLAPSED = 3;
         <ul class="mt-2 space-y-3">
           @for (n of visible(); track n.chargeId) {
             <li class="rounded-lg bg-white/70 dark:bg-white/5 p-3" data-failed-charge-notice>
+              @if (isAdjustment(n)) {
+                <span
+                  data-notice-kind
+                  class="inline-flex items-center h-[22px] px-2 mb-1.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200"
+                >Ajuste</span>
+              }
               <p class="text-base text-amber-950 dark:text-amber-50 leading-snug">{{ n.message }}</p>
               <div class="mt-2 flex flex-wrap gap-2">
+                @if (!isAdjustment(n)) {
                 <button
                   type="button"
                   data-regenerate
@@ -48,6 +55,7 @@ export const FAILED_NOTICES_COLLAPSED = 3;
                 >
                   {{ busy() === n.chargeId ? 'Gerando…' : 'Gerar de novo' }}
                 </button>
+                }
                 <a
                   [routerLink]="['/alugueis', n.rentalId]"
                   class="min-h-11 px-4 inline-flex items-center rounded-xl border border-amber-300 dark:border-amber-500/40 text-sm font-medium text-amber-900 dark:text-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
@@ -104,8 +112,13 @@ export class FailedChargeNotices {
       });
   }
 
+  /** V141 — Ajuste aparece com o rótulo próprio e sem "Gerar de novo" (o back-end responde 409). */
+  protected isAdjustment(n: FailedChargeNoticeDto): boolean {
+    return n.kind === 'ADJUSTMENT';
+  }
+
   protected regenerate(n: FailedChargeNoticeDto): void {
-    if (this.busy()) return;
+    if (this.busy() || this.isAdjustment(n)) return;
     this.busy.set(n.chargeId);
     this.rentals
       .retryCharge(n.rentalId, n.chargeId)

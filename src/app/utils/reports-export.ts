@@ -147,11 +147,13 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
   // Motoristas problemáticos
   if (report.driverRanking.topProblematic.length > 0) {
     autoTable(doc, {
-      head: [['Top 5 motoristas problemáticos', 'Multas em aberto', 'Charges em aberto', 'Total']],
+      // V141: Multas + Charges + Ajustes em aberto fecham com o Total (que já inclui os ajustes).
+      head: [['Top 5 motoristas problemáticos', 'Multas em aberto', 'Charges em aberto', 'Ajustes em aberto', 'Total']],
       body: report.driverRanking.topProblematic.map((d) => [
         formatPersonName(d.name),
         centsToBRL(d.unpaidFinesCents),
         centsToBRL(d.unpaidChargesCents),
+        centsToBRL(d.unpaidAdjustmentsCents ?? 0),
         centsToBRL(d.totalProblematicCents),
       ]),
       theme: 'grid',
@@ -229,12 +231,13 @@ export function exportReportExcel(report: ReportsOverviewResponse): void {
     }
     rows.push([]);
     rows.push(['Top motoristas problemáticos']);
-    rows.push(['Nome', 'Multas em aberto (R$)', 'Charges em aberto (R$)', 'Total (R$)']);
+    rows.push(['Nome', 'Multas em aberto (R$)', 'Charges em aberto (R$)', 'Ajustes em aberto (R$)', 'Total (R$)']);
     for (const d of report.driverRanking.topProblematic) {
       rows.push([
         formatPersonName(d.name),
         d.unpaidFinesCents / 100,
         d.unpaidChargesCents / 100,
+        (d.unpaidAdjustmentsCents ?? 0) / 100,
         d.totalProblematicCents / 100,
       ]);
     }
@@ -323,10 +326,10 @@ export function reportToMarkdown(report: ReportsOverviewResponse): string {
   if (report.driverRanking.topProblematic.length > 0) {
     lines.push(`## Top motoristas problemáticos`);
     lines.push('');
-    lines.push('| Nome | Multas abertas | Charges abertas | Total |');
-    lines.push('|---|---|---|---|');
+    lines.push('| Nome | Multas abertas | Charges abertas | Ajustes em aberto | Total |');
+    lines.push('|---|---|---|---|---|');
     for (const d of report.driverRanking.topProblematic) {
-      lines.push(`| ${formatPersonName(d.name)} | ${centsToBRL(d.unpaidFinesCents)} | ${centsToBRL(d.unpaidChargesCents)} | ${centsToBRL(d.totalProblematicCents)} |`);
+      lines.push(`| ${formatPersonName(d.name)} | ${centsToBRL(d.unpaidFinesCents)} | ${centsToBRL(d.unpaidChargesCents)} | ${centsToBRL(d.unpaidAdjustmentsCents ?? 0)} | ${centsToBRL(d.totalProblematicCents)} |`);
     }
     lines.push('');
   }

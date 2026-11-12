@@ -79,6 +79,26 @@ describe('FailedChargeNotices', () => {
     expect(fixture.nativeElement.querySelector('[data-failed-charge-notices]')).toBeNull();
   });
 
+  it('V141 — Ajuste aparece com o rótulo "Ajuste" e SEM "Gerar de novo"; aluguel ao lado mantém o botão', () => {
+    const fixture = mount([
+      notice({ chargeId: 'c-adj', kind: 'ADJUSTMENT' }),
+      notice({ chargeId: 'c-rent', kind: 'RENTAL_PERIOD' }),
+    ]);
+    const items = fixture.nativeElement.querySelectorAll('[data-failed-charge-notice]') as NodeListOf<HTMLElement>;
+    expect(items.length).toBe(2);
+    expect(items[0].querySelector('[data-notice-kind]')?.textContent?.trim()).toBe('Ajuste');
+    expect(items[0].querySelector('[data-regenerate]')).toBeNull();
+    expect(items[0].querySelector('a[href="/alugueis/r-1"]')).toBeTruthy();
+    expect(items[1].querySelector('[data-notice-kind]')).toBeNull();
+    expect(items[1].querySelector('[data-regenerate]')).not.toBeNull();
+  });
+
+  it('back-end sem `kind` (anterior ao V141): comportamento de antes, com o botão', () => {
+    const fixture = mount([notice()]);
+    expect(fixture.nativeElement.querySelector('[data-regenerate]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-notice-kind]')).toBeNull();
+  });
+
   it('encurta a lista e oferece ver todas', () => {
     const many = Array.from({ length: FAILED_NOTICES_COLLAPSED + 2 }, (_, i) =>
       notice({ chargeId: `c-${i}` }),
