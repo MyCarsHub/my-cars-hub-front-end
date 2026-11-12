@@ -1,12 +1,24 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { BottomSheet } from '../../components/core/bottom-sheet/bottom-sheet';
 import { PageCard } from '../../components/core/page-card/page-card';
+import { DriverPicker } from '../../components/drivers/driver-picker/driver-picker';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
 import { AdjustmentsService } from '../../services/adjustments.service';
 import { clearServerErrors } from '../../services/api-error';
 import { ApiErrorService } from '../../services/api-error.service';
@@ -41,7 +53,18 @@ import { ptBrMoneyCents } from '../../utils/validators/ptbr-money.validator';
 @Component({
   selector: 'app-adjustment-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    AlertBanner,
+    FormField,
+    FieldControl,
+    BottomSheet,
+    DriverPicker,
+    PersonNamePipe,
+  ],
   templateUrl: './adjustment-form.html',
 })
 export class AdjustmentForm implements OnInit {
@@ -91,6 +114,16 @@ export class AdjustmentForm implements OnInit {
     description: ['', [notBlankValidator(), Validators.maxLength(ADJUSTMENT_DESCRIPTION_MAX)]],
   });
 
+  /** Folha do seletor de motorista (no lugar do `<select>` nativo). */
+  protected readonly driverPickerOpen = signal(false);
+  private readonly driverSheet = viewChild(BottomSheet);
+  private readonly driverId = toSignal(this.form.controls.driverId.valueChanges, {
+    initialValue: this.form.controls.driverId.value,
+  });
+  protected readonly selectedDriver = computed(
+    () => this.drivers().find((d) => d.id === this.driverId()) ?? null,
+  );
+
   ngOnInit(): void {
     this.driverService.list({ size: 500, sort: 'name_asc' }).subscribe({
       next: (res) => {
@@ -102,6 +135,23 @@ export class AdjustmentForm implements OnInit {
         this.driversLoaded.set(true);
       },
     });
+  }
+
+  protected openDriverPicker(): void {
+    this.driverPickerOpen.set(true);
+  }
+
+  protected pickDriver(id: string): void {
+    const control = this.form.controls.driverId;
+    control.setValue(id);
+    control.markAsDirty();
+    this.driverSheet()?.requestClose();
+  }
+
+  /** Fechar sem escolher conta como ter passado pelo campo (o `<select>` marcava no blur). */
+  protected onDriverPickerClosed(): void {
+    this.form.controls.driverId.markAsTouched();
+    this.driverPickerOpen.set(false);
   }
 
   /** O controle guarda TEXTO; a máscara reescreve o campo a cada tecla. */

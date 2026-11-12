@@ -18,17 +18,27 @@
           [control]="form.controls.driverId"
           [messages]="driverMessages"
         >
-          <select
+          <!-- Não é <select>: a lista nativa é desenhada pelo navegador e no Chrome do desktop
+               (tema escuro) abria mais estreita que o campo, com o texto cortado à esquerda. -->
+          <button
             appFieldControl
-            formControlName="driverId"
-            class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-base text-fg-body
-                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+            type="button"
+            aria-haspopup="dialog"
+            data-testid="adjustment-driver-trigger"
+            [disabled]="!driversLoaded() || drivers().length === 0"
+            (click)="openDriverPicker()"
+            class="w-full min-h-[50px] bg-surface-muted border rounded-xl px-4 py-3 text-base text-left
+                   flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600
+                   transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <option value="" disabled>{{ driversLoaded() ? 'Escolha o motorista' : 'Carregando…' }}</option>
-            @for (d of drivers(); track d.id) {
-              <option [value]="d.id">{{ d.name }}</option>
-            }
-          </select>
+            <span class="min-w-0 flex-1 truncate" [class.text-fg-body]="selectedDriver()" [class.text-fg-faint]="!selectedDriver()">
+              {{ selectedDriver() ? (selectedDriver()!.name | personName) : (driversLoaded() ? 'Escolha o motorista' : 'Carregando…') }}
+            </span>
+            <svg class="shrink-0 text-fg-faint" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
         </app-form-field>
 
         <app-form-field
@@ -116,3 +126,15 @@
     </div>
   </form>
 </app-default-page-layout>
+
+@if (driverPickerOpen()) {
+  <app-bottom-sheet title="Escolha o motorista" (closed)="onDriverPickerClosed()">
+    <div class="pb-2">
+      <app-driver-picker
+        [drivers]="drivers()"
+        [selectedId]="form.controls.driverId.value"
+        (picked)="pickDriver($event.id)"
+      />
+    </div>
+  </app-bottom-sheet>
+}

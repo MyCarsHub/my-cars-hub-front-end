@@ -75,16 +75,56 @@ describe('AdjustmentForm', () => {
 
   beforeEach(() => TestBed.resetTestingModule());
 
-  it('lista os motoristas e não oferece aluguel nem forma de pagamento', () => {
-    const { el } = setup();
-    const options = Array.from(el.querySelectorAll('#adjustment-driver option')).map((o) => o.textContent?.trim());
-    expect(options).toContain('Carlos Mendes');
+  it('lista os motoristas e não oferece aluguel nem forma de pagamento', async () => {
+    const { el, fixture } = setup();
     expect(el.textContent).not.toMatch(/Aluguel|Forma de pagamento|Boleto|Cartão/);
+    (el.querySelector('#adjustment-driver') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const options = Array.from(document.querySelectorAll('[data-testid="driver-picker-option"]')).map((o) =>
+      o.textContent?.trim(),
+    );
+    expect(options).toContain('Carlos Mendes');
+    expect(options).toContain('Bruno Almeida');
+  });
+
+  it('motorista NÃO é <select> nativo: a lista abre na folha e a escolha vai para o controle', async () => {
+    const { el, fixture, api } = setup();
+    expect(el.querySelector('select')).toBeNull();
+    const trigger = el.querySelector('#adjustment-driver') as HTMLButtonElement;
+    expect(trigger.tagName).toBe('BUTTON');
+    expect(trigger.className).toMatch(/\btext-base\b/);
+    expect(trigger.className).toMatch(/focus:ring-primary-600/);
+    expect(trigger.textContent).toContain('Escolha o motorista');
+
+    trigger.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const bruno = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-testid="driver-picker-option"]')).find(
+      (b) => b.textContent?.includes('Bruno Almeida'),
+    )!;
+    bruno.click();
+    fixture.detectChanges();
+
+    expect(api.form.controls['driverId'].value).toBe('d2');
+    expect(trigger.textContent).toContain('Bruno Almeida');
+  });
+
+  it('fechar a folha sem escolher mostra o erro de obrigatório', async () => {
+    const { el, fixture } = setup();
+    (el.querySelector('#adjustment-driver') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    (document.querySelector('[data-testid="bottom-sheet-close"]') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 250));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="bottom-sheet"]')).toBeNull();
+    expect(el.querySelector('#adjustment-driver-error, [role="alert"]')?.textContent).toContain('Escolha o motorista.');
   });
 
   it('campos com fonte ≥ 16px (text-base): o iOS não dá zoom no foco', () => {
     const { el } = setup();
-    for (const c of Array.from(el.querySelectorAll('input, select'))) {
+    for (const c of Array.from(el.querySelectorAll('input, select, #adjustment-driver'))) {
       expect(c.className).toMatch(/\btext-base\b/);
     }
   });
