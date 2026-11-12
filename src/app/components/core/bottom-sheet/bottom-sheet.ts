@@ -6,6 +6,7 @@ import {
   OnDestroy,
   OnInit,
   afterNextRender,
+  computed,
   inject,
   input,
   output,
@@ -15,6 +16,9 @@ import {
 
 /** Duração da saída; a entrada é 320ms (mola) no celular e 200ms no desktop. */
 export const BOTTOM_SHEET_LEAVE_MS = 200;
+
+/** Variante `bare` com "reduzir movimento": entra e sai com este fade, sem mola. */
+export const BOTTOM_SHEET_REDUCED_FADE_MS = 160;
 
 let nextId = 0;
 
@@ -59,13 +63,27 @@ let nextId = 0;
     @keyframes bs-sink { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, 100%, 0); } }
     @keyframes bs-pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
     @keyframes bs-unpop { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.97); } }
+    /* bare (novidade v2): mola mais longa no celular; no desktop, escala 0,96→1 com um leve quique. */
+    .panel.bare { animation: bs-rise 520ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+    /* Saída igual à folha padrão (as regras de entrada acima teriam vencido a de saída). */
+    .leaving .panel.bare { animation: bs-sink ${BOTTOM_SHEET_LEAVE_MS}ms cubic-bezier(0.4, 0, 1, 1) both; }
+    @media (min-width: 1024px) {
+      .panel.bare { animation: bs-pop-spring 440ms cubic-bezier(0.34, 1.32, 0.64, 1) both; }
+      .leaving .panel.bare { animation: bs-unpop 160ms ease-in both; }
+    }
+    @keyframes bs-pop-spring { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) {
       .backdrop, .panel, .leaving .backdrop, .leaving .panel { animation: none !important; }
-      .leaving { opacity: 0; }
+      .leaving:not(.is-bare) { opacity: 0; }
+      /* bare: entra e sai só com um fade curto, sem mola. */
+      .panel.bare { animation: bs-fade-in ${BOTTOM_SHEET_REDUCED_FADE_MS}ms linear both !important; }
+      .is-bare.leaving .backdrop, .is-bare.leaving .panel.bare {
+        animation: bs-fade-out ${BOTTOM_SHEET_REDUCED_FADE_MS}ms linear both !important;
+      }
     }
   `,
   template: `
-    <div [class.leaving]="leaving()" data-testid="bottom-sheet">
+    <div [class.leaving]="leaving()" [class.is-bare]="bare()" data-testid="bottom-sheet">
       <div
         class="backdrop fixed inset-0 z-[110] bg-black/45 backdrop-blur-sm"
         (click)="requestClose()"
@@ -76,13 +94,18 @@ let nextId = 0;
           #panel
           role="dialog"
           aria-modal="true"
-          [attr.aria-labelledby]="titleId"
-          class="panel relative overflow-hidden pointer-events-auto w-full bg-surface border border-edge-soft shadow-2xl
-                 rounded-t-3xl lg:rounded-2xl max-h-[92dvh] flex flex-col
-                 pb-[env(safe-area-inset-bottom)] lg:pb-0"
-          [class]="size() === 'xl' ? 'lg:max-w-[1220px]' : size() === 'wide' ? 'lg:max-w-[820px]' : size() === 'lg' ? 'lg:max-w-2xl' : 'lg:max-w-md'"
+          [attr.aria-labelledby]="bare() ? (labelledBy() ?? titleId) : titleId"
+          class="panel relative overflow-hidden pointer-events-auto w-full shadow-2xl max-h-[92dvh] flex flex-col"
+          [class]="panelClass()"
           (keydown.tab)="trapTab($event)"
         >
+          @if (bare()) {
+            <!-- O conteúdo desenha tudo (topo, título, X, ações); o h2 só existe se ninguém rotulou. -->
+            @if (!labelledBy()) {
+              <h2 [id]="titleId" class="sr-only">{{ title() }}</h2>
+            }
+            <div #body class="overflow-y-auto overscroll-contain grow" (scroll)="measure()"><ng-content select="[sheetBare]" /></div>
+          } @else {
           <header class="px-5 pt-3 lg:pt-6 lg:px-6 shrink-0">
             <div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-surface-strong lg:hidden" aria-hidden="true"></div>
             <div class="flex items-start justify-between gap-3">
@@ -122,6 +145,7 @@ let nextId = 0;
           <footer class="px-5 lg:px-6 pb-5 lg:pb-6 shrink-0 empty:hidden">
             <ng-content select="[sheetFooter]" />
           </footer>
+          }
         </section>
       </div>
     </div>
@@ -146,6 +170,22 @@ export class BottomSheet implements OnInit, OnDestroy {
   readonly quietScroll = input(false);
   /** `false` esconde o X (aviso bloqueante): quem usa deve oferecer a saída por um botão. */
   readonly closable = input(true);
+  /**
+   * `bare`: sem cabeçalho, rodapé nem margens — o conteúdo (slot `[sheetBare]`) desenha tudo.
+   * Cantos de 28 px, janela de 480 px a partir de 1024 px, entrada em mola (novidade v2).
+   */
+  readonly variant = input<'default' | 'bare'>('default');
+  /** Id do título que o conteúdo desenha (só `bare`). */
+  readonly labelledBy = input<string | null>(null);
+  protected readonly bare = computed(() => this.variant() === 'bare');
+  protected readonly panelClass = computed(() => {
+    if (this.bare()) {
+      return 'bare rounded-t-[28px] lg:rounded-[28px] lg:max-w-[480px] bg-surface pb-[env(safe-area-inset-bottom)] lg:pb-0';
+    }
+    const width =
+      this.size() === 'xl' ? 'lg:max-w-[1220px]' : this.size() === 'wide' ? 'lg:max-w-[820px]' : this.size() === 'lg' ? 'lg:max-w-2xl' : 'lg:max-w-md';
+    return `bg-surface border border-edge-soft rounded-t-3xl lg:rounded-2xl pb-[env(safe-area-inset-bottom)] lg:pb-0 ${width}`;
+  });
   readonly closed = output<void>();
 
   protected readonly titleId = `bottom-sheet-title-${++nextId}`;
@@ -201,7 +241,8 @@ export class BottomSheet implements OnInit, OnDestroy {
     if ((this.busy() && !force) || this.leaving()) return;
     this.leaving.set(true);
     const reduced = this.doc.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    setTimeout(() => this.closed.emit(), reduced ? 0 : BOTTOM_SHEET_LEAVE_MS);
+    const reducedDelay = this.bare() ? BOTTOM_SHEET_REDUCED_FADE_MS : 0;
+    setTimeout(() => this.closed.emit(), reduced ? reducedDelay : BOTTOM_SHEET_LEAVE_MS);
   }
 
   protected onEscape(event: Event): void {
@@ -227,7 +268,11 @@ export class BottomSheet implements OnInit, OnDestroy {
   private focusFirst(): void {
     const all = this.focusables();
     // O botão Fechar é o primeiro no DOM; prefere o primeiro controle do conteúdo.
-    const target = all.find((el) => el.dataset['testid'] !== 'bottom-sheet-close') ?? all[0];
+    // `data-autofocus` marca o controle principal quando o conteúdo prefere outro.
+    const target =
+      all.find((el) => el.hasAttribute('data-autofocus')) ??
+      all.find((el) => el.dataset['testid'] !== 'bottom-sheet-close') ??
+      all[0];
     target?.focus({ preventScroll: true });
   }
 

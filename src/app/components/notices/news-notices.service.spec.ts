@@ -1,5 +1,5 @@
-import { Component } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { Component, Type } from '@angular/core';
+import { DeferBlockState, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -45,6 +45,21 @@ class Host {}
  * Cada `it` é uma "carga do app": TestBed novo = serviço novo. O `sessionStorage` é o da aba e
  * sobrevive entre cargas, como num reload; `newSession()` limpa, como um novo login.
  */
+
+/**
+ * O cartão v2 do popup vem por `@defer`. Carrega o bloco UMA vez (renderiza e desmonta) para
+ * que os blocos seguintes renderizem na hora, como num app que já baixou o pedaço.
+ */
+async function warmNewsCard(host: Type<unknown>): Promise<void> {
+  const notices = TestBed.inject(NoticesService);
+  notices.enqueue({ id: 'news:warm-up', type: 'NEWS', title: 'w', message: 'w' }).subscribe();
+  const f = TestBed.createComponent(host);
+  f.detectChanges();
+  for (const block of await f.getDeferBlocks()) await block.render(DeferBlockState.Complete);
+  notices.dismiss('news:warm-up');
+  f.destroy();
+}
+
 describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
   let http: HttpTestingController;
   let service: NewsNoticesService;
@@ -89,10 +104,11 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
     f.detectChanges();
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.useFakeTimers();
     newSession();
     boot();
+    await warmNewsCard(Host);
   });
 
   afterEach(() => {
@@ -101,6 +117,50 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
     // isolate:false — nada desta suíte vaza para a vizinha.
     sessionStorage.clear();
     TestBed.resetTestingModule();
+  });
+
+  it('mídia vai para o aviso e, se a URL assinada vencer, pede a lista de novo UMA vez', () => {
+    render();
+    service.maybeShow();
+    http
+      .expectOne(UNREAD)
+      .flush([news('a', { mediaType: 'VIDEO', mediaUrl: 'https://cdn.test/v.mp4?t=1', mediaWidth: 1080, mediaHeight: 1920 })]);
+    TestBed.tick();
+    const media = notices.current()?.media;
+    expect(media).toEqual(expect.objectContaining({ type: 'VIDEO', url: 'https://cdn.test/v.mp4?t=1', width: 1080, height: 1920 }));
+    let fresh: string | null = null;
+    media!.refresh!().subscribe((u) => (fresh = u));
+    http.expectOne(UNREAD).flush([news('a', { mediaType: 'VIDEO', mediaUrl: 'https://cdn.test/v.mp4?t=2' })]);
+    expect(fresh).toBe('https://cdn.test/v.mp4?t=2');
+    // Nunca guardada no storage.
+    expect(JSON.stringify(sessionStorage)).not.toContain('cdn.test');
+    expect(JSON.stringify(localStorage)).not.toContain('cdn.test');
+    notices.dismiss('news:a');
+    http.expectOne(readUrl('a')).flush(null);
+  });
+
+  it('o cartão não baixou (@error): a novidade sai da fila SEM marcar como lida e o lembrete bloqueante segue', async () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a')]);
+    TestBed.tick();
+    f.detectChanges();
+    expect(notices.current()?.id).toBe('news:a');
+    let reminder: string | null = null;
+    notices
+      .enqueue({ id: 'contact', type: 'REMINDER', title: 'Contato', message: 'Falta o contato.', blocking: true })
+      .subscribe((o) => (reminder = o));
+
+    const [block] = await f.getDeferBlocks();
+    await block.render(DeferBlockState.Error);
+    TestBed.tick();
+    f.detectChanges();
+
+    expect(notices.current()?.id).toBe('contact');
+    expect(q(f, '[data-testid="notice-type"]')?.textContent).toContain('Lembrete');
+    http.expectNone(readUrl('a'));
+    notices.resolve('contact');
+    expect(reminder).toBe('resolved');
   });
 
   it('enfileira a MAIS ANTIGA como NEWS, com "Entendi", texto simples e itens vazios fora', () => {

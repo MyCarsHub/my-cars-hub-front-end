@@ -13,7 +13,8 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Observable, switchMap, tap } from 'rxjs';
+import { HttpEventType } from '@angular/common/http';
+import { Observable, Subscription, of, switchMap, tap } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -24,6 +25,13 @@ import {
   AnnouncementRequest,
 } from '../../../types/announcement.types';
 import { AdminAnnouncementsService } from './admin-announcements.service';
+import { mediaKindOf, validateAnnouncementMedia } from './announcement-media-file';
+import {
+  AnnouncementMediaField,
+  MediaFieldError,
+  MediaFieldMedia,
+  MediaFieldUpload,
+} from './announcement-media-field';
 import { AnnouncementPreview, PreviewDevice } from './announcement-preview';
 
 /** `new` = criar (ou duplicar); `edit` = rascunho ou publicada; `view` = encerrada (só leitura). */
@@ -65,7 +73,7 @@ interface PreviewState {
 @Component({
   selector: 'app-announcement-sheet',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BottomSheet, ReactiveFormsModule, AlertBanner, AnnouncementPreview, NgTemplateOutlet],
+  imports: [BottomSheet, ReactiveFormsModule, AlertBanner, AnnouncementPreview, NgTemplateOutlet, AnnouncementMediaField],
   templateUrl: './announcement-sheet.html',
 })
 export class AnnouncementSheet implements OnInit {
@@ -94,6 +102,17 @@ export class AnnouncementSheet implements OnInit {
    * tentativa atualiza e publica a mesma linha, em vez de criar outro rascunho.
    */
   private readonly createdId = signal<string | null>(null);
+
+  /** Mídia gravada no servidor (a da novidade aberta; some ao duplicar). */
+  protected readonly media = signal<MediaFieldMedia | null>(null);
+  protected readonly upload = signal<MediaFieldUpload | null>(null);
+  protected readonly mediaError = signal<MediaFieldError | null>(null);
+  protected readonly removingMedia = signal(false);
+  /** Envio (ou criação do rascunho + envio) em voo; desinscrever cancela. */
+  private uploadSub: Subscription | null = null;
+  /** Encerrada: trocar não pode (409); remover pode. */
+  protected readonly canReplaceMedia = computed(() => this.mode() !== 'view');
+  protected readonly mediaBusy = computed(() => this.upload() !== null || this.removingMedia());
 
   protected readonly mode = computed<AnnouncementSheetMode>(() => {
     const a = this.announcement();
@@ -198,10 +217,11 @@ export class AnnouncementSheet implements OnInit {
       !this.periodError()
     );
   });
-  protected readonly canSave = computed(() => this.contentValid() && !this.busy());
+  protected readonly canSave = computed(() => this.contentValid() && !this.busy() && !this.mediaBusy());
   protected readonly canPublish = computed(() => this.canSave() && !this.noAudience());
 
   ngOnInit(): void {
+    this.destroyRef.onDestroy(() => this.cancelUpload());
     this.fill(this.announcement());
     if (this.mode() === 'view') this.form.disable({ emitEvent: false });
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.sync());
@@ -251,8 +271,86 @@ export class AnnouncementSheet implements OnInit {
     this.run(this.persist(), 'Não foi possível salvar as mudanças.');
   }
 
+  /**
+   * Arquivo escolhido: confere na hora (formato e tamanho) e envia. A mídia sobe para um
+   * rascunho JÁ salvo: sendo nova, a folha cria o rascunho primeiro e guarda o id (o mesmo
+   * que "Publicar" usa depois). Numa existente, envia direto, sem gravar o texto.
+   */
+  protected onMediaPicked(file: File): void {
+    if (!this.canReplaceMedia() || this.mediaBusy()) return;
+    const problem = validateAnnouncementMedia(file);
+    if (problem) {
+      this.mediaError.set({ name: file.name, message: problem });
+      return;
+    }
+    const id = this.savedId();
+    if (!id && !this.contentValid()) {
+      this.mediaError.set({
+        name: file.name,
+        message: 'Preencha o título e o texto antes de enviar a mídia: ela fica guardada no rascunho.',
+      });
+      return;
+    }
+    const kind = mediaKindOf(file)!;
+    this.mediaError.set(null);
+    this.error.set(null);
+    this.upload.set({ name: file.name, sizeBytes: file.size, contentType: kind.contentType, progress: 0 });
+    const target$: Observable<string> = id ? of(id) : this.persist().pipe(switchMap((a) => of(a.id)));
+    this.uploadSub = target$
+      .pipe(switchMap((target) => this.service.uploadMedia(target, file)))
+      .subscribe({
+        next: (event) => {
+          if (event.type === HttpEventType.UploadProgress) {
+            const pct = event.total ? Math.round((100 * event.loaded) / event.total) : 0;
+            this.upload.update((u) => (u ? { ...u, progress: Math.min(99, pct) } : u));
+          } else if (event.type === HttpEventType.Response && event.body) {
+            this.uploadSub = null;
+            this.upload.set(null);
+            this.media.set(this.mediaOf(event.body, file.name));
+            this.listChanged.emit();
+          }
+        },
+        error: (err: unknown) => {
+          this.uploadSub = null;
+          this.upload.set(null);
+          this.mediaError.set({ name: file.name, message: this.apiErrors.messageFor(err, 'Não foi possível enviar o arquivo.') });
+        },
+      });
+  }
+
+  /** Cancela o envio (aborta o XHR). Um rascunho já criado continua existindo. */
+  protected cancelUpload(): void {
+    this.uploadSub?.unsubscribe();
+    this.uploadSub = null;
+    this.upload.set(null);
+  }
+
+  protected removeMedia(): void {
+    const id = this.savedId();
+    if (!id || this.mediaBusy()) return;
+    this.removingMedia.set(true);
+    this.mediaError.set(null);
+    this.service
+      .removeMedia(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.removingMedia.set(false);
+          this.media.set(null);
+          this.listChanged.emit();
+        },
+        error: (err: unknown) => {
+          this.removingMedia.set(false);
+          this.mediaError.set({ name: null, message: this.apiErrors.messageFor(err, 'Não foi possível remover a mídia.') });
+        },
+      });
+  }
+
   /** Encerrada → rascunho novo com o mesmo texto (datas em branco). */
   protected startDuplicate(): void {
+    // A mídia não vai junto: o rascunho novo começa sem, e a pessoa envia de novo se quiser.
+    this.media.set(null);
+    this.mediaError.set(null);
     this.duplicating.set(true);
     this.form.enable({ emitEvent: false });
     this.form.patchValue({ startsOn: '', endsOn: '' });
@@ -277,6 +375,27 @@ export class AnnouncementSheet implements OnInit {
         this.error.set(this.apiErrors.messageFor(err, fallback));
       },
     });
+  }
+
+  /** Id da linha no servidor que esta folha edita (rascunho criado aqui, ou a aberta). */
+  private savedId(): string | null {
+    const created = this.createdId();
+    if (created) return created;
+    const a = this.announcement();
+    return a && this.mode() !== 'new' ? a.id : null;
+  }
+
+  private mediaOf(a: AdminAnnouncement, name: string | null): MediaFieldMedia | null {
+    if (!a.mediaType) return null;
+    return {
+      type: a.mediaType,
+      url: a.mediaUrl ?? null,
+      contentType: a.mediaContentType ?? null,
+      sizeBytes: a.mediaSizeBytes ?? null,
+      width: a.mediaWidth ?? null,
+      height: a.mediaHeight ?? null,
+      name,
+    };
   }
 
   private persist(): Observable<AdminAnnouncement> {
@@ -324,6 +443,7 @@ export class AnnouncementSheet implements OnInit {
       );
     }
     const dup = this.duplicate();
+    if (!dup) this.media.set(this.mediaOf(a, null));
     this.form.patchValue(
       {
         title: a.title,

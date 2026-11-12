@@ -123,6 +123,17 @@ describe('CSP de producao em vercel.json', () => {
     expect(directive('connect-src')).toContain('https://fonts.gstatic.com');
   });
 
+  /**
+   * O vídeo da novidade vem de URL assinada do Supabase Storage. Sem `media-src`, o `<video>`
+   * cai no `default-src 'self'` e é bloqueado (a imagem passa porque `img-src` já lista o
+   * Supabase). Mesma origem do `img-src`, nada além.
+   */
+  it('media-src permite o vídeo da novidade (Supabase Storage), só https e só essa origem', () => {
+    const media = directive('media-src').split(/\s+/).slice(1);
+    expect(media).toEqual(["'self'", 'https://*.supabase.co']);
+    expect(directive('img-src')).toContain('https://*.supabase.co');
+  });
+
   it('img-src permite o pixel de fallback do GA', () => {
     expect(directive('img-src')).toContain('https://*.google-analytics.com');
   });

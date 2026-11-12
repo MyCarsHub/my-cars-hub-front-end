@@ -16,12 +16,8 @@ import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/
 import { provideServiceWorker } from '@angular/service-worker';
 
 import { routes } from './app.routes';
-import { authInterceptor } from './services/auth.interceptor';
-import { errorInterceptor } from './services/error.interceptor';
-import { platformMaintenanceInterceptor } from './services/platform-maintenance.interceptor';
-import { impersonationInterceptor } from './services/impersonation.interceptor';
+import { API_INTERCEPTORS } from './services/api-interceptors';
 import { PageTitleStrategy } from './services/page-title.strategy';
-import { prerenderApiBaseInterceptor } from './services/prerender-api-base.interceptor';
 import { ImpersonationService } from './services/impersonation.service';
 import { TenantCachesService } from './services/tenant-caches.service';
 import { ThemeService } from './services/theme.service';
@@ -37,25 +33,8 @@ export const appConfig: ApplicationConfig = {
     // <script>, which the production CSP (`script-src 'self'`, see vercel.json) blocks.
     // Routes that were not prerendered are served the CSR shell and render normally.
     provideClientHydration(),
-    // `impersonationInterceptor` vem PRIMEIRO de propósito: sendo o mais externo,
-    // a recusa de escrita durante uma sessão somente-leitura nem chega a montar
-    // a requisição — e o erro sintético que ele devolve não passa pelo
-    // `errorInterceptor`, que senão duplicaria o aviso.
-    // `prerenderApiBaseInterceptor` vem POR ÚLTIMO de propósito: ele reescreve a URL
-    // relativa da API para uma base absoluta durante o prerender, e os três acima
-    // precisam ver a URL original — `isApiRequest` ancora em `environment.apiUrl`. No
-    // browser o token não está provido e ele é um pass-through.
-    provideHttpClient(
-      withFetch(),
-      withInterceptors([
-        impersonationInterceptor,
-        authInterceptor,
-        errorInterceptor,
-        prerenderApiBaseInterceptor,
-        // Mais interno: vê o 503 antes do errorInterceptor decidir o que fazer com ele.
-        platformMaintenanceInterceptor,
-      ]),
-    ),
+    // A ordem da cadeia e o porquê de cada posição: `services/api-interceptors.ts`.
+    provideHttpClient(withFetch(), withInterceptors(API_INTERCEPTORS)),
     provideAnimations(),
     // Instancia no boot os dois donos de estado que se registram no
     // `SessionResetRegistry`. Sem isto o registro dependeria de o serviço já ter

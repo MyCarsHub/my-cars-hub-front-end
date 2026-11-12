@@ -1,6 +1,6 @@
-import { TestBed } from '@angular/core/testing';
+import { DeferBlockState, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { Component } from '@angular/core';
+import { Component, Type } from '@angular/core';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CompanyContactService } from '../../services/company-contact.service';
@@ -11,10 +11,25 @@ import { NoticesPopup } from './notices-popup';
 @Component({ imports: [NoticesPopup], template: '<app-notices-popup />' })
 class Host {}
 
+
+/**
+ * O cartão v2 do popup vem por `@defer`. Carrega o bloco UMA vez (renderiza e desmonta) para
+ * que os blocos seguintes renderizem na hora, como num app que já baixou o pedaço.
+ */
+async function warmNewsCard(host: Type<unknown>): Promise<void> {
+  const notices = TestBed.inject(NoticesService);
+  notices.enqueue({ id: 'news:warm-up', type: 'NEWS', title: 'w', message: 'w' }).subscribe();
+  const f = TestBed.createComponent(host);
+  f.detectChanges();
+  for (const block of await f.getDeferBlocks()) await block.render(DeferBlockState.Complete);
+  notices.dismiss('news:warm-up');
+  f.destroy();
+}
+
 describe('NoticesPopup', () => {
   let notices: NoticesService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.useFakeTimers();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -28,6 +43,7 @@ describe('NoticesPopup', () => {
       ],
     });
     notices = TestBed.inject(NoticesService);
+    await warmNewsCard(Host);
   });
 
   afterEach(() => vi.useRealTimers());

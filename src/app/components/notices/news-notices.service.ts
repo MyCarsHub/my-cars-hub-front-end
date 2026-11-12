@@ -1,6 +1,6 @@
 import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, effect, inject, signal } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { SILENT_HTTP_ERRORS } from '../../services/http-errors.context';
 import {
@@ -105,6 +105,21 @@ export class NewsNoticesService {
       link:
         item.linkUrl && item.linkLabel ? { label: item.linkLabel, route: item.linkUrl } : undefined,
       dismissLabel: 'Entendi',
+      audience: this.session.getCompanyRoleFromToken() === 'DRIVER' ? 'MOTORISTA' : 'LOCADORA',
+      media:
+        item.mediaType && item.mediaUrl
+          ? {
+              type: item.mediaType,
+              url: item.mediaUrl,
+              width: item.mediaWidth ?? null,
+              height: item.mediaHeight ?? null,
+              // URL assinada vence (~1 h): se falhar, pede a lista de novo e pega a desta novidade.
+              refresh: () =>
+                this.unread().pipe(
+                  map((list) => (Array.isArray(list) ? list : []).find((a) => a.id === item.id)?.mediaUrl ?? null),
+                ),
+            }
+          : undefined,
     };
     const gen = this.generation;
     this.queuedId = notice.id;
