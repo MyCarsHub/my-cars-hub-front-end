@@ -19,6 +19,7 @@ import { SessionService } from '../../../services/session.service';
 import { PaywallDialog } from '../../paywall-dialog/paywall-dialog';
 import { NoticesPopup } from '../../notices/notices-popup';
 import { NewsNoticesService } from '../../notices/news-notices.service';
+import { NewsFeedService } from '../../../services/news-feed.service';
 import { NotificationBell } from '../../notification-bell/notification-bell';
 import { ImpersonationService } from '../../../services/impersonation.service';
 import { TourSpotlight } from '../../tour/tour-spotlight';
@@ -159,6 +160,7 @@ export class AppShell implements OnInit, OnDestroy {
   private readonly tour = inject(TourService);
   private readonly pastDue = inject(PastDueBannerStore);
   private readonly news = inject(NewsNoticesService);
+  private readonly newsFeed = inject(NewsFeedService);
   /** "Depois" esconde o aviso de atraso até este instante (por empresa, nesta aba). */
   private readonly pastDueSnoozedUntil = signal(0);
 
@@ -270,6 +272,8 @@ export class AppShell implements OnInit, OnDestroy {
       if (!this.session.isOnboardingCompleted()) return;
       try {
         this.news.maybeShow();
+        // "N novas" no item Novidades do menu (uma busca por pessoa e papel).
+        this.newsFeed.loadUnreadCount();
       } catch {
         // A novidade é um extra: nada nela pode derrubar a casca do app.
       }

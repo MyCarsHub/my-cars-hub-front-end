@@ -30,6 +30,8 @@ import {
   DriverNavRoutes,
 } from './driver-nav';
 import { PersonNamePipe } from '../../pipes/person-name.pipe';
+import { NewsUnreadBadgeStore } from '../../services/news-unread-badge.store';
+import { StatusChip } from '../core/status-chip/status-chip';
 
 export interface NavItem {
   route?: string;
@@ -49,6 +51,8 @@ export interface NavItem {
   tourKey?: string;
   /** Grupo que nasce aberto antes de qualquer clique (menu do motorista: Financeiro). */
   defaultOpen?: boolean;
+  /** Chip ao lado do rótulo. `news` = "N novas" enquanto houver novidade não lida. */
+  badge?: 'news';
 }
 
 /** Cartão do topo no lugar do seletor de empresa (a área de administração mostra a PESSOA). */
@@ -89,6 +93,8 @@ const ICON_EXPENSES = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height
 const ICON_ADJUSTMENTS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4"/></svg>`;
 const ICON_REPORTS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
 const ICON_ROADMAP = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>`;
+/* O mesmo jornal da prancha NovidadesPagina (canvas, 12/11). */
+const ICON_NEWS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11a2 2 0 0 1 2 2v13a1 1 0 0 0 2 0V9h-2M5 4v14a2 2 0 0 0 2 2h12M8 8h6M8 12h6M8 16h3"/></svg>`;
 const ICON_BILLING = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`;
 const ICON_COMPANY = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h.01"/><path d="M9 13h.01"/><path d="M9 17h.01"/><path d="M15 9h.01"/><path d="M15 13h.01"/><path d="M15 17h.01"/></svg>`;
 const ICON_INTEGRATIONS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
@@ -116,6 +122,7 @@ const DRIVER_ICONS: Record<DriverNavIcon, string> = {
   fines: ICON_FINES,
   alerts: ICON_ALERTS,
   roadmap: ICON_ROADMAP,
+  news: ICON_NEWS,
   settings: ICON_SETTINGS,
   support: ICON_SUPPORT,
   profile: ICON_PROFILE,
@@ -144,6 +151,7 @@ export function buildDriverNavItems(routes: DriverNavRoutes): NavItem[] {
       label: entry.label,
       icon,
       exactMatch: entry.exactMatch,
+      badge: entry.key === 'novidades' ? 'news' : undefined,
       // Mesmo campo do `NAV_ITEMS`: `navItems`/`bottomNavItems` separam os dois menus igual.
       pinBottom: entry.pinBottom,
     };
@@ -290,6 +298,16 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['OWNER', 'MANAGER'],
     tourKey: TOUR_ANCHORS.alerts,
   },
+  // Novidades (feed de anúncios): entre Alertas e Roadmap, com "N novas" enquanto houver não
+  // lida (canvas NovidadesPagina, 12/11). Todos os papéis de empresa: cada um lê as do seu
+  // público. `roles` casa com o `roleGuard` da rota `novidades`.
+  {
+    route: '/novidades',
+    label: 'Novidades',
+    icon: ICON_NEWS,
+    roles: ['OWNER', 'MANAGER', 'DRIVER'],
+    badge: 'news',
+  },
   // O MOTORISTA lê o Roadmap, e só lê: `GET /v1/feedback/tasks` é dele, criar,
   // editar e votar não — a tela esconde esses controles por papel.
   { route: '/roadmap', label: 'Roadmap', icon: ICON_ROADMAP, tourKey: TOUR_ANCHORS.roadmap },
@@ -387,7 +405,7 @@ export const NAV_ITEMS: NavItem[] = [
 @Component({
   selector: 'app-sidebar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PersonNamePipe, NgTemplateOutlet, RouterLink, RouterLinkActive, CompanySwitcher],
+  imports: [PersonNamePipe, NgTemplateOutlet, RouterLink, RouterLinkActive, CompanySwitcher, StatusChip],
   host: { '(document:keydown.escape)': 'onEscape()' },
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css',
@@ -471,6 +489,7 @@ export class Sidebar {
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
   private readonly driverRoutes = inject(DRIVER_NAV_ROUTES);
+  private readonly newsBadge = inject(NewsUnreadBadgeStore);
 
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
@@ -608,6 +627,11 @@ export class Sidebar {
     if (item.defaultOpen) return true;
     const url = this.currentUrl();
     return item.children?.some((c) => !!c.route && url.startsWith(c.route)) ?? false;
+  }
+
+  /** Texto do chip do item (só `news` hoje); vazio = sem chip. */
+  protected badgeText(item: NavItem): string {
+    return item.badge === 'news' ? this.newsBadge.label() : '';
   }
 
   protected safeIcon(icon: string): SafeHtml {

@@ -1,0 +1,179 @@
+<app-default-page-layout title="Novidades" [description]="lead()">
+  <!--
+    Canvas NovidadesPagina (12/11). Computador: coluna de data (dia e mês em Sora, ano, chip
+    Nova) e texto com até 680px. Celular: data numa linha acima do título, chip ao lado.
+    Itens separados só por espaço, nenhuma linha divisória.
+    Ajuste do dono depois do canvas ("use o verde e laranja"): link de cada post em laranja
+    sólido, chip Nova verde, Carregar mais verde sólido, Tentar de novo laranja sólido.
+  -->
+  <div class="max-w-[864px]">
+    @if (loading()) {
+      <div role="status" aria-label="Carregando novidades" class="flex flex-col gap-14 lg:gap-[72px]" data-testid="feed-loading">
+        @for (media of skeletons; track $index) {
+          <div class="flex flex-col gap-3.5 lg:grid lg:grid-cols-[136px_minmax(0,680px)] lg:gap-x-12 lg:gap-y-0" aria-hidden="true">
+            <div class="flex flex-col gap-2">
+              <div class="h-3.5 w-[150px] rounded-full bg-surface-sunken motion-safe:animate-pulse lg:w-16"></div>
+              <div class="hidden h-3 w-10 rounded-full bg-surface-sunken motion-safe:animate-pulse lg:block"></div>
+            </div>
+            <div class="flex min-w-0 flex-col gap-3.5">
+              <div class="h-[22px] rounded-lg bg-surface-sunken motion-safe:animate-pulse lg:h-[26px]" [style.width]="skeletonTitleWidths[$index]"></div>
+              @if (media) {
+                <div class="aspect-video w-full rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
+              }
+              <div class="h-3.5 w-full rounded-full bg-surface-sunken motion-safe:animate-pulse"></div>
+              <div class="h-3.5 w-full rounded-full bg-surface-sunken motion-safe:animate-pulse"></div>
+              <div class="h-3.5 w-[55%] rounded-full bg-surface-sunken motion-safe:animate-pulse"></div>
+            </div>
+          </div>
+        }
+      </div>
+    } @else if (failed()) {
+      <div role="alert" class="flex flex-col items-center gap-3 px-2 py-12 text-center lg:px-6 lg:py-[72px]" data-testid="feed-error">
+        <span class="grid size-14 place-items-center rounded-2xl bg-surface-sunken text-fg-muted">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5M12 16.5h.01M10.3 3.9L2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
+        </span>
+        <h2 class="mt-1 font-display text-xl font-semibold text-fg text-balance">Não foi possível carregar as novidades</h2>
+        <p class="max-w-[400px] text-[15px] leading-[1.55] text-fg-muted">Verifique sua conexão com a internet e tente de novo. O resto do app continua funcionando.</p>
+        <button
+          type="button"
+          data-testid="feed-retry"
+          (click)="load()"
+          class="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-[22px] text-[15px] font-semibold text-white transition-[background-color,transform] duration-150
+                 hover:bg-primary-600 active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 sm:w-auto"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" /></svg>
+          Tentar de novo
+        </button>
+      </div>
+    } @else if (isEmpty()) {
+      <div class="flex flex-col items-center gap-3 px-2 py-12 text-center lg:px-6 lg:py-[72px]" data-testid="feed-empty">
+        <span class="grid size-14 place-items-center rounded-2xl bg-surface-sunken text-fg-muted">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11a2 2 0 0 1 2 2v13a1 1 0 0 0 2 0V9h-2M5 4v14a2 2 0 0 0 2 2h12M8 8h6M8 12h6M8 16h3" /></svg>
+        </span>
+        <h2 class="mt-1 font-display text-xl font-semibold text-fg text-balance">Nenhuma novidade ainda</h2>
+        <p class="max-w-[400px] text-[15px] leading-[1.55] text-fg-muted">{{ emptyText }}</p>
+      </div>
+    } @else {
+      <div class="flex flex-col gap-14 lg:gap-[72px]" data-testid="feed-list">
+        @for (row of rows(); track row.id) {
+          <article
+            [attr.aria-labelledby]="row.headingId"
+            class="flex flex-col lg:grid lg:grid-cols-[136px_minmax(0,680px)] lg:items-start lg:gap-x-12"
+            data-testid="feed-post"
+          >
+            <!-- Coluna de data (computador). -->
+            <div class="hidden flex-col items-start gap-1 pt-[5px] lg:flex">
+              @if (row.date; as d) {
+                <time [attr.datetime]="d.iso" class="font-display text-base font-semibold tracking-[-0.01em] text-primary-700 dark:text-primary-300">{{ d.short }}</time>
+                <span class="mb-1.5 text-[13px] text-fg-muted">{{ d.year }}</span>
+              }
+              @if (row.isNew) {
+                <app-status-chip tone="green" size="sm" data-testid="post-new">Nova</app-status-chip>
+              }
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-4">
+              <!-- Linha de data (celular), chip ao lado. -->
+              @if (row.date || row.isNew) {
+                <div class="flex min-h-[22px] flex-wrap items-center gap-2.5 lg:hidden">
+                  @if (row.date; as d) {
+                    <time [attr.datetime]="d.iso" class="text-[13px] font-medium text-primary-700 dark:text-primary-300">{{ d.long }}</time>
+                  }
+                  @if (row.isNew) {
+                    <app-status-chip tone="green" size="sm">Nova</app-status-chip>
+                  }
+                </div>
+              }
+
+              <h2
+                [id]="row.headingId"
+                class="m-0 font-display text-[21px] font-semibold leading-[1.3] tracking-[-0.015em] text-fg text-balance lg:text-[26px] lg:leading-[1.25] lg:tracking-[-0.02em]"
+              >{{ row.title }}</h2>
+
+              @if (row.mediaType) {
+                <app-announcement-media
+                  [type]="row.mediaType"
+                  [url]="row.mediaUrl"
+                  [width]="row.mediaWidth"
+                  [height]="row.mediaHeight"
+                  [alt]="row.title"
+                  [refresh]="row.refresh"
+                />
+              }
+
+              @if (row.paragraphs.length) {
+                <div class="flex flex-col gap-3">
+                  @for (p of row.paragraphs; track $index) {
+                    <p class="m-0 whitespace-pre-line text-base leading-[1.65] text-fg-soft">{{ p }}</p>
+                  }
+                </div>
+              }
+
+              @if (row.items.length) {
+                <ul class="m-0 flex list-disc flex-col gap-1.5 pl-[22px] text-base leading-[1.55] text-fg-soft marker:text-primary-500">
+                  @for (i of row.items; track $index) {
+                    <li class="pl-1">{{ i }}</li>
+                  }
+                </ul>
+              }
+
+              @if (row.link; as link) {
+                <div>
+                  @if (link.kind === 'external') {
+                    <a
+                      [href]="link.href"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="post-link"
+                      class="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary-500 px-[18px] text-[15px] font-semibold text-white no-underline transition-[background-color,transform] duration-150
+                             hover:bg-primary-600 active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                    >
+                      {{ link.label }}
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6l-6 6" /></svg>
+                    </a>
+                  } @else {
+                    <a
+                      [href]="link.href"
+                      (click)="openInternal($event, link.href)"
+                      data-testid="post-link"
+                      class="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary-500 px-[18px] text-[15px] font-semibold text-white no-underline transition-[background-color,transform] duration-150
+                             hover:bg-primary-600 active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                    >
+                      {{ link.label }}
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6l-6 6" /></svg>
+                    </a>
+                  }
+                </div>
+              }
+            </div>
+          </article>
+        }
+      </div>
+
+      <div class="mt-14 flex flex-col items-stretch gap-2.5 text-center lg:mt-[72px] lg:items-start lg:pl-[184px] lg:text-left">
+        @if (hasMore()) {
+          @if (moreFailed()) {
+            <p role="alert" class="m-0 text-[13px] text-fg-muted" data-testid="feed-more-error">Não foi possível carregar mais novidades. Tente de novo.</p>
+          }
+          <button
+            type="button"
+            data-testid="feed-more"
+            (click)="loadMore()"
+            [disabled]="loadingMore()"
+            [attr.aria-busy]="loadingMore()"
+            class="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-success-800 px-7 text-[15px] font-semibold text-white transition-[background-color,transform] duration-150
+                   hover:bg-success-900 active:scale-[0.97] disabled:cursor-wait disabled:opacity-70 motion-reduce:transition-none motion-reduce:active:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-success-500 focus-visible:ring-offset-2 lg:w-auto"
+          >
+            {{ loadingMore() ? 'Carregando…' : 'Carregar mais' }}
+          </button>
+          <span class="text-[13px] text-fg-muted">{{ shownCaption() }}</span>
+        } @else if (isEnd()) {
+          <p class="m-0 text-[15px] font-semibold text-fg" data-testid="feed-end">Estas são todas as novidades até agora.</p>
+          @if (firstPublished(); as first) {
+            <span class="text-[13px] text-fg-muted">A primeira foi publicada em {{ first }}.</span>
+          }
+        }
+      </div>
+    }
+  </div>
+</app-default-page-layout>
