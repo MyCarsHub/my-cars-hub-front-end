@@ -120,6 +120,38 @@ describe('NoticesPopup', () => {
     expect(navigate).toHaveBeenCalledWith('/configuracoes/contato');
   });
 
+  it('an https link to our own host navigates in the same tab via the Router, never window.open', () => {
+    const f = render();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    notices.enqueue({
+      id: 'own', type: 'REMINDER', title: 'T', message: 'm',
+      link: { label: 'Ajustes', route: 'https://www.mycarshub.app.br/ajustes?aba=1#x' },
+    });
+    f.detectChanges();
+    el(f, '[data-testid="notice-link"]')?.click();
+    vi.runAllTimers();
+    expect(open).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith('/ajustes?aba=1#x');
+    open.mockRestore();
+  });
+
+  it('an https link to another host opens in a new tab and does not navigate', () => {
+    const f = render();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    notices.enqueue({
+      id: 'ext', type: 'REMINDER', title: 'T', message: 'm',
+      link: { label: 'Fora', route: 'https://www.gov.br/denatran' },
+    });
+    f.detectChanges();
+    el(f, '[data-testid="notice-link"]')?.click();
+    vi.runAllTimers();
+    expect(open).toHaveBeenCalledWith('https://www.gov.br/denatran', '_blank', 'noopener,noreferrer');
+    expect(navigate).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
   it('shows the next notice after the first leaves', () => {
     const f = render();
     notices.enqueue({ id: 'a', type: 'REMINDER', title: 'A', message: 'm' });

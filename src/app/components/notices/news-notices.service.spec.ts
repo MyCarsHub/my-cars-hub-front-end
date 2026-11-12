@@ -368,13 +368,13 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
       const nav = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
       const f = render();
       service.maybeShow();
-      http.expectOne(UNREAD).flush([news('a', { linkUrl: 'https://mycarshub.app.br/blog', linkLabel: 'Ler' })]);
+      http.expectOne(UNREAD).flush([news('a', { linkUrl: 'https://www.gov.br/denatran', linkLabel: 'Ler' })]);
       TestBed.tick();
       f.detectChanges();
       q(f, '[data-testid="notice-link"]')!.click();
       settle(f);
       http.expectOne(readUrl('a')).flush(null, { status: 204, statusText: 'No Content' });
-      expect(open).toHaveBeenCalledWith('https://mycarshub.app.br/blog', '_blank', 'noopener,noreferrer');
+      expect(open).toHaveBeenCalledWith('https://www.gov.br/denatran', '_blank', 'noopener,noreferrer');
       expect(nav).not.toHaveBeenCalled();
     } finally {
       open.mockRestore();
