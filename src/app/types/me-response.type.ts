@@ -40,4 +40,9 @@ export type MeResponse = {
     /** Company to open first after login (last used); absent on an older backend. */
     defaultCompanyId?: string | null;
     needsOwnerOnboarding?: boolean | null;
+    /**
+     * FEAT-0573 — recursos liberados para ESTA conta (ex.: `CHARGES_FLEX`). Aditivo:
+     * nulo no login e num backend anterior; nulo/vazio = nada liberado.
+     */
+    features?: string[] | null;
 };
