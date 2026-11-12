@@ -4,7 +4,11 @@ import { SessionService } from './session.service';
 import { SessionResetRegistry } from './session-reset.registry';
 import { ImpersonationService } from './impersonation.service';
 
-/** Chave de `sessionStorage` com a lista crua (JSON) devolvida por `GET /auth/me`. */
+/**
+ * Chave de `sessionStorage` com a lista crua (JSON) devolvida por `GET /auth/me`. Quem
+ * grava é `AuthService.writeSession` (literal `'features'`, para este serviço não entrar no
+ * bundle inicial).
+ */
 export const FEATURES_SESSION_KEY = 'features';
 
 /** FEAT-0573 — Cobranças flexíveis (plano na criação, acordo, recebida por fora). */
@@ -34,7 +38,12 @@ export class FeatureFlagsService {
     inject(SessionResetRegistry).register(() => this.features.set([]));
   }
 
-  /** Chamado por `AuthService.writeSession` com o `features` do `/auth/me`. */
+  /** Relê a sessão (ex.: depois de um `/auth/me` na mesma aba). */
+  refresh(): void {
+    this.features.set(this.readStored());
+  }
+
+  /** Grava e aplica uma lista (testes e quem já tem o `/auth/me` em mãos). */
   setFromMe(features: readonly string[] | null | undefined): void {
     const list = Array.isArray(features)
       ? features.filter((f): f is string => typeof f === 'string')
