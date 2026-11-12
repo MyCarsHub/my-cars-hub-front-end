@@ -13,6 +13,18 @@ export interface NoticeLink {
   route: string;
 }
 
+/**
+ * Mídia no topo do aviso (novidade). `url` é assinada e de validade curta: `refresh` pede
+ * outra quando ela falha. Nunca vai para storage.
+ */
+export interface NoticeMedia {
+  type: 'IMAGE' | 'VIDEO';
+  url: string;
+  width: number | null;
+  height: number | null;
+  refresh?: () => Observable<string | null>;
+}
+
 /** Corpo especial que o popup sabe desenhar dentro do aviso. */
 export type NoticeForm = 'company-contact';
 
@@ -34,6 +46,8 @@ export interface Notice {
   link?: NoticeLink;
   /** Texto do botão de sair; padrão "Agora não". */
   dismissLabel?: string;
+  /** Imagem ou vídeo no topo (só novidade). */
+  media?: NoticeMedia;
 }
 
 /**

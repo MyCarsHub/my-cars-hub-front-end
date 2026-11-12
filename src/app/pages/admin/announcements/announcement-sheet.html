@@ -1,4 +1,4 @@
-<app-bottom-sheet [title]="title()" [subtitle]="subtitle()" size="xl" [busy]="busy()" (closed)="closed.emit()">
+<app-bottom-sheet [title]="title()" [subtitle]="subtitle()" size="xl" [busy]="busy() || mediaBusy()" (closed)="closed.emit()">
   <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start" data-testid="announcement-sheet" [formGroup]="form">
     <div class="flex min-w-0 flex-col gap-6">
       <label class="flex flex-col gap-2 text-sm font-medium text-fg-soft">
@@ -33,6 +33,19 @@
         ></textarea>
         <span class="text-xs font-normal text-fg-subtle">Texto simples, sem formatação. Quebra de linha vale.</span>
       </label>
+
+      <app-announcement-media-field
+        [media]="media()"
+        [upload]="upload()"
+        [error]="mediaError()"
+        [canReplace]="canReplaceMedia()"
+        [canRemove]="true"
+        [removing]="removingMedia()"
+        [alt]="state().title"
+        (picked)="onMediaPicked($event)"
+        (removeRequested)="removeMedia()"
+        (cancelRequested)="cancelUpload()"
+      />
 
       <fieldset class="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
         <legend class="mb-2 p-0 text-sm font-medium text-fg-soft">
@@ -205,9 +218,14 @@
         [linkLabel]="previewLink()"
         [area]="area()"
         [device]="device()"
+        [mediaType]="media()?.type ?? null"
+        [mediaUrl]="media()?.url ?? null"
+        [mediaWidth]="media()?.width ?? null"
+        [mediaHeight]="media()?.height ?? null"
+        [mediaPending]="upload() !== null"
       />
       @if (device() === 'desk') {
-        <span class="text-xs text-fg-subtle">Computador: janela no centro a partir de 1024 px. Celular: folha que sobe de baixo.</span>
+        <span class="text-xs text-fg-subtle">Computador: janela no centro a partir de 1024 px. Celular: folha que sobe de baixo. A mídia fica no topo, com o espaço já reservado enquanto carrega.</span>
       }
     </aside>
   </div>

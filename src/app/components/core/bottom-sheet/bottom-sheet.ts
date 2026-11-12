@@ -85,6 +85,8 @@ let nextId = 0;
         >
           <header class="px-5 pt-3 lg:pt-6 lg:px-6 shrink-0">
             <div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-surface-strong lg:hidden" aria-hidden="true"></div>
+            <!-- Acima do título (ex.: mídia da novidade). Vazio, não ocupa nada. -->
+            <ng-content select="[sheetTop]" />
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <h2 [id]="titleId" class="text-lg font-semibold text-fg break-words" [class.sr-only]="hideTitle()">{{ title() }}</h2>

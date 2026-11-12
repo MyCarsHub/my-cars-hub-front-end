@@ -1,6 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { AnnouncementAudience } from '../../../types/announcement.types';
+import { AnnouncementMedia } from '../../../components/notices/announcement-media';
+import { AnnouncementAudience, AnnouncementMediaType } from '../../../types/announcement.types';
 
 export type PreviewDevice = 'phone' | 'desk';
 
@@ -17,10 +18,10 @@ export type PreviewDevice = 'phone' | 'desk';
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     :host { display: block; }
-    .desk { position: relative; width: 320px; height: 230px; border-radius: 16px; overflow: hidden; margin: 0 auto; }
-    .desk-inner { position: absolute; left: 0; top: 0; width: 640px; height: 460px; transform: scale(0.5); transform-origin: 0 0; }
+    .desk { position: relative; width: 333px; height: 346px; border-radius: 16px; overflow: hidden; margin: 0 auto; }
+    .desk-inner { position: absolute; left: 0; top: 0; width: 640px; height: 666px; transform: scale(0.52); transform-origin: 0 0; }
     @media (min-width: 640px) {
-      .desk { width: 384px; height: 276px; }
+      .desk { width: 384px; height: 400px; }
       .desk-inner { transform: scale(0.6); }
     }
   `,
@@ -28,7 +29,7 @@ export type PreviewDevice = 'phone' | 'desk';
     <div inert aria-hidden="true" data-testid="announcement-preview" [attr.data-area]="area()" [attr.data-device]="device()">
       @if (device() === 'phone') {
         <div
-          class="relative mx-auto h-[560px] w-[280px] overflow-hidden rounded-[40px] border-8 border-neutral-800"
+          class="relative mx-auto h-[620px] w-[280px] overflow-hidden sm:h-[640px] sm:w-[300px] rounded-[40px] border-8 border-neutral-800"
           [class]="c().bg"
         >
           <div class="h-12" [class]="c().bar"></div>
@@ -69,6 +70,19 @@ export type PreviewDevice = 'phone' | 'desk';
         @if (isSheet) {
           <span class="mx-auto block h-1.5 w-10 rounded-full" [class]="c().grab"></span>
         }
+        @if (mediaPending() || (mediaType() && mediaUrl())) {
+          <app-announcement-media
+            [type]="mediaType()"
+            [url]="mediaUrl()"
+            [width]="mediaWidth()"
+            [height]="mediaHeight()"
+            [alt]="titleText()"
+            [pending]="mediaPending()"
+            [interactive]="false"
+            [tone]="area() === 'MOTORISTA' ? 'light' : 'dark'"
+            [fit]="isSheet ? 'sheet' : 'dialog'"
+          />
+        }
         <div class="flex items-start gap-3">
           <p class="m-0 min-w-0 flex-1 break-words text-xl font-bold leading-tight" [class]="c().title" data-testid="preview-title">
             {{ titleText() }}
@@ -98,7 +112,7 @@ export type PreviewDevice = 'phone' | 'desk';
       </div>
     </ng-template>
   `,
-  imports: [NgTemplateOutlet],
+  imports: [NgTemplateOutlet, AnnouncementMedia],
 })
 export class AnnouncementPreview {
   readonly title = input('');
@@ -107,6 +121,12 @@ export class AnnouncementPreview {
   readonly linkLabel = input<string | null>(null);
   readonly area = input<AnnouncementAudience>('LOCADORA');
   readonly device = input<PreviewDevice>('phone');
+  /** Mídia gravada (URL assinada, curta) ou envio em andamento (só o esqueleto). */
+  readonly mediaType = input<AnnouncementMediaType | null>(null);
+  readonly mediaUrl = input<string | null>(null);
+  readonly mediaWidth = input<number | null>(null);
+  readonly mediaHeight = input<number | null>(null);
+  readonly mediaPending = input(false);
 
   protected readonly titleText = computed(() => this.title().trim() || 'Título da novidade');
   protected readonly bodyText = computed(() => this.body().trim() || 'O texto aparece aqui.');

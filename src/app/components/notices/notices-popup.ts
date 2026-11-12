@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/
 import { DOCUMENT } from '@angular/common';
 import { Router } from '@angular/router';
 import { BottomSheet } from '../core/bottom-sheet/bottom-sheet';
+import { AnnouncementMedia } from './announcement-media';
 import { CompanyContactQuickForm } from './company-contact-quick-form';
 import { Notice, NoticeOutcome, NoticesService } from './notices.service';
 
@@ -11,13 +12,14 @@ import { Notice, NoticeOutcome, NoticesService } from './notices.service';
  * o movimento, o foco preso e o `prefers-reduced-motion` vêm do `BottomSheet`.
  *
  * Aviso bloqueante: sem X, sem Esc, sem clique no fundo; sai só pelos botões do aviso.
+ * Novidade com mídia (imagem ou vídeo) a mostra no topo, acima do título.
  * Sem linhas divisórias; o tipo aparece como texto no chip tingido (REMINDER laranja da marca,
  * NEWS neutro).
  */
 @Component({
   selector: 'app-notices-popup',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BottomSheet, CompanyContactQuickForm],
+  imports: [BottomSheet, CompanyContactQuickForm, AnnouncementMedia],
   template: `
     @if (notices.current(); as notice) {
       @for (n of [notice]; track n.id) {
@@ -27,6 +29,19 @@ import { Notice, NoticeOutcome, NoticesService } from './notices.service';
           [busy]="!!n.blocking"
           (closed)="onClosed(n)"
         >
+          @if (n.media; as m) {
+            <!-- Mídia no topo, espaço reservado; se não carregar, some e o texto segue igual. -->
+            <app-announcement-media
+              sheetTop
+              class="mb-4"
+              [type]="m.type"
+              [url]="m.url"
+              [width]="m.width"
+              [height]="m.height"
+              [alt]="n.title"
+              [refresh]="m.refresh ?? null"
+            />
+          }
           <div class="grid gap-4" data-testid="notice-body">
             <span
               class="inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold"

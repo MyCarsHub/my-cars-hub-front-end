@@ -103,6 +103,26 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
     TestBed.resetTestingModule();
   });
 
+  it('mídia vai para o aviso e, se a URL assinada vencer, pede a lista de novo UMA vez', () => {
+    render();
+    service.maybeShow();
+    http
+      .expectOne(UNREAD)
+      .flush([news('a', { mediaType: 'VIDEO', mediaUrl: 'https://cdn.test/v.mp4?t=1', mediaWidth: 1080, mediaHeight: 1920 })]);
+    TestBed.tick();
+    const media = notices.current()?.media;
+    expect(media).toEqual(expect.objectContaining({ type: 'VIDEO', url: 'https://cdn.test/v.mp4?t=1', width: 1080, height: 1920 }));
+    let fresh: string | null = null;
+    media!.refresh!().subscribe((u) => (fresh = u));
+    http.expectOne(UNREAD).flush([news('a', { mediaType: 'VIDEO', mediaUrl: 'https://cdn.test/v.mp4?t=2' })]);
+    expect(fresh).toBe('https://cdn.test/v.mp4?t=2');
+    // Nunca guardada no storage.
+    expect(JSON.stringify(sessionStorage)).not.toContain('cdn.test');
+    expect(JSON.stringify(localStorage)).not.toContain('cdn.test');
+    notices.dismiss('news:a');
+    http.expectOne(readUrl('a')).flush(null);
+  });
+
   it('enfileira a MAIS ANTIGA como NEWS, com "Entendi", texto simples e itens vazios fora', () => {
     const f = render();
     service.maybeShow();
