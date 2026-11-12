@@ -7,8 +7,10 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DOCUMENT } from '@angular/common';
 import { Router } from '@angular/router';
 import { map } from 'rxjs';
+import { classifyAppLink } from '../../utils/app-link';
 import { AnnouncementMedia, AnnouncementMediaRefresh } from '../../components/notices/announcement-media';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { StatusChip } from '../../components/core/status-chip/status-chip';
@@ -76,14 +78,18 @@ export function feedDate(raw: string | null | undefined): FeedDate | null {
   };
 }
 
-/** Só rota do app (`/algo`, nunca `//host`) ou `https://`; qualquer outra coisa não vira botão. */
-function feedLink(url: string | null, label: string | null): FeedLink {
-  const href = (url ?? '').trim();
+/**
+ * Só rota do app (`/algo`, nunca `//host`) ou `https://`; qualquer outra coisa não vira botão.
+ * `https://` do próprio app vira rota (mesma aba): outra aba não tem a sessão.
+ */
+function feedLink(url: string | null, label: string | null, currentHost: string | null): FeedLink {
   const text = (label ?? '').trim();
-  if (!href || !text) return null;
-  if (/^https:\/\//i.test(href)) return { kind: 'external', href, label: text };
-  if (href.startsWith('/') && !href.startsWith('//')) return { kind: 'internal', href, label: text };
-  return null;
+  if (!text) return null;
+  const link = classifyAppLink(url, currentHost);
+  if (!link) return null;
+  return link.kind === 'internal'
+    ? { kind: 'internal', href: link.path, label: text }
+    : { kind: 'external', href: link.href, label: text };
 }
 
 /**
@@ -108,6 +114,7 @@ export class NewsFeedPage {
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly currentHost = inject(DOCUMENT).defaultView?.location?.host ?? null;
 
   /** Novidades carregadas, com a página de onde vieram (para renovar a URL da mídia). */
   private readonly loaded = signal<{ item: AnnouncementFeedItem; page: number }[]>([]);
@@ -235,7 +242,7 @@ export class NewsFeedPage {
       // `startsOn` é a data de negócio (sem fuso) e a chave da ordem da lista; `publishedAt` é
       // gravado em UTC e viraria o dia seguinte para quem publica depois das 21h em Brasília.
       date: feedDate(item.startsOn) ?? feedDate(item.publishedAt),
-      link: feedLink(item.linkUrl, item.linkLabel),
+      link: feedLink(item.linkUrl, item.linkLabel, this.currentHost),
       mediaType: hasMedia ? (item.mediaType ?? null) : null,
       mediaUrl: hasMedia ? (item.mediaUrl ?? null) : null,
       mediaWidth: item.mediaWidth ?? null,

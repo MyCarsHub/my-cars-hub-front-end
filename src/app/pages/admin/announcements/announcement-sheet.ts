@@ -1,4 +1,4 @@
-import { NgTemplateOutlet } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -18,6 +18,7 @@ import { Observable, Subscription, of, switchMap, tap } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
 import { ApiErrorService } from '../../../services/api-error.service';
+import { toStoredAppLink } from '../../../utils/app-link';
 import {
   ANNOUNCEMENT_LIMITS,
   AdminAnnouncement,
@@ -80,6 +81,7 @@ export class AnnouncementSheet implements OnInit {
   private readonly service = inject(AdminAnnouncementsService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly currentHost = inject(DOCUMENT).defaultView?.location?.host ?? null;
   private readonly sheet = viewChild(BottomSheet);
 
   /** Novidade aberta; `null` = nova. */
@@ -417,7 +419,8 @@ export class AnnouncementSheet implements OnInit {
     const audiences: AnnouncementAudience[] = [];
     if (v.loc) audiences.push('LOCADORA');
     if (v.mot) audiences.push('MOTORISTA');
-    const linkUrl = v.linkUrl.trim();
+    // Endereço completo do próprio app grava como rota: abre na mesma aba, onde a sessão vive.
+    const linkUrl = toStoredAppLink(v.linkUrl.trim(), this.currentHost);
     const linkLabel = v.linkLabel.trim();
     return {
       title: v.title.trim(),
