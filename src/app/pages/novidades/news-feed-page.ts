@@ -60,7 +60,7 @@ export interface FeedRow {
   refresh: AnnouncementMediaRefresh;
 }
 
-/** Data `yyyy-MM-dd` do servidor (sem fuso: lida como está, nunca convertida). */
+/** Data `yyyy-MM-dd` (só a parte da data, lida como está, nunca convertida de fuso). */
 export function feedDate(raw: string | null | undefined): FeedDate | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw ?? '');
   if (!match) return null;
@@ -124,9 +124,14 @@ export class NewsFeedPage {
   protected readonly skeletons = [true, false, false];
   protected readonly skeletonTitleWidths = ['78%', '64%', '70%'];
 
-  protected readonly rows = computed<FeedRow[]>(() =>
-    this.loaded().map(({ item, page }) => this.toRow(item, page)),
-  );
+  protected readonly rows = computed<FeedRow[]>(() => {
+    // Lida pelo popup com a página aberta: o "Nova" some junto com o chip do menu.
+    const readNow = this.badge.readIds();
+    return this.loaded().map(({ item, page }) => {
+      const row = this.toRow(item, page);
+      return readNow.has(item.id) ? { ...row, isNew: false } : row;
+    });
+  });
   protected readonly isEmpty = computed(
     () => !this.loading() && !this.failed() && this.rows().length === 0,
   );
@@ -227,7 +232,9 @@ export class NewsFeedPage {
       paragraphs: body ? body.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean) : [],
       items: (item.items ?? []).filter((s) => !!s && s.trim().length > 0),
       isNew: item.read === false,
-      date: feedDate(item.publishedAt) ?? feedDate(item.startsOn),
+      // `startsOn` é a data de negócio (sem fuso) e a chave da ordem da lista; `publishedAt` é
+      // gravado em UTC e viraria o dia seguinte para quem publica depois das 21h em Brasília.
+      date: feedDate(item.startsOn) ?? feedDate(item.publishedAt),
       link: feedLink(item.linkUrl, item.linkLabel),
       mediaType: hasMedia ? (item.mediaType ?? null) : null,
       mediaUrl: hasMedia ? (item.mediaUrl ?? null) : null,

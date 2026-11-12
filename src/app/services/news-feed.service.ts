@@ -47,7 +47,9 @@ export class NewsFeedService {
     effect(() => {
       const current = this.notices.current();
       const id = current && current.id.startsWith(NEWS_NOTICE_PREFIX) ? current.id : null;
-      if (shownNewsId && shownNewsId !== id && !this.isSupportSession()) this.badge.decrement();
+      if (shownNewsId && shownNewsId !== id && !this.isSupportSession()) {
+        this.badge.markRead(shownNewsId.slice(NEWS_NOTICE_PREFIX.length));
+      }
       shownNewsId = id;
     });
   }
@@ -90,7 +92,7 @@ export class NewsFeedService {
   private reset(): void {
     this.generation++;
     this.countedFor = null;
-    this.badge.set(0);
+    this.badge.clear();
   }
 
   private isSupportSession(): boolean {

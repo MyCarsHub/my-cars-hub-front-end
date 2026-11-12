@@ -219,7 +219,34 @@ describe('NewsFeedPage (Novidades)', () => {
     expect(el.textContent).toContain('2 novas desde a sua última visita.');
   });
 
-  it('data do servidor é lida como está, sem fuso', () => {
+  it('data do post é o startsOn: publicada às 22h de Brasília (01h UTC do dia seguinte) fica no dia certo', () => {
+    const { flush, el } = render();
+    flush(0, [item('n', { startsOn: '2026-11-11', publishedAt: '2026-11-12T01:00:00' })], false);
+    const time = el.querySelector('[data-testid="feed-post"] time');
+    expect(time?.getAttribute('datetime')).toBe('2026-11-11');
+    expect(time?.textContent?.trim()).toBe('11 nov.');
+    expect(el.textContent).toContain('A primeira foi publicada em 11 de novembro de 2026.');
+  });
+
+  it('título, texto e itens quebram palavra longa (sem rolagem lateral a 375px)', () => {
+    const { flush, el } = render();
+    flush(0, [item('w', { items: ['x'.repeat(60)] })], false);
+    const post = el.querySelector('[data-testid="feed-post"]')!;
+    for (const node of [post.querySelector('h2'), post.querySelector('p'), post.querySelector('li')]) {
+      expect(node?.className).toContain('[overflow-wrap:anywhere]');
+    }
+  });
+
+  it('o "Nova" some quando o popup marca a novidade como lida com a página aberta', () => {
+    const { flush, fixture, el } = render();
+    flush(0, [item('a', { read: false }), item('b', { read: false })], false);
+    expect(el.querySelectorAll('[data-testid="post-new"]').length).toBe(2);
+    TestBed.inject(NewsUnreadBadgeStore).markRead('a');
+    fixture.detectChanges();
+    expect(el.querySelectorAll('[data-testid="post-new"]').length).toBe(1);
+  });
+
+  it('data é lida como está, sem conversão de fuso', () => {
     expect(feedDate('2026-01-01T00:30:00')).toEqual({
       iso: '2026-01-01',
       short: '1 jan.',
