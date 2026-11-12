@@ -46,7 +46,8 @@ export type AnnouncementMediaRefresh = () => Observable<string | null>;
   template: `
     @if (pending()) {
       <div
-        class="relative w-full overflow-hidden rounded-2xl"
+        class="relative w-full overflow-hidden"
+        [class]="radius()"
         [style.aspect-ratio]="'16 / 9'"
         data-testid="media-skeleton"
       >
@@ -54,8 +55,8 @@ export type AnnouncementMediaRefresh = () => Observable<string | null>;
       </div>
     } @else if (src() && !failed()) {
       <div
-        class="relative w-full overflow-hidden rounded-2xl"
-        [class]="portrait() ? portraitBoxClass() : ''"
+        class="relative w-full overflow-hidden"
+        [class]="boxClass()"
         [style.aspect-ratio]="portrait() ? null : ratio()"
         data-testid="announcement-media"
         [attr.data-type]="type()"
@@ -98,7 +99,7 @@ export type AnnouncementMediaRefresh = () => Observable<string | null>;
           @if (interactive()) {
             <button
               type="button"
-              class="absolute inset-0 size-full cursor-pointer rounded-2xl focus:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-primary-500"
+              class="absolute inset-0 size-full cursor-pointer focus:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-primary-500"
               [attr.aria-label]="videoAria()"
               [attr.aria-pressed]="playing() ? !muted() : false"
               data-testid="media-video-toggle"
@@ -147,6 +148,8 @@ export class AnnouncementMedia {
   readonly fit = input<AnnouncementMediaFit>('responsive');
   /** `false` na prévia do admin: só desenho, sem botão. */
   readonly interactive = input(true);
+  /** De ponta a ponta (topo do popup v2): sem cantos próprios, quem envolve arredonda. */
+  readonly edge = input(false);
   /** Envio em andamento (admin): só o esqueleto 16:9. */
   readonly pending = input(false);
   readonly refresh = input<AnnouncementMediaRefresh | null>(null);
@@ -190,6 +193,8 @@ export class AnnouncementMedia {
     const h = this.fit() === 'sheet' ? 'h-[300px]' : this.fit() === 'dialog' ? 'h-[320px]' : 'h-[300px] lg:h-[320px]';
     return `${h} bg-[#0a0a0a]`;
   });
+  protected readonly radius = computed(() => (this.edge() ? '' : 'rounded-2xl'));
+  protected readonly boxClass = computed(() => `${this.radius()} ${this.portrait() ? this.portraitBoxClass() : ''}`.trim());
   protected readonly skeletonClass = computed(() => {
     switch (this.tone()) {
       case 'dark':

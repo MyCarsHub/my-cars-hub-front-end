@@ -1,5 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { AsyncSubject, Observable } from 'rxjs';
+import { AnnouncementAudience } from '../../types/announcement.types';
 
 /** REMINDER: algo que o usuário precisa fazer. NEWS: novidade do produto. */
 export type NoticeType = 'REMINDER' | 'NEWS';
@@ -48,6 +49,8 @@ export interface Notice {
   dismissLabel?: string;
   /** Imagem ou vídeo no topo (só novidade). */
   media?: NoticeMedia;
+  /** Área de quem lê (só novidade): muda a frase do topo laranja. */
+  audience?: AnnouncementAudience;
 }
 
 /**
@@ -65,6 +68,8 @@ export class NoticesService {
 
   /** O aviso que está na tela (ou `null`). */
   readonly current = computed<Notice | null>(() => this.items()[0] ?? null);
+  /** A fila inteira, o atual primeiro (só leitura). */
+  readonly queue = this.items.asReadonly();
   /** Quantos esperam depois do atual. */
   readonly waiting = computed(() => Math.max(0, this.items().length - 1));
 

@@ -141,9 +141,9 @@ describe('AdminAnnouncements (F2)', () => {
     type('[data-testid="field-link-label"]', 'Ver meus aluguéis', f);
 
     // Prévia acompanha a digitação.
-    expect($('[data-testid="preview-title"]')?.textContent?.trim()).toBe('Recibo do pagamento no app');
-    expect($('[data-testid="preview-body"]')?.textContent?.trim()).toBe('O recibo fica salvo em Aluguéis.');
-    expect($('[data-testid="preview-link"]')?.textContent?.trim()).toBe('Ver meus aluguéis');
+    expect($('[data-testid="announcement-preview"] [data-testid="news-title"]')?.textContent?.trim()).toBe('Recibo do pagamento no app');
+    expect($('[data-testid="announcement-preview"] [data-testid="notice-message"]')?.textContent?.trim()).toBe('O recibo fica salvo em Aluguéis.');
+    expect($('[data-testid="announcement-preview"] [data-testid="notice-link"]')?.textContent?.trim()).toBe('Ver meus aluguéis');
 
     // Sem público: Publicar fica desligado e a folha explica.
     expect(publishBtn().disabled).toBe(true);

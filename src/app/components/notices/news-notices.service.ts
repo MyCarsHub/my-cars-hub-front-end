@@ -105,6 +105,7 @@ export class NewsNoticesService {
       link:
         item.linkUrl && item.linkLabel ? { label: item.linkLabel, route: item.linkUrl } : undefined,
       dismissLabel: 'Entendi',
+      audience: this.session.getCompanyRoleFromToken() === 'DRIVER' ? 'MOTORISTA' : 'LOCADORA',
       media:
         item.mediaType && item.mediaUrl
           ? {

@@ -1,5 +1,5 @@
-import { Component, signal } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { Component, Type, signal } from '@angular/core';
+import { DeferBlockState, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -32,6 +32,21 @@ function stubReducedMotion(reduce: boolean): void {
     'matchMedia',
     vi.fn((q: string) => ({ matches: reduce && q.includes('reduce'), media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
   );
+}
+
+
+/**
+ * O cartão v2 do popup vem por `@defer`. Carrega o bloco UMA vez (renderiza e desmonta) para
+ * que os blocos seguintes renderizem na hora, como num app que já baixou o pedaço.
+ */
+async function warmNewsCard(host: Type<unknown>): Promise<void> {
+  const notices = TestBed.inject(NoticesService);
+  notices.enqueue({ id: 'news:warm-up', type: 'NEWS', title: 'w', message: 'w' }).subscribe();
+  const f = TestBed.createComponent(host);
+  f.detectChanges();
+  for (const block of await f.getDeferBlocks()) await block.render(DeferBlockState.Complete);
+  notices.dismiss('news:warm-up');
+  f.destroy();
 }
 
 describe('AnnouncementMedia (popup e área do motorista)', () => {
@@ -146,10 +161,11 @@ describe('AnnouncementMedia (popup e área do motorista)', () => {
 class PopupHost {}
 
 describe('NoticesPopup com mídia', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.useFakeTimers();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({ imports: [PopupHost], providers: [provideRouter([])] });
+    await warmNewsCard(PopupHost);
   });
 
   afterEach(() => {

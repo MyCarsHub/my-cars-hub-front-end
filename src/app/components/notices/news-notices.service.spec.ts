@@ -1,5 +1,5 @@
-import { Component } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { Component, Type } from '@angular/core';
+import { DeferBlockState, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -45,6 +45,21 @@ class Host {}
  * Cada `it` é uma "carga do app": TestBed novo = serviço novo. O `sessionStorage` é o da aba e
  * sobrevive entre cargas, como num reload; `newSession()` limpa, como um novo login.
  */
+
+/**
+ * O cartão v2 do popup vem por `@defer`. Carrega o bloco UMA vez (renderiza e desmonta) para
+ * que os blocos seguintes renderizem na hora, como num app que já baixou o pedaço.
+ */
+async function warmNewsCard(host: Type<unknown>): Promise<void> {
+  const notices = TestBed.inject(NoticesService);
+  notices.enqueue({ id: 'news:warm-up', type: 'NEWS', title: 'w', message: 'w' }).subscribe();
+  const f = TestBed.createComponent(host);
+  f.detectChanges();
+  for (const block of await f.getDeferBlocks()) await block.render(DeferBlockState.Complete);
+  notices.dismiss('news:warm-up');
+  f.destroy();
+}
+
 describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
   let http: HttpTestingController;
   let service: NewsNoticesService;
@@ -89,10 +104,11 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
     f.detectChanges();
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.useFakeTimers();
     newSession();
     boot();
+    await warmNewsCard(Host);
   });
 
   afterEach(() => {
