@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   Directive,
+  ElementRef,
   computed,
   inject,
   input,
@@ -122,11 +123,16 @@ export class FormField {
     '[attr.id]': 'field.fieldId()',
     '[attr.aria-invalid]': 'field.invalid() ? "true" : null',
     '[attr.aria-describedby]': 'field.describedBy()',
-    '[attr.aria-required]': 'field.required() ? "true" : null',
+    // `aria-required` não é permitido no papel button (axe aria-allowed-attr): num gatilho de
+    // folha o obrigatório fica no `*` visível e na mensagem de erro ligada por describedby.
+    '[attr.aria-required]': 'field.required() && !isButton ? "true" : null',
     '[class.border-edge-field]': '!field.invalid()',
     '[class.border-rose-400]': 'field.invalid()',
   },
 })
 export class FieldControl {
   protected readonly field = inject(FormField);
+  /** `tagName`, não `instanceof`: no SSR não existe `HTMLButtonElement` global. */
+  protected readonly isButton =
+    (inject(ElementRef).nativeElement as Element).tagName?.toUpperCase() === 'BUTTON';
 }

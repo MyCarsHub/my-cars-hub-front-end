@@ -1,5 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { formatPersonName } from '../../../utils/display-format';
+
+/** Quantos motoristas a tela carrega de uma vez; acima disso a busca vai ao servidor. */
+export const DRIVER_PICKER_PAGE_SIZE = 500;
+
+/** Espera depois da última tecla antes de buscar no servidor (lista cortada). */
+export const DRIVER_PICKER_DEBOUNCE_MS = 250;
 
 /** O mínimo que o seletor precisa de um motorista. */
 export interface DriverPickerItem {
@@ -26,7 +34,8 @@ export function filterDrivers<T extends DriverPickerItem>(items: readonly T[], q
  *
  * Existe porque o `<select>` nativo deixa a lista aberta por conta do navegador: no Chrome do
  * desktop em tema escuro ela abriu mais estreita que o campo e com o texto cortado à esquerda.
- * A lista já vem carregada por quem usa; a busca é local.
+ * A lista já vem carregada por quem usa e a busca é local. Quando a lista veio cortada
+ * (`total` maior que a lista), o seletor avisa e emite `searched` para quem usa buscar no servidor.
  */
 @Component({
   selector: 'app-driver-picker',
@@ -68,7 +77,7 @@ export function filterDrivers<T extends DriverPickerItem>(items: readonly T[], q
               <button
                 type="button"
                 data-testid="driver-picker-option"
-                [attr.aria-current]="d.id === selectedId() ? 'true' : null"
+                [attr.aria-pressed]="d.id === selectedId()"
                 (click)="picked.emit(d)"
                 class="enter-up press press-soft w-full min-h-[56px] px-3 py-2 rounded-xl text-left flex items-center gap-3
                        hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
@@ -89,6 +98,11 @@ export function filterDrivers<T extends DriverPickerItem>(items: readonly T[], q
           }
         </ul>
       }
+      @if (truncated() && !query().trim()) {
+        <p class="text-xs text-fg-subtle text-center" data-testid="driver-picker-more">
+          Mostrando {{ drivers().length }} de {{ total() }}. Busque pelo nome para achar os outros.
+        </p>
+      }
     </div>
   `,
 })
@@ -96,15 +110,32 @@ export class DriverPicker {
   readonly drivers = input.required<readonly DriverPickerItem[]>();
   readonly selectedId = input<string>('');
   readonly emptyText = input('Nenhum motorista cadastrado nesta empresa.');
+  /** Total no servidor; `0` = a lista está completa. */
+  readonly total = input(0);
   readonly picked = output<DriverPickerItem>();
+  /** Só emite com a lista cortada: a busca precisa ir ao servidor. */
+  readonly searched = output<string>();
 
   private static nextId = 0;
   protected readonly searchId = `driver-picker-search-${++DriverPicker.nextId}`;
   protected readonly query = signal('');
-  protected readonly visible = computed(() => filterDrivers(this.drivers(), this.query()));
+  /** Lista cortada: quem filtra é o servidor (via `searched`); senão, filtro local. */
+  protected readonly visible = computed(() =>
+    this.truncated() ? [...this.drivers()] : filterDrivers(this.drivers(), this.query()),
+  );
   protected readonly label = formatPersonName;
+  protected readonly truncated = computed(() => this.total() > this.drivers().length);
+  private readonly typed$ = new Subject<string>();
+
+  constructor() {
+    this.typed$
+      .pipe(debounceTime(DRIVER_PICKER_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((q) => this.searched.emit(q.trim()));
+  }
 
   protected onSearch(event: Event): void {
-    this.query.set((event.target as HTMLInputElement).value);
+    const value = (event.target as HTMLInputElement).value;
+    this.query.set(value);
+    if (this.truncated()) this.typed$.next(value);
   }
 }

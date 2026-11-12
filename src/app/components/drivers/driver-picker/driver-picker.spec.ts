@@ -34,10 +34,24 @@ describe('DriverPicker', () => {
     let picked: DriverPickerItem | null = null;
     fixture.componentInstance.picked.subscribe((d) => (picked = d));
     const options = el.querySelectorAll<HTMLButtonElement>('[data-testid="driver-picker-option"]');
-    expect(options[1].getAttribute('aria-current')).toBe('true');
-    expect(options[0].getAttribute('aria-current')).toBeNull();
+    expect(options[1].getAttribute('aria-pressed')).toBe('true');
+    expect(options[0].getAttribute('aria-pressed')).toBe('false');
     options[0].click();
     expect(picked).toEqual(DRIVERS[0]);
+  });
+
+  it('lista completa: busca local, sem busca no servidor nem aviso de corte', async () => {
+    const { fixture, el } = setup(DRIVERS);
+    const emitted: string[] = [];
+    fixture.componentInstance.searched.subscribe((q) => emitted.push(q));
+    const search = el.querySelector('[data-testid="driver-picker-search"]') as HTMLInputElement;
+    search.value = 'rafa';
+    search.dispatchEvent(new Event('input'));
+    await new Promise((r) => setTimeout(r, 300));
+    fixture.detectChanges();
+    expect(emitted).toEqual([]);
+    expect(el.querySelector('[data-testid="driver-picker-more"]')).toBeNull();
+    expect(el.querySelectorAll('[data-testid="driver-picker-option"]').length).toBe(1);
   });
 
   it('filtra pela busca e avisa quando nada casa', () => {
