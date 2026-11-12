@@ -168,6 +168,7 @@ describe('paridade nav x guard de rota', () => {
     '/ajustes',
     '/relatorios',
     '/alertas',
+    '/novidades',
     '/roadmap',
     '/billing',
     '/configuracoes',
@@ -186,12 +187,12 @@ describe('paridade nav x guard de rota', () => {
    * A forma da arvore, pela mesma razao: a lista acima achata pais e filhos, e
    * sozinha nao veria um filho PROMOVIDO a item de topo (mesmas rotas, outro
    * menu). Os numeros sao os da base medida por AST: 14 de topo, 11 filhos (Gastos, FEAT-0425, e o 14o) — o
-   * item de topo a mais e o Painel do motorista (`/meu-painel`).
+   * item de topo a mais e o Painel do motorista (`/meu-painel`). Novidades (12/11) e o 16o de topo.
    */
-  it('a arvore do menu mantem a forma: 15 itens de topo (Ajustes, V141), 12 filhos', () => {
+  it('a arvore do menu mantem a forma: 16 itens de topo (Novidades, 12/11), 12 filhos', () => {
     const children = NAV_ITEMS.reduce((total, item) => total + (item.children?.length ?? 0), 0);
 
-    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 15, filhos: 12 });
+    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 16, filhos: 12 });
   });
 
   /**
@@ -228,13 +229,14 @@ describe('paridade nav x guard de rota', () => {
     '/meu-painel',
     '/alugueis',
     '/vistorias',
+    '/novidades',
     '/roadmap',
     '/suporte',
     '/perfil',
   ] as const;
 
   describe('o motorista', () => {
-    it('ve exatamente Painel, Alugueis, Vistorias, Roadmap, Suporte e Perfil', () => {
+    it('ve exatamente Painel, Alugueis, Vistorias, Novidades, Roadmap, Suporte e Perfil', () => {
       const seen = navRoutes
         .filter((item) => navShows(item, 'DRIVER'))
         .map((item) => item.route as string);
@@ -242,7 +244,7 @@ describe('paridade nav x guard de rota', () => {
       expect(seen).toEqual([...DRIVER_MENU]);
     });
 
-    it('os guards liberam exatamente essas seis rotas', () => {
+    it('os guards liberam exatamente essas sete rotas', () => {
       const allowed = navRoutes
         .map((item) => item.route as string)
         .filter((route) => guardAllows(route, 'DRIVER'));

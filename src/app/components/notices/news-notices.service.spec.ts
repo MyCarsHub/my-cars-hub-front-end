@@ -11,7 +11,7 @@ import { IMPERSONATION_STATE_KEY } from '../../services/impersonation.context';
 import { SessionService } from '../../services/session.service';
 import { EMPTY_COMPANY_CONTACT } from '../../types/company-contact.types';
 import { UnreadAnnouncement } from '../../types/announcement.types';
-import { NEWS_SHOWN_KEY, NewsNoticesService } from './news-notices.service';
+import { NewsNoticesService } from './news-notices.service';
 import { NoticesPopup } from './notices-popup';
 import { NoticesService } from './notices.service';
 
@@ -189,7 +189,7 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
     expect(f.nativeElement.querySelector('h2 b')).toBeNull();
   });
 
-  it('"Entendi" marca como lida UMA vez; reload na mesma sessão não mostra de novo nem busca', () => {
+  it('"Entendi" marca como lida UMA vez; reload na mesma sessão não a mostra de novo', () => {
     const f = render();
     service.maybeShow();
     http.expectOne(UNREAD).flush([news('a')]);
@@ -204,11 +204,12 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
     service.maybeShow();
     http.expectNone(UNREAD);
 
-    // Reload: mesma aba, app novo.
+    // Reload: mesma aba, app novo. Busca de novo; o servidor já não devolve a lida.
     boot();
     render();
     service.maybeShow();
-    http.expectNone(UNREAD);
+    http.expectOne(UNREAD).flush([]);
+    TestBed.tick();
     expect(notices.current()).toBeNull();
   });
 
@@ -231,31 +232,103 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
     expect(notices.current()).toBeNull();
   });
 
-  it('3 não lidas: uma por sessão, sempre a mais antiga que sobrou', () => {
+  /** Fecha a novidade na tela com "Entendi" e responde o POST de lida. */
+  function closeCurrent(f: { nativeElement: HTMLElement; detectChanges(): void }, id: string): void {
+    expect(notices.current()?.id).toBe(`news:${id}`);
+    q(f, '[data-testid="notice-dismiss"]')!.click();
+    settle(f);
+    const read = http.expectOne(readUrl(id));
+    expect(read.request.method).toBe('POST');
+    read.flush(null, { status: 204, statusText: 'No Content' });
+    TestBed.tick();
+    f.detectChanges();
+  }
+
+  it('3 não lidas: todas na MESMA sessão, uma depois da outra, a mais antiga primeiro, cada uma marcada', () => {
+    const f = render();
+    service.maybeShow();
+    service.maybeShow(); // o shell chama a cada navegação
+    http.expectOne(UNREAD).flush([news('a'), news('b'), news('c')]);
+    TestBed.tick();
+    f.detectChanges();
+
     const shown: string[] = [];
-    const all = [news('a'), news('b'), news('c')];
-    for (let session = 0; session < 3; session++) {
-      if (session > 0) {
-        newSession();
-        boot();
-      }
-      const f = render();
-      service.maybeShow();
-      service.maybeShow(); // o shell chama a cada navegação
-      http.expectOne(UNREAD).flush(all.slice(session));
-      TestBed.tick();
-      f.detectChanges();
+    for (const id of ['a', 'b', 'c']) {
       shown.push(notices.current()!.id);
+      // Uma de cada vez: a próxima só entra quando esta sai.
       expect(notices.waiting()).toBe(0);
-      q(f, '[data-testid="notice-dismiss"]')!.click();
-      settle(f);
-      http.expectOne(readUrl(all[session].id)).flush(null, { status: 204, statusText: 'No Content' });
-      // Mesma sessão: nada mais aparece, mesmo com duas sobrando.
-      service.maybeShow();
-      http.expectNone(UNREAD);
-      expect(notices.current()).toBeNull();
+      closeCurrent(f, id);
     }
     expect(shown).toEqual(['news:a', 'news:b', 'news:c']);
+    expect(notices.current()).toBeNull();
+    service.maybeShow();
+    http.expectNone(UNREAD);
+  });
+
+  it('reload no meio da sequência: retoma as que faltam e não repete a já lida', () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a'), news('b'), news('c')]);
+    TestBed.tick();
+    f.detectChanges();
+    closeCurrent(f, 'a');
+    expect(notices.current()?.id).toBe('news:b');
+
+    // Reload com "b" na tela: nunca foi fechada, continua não lida.
+    boot();
+    const g = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('b'), news('c')]);
+    TestBed.tick();
+    g.detectChanges();
+    closeCurrent(g, 'b');
+    closeCurrent(g, 'c');
+    expect(notices.current()).toBeNull();
+    http.expectNone(readUrl('a'));
+  });
+
+  it('logout no meio da sequência: a da tela e as que esperavam saem SEM marcar como lidas', () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a'), news('b'), news('c')]);
+    TestBed.tick();
+    f.detectChanges();
+    closeCurrent(f, 'a');
+    expect(notices.current()?.id).toBe('news:b');
+
+    TestBed.inject(SessionService).clear();
+    TestBed.tick();
+    f.detectChanges();
+    expect(notices.current()).toBeNull();
+    expect(notices.queue()).toEqual([]);
+    http.expectNone(readUrl('b'));
+    http.expectNone(readUrl('c'));
+
+    // B entra na mesma carga: recebe só as suas, nada de A.
+    sessionStorage.setItem('token', accessToken());
+    sessionStorage.setItem('id', 'u2');
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('z')]);
+    TestBed.tick();
+    f.detectChanges();
+    closeCurrent(f, 'z');
+    expect(notices.current()).toBeNull();
+  });
+
+  it('suporte ("Ver como") aberto no meio da sequência: as próximas não aparecem nem são marcadas', () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a'), news('b')]);
+    TestBed.tick();
+    f.detectChanges();
+    sessionStorage.setItem(IMPERSONATION_STATE_KEY, '{"companyId":"c1"}');
+    q(f, '[data-testid="notice-dismiss"]')!.click();
+    settle(f);
+    TestBed.tick();
+    f.detectChanges();
+    expect(notices.current()).toBeNull();
+    http.expectNone(readUrl('a'));
+    http.expectNone(readUrl('b'));
   });
 
   it('falha da busca não bloqueia: nada na tela, nenhum erro, sem marca de sessão', () => {
@@ -266,7 +339,7 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
       TestBed.tick();
     }).not.toThrow();
     expect(notices.current()).toBeNull();
-    expect(sessionStorage.getItem(`${NEWS_SHOWN_KEY}:u1`)).toBeNull();
+    expect(Object.keys(sessionStorage).filter((k) => k.includes('news'))).toEqual([]);
   });
 
   it.each([

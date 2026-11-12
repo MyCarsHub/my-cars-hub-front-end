@@ -5,6 +5,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { LayoutStore, Tenant } from '../core/layouts/layout.store';
 import { NavItem, Sidebar } from './sidebar';
 import { DRIVER_NAV_KEYS, DRIVER_NAV_ROUTES, DriverNavRoutes } from './driver-nav';
+import { NewsUnreadBadgeStore } from '../../services/news-unread-badge.store';
 
 const tenant = (role: string, name = 'MyCarsHub'): Tenant => ({
   id: `t-${role || 'none'}`,
@@ -112,6 +113,38 @@ describe('Sidebar', () => {
     expect(host.querySelector('[data-tour="roadmap"]')).not.toBeNull();
   });
 
+  describe('Novidades no menu da locadora', () => {
+    function signInOwner(): HTMLElement {
+      signInAs('OWNER');
+      layout.tenants.set([tenant('OWNER')]);
+      layout.selectedTenant.set(tenant('OWNER'));
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('fica entre Alertas e Roadmap', () => {
+      signInOwner();
+      const labels = (component as unknown as { navItems: () => NavItem[] })
+        .navItems()
+        .map((item) => item.label);
+      const at = labels.indexOf('Novidades');
+      expect(labels.slice(at - 1, at + 2)).toEqual(['Alertas', 'Novidades', 'Roadmap']);
+    });
+
+    it('mostra "1 nova" com uma não lida e nenhum chip sem não lidas', () => {
+      const badge = TestBed.inject(NewsUnreadBadgeStore);
+      const host = signInOwner();
+      expect(host.querySelector('[data-nav-badge]')).toBeNull();
+      badge.set(1);
+      fixture.detectChanges();
+      const link = host.querySelector('a.nav-link[href="/novidades"]')!;
+      expect(link.querySelector('[data-nav-badge]')?.textContent?.trim()).toBe('1 nova');
+      badge.set(0);
+      fixture.detectChanges();
+      expect(host.querySelector('[data-nav-badge]')).toBeNull();
+    });
+  });
+
   /**
    * A sidebar fixa é da altura do shell, que termina acima do banner de cookies: em
    * `h-dvh` o rodapé dela (Suporte, Perfil, Recolher) ficava por baixo do banner.
@@ -175,7 +208,7 @@ describe('Sidebar', () => {
     it('na ordem do protótipo, só com o que tem rota para ele', () => {
       signInDriver();
       // Multas e Alertas são da frota; Configurações espera o endpoint de preferências.
-      expect(topLabels()).toEqual(['Dashboard', 'Financeiro', 'Veículo', 'Roadmap']);
+      expect(topLabels()).toEqual(['Dashboard', 'Financeiro', 'Novidades', 'Veículo', 'Roadmap']);
       expect(bottomLabels()).toEqual(['Suporte', 'Perfil']);
     });
 
@@ -190,6 +223,16 @@ describe('Sidebar', () => {
       expect(map.get('Ganhos')).toBe('/meu-painel/ganhos');
       expect(map.get('Custos')).toBe('/meu-painel/custos');
       expect(map.get('Metas')).toBe('/meu-painel/metas');
+    });
+
+    it('Novidades vem logo depois de Metas, com "N novas" enquanto houver não lida', () => {
+      TestBed.inject(NewsUnreadBadgeStore).set(2);
+      const host = signInDriver();
+      const link = host.querySelector('a.nav-link[href="/novidades"]')!;
+      expect(link.getAttribute('aria-label')).toBe('Novidades, 2 novas');
+      expect(link.querySelector('[data-nav-badge]')?.textContent?.trim()).toBe('2 novas');
+      const metas = host.querySelector('a[aria-label="Metas"]')!;
+      expect(metas.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('Dashboard é o painel dele (/meu-painel), não o da frota', () => {
@@ -362,6 +405,7 @@ describe('Sidebar', () => {
       expect(labels).toEqual([
         'Dashboard',
         'Financeiro',
+        'Novidades',
         'Veículo',
         'Alertas',
         'Roadmap',
