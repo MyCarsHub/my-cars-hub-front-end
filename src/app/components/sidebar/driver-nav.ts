@@ -2,7 +2,7 @@ import { InjectionToken } from '@angular/core';
 
 /**
  * Menu do MOTORISTA, na ordem do protótipo do dono (handoff `design_handoff_motorista`):
- * Dashboard · Financeiro (Ganhos, Custos, Metas) · Veículo (Meu aluguel, Vistorias, Multas) ·
+ * Dashboard · Financeiro (Ganhos, Custos, Metas) · Novidades · Veículo (Meu aluguel, Vistorias, Multas) ·
  * Alertas · Roadmap · Configurações e, no rodapé (como no menu do dono), Suporte · Perfil.
  * Sem badges numéricos.
  *
@@ -19,6 +19,7 @@ export const DRIVER_NAV_KEYS = [
   'ganhos',
   'custos',
   'metas',
+  'novidades',
   'aluguel',
   'vistorias',
   'multas',
@@ -39,6 +40,7 @@ export const DRIVER_PROD_ROUTES: DriverNavRoutes = {
   ganhos: '/meu-painel/ganhos',
   custos: '/meu-painel/custos',
   metas: '/meu-painel/metas',
+  novidades: '/novidades',
   aluguel: '/alugueis',
   vistorias: '/vistorias',
   multas: null,
@@ -84,6 +86,7 @@ export type DriverNavIcon =
   | 'fines'
   | 'alerts'
   | 'roadmap'
+  | 'news'
   | 'settings'
   | 'support'
   | 'profile';
@@ -101,6 +104,8 @@ export const DRIVER_NAV: readonly DriverNavEntry[] = [
       { key: 'metas', label: 'Metas', icon: 'goals' },
     ],
   },
+  // Logo depois de Metas (canvas NovidadesMotoristaMobile, 12/11), com "N novas" no item.
+  { key: 'novidades', label: 'Novidades', icon: 'news' },
   {
     label: 'Veículo',
     icon: 'vehicle',

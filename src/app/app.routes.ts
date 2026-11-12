@@ -280,6 +280,19 @@ export const routes: Routes = [
                         data: { pageTitle: 'Alertas' },
                     },
                     {
+                        // NOVIDADES — o arquivo de anúncios do produto, mais novo primeiro
+                        // (canvas NovidadesPagina, 12/11). Os tres papeis de empresa: o servidor
+                        // escolhe o publico pelo papel do token (motorista so ve o que foi
+                        // escrito para motoristas) e `DriverReadScopePolicy` libera o GET a ele.
+                        path: 'novidades',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER', 'DRIVER'])],
+                        loadComponent: () =>
+                            import('./pages/novidades/news-feed-page').then(
+                                (m) => m.NewsFeedPage
+                            ),
+                        data: { pageTitle: 'Novidades' },
+                    },
+                    {
                         path: 'veiculos',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         children: [
