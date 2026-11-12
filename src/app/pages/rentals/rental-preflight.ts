@@ -333,6 +333,10 @@ export interface ChargeScheduleRow {
   fine: string | null;
   interest: string | null;
   destination: string;
+  /** FEAT-0573 — valor cheio antes do desconto; só existe quando há desconto. */
+  original?: string;
+  /** FEAT-0573 — a cobrança é parte de uma dividida ("Cobrança 1", "Caução"); só quando N > 1. */
+  splitOf?: string;
 }
 
 function toBrDay(day: string): string {
@@ -355,16 +359,24 @@ export function buildChargeSchedule(
   const interest = pct > 0 ? `Juros ${formatPercent(pct)} ao mês` : 'Sem juros';
   return preview.charges.map((c, i) => {
     const isPeriod = c.kind === 'RENTAL_PERIOD';
-    return {
+    // FEAT-0573 — parcela/parte e desconto do plano. Sem plano, a linha é a de antes.
+    const count = c.instalmentCount ?? 1;
+    const part = count > 1 ? `, ${isPeriod ? 'parcela' : 'parte'} ${c.instalmentIndex ?? 1} de ${count}` : '';
+    const row: ChargeScheduleRow = {
       key: `${c.kind}-${c.index}-${i}`,
-      title: isPeriod ? `Cobrança ${c.index + 1}` : 'Caução',
+      title: (isPeriod ? `Cobrança ${c.index + 1}` : 'Caução') + part,
       due: toBrDay(c.dueDate),
       dueIso: c.dueDate,
       amount: formatBrl(c.amountCents),
-      fine: isPeriod ? fine : null,
+      fine: isPeriod ? (typeof c.fineFixedCents === 'number' ? `Multa ${formatBrl(c.fineFixedCents)}` : fine) : null,
       interest: isPeriod ? interest : null,
       destination: c.destination === 'ASAAS' ? 'Vai ao Asaas' : 'Fica só registrada aqui',
     };
+    if (typeof c.originalAmountCents === 'number' && c.originalAmountCents > c.amountCents) {
+      row.original = formatBrl(c.originalAmountCents);
+    }
+    if (count > 1) row.splitOf = isPeriod ? `Cobrança ${c.index + 1}` : 'Caução';
+    return row;
   });
 }
 
@@ -405,7 +417,14 @@ export function summarizeChargeSchedule(rows: readonly ChargeScheduleRow[]): Cha
   if (rows.length === 0) return null;
   const period = rows.filter((r) => r.fine !== null);
   const deposit = rows.find((r) => r.fine === null) ?? null;
-  const depositLine = deposit ? `Caução de ${deposit.amount}, vence ${deposit.due}.` : null;
+  const deposits = rows.filter((r) => r.fine === null);
+  // FEAT-0573 — caução dividida: uma frase com as partes, em vez da primeira parte sozinha.
+  const depositLine =
+    deposits.length > 1
+      ? `Caução em ${deposits.length} partes: ${deposits.map((d) => `${d.amount} em ${d.due}`).join(', ').replace(/, ([^,]+)$/, ' e $1')}.`
+      : deposit
+        ? `Caução de ${deposit.amount}, vence ${deposit.due}.`
+        : null;
   if (period.length === 0) {
     return { total: rows.length, hasMore: false, headline: 'Só a caução', dates: '', charges: null, deposit: depositLine, differences: [] };
   }
@@ -422,6 +441,24 @@ export function summarizeChargeSchedule(rows: readonly ChargeScheduleRow[]): Cha
     period.length === 1 ? `Vence em ${first.due}` : `Primeira vence em ${first.due}, última em ${last.due}`;
 
   const differences: string[] = [];
+  // FEAT-0573 — cada cobrança parcelada vira uma frase ("Cobrança 1 em 3 parcelas: ...").
+  const splits = new Map<string, ChargeScheduleRow[]>();
+  for (const r of period) {
+    if (r.splitOf) splits.set(r.splitOf, [...(splits.get(r.splitOf) ?? []), r]);
+  }
+  for (const [name, parts] of splits) {
+    const amounts = new Set(parts.map((p) => p.amount));
+    const value = amounts.size === 1 ? `de ${parts[0].amount}` : `de ${parts[0].amount} a ${parts[parts.length - 1].amount}`;
+    differences.push(
+      `${name} em ${parts.length} parcelas ${value}: ${parts.map((p) => p.due.slice(0, 5)).join(', ').replace(/, ([^,]+)$/, ' e $1')}.`,
+    );
+  }
+  const discounted = period.filter((r) => r.original);
+  if (discounted.length > 0) {
+    differences.push(
+      `Desconto: ${discounted.length === 1 ? '1 cobrança sai' : `${discounted.length} cobranças saem`} abaixo de ${discounted[0].original}.`,
+    );
+  }
   const oddAmount = period.filter((r) => r.amount !== common);
   if (oddAmount.length > 0 && oddAmount.length <= 2) {
     differences.push(`Valor diferente: ${oddAmount.map((r) => `${r.title} (${r.amount})`).join(', ')}.`);

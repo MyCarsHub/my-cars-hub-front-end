@@ -295,6 +295,24 @@
           </div>
         }
 
+        <!-- FEAT-0573 — Dividir a caução e Como cobrar (só com a chave, só na criação). -->
+        @if (showChargePlan()) {
+          <app-charge-plan-editor
+            [frequency]="billingFrequency()"
+            [rateCents]="rateCentsForPlan()"
+            [periods]="billingUnits()"
+            [caucaoCents]="caucaoCentsForPlan()"
+            [caucaoPaid]="caucaoPaidOn()"
+            [firstDue]="firstDueForPlan()"
+            [automatic]="automaticChargeOn()"
+            [lateFineFixedCents]="lateFineFixedCentsForPlan()"
+            [today]="todayDay"
+            [previewItems]="previewItems()"
+            [previewBlocker]="previewBlocker()"
+            (planChange)="onChargePlanChange($event)"
+          />
+        }
+
         <!-- Live computed total -->
         <div class="rounded-xl border border-primary-100 dark:border-primary-500/20 bg-primary-50/40 dark:bg-primary-500/10 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
@@ -345,7 +363,12 @@
                   <li class="py-2 text-base text-fg-body min-w-0" data-testid="charge-schedule-row">
                     <p class="flex flex-wrap items-baseline justify-between gap-x-3">
                       <span class="font-medium">{{ row.title }} · vence {{ row.due }}</span>
-                      <span class="font-semibold tabular-nums">{{ row.amount }}</span>
+                      <span class="font-semibold tabular-nums">
+                        @if (row.original; as original) {
+                          <s class="mr-1 font-normal text-fg-faint" data-testid="charge-schedule-original">{{ original }}</s>
+                        }
+                        {{ row.amount }}
+                      </span>
                     </p>
                     <p class="text-fg-soft">
                       @if (row.fine; as fine) {
@@ -766,6 +789,10 @@
               </p>
             </div>
           }
+        } @else if (showChargePlan()) {
+          <!-- FEAT-0573 (H1): no aluguel manual, "Como cobrar" funciona igual. -->
+          <app-alert-banner variant="info" data-testid="charge-plan-manual-note"
+            message="Como cobrar funciona igual: valor cheio, desconto e parcelas. As cobranças ficam só registradas aqui e você marca cada uma como paga quando receber." />
         }
       </div>
     </app-page-card>
