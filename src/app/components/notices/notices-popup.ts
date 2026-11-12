@@ -1,10 +1,38 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { Router } from '@angular/router';
 import { BottomSheet } from '../core/bottom-sheet/bottom-sheet';
 import { NewsNoticeCard } from './news-notice-card';
 import { CompanyContactQuickForm } from './company-contact-quick-form';
 import { Notice, NoticeOutcome, NoticesService } from './notices.service';
+
+/**
+ * O pedaço do cartão v2 não baixou (rede ruim, aba velha depois de um deploy): a novidade sai da
+ * fila SEM ser marcada como lida, e o resto da fila (inclusive o lembrete bloqueante de contato)
+ * segue. Depois da renderização, para não escrever na fila no meio da detecção de mudanças.
+ */
+@Component({
+  selector: 'app-notice-discard',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: '',
+})
+export class NoticeDiscard {
+  readonly noticeId = input.required<string>();
+  private readonly notices = inject(NoticesService);
+
+  constructor() {
+    afterNextRender(() => this.notices.discard(this.noticeId()));
+  }
+}
 
 /**
  * Popup de avisos (lembretes e novidades), montado UMA vez no shell. Mostra o aviso da frente da
@@ -20,7 +48,7 @@ import { Notice, NoticeOutcome, NoticesService } from './notices.service';
 @Component({
   selector: 'app-notices-popup',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BottomSheet, CompanyContactQuickForm, NewsNoticeCard],
+  imports: [BottomSheet, CompanyContactQuickForm, NewsNoticeCard, NoticeDiscard],
   template: `
     @if (notices.current(); as notice) {
       @for (n of [notice]; track n.id) {
@@ -52,6 +80,8 @@ import { Notice, NoticeOutcome, NoticesService } from './notices.service';
               (closeRequested)="onDismiss()"
             />
           </app-bottom-sheet>
+          } @error {
+            <app-notice-discard [noticeId]="n.id" data-testid="news-discard" />
           }
         } @else {
         <app-bottom-sheet

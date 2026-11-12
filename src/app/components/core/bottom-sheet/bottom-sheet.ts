@@ -17,6 +17,9 @@ import {
 /** Duração da saída; a entrada é 320ms (mola) no celular e 200ms no desktop. */
 export const BOTTOM_SHEET_LEAVE_MS = 200;
 
+/** Variante `bare` com "reduzir movimento": entra e sai com este fade, sem mola. */
+export const BOTTOM_SHEET_REDUCED_FADE_MS = 160;
+
 let nextId = 0;
 
 /**
@@ -62,20 +65,25 @@ let nextId = 0;
     @keyframes bs-unpop { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.97); } }
     /* bare (novidade v2): mola mais longa no celular; no desktop, escala 0,96→1 com um leve quique. */
     .panel.bare { animation: bs-rise 520ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+    /* Saída igual à folha padrão (as regras de entrada acima teriam vencido a de saída). */
+    .leaving .panel.bare { animation: bs-sink ${BOTTOM_SHEET_LEAVE_MS}ms cubic-bezier(0.4, 0, 1, 1) both; }
     @media (min-width: 1024px) {
       .panel.bare { animation: bs-pop-spring 440ms cubic-bezier(0.34, 1.32, 0.64, 1) both; }
+      .leaving .panel.bare { animation: bs-unpop 160ms ease-in both; }
     }
     @keyframes bs-pop-spring { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) {
       .backdrop, .panel, .leaving .backdrop, .leaving .panel { animation: none !important; }
-      .leaving { opacity: 0; }
-      /* bare: só um fade curto, sem mola. */
-      .panel.bare { animation: bs-fade-in 160ms linear both !important; }
-      .leaving .panel.bare { animation: none !important; }
+      .leaving:not(.is-bare) { opacity: 0; }
+      /* bare: entra e sai só com um fade curto, sem mola. */
+      .panel.bare { animation: bs-fade-in ${BOTTOM_SHEET_REDUCED_FADE_MS}ms linear both !important; }
+      .is-bare.leaving .backdrop, .is-bare.leaving .panel.bare {
+        animation: bs-fade-out ${BOTTOM_SHEET_REDUCED_FADE_MS}ms linear both !important;
+      }
     }
   `,
   template: `
-    <div [class.leaving]="leaving()" data-testid="bottom-sheet">
+    <div [class.leaving]="leaving()" [class.is-bare]="bare()" data-testid="bottom-sheet">
       <div
         class="backdrop fixed inset-0 z-[110] bg-black/45 backdrop-blur-sm"
         (click)="requestClose()"
@@ -233,7 +241,8 @@ export class BottomSheet implements OnInit, OnDestroy {
     if ((this.busy() && !force) || this.leaving()) return;
     this.leaving.set(true);
     const reduced = this.doc.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    setTimeout(() => this.closed.emit(), reduced ? 0 : BOTTOM_SHEET_LEAVE_MS);
+    const reducedDelay = this.bare() ? BOTTOM_SHEET_REDUCED_FADE_MS : 0;
+    setTimeout(() => this.closed.emit(), reduced ? reducedDelay : BOTTOM_SHEET_LEAVE_MS);
   }
 
   protected onEscape(event: Event): void {

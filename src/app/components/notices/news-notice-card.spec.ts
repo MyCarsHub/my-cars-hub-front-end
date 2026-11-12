@@ -2,6 +2,7 @@ import { Component, Type, signal } from '@angular/core';
 import { DeferBlockState, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { BOTTOM_SHEET_REDUCED_FADE_MS } from '../core/bottom-sheet/bottom-sheet';
 import { NewsNoticeCard } from './news-notice-card';
 import { NoticesPopup } from './notices-popup';
 import { Notice, NoticeMedia, NoticeOutcome, NoticesService } from './notices.service';
@@ -213,7 +214,7 @@ describe('NoticesPopup — várias novidades na fila', () => {
     f.destroy();
   });
 
-  it('menos movimento: fecha na hora, sem esperar a animação', () => {
+  it('menos movimento: sai com um fade curto, sem a mola', () => {
     stubReducedMotion(true);
     const notices = TestBed.inject(NoticesService);
     let outcome: NoticeOutcome | null = null;
@@ -221,7 +222,12 @@ describe('NoticesPopup — várias novidades na fila', () => {
     const f = TestBed.createComponent(PopupHost);
     f.detectChanges();
     $('[data-testid="notice-dismiss"]')!.click();
-    vi.advanceTimersByTime(0);
+    f.detectChanges();
+    expect($('[data-testid="bottom-sheet"]')?.className).toContain('leaving');
+    expect($('[data-testid="bottom-sheet"]')?.className).toContain('is-bare');
+    vi.advanceTimersByTime(BOTTOM_SHEET_REDUCED_FADE_MS - 1);
+    expect(outcome).toBeNull();
+    vi.advanceTimersByTime(1);
     f.detectChanges();
     expect(outcome).toBe('dismissed');
     f.destroy();

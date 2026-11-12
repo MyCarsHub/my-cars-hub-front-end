@@ -139,6 +139,30 @@ describe('NewsNoticesService (F1: novidade no popup de avisos)', () => {
     http.expectOne(readUrl('a')).flush(null);
   });
 
+  it('o cartão não baixou (@error): a novidade sai da fila SEM marcar como lida e o lembrete bloqueante segue', async () => {
+    const f = render();
+    service.maybeShow();
+    http.expectOne(UNREAD).flush([news('a')]);
+    TestBed.tick();
+    f.detectChanges();
+    expect(notices.current()?.id).toBe('news:a');
+    let reminder: string | null = null;
+    notices
+      .enqueue({ id: 'contact', type: 'REMINDER', title: 'Contato', message: 'Falta o contato.', blocking: true })
+      .subscribe((o) => (reminder = o));
+
+    const [block] = await f.getDeferBlocks();
+    await block.render(DeferBlockState.Error);
+    TestBed.tick();
+    f.detectChanges();
+
+    expect(notices.current()?.id).toBe('contact');
+    expect(q(f, '[data-testid="notice-type"]')?.textContent).toContain('Lembrete');
+    http.expectNone(readUrl('a'));
+    notices.resolve('contact');
+    expect(reminder).toBe('resolved');
+  });
+
   it('enfileira a MAIS ANTIGA como NEWS, com "Entendi", texto simples e itens vazios fora', () => {
     const f = render();
     service.maybeShow();

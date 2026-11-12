@@ -109,6 +109,18 @@ export class NoticesService {
     this.finish(id, 'dismissed');
   }
 
+  /**
+   * Tira da fila SEM desfecho: quem pediu o aviso não recebe nada (o Observable só completa).
+   * Para quando o aviso nem pôde ser mostrado — a novidade não conta como lida.
+   */
+  discard(id: string): void {
+    const subject = this.outcomes.get(id);
+    if (!subject) return;
+    this.outcomes.delete(id);
+    this.items.update((list) => list.filter((n) => n.id !== id));
+    subject.complete();
+  }
+
   private finish(id: string, outcome: NoticeOutcome): void {
     const subject = this.outcomes.get(id);
     if (!subject) return;
