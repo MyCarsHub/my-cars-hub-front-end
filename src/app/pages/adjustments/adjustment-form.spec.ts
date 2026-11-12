@@ -37,7 +37,15 @@ describe('AdjustmentForm', () => {
   let navigate: ReturnType<typeof vi.fn>;
   let success: ReturnType<typeof vi.fn>;
 
-  function setup() {
+  const TWO = {
+    content: [
+      { id: 'd1', name: 'Carlos Mendes' },
+      { id: 'd2', name: 'Bruno Almeida' },
+    ],
+    total: 2,
+  };
+
+  function setup(list: (filters: { name?: string }) => unknown = vi.fn().mockReturnValue(of(TWO))) {
     TestBed.resetTestingModule();
     create = vi.fn();
     success = vi.fn();
@@ -47,14 +55,7 @@ describe('AdjustmentForm', () => {
         provideRouter([]),
         ApiErrorService,
         { provide: AdjustmentsService, useValue: { create } },
-        {
-          provide: DriverService,
-          useValue: {
-            list: vi.fn().mockReturnValue(
-              of({ content: [{ id: 'd1', name: 'Carlos Mendes' }, { id: 'd2', name: 'Bruno Almeida' }] }),
-            ),
-          },
-        },
+        { provide: DriverService, useValue: { list } },
         { provide: NotificationService, useValue: { success, error: vi.fn() } },
       ],
     });
@@ -75,16 +76,148 @@ describe('AdjustmentForm', () => {
 
   beforeEach(() => TestBed.resetTestingModule());
 
-  it('lista os motoristas e não oferece aluguel nem forma de pagamento', () => {
-    const { el } = setup();
-    const options = Array.from(el.querySelectorAll('#adjustment-driver option')).map((o) => o.textContent?.trim());
-    expect(options).toContain('Carlos Mendes');
+  it('lista os motoristas e não oferece aluguel nem forma de pagamento', async () => {
+    const { el, fixture } = setup();
     expect(el.textContent).not.toMatch(/Aluguel|Forma de pagamento|Boleto|Cartão/);
+    (el.querySelector('#adjustment-driver') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const options = Array.from(document.querySelectorAll('[data-testid="driver-picker-option"]')).map((o) =>
+      o.textContent?.trim(),
+    );
+    expect(options).toContain('Carlos Mendes');
+    expect(options).toContain('Bruno Almeida');
+  });
+
+  it('motorista NÃO é <select> nativo: a lista abre na folha e a escolha vai para o controle', async () => {
+    const { el, fixture, api } = setup();
+    expect(el.querySelector('select')).toBeNull();
+    const trigger = el.querySelector('#adjustment-driver') as HTMLButtonElement;
+    expect(trigger.tagName).toBe('BUTTON');
+    expect(trigger.className).toMatch(/\btext-base\b/);
+    expect(trigger.className).toMatch(/focus:ring-primary-600/);
+    expect(trigger.textContent).toContain('Escolha o motorista');
+
+    trigger.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const bruno = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-testid="driver-picker-option"]')).find(
+      (b) => b.textContent?.includes('Bruno Almeida'),
+    )!;
+    bruno.click();
+    fixture.detectChanges();
+
+    expect(api.form.controls['driverId'].value).toBe('d2');
+    expect(trigger.textContent).toContain('Bruno Almeida');
+  });
+
+  it('falha ao carregar NÃO vira "nenhum motorista": mostra o erro e "Tentar novamente" recarrega', () => {
+    const failing = vi
+      .fn()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })))
+      .mockReturnValueOnce(of(TWO));
+    const { el, fixture } = setup(failing);
+    const trigger = el.querySelector('#adjustment-driver') as HTMLButtonElement;
+    const banner = el.querySelector('[data-testid="adjustment-driver-load-error"]') as HTMLElement;
+    expect(banner).not.toBeNull();
+    expect(el.textContent).not.toContain('Nenhum motorista cadastrado');
+    expect(trigger.disabled).toBe(true);
+    expect(trigger.getAttribute('aria-describedby')).toContain('adjustment-driver-load-error');
+
+    const retry = Array.from(banner.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Tentar novamente'),
+    )!;
+    retry.click();
+    fixture.detectChanges();
+
+    expect(failing).toHaveBeenCalledTimes(2);
+    expect(el.querySelector('[data-testid="adjustment-driver-load-error"]')).toBeNull();
+    expect(trigger.disabled).toBe(false);
+  });
+
+  it('lista vazia avisa e leva ao cadastro de motorista', () => {
+    const { el } = setup(vi.fn().mockReturnValue(of({ content: [], total: 0 })));
+    const empty = el.querySelector('[data-testid="adjustment-driver-empty"]') as HTMLElement;
+    expect(empty.textContent).toContain('Nenhum motorista cadastrado');
+    expect(empty.querySelector('a')?.getAttribute('href')).toBe('/motoristas/novo');
+    expect(el.querySelector('[data-testid="adjustment-driver-load-error"]')).toBeNull();
+  });
+
+  it('nome acessível leva o valor; sem aria-required no botão; aria-expanded segue a folha', async () => {
+    const { el, fixture } = setup();
+    const trigger = el.querySelector('#adjustment-driver') as HTMLButtonElement;
+    expect(trigger.getAttribute('aria-label')).toBe('Motorista: escolha o motorista');
+    expect(trigger.hasAttribute('aria-required')).toBe(false);
+    expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+    trigger.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    const bruno = Array.from(
+      el.querySelectorAll<HTMLButtonElement>('[data-testid="driver-picker-option"]'),
+    ).find((b) => b.textContent?.includes('Bruno Almeida'))!;
+    bruno.click();
+    fixture.detectChanges();
+    expect(trigger.getAttribute('aria-label')).toBe('Motorista: Bruno Almeida');
+  });
+
+  it('passar pelo campo com Tab (blur) mostra o erro de obrigatório', () => {
+    const { el, fixture } = setup();
+    const trigger = el.querySelector('#adjustment-driver') as HTMLButtonElement;
+    trigger.dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('Escolha o motorista.');
+  });
+
+  it('lista cortada no limite: avisa o total e a busca vai ao servidor', async () => {
+    const big = vi.fn((filters: { name?: string }) =>
+      of(
+        filters.name
+          ? { content: [{ id: 'd900', name: 'Zélia Prado' }], total: 1 }
+          : { ...TWO, total: 600 },
+      ),
+    );
+    const { el, fixture, api } = setup(big);
+    (el.querySelector('#adjustment-driver') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(el.querySelector('[data-testid="driver-picker-more"]')?.textContent).toContain(
+      'Mostrando 2 de 600',
+    );
+
+    const search = el.querySelector('[data-testid="driver-picker-search"]') as HTMLInputElement;
+    search.value = 'zelia';
+    search.dispatchEvent(new Event('input'));
+    await new Promise((r) => setTimeout(r, 300));
+    fixture.detectChanges();
+    expect(big).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'zelia' }));
+    const zelia = el.querySelector<HTMLButtonElement>('[data-testid="driver-picker-option"]')!;
+    expect(zelia.textContent).toContain('Zélia Prado');
+    zelia.click();
+    fixture.detectChanges();
+    expect(api.form.controls['driverId'].value).toBe('d900');
+    expect((el.querySelector('#adjustment-driver') as HTMLButtonElement).textContent).toContain(
+      'Zélia Prado',
+    );
+  });
+
+  it('fechar a folha sem escolher mostra o erro de obrigatório', async () => {
+    const { el, fixture } = setup();
+    (el.querySelector('#adjustment-driver') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    (document.querySelector('[data-testid="bottom-sheet-close"]') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 250));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="bottom-sheet"]')).toBeNull();
+    expect(el.querySelector('#adjustment-driver-error, [role="alert"]')?.textContent).toContain('Escolha o motorista.');
   });
 
   it('campos com fonte ≥ 16px (text-base): o iOS não dá zoom no foco', () => {
     const { el } = setup();
-    for (const c of Array.from(el.querySelectorAll('input, select'))) {
+    for (const c of Array.from(el.querySelectorAll('input, select, #adjustment-driver'))) {
       expect(c.className).toMatch(/\btext-base\b/);
     }
   });

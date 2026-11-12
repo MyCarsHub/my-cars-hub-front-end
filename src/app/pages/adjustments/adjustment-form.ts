@@ -1,12 +1,30 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { Subject, catchError, of, switchMap } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { BottomSheet } from '../../components/core/bottom-sheet/bottom-sheet';
 import { PageCard } from '../../components/core/page-card/page-card';
+import {
+  DRIVER_PICKER_PAGE_SIZE,
+  DriverPicker,
+  DriverPickerItem,
+} from '../../components/drivers/driver-picker/driver-picker';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
+import { PersonNamePipe } from '../../pipes/person-name.pipe';
+import { formatPersonName } from '../../utils/display-format';
 import { AdjustmentsService } from '../../services/adjustments.service';
 import { clearServerErrors } from '../../services/api-error';
 import { ApiErrorService } from '../../services/api-error.service';
@@ -41,7 +59,18 @@ import { ptBrMoneyCents } from '../../utils/validators/ptbr-money.validator';
 @Component({
   selector: 'app-adjustment-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    AlertBanner,
+    FormField,
+    FieldControl,
+    BottomSheet,
+    DriverPicker,
+    PersonNamePipe,
+  ],
   templateUrl: './adjustment-form.html',
 })
 export class AdjustmentForm implements OnInit {
@@ -64,6 +93,12 @@ export class AdjustmentForm implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly drivers = signal<DriverListItem[]>([]);
   protected readonly driversLoaded = signal(false);
+  protected readonly driversError = signal<string | null>(null);
+  /** Total no servidor; acima de {@link DRIVER_PICKER_PAGE_SIZE} o seletor avisa o corte. */
+  protected readonly driversTotal = signal(0);
+  protected readonly driversEmpty = computed(
+    () => this.driversLoaded() && !this.driversError() && this.drivers().length === 0,
+  );
 
   protected readonly driverMessages = { required: 'Escolha o motorista.' };
   protected readonly amountMessages = {
@@ -91,17 +126,102 @@ export class AdjustmentForm implements OnInit {
     description: ['', [notBlankValidator(), Validators.maxLength(ADJUSTMENT_DESCRIPTION_MAX)]],
   });
 
+  /** Folha do seletor de motorista (no lugar do `<select>` nativo). */
+  protected readonly driverPickerOpen = signal(false);
+  private readonly driverSheet = viewChild(BottomSheet);
+  private readonly driverId = toSignal(this.form.controls.driverId.valueChanges, {
+    initialValue: this.form.controls.driverId.value,
+  });
+  /** O que a folha lista: a primeira página ou o resultado da busca no servidor. */
+  protected readonly pickerDrivers = signal<readonly DriverPickerItem[]>([]);
+  /** Escolhido via busca no servidor pode não estar na primeira página. */
+  private readonly pickedDriver = signal<DriverPickerItem | null>(null);
+  private readonly driverSearch$ = new Subject<string>();
+  protected readonly selectedDriver = computed(() => {
+    const id = this.driverId();
+    if (!id) return null;
+    const picked = this.pickedDriver();
+    return this.drivers().find((d) => d.id === id) ?? (picked?.id === id ? picked : null);
+  });
+  /** A `<label>` sozinha daria só "Motorista": o nome acessível leva o valor atual. */
+  protected readonly driverAriaLabel = computed(() => {
+    const d = this.selectedDriver();
+    if (d) return `Motorista: ${formatPersonName(d.name)}`;
+    return this.driversLoaded() ? 'Motorista: escolha o motorista' : 'Motorista: carregando';
+  });
+
+  constructor() {
+    this.driverSearch$
+      .pipe(
+        switchMap((name) =>
+          name
+            ? this.driverService
+                .list({ name, size: DRIVER_PICKER_PAGE_SIZE, sort: 'name_asc' })
+                .pipe(catchError(() => of(null)))
+            : of({ content: this.drivers() }),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((res) => {
+        if (res) this.pickerDrivers.set(res.content ?? []);
+      });
+  }
+
   ngOnInit(): void {
-    this.driverService.list({ size: 500, sort: 'name_asc' }).subscribe({
+    this.loadDrivers();
+  }
+
+  /** Só chamada com a lista cortada em {@link DRIVER_PICKER_PAGE_SIZE}. */
+  protected onDriverSearch(name: string): void {
+    this.driverSearch$.next(name);
+  }
+
+  /**
+   * Falha NÃO vira lista vazia: "nenhum motorista cadastrado" seria uma afirmação falsa sobre
+   * os dados. Erro mostra a mensagem e "Tentar novamente"; vazio leva ao cadastro.
+   */
+  protected loadDrivers(): void {
+    this.driversLoaded.set(false);
+    this.driversError.set(null);
+    this.driverService.list({ size: DRIVER_PICKER_PAGE_SIZE, sort: 'name_asc' }).subscribe({
       next: (res) => {
-        this.drivers.set(res.content ?? []);
+        const content = res.content ?? [];
+        this.drivers.set(content);
+        this.pickerDrivers.set(content);
+        this.driversTotal.set(Math.max(res.total ?? 0, content.length));
         this.driversLoaded.set(true);
       },
-      error: () => {
+      error: (err: unknown) => {
         this.drivers.set([]);
+        this.driversTotal.set(0);
+        this.driversError.set(this.apiErrors.messageFor(err, 'Não foi possível carregar os motoristas.'));
         this.driversLoaded.set(true);
       },
     });
+  }
+
+  protected openDriverPicker(): void {
+    this.pickerDrivers.set(this.drivers());
+    this.driverPickerOpen.set(true);
+  }
+
+  protected pickDriver(driver: DriverPickerItem): void {
+    const control = this.form.controls.driverId;
+    this.pickedDriver.set(driver);
+    control.setValue(driver.id);
+    control.markAsDirty();
+    this.driverSheet()?.requestClose();
+  }
+
+  /** Passar pelo campo com Tab marca como tocado, como o blur do `<select>`. */
+  protected onDriverTriggerBlur(): void {
+    if (!this.driverPickerOpen()) this.form.controls.driverId.markAsTouched();
+  }
+
+  /** Fechar sem escolher conta como ter passado pelo campo (o `<select>` marcava no blur). */
+  protected onDriverPickerClosed(): void {
+    this.form.controls.driverId.markAsTouched();
+    this.driverPickerOpen.set(false);
   }
 
   /** O controle guarda TEXTO; a máscara reescreve o campo a cada tecla. */
