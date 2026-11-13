@@ -3,14 +3,28 @@ export type AdminCouponMode = 'APPLIED_TO_SUBSCRIPTION' | 'PROMOTION_CODE' | 'OP
 
 export type AdminCouponStatus = 'ACTIVE' | 'DEACTIVATED';
 
+/**
+ * `ONCE` = só a próxima fatura; `REPEATING` = por `durationMonths` meses;
+ * `FOREVER` = todas, até o cupom ser desativado. Cupom antigo responde `REPEATING`.
+ */
+export type CouponDuration = 'ONCE' | 'REPEATING' | 'FOREVER';
+
+/** `planCode` de um cupom que vale em todos os planos (STARTER, PRO e SCALE). */
+export const ALL_PLANS_CODE = 'ALL';
+
 /** `POST /admin/billing/coupons/preview` e a criação. Exatamente um dos dois descontos. */
 export interface AdminCouponRequest {
   /** Omitido no código aberto: ele não é de ninguém. */
   companyId?: string;
-  planCode: string;
+  /** Um plano só. Nunca junto de `allPlans: true`: aí vai `null`. */
+  planCode: string | null;
+  /** `true` = STARTER, PRO e SCALE, mensal e anual; o ENTERPRISE fica de fora. */
+  allPlans?: boolean;
   amountOffCents: number | null;
   percentOff: number | null;
-  durationMonths: number;
+  duration: CouponDuration;
+  /** De 1 a 36, só com `REPEATING`; `null` nas outras durações. */
+  durationMonths: number | null;
   reason: string;
   /** Os campos abaixo só valem com `openCode: true`. */
   openCode?: boolean;
@@ -21,8 +35,23 @@ export interface AdminCouponRequest {
   firstPurchaseOnly?: boolean;
 }
 
+/** Uma linha da prévia por plano coberto, do mais barato ao mais caro. */
+export interface CouponPreviewPlan {
+  planCode: string;
+  planName: string;
+  period: string;
+  listAmountCents: number;
+  discountedAmountCents: number;
+}
+
 export interface AdminCouponPreview {
   mode: AdminCouponMode;
+  duration?: CouponDuration;
+  allPlans?: boolean;
+  /** Todos os planos: um item por plano coberto. Um plano só: um item. Backend antigo: ausente. */
+  plans?: CouponPreviewPlan[];
+  /** Todos os planos: planos que ficam de fora (hoje, os que não estão à venda). `null` num plano só. */
+  uncoveredPlanCodes?: string[] | null;
   listAmountCents: number;
   discountedAmountCents: number;
   /** "Paga R$ 100,00 por 2 meses, depois R$ 149,90". */
@@ -47,6 +76,17 @@ export interface AdminCoupon {
   expiresAt: string | null;
   createdAt: string | null;
   maxRedemptions?: number | null;
+  /** Todos os planos: `planCode` vem `"ALL"` e isto vem `true`. */
+  allPlans?: boolean;
+  /** Planos cobertos na criação; um item num cupom de um plano só. */
+  planCodes?: string[];
+  /**
+   * Só todos os planos: planos que o cupom NÃO cobre (fora de venda na criação, ou
+   * Product novo na Stripe depois). `[]` = cobre todos; `null` = um plano só, ou a
+   * Stripe não respondeu.
+   */
+  uncoveredPlanCodes?: string[] | null;
+  duration?: CouponDuration;
 }
 
 /** O que a folha precisa saber da empresa, venha da busca ou do detalhe. */

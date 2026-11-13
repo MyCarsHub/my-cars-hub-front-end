@@ -15,6 +15,7 @@ const REQUEST: AdminCouponRequest = {
   planCode: 'PRO_MONTHLY_STRIPE',
   amountOffCents: 4990,
   percentOff: null,
+  duration: 'REPEATING',
   durationMonths: 2,
   reason: 'Negociação',
 };
