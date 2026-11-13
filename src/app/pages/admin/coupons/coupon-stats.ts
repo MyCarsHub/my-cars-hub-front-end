@@ -6,7 +6,7 @@ import { ALL_PLANS_TIERS, couponStatus, isAllPlans } from './coupon-copy';
 
 /**
  * Cupom de todos os planos não diz em qual plano cada uso caiu: a estimativa conta o
- * preço mensal do plano coberto mais barato, e fica do lado de baixo.
+ * preço do plano mensal coberto mais barato, e fica do lado de baixo.
  */
 function cheapestCovered(
   coupon: Pick<AdminCoupon, 'planCodes'>,
@@ -17,7 +17,11 @@ function cheapestCovered(
     : Object.keys(monthlyPrices).filter((code) =>
         (ALL_PLANS_TIERS as readonly string[]).includes(planTierOf(code.split('_')[0]) ?? ''),
       );
-  const prices = codes.map((code) => monthlyPrices[code]).filter((price): price is number => price > 0);
+  // O mensal, como na linha "Desconto por mês" da lista; o anual só se não houver mensal.
+  const monthly = codes.filter((code) => code.includes('_MONTHLY'));
+  const prices = (monthly.length ? monthly : codes)
+    .map((code) => monthlyPrices[code])
+    .filter((price): price is number => price > 0);
   return prices.length ? Math.min(...prices) : undefined;
 }
 
