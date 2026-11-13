@@ -191,14 +191,14 @@ export class AppShell implements OnInit, OnDestroy {
    */
   /**
    * Folga à direita do título (`--page-header-end`, lida pelo default-page-layout) para a
-   * coluna do header: 44px do botão de tema, mais 8px + 44px do sino quando ele monta, mais
-   * 4px de respiro. Vale no celular e no desktop — o título e as ações da página não correm
-   * por baixo dos botões.
+   * coluna do header no computador: 44px do botão de tema, mais 8px e o sino quando ele monta
+   * — que cresce com o contador de não lidas (até "99+", ~80px) —, mais respiro. No celular os
+   * botões moram na barra de topo e não há folga.
    */
   protected readonly headerEnd = computed(() => {
     // Celular: tema e sino moram na barra de topo; o título usa a largura toda.
     if (this.layout.mobileTopBar()) return null;
-    return this.showBell() ? '6.25rem' : '3.25rem';
+    return this.showBell() ? '8.5rem' : '3.25rem';
   });
 
   protected readonly showBell = computed(() => {

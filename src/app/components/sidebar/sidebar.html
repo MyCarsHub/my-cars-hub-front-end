@@ -160,8 +160,9 @@
   </nav>
 
   <!-- ===== PÉ: Novidades como linha, bloco do usuário com ⋮ (Perfil, Suporte, Sair), Recolher ===== -->
-  <div class="shrink-0 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-0.5"
-    [class.px-3]="!collapsedDesk()" [style.padding-inline]="collapsedDesk() ? '14px' : null" data-nav-bottom>
+  <div class="shrink-0 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+    [class.px-3]="!collapsedDesk()" [style.padding-inline]="collapsedDesk() ? '14px' : null">
+  <div class="flex flex-col gap-0.5" data-nav-bottom>
     @for (item of bottomNavItems(); track trackByKey($index, item)) {
       <ng-container *ngTemplateOutlet="rowLink; context: { $implicit: item, gap: false }" />
     }
@@ -220,6 +221,8 @@
       }
     </div>
     }
+
+  </div>
 
     <!-- Recolher (computador): botão pequeno só com ícone, no canto de baixo à direita. -->
     @if (!layout.isMobile()) {

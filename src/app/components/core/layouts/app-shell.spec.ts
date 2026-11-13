@@ -331,7 +331,7 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(header.classList.contains('sticky')).toBe(true);
     expect(header.classList.contains('absolute')).toBe(false);
     expect(bellRow(host).querySelector('app-notification-bell')).not.toBeNull();
-    expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('6.25rem');
+    expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('8.5rem');
   });
 
   /*

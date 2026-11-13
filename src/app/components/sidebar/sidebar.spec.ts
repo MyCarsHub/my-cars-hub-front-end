@@ -306,7 +306,7 @@ describe('Sidebar', () => {
       expect(openAccountMenu(host)).toEqual(['Perfil', 'Suporte', 'Sair']);
       const collapse = host.querySelector('button[aria-label="Recolher menu"]')!;
       expect(nav.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(footer.contains(collapse)).toBe(true);
+      expect(footer.compareDocumentPosition(collapse) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('no drawer do celular, o ⋮ da conta também está no pé e leva a /perfil e /suporte', () => {
