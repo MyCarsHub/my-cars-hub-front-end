@@ -126,7 +126,8 @@ describe('AdminCharges (Cobranças)', () => {
 
     openKebab(card, fixture);
     const items = Array.from(card.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent?.trim());
-    expect(items).toEqual(['Comparar com o Asaas', 'Tentar de novo', 'Corrigir nome do motorista',
+    // G13 (FEAT-0573): a FAILED também oferece "Recebida por fora".
+    expect(items).toEqual(['Comparar com o Asaas', 'Recebida por fora', 'Tentar de novo', 'Corrigir nome do motorista',
       'Atualizar cliente no Asaas', 'Ver aluguel', 'Cancelar cobrança']);
 
     (card.querySelector('[data-testid="menu-compare"]') as HTMLButtonElement).click();

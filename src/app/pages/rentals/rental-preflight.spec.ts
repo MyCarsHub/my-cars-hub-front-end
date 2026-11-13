@@ -34,6 +34,31 @@ const LIMITS: RentalPreflightLimits = {
 };
 
 describe('rental-preflight — onde cada problema aparece', () => {
+  it('FEAT-0573: o valor cheio riscado é do PERÍODO; parcelas de um período dividido não riscam', () => {
+    const split = (index: number, amount: number, discount: number) => ({
+      kind: 'RENTAL_PERIOD' as const, index, dueDate: '2026-11-16', amountCents: amount,
+      destination: 'ASAAS' as const, instalmentIndex: index + 1, instalmentCount: 3,
+      discountCents: discount, originalAmountCents: discount ? amount + discount : null, group: 'PERIOD:0',
+    });
+    const preview = {
+      automaticCharge: true, willCreateInGateway: true, totalCents: 0, gatewayCount: 3, localCount: 0,
+      firstDueDate: '2026-11-16', blocker: null,
+      charges: [
+        split(0, 21_666, 10_000),
+        { ...split(1, 21_666, 0), instalmentIndex: 2 },
+        { ...split(2, 21_668, 0), instalmentIndex: 3 },
+        { kind: 'RENTAL_PERIOD' as const, index: 1, dueDate: '2026-11-23', amountCents: 65_000, destination: 'ASAAS' as const, discountCents: 10_000, originalAmountCents: 75_000, group: 'PERIOD:1' },
+      ],
+    };
+    const rows = buildChargeSchedule(preview, { lateFineType: 'FIXED', lateFineValue: 5_000 });
+    expect(rows.slice(0, 3).every((r) => r.original === undefined)).toBe(true);
+    expect(rows[0].periodDiscount?.original).toBe('R$ 750,00'.replace(/\s/g, ' '));
+    expect(rows[3].original).toContain('750,00');
+    const sum = summarizeChargeSchedule(rows)!;
+    expect(sum.differences.join(' ')).toContain('Desconto: 2 cobranças saem abaixo de');
+    expect(sum.differences.join(' ')).not.toContain('316');
+  });
+
   it('campo do corpo da API vira o controle do formulário', () => {
     expect(controlFor(item({ field: 'periodRate' }))).toBe('periodRateReais');
     expect(controlFor(item({ field: 'lateFineValue' }))).toBe('lateFineValueInput');

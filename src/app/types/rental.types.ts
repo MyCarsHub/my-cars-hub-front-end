@@ -3,7 +3,14 @@ import { PagedResponse } from './paged.types';
 
 export type RentalStatus = 'RESERVED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED';
 /** `ADJUSTMENT` (V141): Ajuste, cobrança avulsa ao motorista. Nunca "Aluguel", nunca gerada de novo. */
-export type ChargeKind = 'RENTAL_TOTAL' | 'RENTAL_PERIOD' | 'CAUCAO' | 'OVERDUE_FEE' | 'ADJUSTMENT';
+/** `AGREEMENT` (FEAT-0573): parcela de um acordo (renegociação). */
+export type ChargeKind =
+  | 'RENTAL_TOTAL'
+  | 'RENTAL_PERIOD'
+  | 'CAUCAO'
+  | 'OVERDUE_FEE'
+  | 'ADJUSTMENT'
+  | 'AGREEMENT';
 export type ChargeStatus =
   | 'PENDING'
   | 'PAID'
@@ -12,7 +19,9 @@ export type ChargeStatus =
   | 'CANCELED'
   | 'REFUNDED'
   | 'RELEASED'
-  | 'DISPUTED';
+  | 'DISPUTED'
+  /** FEAT-0573 — saiu de cobrança porque entrou num acordo. Terminal, nunca aberta. */
+  | 'RENEGOTIATED';
 export type RentalBillingFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 /** Método de devolução da caução no fechamento (complete/cancel). */
 export type CaucaoRefundMethod = 'AUTOMATIC' | 'MANUAL' | 'NONE';
@@ -175,6 +184,24 @@ export interface RentalChargeDto {
   autoRetrying?: boolean | null;
   /** V118 — quantas vezes a cobrança foi gerada de novo (0 = nunca). */
   reissueCount?: number;
+  /**
+   * FEAT-0573 (aditivos, opcionais: backend anterior não manda). Parcela i de N
+   * (1 de 1 sem plano), desconto em centavos e o valor cheio antes dele.
+   */
+  instalmentIndex?: number;
+  instalmentCount?: number;
+  discountCents?: number;
+  originalAmountCents?: number | null;
+  /** A cobrança nasceu deste acordo. */
+  agreementId?: string | null;
+  agreementSeq?: number | null;
+  /** A cobrança saiu de cobrança e entrou neste acordo (status RENEGOTIATED). */
+  renegotiatedInAgreementId?: string | null;
+  renegotiatedInAgreementSeq?: number | null;
+  receivedOutside?: boolean;
+  receivedOutsideOn?: string | null;
+  /** Quem marcou como paga / registrou recebida por fora. */
+  settledBy?: { userId: string; name: string } | null;
 }
 
 /** V118 — `GET /v1/charges/attention`: uma cobrança FAILED com o aviso à locadora. */
@@ -403,6 +430,42 @@ export interface CreateRentalRequest {
    * sobrescreve. No create, `null` ou `0` = não informado.
    */
   extraKmPrice?: number | null;
+  /**
+   * FEAT-0573 — plano de cobrança (desconto / parcelas). Só é enviado quando o
+   * recurso está liberado para a conta E o usuário montou um plano; ausente =
+   * comportamento de hoje.
+   */
+  chargePlan?: ChargePlanDto | null;
+}
+
+/** FEAT-0573 — `ChargePlanDto` (contrato B2). Dinheiro em centavos, datas yyyy-MM-dd. */
+export interface ChargePlanInstalment {
+  dueDate: string;
+  amountCents: number;
+}
+
+export interface ChargePlanDiscount {
+  type: 'AMOUNT' | 'PERCENT';
+  /** AMOUNT: centavos ≥ 1. PERCENT: basis points 1–9999. */
+  value: number;
+  firstPeriods: number;
+}
+
+export interface ChargePlanOverride {
+  target: 'CAUCAO' | 'PERIOD';
+  /** Obrigatório para PERIOD, nulo para CAUCAO. */
+  periodIndex: number | null;
+  instalments: ChargePlanInstalment[];
+}
+
+export interface ChargePlanDto {
+  discount: ChargePlanDiscount | null;
+  /**
+   * `intervalDays` é a QUANTIDADE do intervalo na unidade `intervalUnit` (adição ao contrato
+   * B2, 12/11): DAYS, WEEKS (7 dias) ou MONTHS (30 dias). Sem a unidade = DAYS.
+   */
+  defaultSplit: { count: number; intervalDays: number; intervalUnit?: 'DAYS' | 'WEEKS' | 'MONTHS' } | null;
+  overrides: ChargePlanOverride[] | null;
 }
 
 /**
@@ -421,6 +484,14 @@ export interface RentalChargePreviewItemDto {
   dueDate: string; // yyyy-MM-dd
   amountCents: number;
   destination: ChargePreviewDestination;
+  /** FEAT-0573 (aditivos). Ausentes = 1 de 1, sem desconto. */
+  instalmentIndex?: number;
+  instalmentCount?: number;
+  discountCents?: number;
+  originalAmountCents?: number | null;
+  fineFixedCents?: number | null;
+  /** `"CAUCAO"` ou `"PERIOD:<index>"`. */
+  group?: string;
 }
 
 /** Motivo pelo qual o aluguel NÃO pode ser criado com estes dados. */
@@ -442,6 +513,9 @@ export interface RentalChargePreviewDto {
   localCount: number;
   firstDueDate: string | null;
   blocker: RentalChargePreviewBlockerDto | null;
+  /** FEAT-0573 (aditivos). */
+  originalTotalCents?: number;
+  discountTotalCents?: number;
 }
 
 /**
@@ -516,6 +590,7 @@ const CHARGE_STATUS_META: Record<ChargeStatus, { label: string; chip: string }> 
   REFUNDED: { label: 'Reembolsado', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200' },
   RELEASED: { label: 'Liberado', chip: 'bg-surface-strong text-fg-soft' },
   DISPUTED: { label: 'Contestada', chip: 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300' },
+  RENEGOTIATED: { label: 'Renegociada', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200' },
 };
 
 /** O par (status, vencimento) — o mínimo pra decidir se uma cobrança atrasou. */
@@ -577,6 +652,7 @@ export function chargeKindLabel(kind: ChargeKind): string {
     CAUCAO: 'Caução',
     OVERDUE_FEE: 'Multa por atraso',
     ADJUSTMENT: 'Ajuste',
+    AGREEMENT: 'Acordo',
   };
   return map[kind];
 }

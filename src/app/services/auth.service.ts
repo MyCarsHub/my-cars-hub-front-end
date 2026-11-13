@@ -10,6 +10,7 @@ import { ImpersonationService } from './impersonation.service';
 import { TenantCachesService } from './tenant-caches.service';
 import { MembershipsService } from './memberships.service';
 import { pickLoginCompany } from './company-role-priority';
+import { markFeaturesChanged } from './features-session';
 
 interface TokenResponse {
     token: string;
@@ -116,6 +117,13 @@ export class AuthService {
         this.sessionService.setItem('name', user.name ?? '');
         this.sessionService.setItem('email', user.email ?? '');
         this.sessionService.setItem('systemRole', user.systemRole ?? 'USER');
+        // FEAT-0573 — `features` só vem do /auth/me; ausente/nulo = nada liberado. Gravado
+        // cru aqui; quem lê é o `FeatureFlagsService`, que só existe no código preguiçoso.
+        this.sessionService.setItem(
+            'features',
+            JSON.stringify(Array.isArray(user.features) ? user.features : []),
+        );
+        markFeaturesChanged();
 
         // Defensive: if /auth/me returns companies=[] but session already has
         // entries (typically written by applyFinishResponse right after

@@ -63,6 +63,16 @@ import {
   syncServerMarks,
 } from './rental-preflight';
 import { ChargePreviewSummary, summarizeChargePreview } from '../../utils/rental-charge-preview';
+import { PaintedCard } from '../../components/core/painted-card/painted-card';
+import { FeatureFlagsService } from '../../services/feature-flags.service';
+import { todayInBusinessTz } from '../../utils/business-clock';
+import { ChargePlanChange, ChargePlanEditor } from './charges-flex/charge-plan-editor';
+import { brl } from './charges-flex/charges-flex';
+import { PLAN_ERROR_MESSAGES, apiErrorCode, planBlockerMessage } from './charges-flex/flex-errors';
+import {
+  RentalChargePreviewBlockerDto,
+  RentalChargePreviewItemDto,
+} from '../../types/rental.types';
 import { ptBrMoneyCents, ptBrMoneyValidator } from '../../utils/validators/ptbr-money.validator';
 import { RentalService } from './rental.service';
 import { SessionService } from '../../services/session.service';
@@ -96,6 +106,8 @@ const CONTACT_STILL_INCOMPLETE_COPY =
   selector: 'app-rental-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ChargePlanEditor,
+    PaintedCard,
     PersonNamePipe,
     VehicleLabelPipe,
     ReactiveFormsModule,
@@ -379,6 +391,56 @@ export class RentalForm implements OnInit {
 
   protected readonly scheduleSummary = computed(() => summarizeChargeSchedule(this.chargeSchedule()));
 
+  // ------------------------------------------------------------------
+  // FEAT-0573 — Cobranças flexíveis: plano de cobrança na criação (jornadas A, B, C, H1).
+  // Só com `CHARGES_FLEX` e só na criação. Sem a chave, ou com "Valor cheio", o corpo do
+  // create e da prévia é exatamente o de hoje (sem a chave `chargePlan`).
+  // ------------------------------------------------------------------
+  private readonly featureFlags = inject(FeatureFlagsService);
+  /** Canvas aprovado (item 1): cartões pintados só para quem tem a chave. */
+  protected readonly chargesFlexOn = this.featureFlags.chargesFlex;
+  protected readonly showChargePlan = computed(
+    () => this.featureFlags.chargesFlex() && !this.isEdit(),
+  );
+  protected readonly chargePlanState = signal<ChargePlanChange>({
+    plan: null,
+    valid: true,
+    discountTotalCents: 0,
+  });
+  /** Linhas cruas da última prévia (o editor lista os períodos a partir delas). */
+  protected readonly previewItems = signal<RentalChargePreviewItemDto[]>([]);
+  protected readonly previewBlocker = signal<RentalChargePreviewBlockerDto | null>(null);
+  /** Desconto total que a PRÉVIA calculou (vale mais que a estimativa local do editor). */
+  private readonly previewDiscountTotal = signal<number | null>(null);
+  protected readonly todayDay = todayInBusinessTz();
+
+  protected onChargePlanChange(change: ChargePlanChange): void {
+    this.chargePlanState.set(change);
+  }
+
+  /** O plano que viaja no corpo, ou `null` (sem chave, edição, ou valor cheio). */
+  private chargePlanForRequest() {
+    return this.showChargePlan() ? this.chargePlanState().plan : null;
+  }
+
+  private readonly planDiscountCents = computed(() => {
+    if (!this.showChargePlan()) return 0;
+    const estimate = this.chargePlanState().discountTotalCents;
+    // A conta do backend vence a local (período parcial, cobrança só registrada) — mas só
+    // enquanto o plano tem desconto; sem ele, zero.
+    return estimate > 0 ? (this.previewDiscountTotal() ?? estimate) : 0;
+  });
+
+  protected readonly lateFineFixedCentsForPlan = computed(() => {
+    this.formValue();
+    const fields = this.lateFineFields();
+    return fields.lateFineType === 'FIXED' ? fields.lateFineValue : null;
+  });
+
+  protected readonly rateCentsForPlan = computed(() => ptBrMoneyCents(this.formValue()?.periodRateReais));
+  protected readonly caucaoCentsForPlan = computed(() => ptBrMoneyCents(this.formValue()?.caucaoReais) ?? 0);
+  protected readonly firstDueForPlan = computed(() => this.formValue()?.firstPaymentDate || null);
+
   /**
    * Chave estável do corpo a conferir; `''` = nada a conferir (edição ainda carregando
    * ou formulário somente leitura). Texto de propósito: o `computed` só propaga quando a
@@ -388,7 +450,12 @@ export class RentalForm implements OnInit {
     this.formValue();
     if (this.editingId() !== null && this.editingStatus() === null) return '';
     if (this.form.disabled) return '';
-    return JSON.stringify({ ...this.buildPreflightPayload(), notes: undefined });
+    const plan = this.chargePlanForRequest();
+    return JSON.stringify({
+      ...this.buildPreflightPayload(),
+      notes: undefined,
+      ...(plan ? { chargePlan: plan } : {}),
+    });
   });
 
   private readonly preflightRun = toObservable(this.preflightRequestKey)
@@ -431,10 +498,21 @@ export class RentalForm implements OnInit {
         }
         const payload = this.buildCreatePayload();
         return this.rentalService.chargePreview(payload).pipe(
-          map((preview) => ({
-            response,
-            schedule: preview.blocker ? [] : buildChargeSchedule(preview, payload),
-          })),
+          map((preview) => {
+            if (this.showChargePlan()) {
+              this.previewItems.set(preview.charges);
+              this.previewBlocker.set(payload.chargePlan ? preview.blocker : null);
+              this.previewDiscountTotal.set(
+                payload.chargePlan?.discount && !preview.blocker && typeof preview.discountTotalCents === 'number'
+                  ? preview.discountTotalCents
+                  : null,
+              );
+            }
+            return {
+              response,
+              schedule: preview.blocker ? [] : buildChargeSchedule(preview, payload),
+            };
+          }),
           catchError((err: unknown) => {
             this.apiErrors.claim(err);
             return of({ response, schedule: [] });
@@ -670,8 +748,10 @@ export class RentalForm implements OnInit {
   });
 
   protected readonly totalAmountLabel = computed(() => {
-    const t = this.totalAmountCents();
-    if (t == null) return '--';
+    const raw = this.totalAmountCents();
+    if (raw == null) return '--';
+    // FEAT-0573 — o desconto do plano baixa o total (0 sem a chave: igual a hoje).
+    const t = raw - this.planDiscountCents();
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
@@ -683,7 +763,10 @@ export class RentalForm implements OnInit {
     const freq = this.billingFrequency();
     const unitLabel =
       BILLING_FREQUENCY_OPTIONS.find((o) => o.value === freq)?.perUnitLabel ?? 'diária';
-    return `${units} × ${unitLabel}`;
+    const discount = this.planDiscountCents();
+    return discount > 0
+      ? `${units} × ${unitLabel} · ${brl(discount)} de desconto`
+      : `${units} × ${unitLabel}`;
   });
 
   protected readonly automaticChargeOn = computed(
@@ -1122,6 +1205,14 @@ export class RentalForm implements OnInit {
     ) {
       return;
     }
+    // FEAT-0573 — plano com algo a corrigir: o aviso já está no próprio campo.
+    if (
+      this.showChargePlan() &&
+      (!this.chargePlanState().valid || (this.chargePlanState().plan !== null && this.previewBlocker() !== null))
+    ) {
+      this.error.set('Confira o desconto, as parcelas ou as partes da caução.');
+      return;
+    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.error.set('Verifique os campos destacados.');
@@ -1234,7 +1325,12 @@ export class RentalForm implements OnInit {
   /** Corpo do preflight: o do create, ou o da edição acrescido do `rentalId`. */
   private buildPreflightPayload(): RentalPreflightRequest {
     const editingId = this.editingId();
-    if (!editingId) return this.buildCreatePayload();
+    if (!editingId) {
+      // O plano vai só no create e na prévia (contrato B1/B2), nunca no preflight.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { chargePlan, ...rest } = this.buildCreatePayload();
+      return rest;
+    }
     const raw = this.form.getRawValue();
     return {
       ...this.buildUpdatePayload(),
@@ -1289,7 +1385,14 @@ export class RentalForm implements OnInit {
       returnFuelPolicy: raw.returnFuelPolicy?.trim() || null,
       extraKmPrice: this.extraKmPriceCents(),
       contractSource: raw.useContractTemplate ? 'AUTO' : 'MANUAL',
+      ...this.chargePlanField(),
     };
+  }
+
+  /** `{ chargePlan }` só quando há plano — sem ele a chave nem existe no corpo. */
+  private chargePlanField(): { chargePlan?: NonNullable<CreateRentalRequest['chargePlan']> } {
+    const plan = this.chargePlanForRequest();
+    return plan ? { chargePlan: plan } : {};
   }
 
   private lateFineFields(): { lateFineType: RentalLateFineType; lateFineValue: number } {
@@ -1363,7 +1466,43 @@ export class RentalForm implements OnInit {
             : formatBrl(summary.uniformPeriodCents),
       });
     }
-    if (summary.caucao) {
+    const plan = this.pendingCreate?.chargePlan ?? null;
+    if (plan?.discount) {
+      const d = plan.discount;
+      const each = d.type === 'AMOUNT' ? formatBrl(d.value) : `${(d.value / 100).toLocaleString('pt-BR')}%`;
+      rows.push({
+        label: 'Desconto',
+        // Concordância: a semana é feminina; o dia e o mês, masculinos.
+        value: `${each} ${
+          this.billingFrequency() === 'WEEKLY'
+            ? d.firstPeriods === 1 ? 'na primeira' : `nas ${d.firstPeriods} primeiras`
+            : d.firstPeriods === 1 ? 'no primeiro' : `nos ${d.firstPeriods} primeiros`
+        }`,
+      });
+    }
+    if (plan?.defaultSplit) {
+      rows.push({ label: 'Parcelas', value: `Cada cobrança em ${plan.defaultSplit.count}` });
+    }
+    const periodOverrides = (plan?.overrides ?? []).filter((o) => o.target === 'PERIOD');
+    if (periodOverrides.length > 0) {
+      const word = this.billingFrequency() === 'WEEKLY' ? 'Semana' : this.billingFrequency() === 'MONTHLY' ? 'Mês' : 'Dia';
+      rows.push({
+        label: 'Parcelas',
+        value: periodOverrides
+          .map((o) => `${word} ${(o.periodIndex ?? 0) + 1} em ${o.instalments.length}`)
+          .join(' · '),
+      });
+    }
+    const caucaoSplit = (plan?.overrides ?? []).find((o) => o.target === 'CAUCAO');
+    if (caucaoSplit) {
+      const total = caucaoSplit.instalments.reduce((acc, i) => acc + i.amountCents, 0);
+      rows.push({
+        label: 'Caução',
+        value: `${formatBrl(total)} em ${caucaoSplit.instalments.length} partes · ${caucaoSplit.instalments
+          .map((i) => (toBrDate(i.dueDate) ?? '').slice(0, 5))
+          .join(' e ')}`,
+      });
+    } else if (summary.caucao) {
       const due = toBrDate(summary.caucao.dueDate) ?? '—';
       rows.push({
         label: 'Caução',
@@ -1470,6 +1609,14 @@ export class RentalForm implements OnInit {
     }
     if (this.claimPreflightError(err)) return;
     if (this.claimFeeBelowChargeError(err)) return;
+    // FEAT-0573 — recusa do plano (400 com o código B2): texto da locadora, sem o provedor.
+    const planCode = apiErrorCode(err);
+    if (planCode && PLAN_ERROR_MESSAGES[planCode]) {
+      this.apiErrors.claim(err);
+      this.error.set(planBlockerMessage({ code: planCode, message: (err.error as { message?: string } | null)?.message ?? null }));
+      this.revealError();
+      return;
+    }
     const { formMessage } = this.apiErrors.handleForm(err, this.form, fallback);
     // The driver was registered without CNH/address and has not completed it yet.
     this.error.set(

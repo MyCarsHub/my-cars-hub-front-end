@@ -27,6 +27,9 @@ const META: Record<string, Omit<AdjustmentStatusMeta, 'key'>> = {
   FAILED: { label: 'Com falha', tone: 'red', open: false },
   REFUNDED: { label: 'Estornada', tone: 'neutral', open: false },
   DISPUTED: { label: 'Em contestação', tone: 'amber', open: false },
+  // FEAT-0573 — mesmo vocabulário das cobranças do aluguel. Ajuste não entra em acordo hoje
+  // (o backend recusa), mas um status renegociado nunca pode cair no chip "pagável".
+  RENEGOTIATED: { label: 'Renegociada', tone: 'blue', open: false },
 };
 
 /**

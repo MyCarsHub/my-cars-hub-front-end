@@ -32,6 +32,7 @@ const STATUS_LABELS: Record<string, string> = {
   FAILED: 'Falhou',
   PAST_DUE: 'Atrasada',
   PENDING: 'Pendente',
+  RENEGOTIATED: 'Renegociada',
 };
 
 const KIND_LABELS: Record<string, string> = {
@@ -40,6 +41,7 @@ const KIND_LABELS: Record<string, string> = {
   CAUCAO: 'Caução',
   OVERDUE_FEE: 'Multa por atraso',
   ADJUSTMENT: 'Ajuste',
+  AGREEMENT: 'Acordo',
 };
 
 /**
@@ -47,7 +49,7 @@ const KIND_LABELS: Record<string, string> = {
  * todas as empresas.
  *
  * <p>P1: ações sem impersonar, na folha {@link ChargeActionsSheet} — comparar
- * com o Asaas, recebida por fora (caução), tentar de novo (só FAILED no prazo),
+ * com o Asaas, recebida por fora (também FAILED, G13), tentar de novo (só FAILED no prazo),
  * corrigir nome do motorista e atualizar o cliente no Asaas.</p>
  *
  * <p>"Atrasado é nossa prova" (regra do dono): atrasada nunca é reemitida,
@@ -200,6 +202,7 @@ export class AdminCharges implements OnInit {
   protected statusChip(status: string): string {
     if (status === 'FAILED') return 'bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-200';
     if (status === 'PAST_DUE') return 'bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-100';
+    if (status === 'RENEGOTIATED') return 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200';
     return 'bg-surface-sunken text-fg-soft';
   }
 

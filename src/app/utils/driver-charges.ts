@@ -10,6 +10,8 @@ export function driverChargeKindLabel(kind: DriverCharge['kind']): string {
       return 'Multa por atraso';
     case 'ADJUSTMENT':
       return 'Ajuste';
+    case 'AGREEMENT':
+      return 'Acordo';
     default:
       return 'Aluguel';
   }

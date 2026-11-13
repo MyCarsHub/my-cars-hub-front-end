@@ -217,19 +217,41 @@
 
 
       <!-- KPI cards — mesmo shell/estilo do financing-detail -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="rounded-2xl border border-edge bg-surface p-4">
+      <div class="grid grid-cols-2 gap-3"
+        [class.lg:grid-cols-4]="renegotiatedCents() === 0"
+        [class.lg:grid-cols-5]="renegotiatedCents() > 0">
+        <!-- FEAT-0573 (canvas aprovado, item 1): com CHARGES_FLEX, recebido pintado de verde. -->
+        @if (chargesFlex()) {
+          <app-painted-card tone="green" class="!p-4 !gap-1" data-testid="kpi-received-painted">
+            <p class="text-xs uppercase tracking-wide text-white/90">Valor recebido</p>
+            <p class="text-lg font-semibold tabular-nums">{{ formatCurrency(paidCents()) }}</p>
+          </app-painted-card>
+        } @else {
+        <div class="rounded-2xl border border-edge bg-surface p-4" data-testid="kpi-received">
           <p class="text-xs uppercase tracking-wide text-fg-faint">Valor recebido</p>
           <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
             {{ formatCurrency(paidCents()) }}
           </p>
         </div>
-        <div class="rounded-2xl border border-edge bg-surface p-4">
+        }
+        <div class="rounded-2xl border border-edge bg-surface p-4" data-testid="kpi-remaining">
           <p class="text-xs uppercase tracking-wide text-fg-faint">Valor restante</p>
           <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
             {{ formatCurrency(remainingCents()) }}
           </p>
         </div>
+        <!-- FEAT-0573 (canvas aprovado, item 1): com CHARGES_FLEX, próximo recebimento laranja. -->
+        @if (chargesFlex()) {
+          <app-painted-card tone="orange" class="!p-4 !gap-1" data-testid="kpi-next-painted">
+            <p class="text-xs uppercase tracking-wide text-white/90">Próximo recebimento</p>
+            @if (nextCharge(); as n) {
+              <p class="text-lg font-semibold tabular-nums">{{ formatDate(n.dueDate) }}</p>
+              <p class="text-xs text-white/90 tabular-nums">{{ formatCurrency(n.amount) }}</p>
+            } @else {
+              <p class="text-lg font-semibold tabular-nums">—</p>
+            }
+          </app-painted-card>
+        } @else {
         <div class="rounded-2xl border border-edge bg-surface p-4">
           <p class="text-xs uppercase tracking-wide text-fg-faint">Próximo recebimento</p>
           @if (nextCharge(); as n) {
@@ -243,6 +265,7 @@
             <p class="mt-1 text-lg font-semibold text-fg-faint tabular-nums">—</p>
           }
         </div>
+        }
         <div class="rounded-2xl border border-edge bg-surface p-4">
           <p class="text-xs uppercase tracking-wide text-fg-faint">Progresso</p>
           <p class="mt-1 text-lg font-semibold text-fg tabular-nums">{{ progressPct() }}%</p>
@@ -257,6 +280,16 @@
             {{ paidCount() }} / {{ totalCount() }} períodos
           </p>
         </div>
+        <!-- FEAT-0573 — só existe quando alguma cobrança virou acordo. -->
+        @if (renegotiatedCents() > 0) {
+          <div class="rounded-2xl border border-edge bg-surface p-4 enter-up" data-testid="kpi-renegotiated">
+            <p class="text-xs uppercase tracking-wide text-fg-faint">Renegociado</p>
+            <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
+              {{ formatCurrency(renegotiatedCents()) }}
+            </p>
+            <p class="text-xs text-fg-subtle mt-0.5">{{ renegotiatedCaption() }}</p>
+          </div>
+        }
       </div>
 
       <!--
@@ -272,10 +305,11 @@
         storageKey="rental-detail:caucao"
       >
         <div class="p-3 sm:p-4 space-y-3">
-          @if (caucaoCharge(); as cc) {
-            <!-- Timeline de uma linha, mesmo shape do cronograma. -->
+          @if (caucaoCharge()) {
+            <!-- Timeline de uma linha (ou uma por parte, caução dividida — FEAT-0573). -->
             <!-- Mobile -->
             <ul class="space-y-2 lg:hidden" role="list">
+              @for (cc of caucaoRows(); track cc.id) {
               <li
                 class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-edge bg-surface px-3 py-2.5"
               >
@@ -291,13 +325,14 @@
                     </p>
                     <p class="text-xs text-fg-subtle tabular-nums">
                       {{ formatCurrency(cc.amount) }}
-                      <span class="text-fg-faint"> · Caução</span>
+                      <span class="text-fg-faint"> · {{ rowKindLabel(cc) }}</span>
                     </p>
                     @if (cc.paidAt) {
                       <p class="text-[11px] text-fg-faint tabular-nums">
                         Pago em {{ formatDateTime(cc.paidAt) }}
                       </p>
                     }
+                    <ng-container [ngTemplateOutlet]="flexRowNotes" [ngTemplateOutletContext]="{ $implicit: cc }" />
                   </div>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
@@ -321,6 +356,7 @@
                   [ngTemplateOutletContext]="{ $implicit: cc, compact: true }"
                 />
               </li>
+              }
             </ul>
 
             <!-- Desktop -->
@@ -338,6 +374,7 @@
                   </tr>
                 </thead>
                 <tbody>
+                  @for (cc of caucaoRows(); track cc.id) {
                   <tr class="border-b border-edge-faint">
                     <td class="py-2.5 pr-4 tabular-nums text-primary-700 dark:text-primary-400 font-semibold">C</td>
                     <td class="py-2.5 pr-4 tabular-nums">
@@ -347,7 +384,10 @@
                         <span class="text-fg-faint">—</span>
                       }
                     </td>
-                    <td class="py-2.5 pr-4 text-fg-muted">Caução</td>
+                    <td class="py-2.5 pr-4 text-fg-muted">
+                      {{ rowKindLabel(cc) }}
+                      <ng-container [ngTemplateOutlet]="flexRowNotes" [ngTemplateOutletContext]="{ $implicit: cc }" />
+                    </td>
                     <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(cc.amount) }}</td>
                     <td class="py-2.5 pr-4 tabular-nums text-fg-subtle">
                       @if (cc.paidAt) {
@@ -377,6 +417,7 @@
                       />
                     </td>
                   </tr>
+                  }
                 </tbody>
               </table>
             </div>
@@ -645,13 +686,17 @@
                       </p>
                       <p class="text-xs text-fg-subtle tabular-nums">
                         {{ formatCurrency(charge.amount) }}
-                        <span class="text-fg-faint"> · {{ chargeKindLabel(charge.kind) }}</span>
+                        @if (originalAmount(charge); as original) {
+                          <s class="text-fg-faint" data-testid="charge-original-amount">{{ formatCurrency(original) }}</s>
+                        }
+                        <span class="text-fg-faint"> · {{ rowKindLabel(charge) }}</span>
                       </p>
                       @if (charge.paidAt) {
                         <p class="text-[11px] text-fg-faint tabular-nums">
                           Pago em {{ formatDateTime(charge.paidAt) }}
                         </p>
                       }
+                      <ng-container [ngTemplateOutlet]="flexRowNotes" [ngTemplateOutletContext]="{ $implicit: charge }" />
                     </div>
                   </div>
                   <div class="flex items-center gap-2 shrink-0">
@@ -716,10 +761,14 @@
                         }
                       </td>
                       <td class="py-2.5 pr-4 text-fg-muted">
-                        {{ chargeKindLabel(charge.kind) }}
+                        {{ rowKindLabel(charge) }}
+                        <ng-container [ngTemplateOutlet]="flexRowNotes" [ngTemplateOutletContext]="{ $implicit: charge }" />
                       </td>
                       <td class="py-2.5 pr-4 tabular-nums font-medium">
                         {{ formatCurrency(charge.amount) }}
+                        @if (originalAmount(charge); as original) {
+                          <s class="block text-xs font-normal text-fg-faint">{{ formatCurrency(original) }}</s>
+                        }
                       </td>
                       <td class="py-2.5 pr-4 tabular-nums text-fg-subtle">
                         @if (charge.paidAt) {
@@ -1058,8 +1107,31 @@
       }
       @if (canUnmarkAsPaid(charge)) {
         <button type="button" role="menuitem" (click)="askUnmarkPaid(charge)"
+          data-testid="charge-menu-unmark"
           class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
           Desmarcar como paga
+        </button>
+      }
+      <!-- FEAT-0573 — Cobranças flexíveis (só com a chave ligada para a conta). -->
+      @if (canRenegotiate(charge)) {
+        <button type="button" role="menuitem" (click)="askRenegotiate(charge)"
+          data-testid="charge-menu-renegotiate"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
+          Renegociar
+        </button>
+      }
+      @if (canReceiveOutside(charge)) {
+        <button type="button" role="menuitem" (click)="askReceivedOutside(charge)"
+          data-testid="charge-menu-received-outside"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
+          Recebida por fora
+        </button>
+      }
+      @if (canViewAgreement(charge)) {
+        <button type="button" role="menuitem" (click)="openAgreementFor(charge)"
+          data-testid="charge-menu-view-agreement"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
+          Ver acordo
         </button>
       }
       <!-- Admin v2 P1 (dono, 29/10/2026): "Cancelar no Asaas e marcar como recebida por fora" saiu
@@ -1072,6 +1144,29 @@
         </button>
       }
     </app-actions-menu>
+  }
+</ng-template>
+
+<!--
+  FEAT-0573 — o que a linha ganha com plano/acordo: o vínculo com o acordo ("Acordo de 02/12"),
+  "Recebida por fora" ao lado do pago e quem registrou. Sem esses dados, nada aparece.
+-->
+<ng-template #flexRowNotes let-charge>
+  @if (receivedOutsideTag(charge)) {
+    <span data-testid="charge-received-outside-tag"
+      class="mt-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200">
+      Recebida por fora
+    </span>
+  }
+  @if (settledByLine(charge); as by) {
+    <p class="text-[11px] text-fg-faint" data-testid="charge-settled-by">{{ by }}</p>
+  }
+  @if (canViewAgreement(charge)) {
+    <button type="button" (click)="openAgreementFor(charge)" data-testid="charge-agreement-link"
+      class="press -ml-1 inline-flex min-h-11 items-center rounded px-1 text-sm font-medium text-primary-700 underline dark:text-primary-400
+             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+      {{ agreementLinkLabel(charge) }}
+    </button>
   }
 </ng-template>
 
@@ -1210,3 +1305,53 @@
     ></textarea>
   </div>
 </app-confirm-dialog>
+
+<!-- FEAT-0573 — folhas das Cobranças flexíveis (no chunk preguiçoso da rota do aluguel). -->
+@if (rental(); as r) {
+  @if (renegotiateFor(); as preselected) {
+    <app-renegotiate-sheet
+      [rental]="r"
+      [options]="renegotiateOptions()"
+      [preselectedId]="preselected"
+      [today]="flexToday()"
+      [subtitle]="flexSheetSubtitle()"
+      (created)="onAgreementCreated($event)"
+      (stale)="onFlexStale()"
+      (closed)="onRenegotiateClosed()"
+    />
+  }
+  @for (id of agreementSheetKeys(); track id) {
+    <app-agreement-sheet
+      [rental]="r"
+      [agreementId]="id"
+      [known]="agreements()"
+      [subtitle]="flexSheetSubtitle()"
+      (open)="openAgreement($event)"
+      (closed)="onAgreementSheetClosed(id)"
+    />
+  }
+  @if (receivedOutsideSheetOpen() && receivedOutsideTarget(); as target) {
+    <app-received-outside-sheet
+      [subtitle]="receivedOutsideSubtitle()"
+      [amountCents]="target.amount"
+      [hasPix]="target.status !== 'FAILED' && !!(target.externalId || target.checkoutUrl)"
+      [minDate]="r.startDate"
+      [today]="flexToday()"
+      [draft]="receivedOutsideDraft()"
+      (submitted)="onReceivedOutsideSubmitted($event)"
+      (closed)="onReceivedOutsideSheetClosed()"
+    />
+  }
+}
+
+<app-confirm-dialog
+  [open]="receivedOutsideConfirmOpen()"
+  title="Registrar como recebida por fora?"
+  [message]="receivedOutsideMessage()"
+  confirmLabel="Registrar"
+  cancelLabel="Voltar"
+  variant="warning"
+  [busy]="receivedOutsideBusy()"
+  (confirmed)="confirmReceivedOutside()"
+  (cancelled)="backToReceivedOutsideSheet()"
+/>

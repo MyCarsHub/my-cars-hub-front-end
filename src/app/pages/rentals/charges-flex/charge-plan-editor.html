@@ -1,0 +1,318 @@
+<div class="flex flex-col gap-5" data-testid="charge-plan-editor">
+  <!-- Dividir a caução (jornada C) -->
+  @if (canSplitCaucao()) {
+    <div class="flex flex-col gap-3">
+      <label for="plan-caucao-split"
+        class="flex min-h-[44px] cursor-pointer items-start gap-4 rounded-xl has-focus-visible:ring-2 has-focus-visible:ring-primary-400 has-focus-visible:ring-offset-2">
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-semibold text-fg">Dividir a caução</span>
+          <span class="mt-1 block text-xs leading-relaxed text-fg-subtle">Uma parte na retirada e o resto depois, cada parte com a sua data.</span>
+        </span>
+        <span class="relative inline-flex shrink-0 items-center">
+          <input id="plan-caucao-split" type="checkbox" role="switch" class="sr-only peer"
+            data-testid="plan-caucao-split" [checked]="caucaoSplitOn()" (change)="toggleCaucaoSplit()" />
+          <span aria-hidden="true"
+            class="relative h-7 w-12 rounded-full bg-surface-strong transition-colors peer-checked:bg-emerald-500 motion-reduce:transition-none
+                   after:absolute after:left-0.5 after:top-0.5 after:h-6 after:w-6 after:rounded-full after:bg-surface after:shadow after:content-['']
+                   after:transition-transform peer-checked:after:translate-x-5 motion-reduce:after:transition-none"></span>
+        </span>
+      </label>
+
+      @if (caucaoSplitOn()) {
+        <ul class="flex flex-col gap-3" role="list" data-testid="plan-caucao-parts">
+          @for (part of parts(); track part.key; let i = $index) {
+            <li class="enter-up grid grid-cols-[1fr_1fr_auto] items-start gap-2" [style.--stagger-i]="i">
+              <label class="flex min-w-0 flex-col gap-1">
+                <span class="text-sm font-medium text-fg-muted">Parte {{ i + 1 }} (R$)</span>
+                <input type="text" inputmode="decimal" autocomplete="off" [formControl]="part.amount"
+                  [attr.data-testid]="'plan-caucao-part-amount-' + i" (input)="onPartInput($event, part)"
+                  class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
+              </label>
+              <div class="min-w-0" [attr.data-testid]="'plan-caucao-part-due-' + i">
+                <app-date-field label="Vence em" [min]="today()" [value]="part.due" (valueChange)="setPartDue(part, $event)" />
+              </div>
+              @if (parts().length > 2) {
+                <button type="button" (click)="removePart(part)" [attr.aria-label]="'Remover parte ' + (i + 1)"
+                  class="press inline-flex h-12 w-11 items-center justify-center rounded-xl text-fg-subtle hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                  <svg viewBox="0 0 20 20" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke-linecap="round" /></svg>
+                </button>
+              } @else {
+                <span class="w-11" aria-hidden="true"></span>
+              }
+            </li>
+          }
+        </ul>
+        <button type="button" (click)="addPart()" data-testid="plan-caucao-add"
+          class="press min-h-11 self-start rounded text-base font-medium text-primary-700 underline dark:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+          Adicionar parte
+        </button>
+        @if (caucaoProblems().length === 0) {
+          <app-alert-banner variant="success" [message]="'As partes somam ' + money(partsSum()) + ', o valor da caução.'" />
+        } @else {
+          @for (p of caucaoProblems(); track p) {
+            <p class="text-sm font-medium text-rose-700 dark:text-rose-300" data-testid="plan-caucao-problem">{{ p }}</p>
+          }
+        }
+      }
+    </div>
+  }
+
+  <!-- Como cobrar o aluguel (jornadas A, B, C) -->
+  <fieldset class="flex flex-col gap-2">
+    <legend class="text-sm font-semibold text-fg">Como cobrar o aluguel</legend>
+    <p class="text-xs text-fg-subtle">Desconto e parcelas podem ir juntos.</p>
+    <div class="mt-1 flex flex-col gap-2">
+      <button type="button" role="checkbox" [attr.aria-checked]="fullValue()" (click)="chooseFull()" data-testid="plan-full"
+        class="press flex min-h-14 items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        [class]="fullValue() ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10' : 'border-edge hover:bg-canvas'">
+        <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors"
+          [class]="fullValue() ? 'border-primary-500 bg-primary-500 text-white' : 'border-edge-field'">
+          @if (fullValue()) { <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 10.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round" /></svg> }
+        </span>
+        <span class="min-w-0">
+          <span class="block text-base font-medium text-fg">Valor cheio</span>
+          <span class="block text-sm text-fg-subtle">{{ phrases().all }} a {{ money(rateCents()) }}.</span>
+        </span>
+      </button>
+      <button type="button" role="checkbox" [attr.aria-checked]="discountOn()" (click)="toggleDiscount()" data-testid="plan-discount"
+        class="press flex min-h-14 items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        [class]="discountOn() ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10' : 'border-edge hover:bg-canvas'">
+        <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors"
+          [class]="discountOn() ? 'border-primary-500 bg-primary-500 text-white' : 'border-edge-field'">
+          @if (discountOn()) { <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 10.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round" /></svg> }
+        </span>
+        <span class="min-w-0">
+          <span class="block text-base font-medium text-fg">Desconto nas primeiras</span>
+          <span class="block text-sm text-fg-subtle">{{ phrases().firstOnes }} saem mais baratas.</span>
+        </span>
+      </button>
+      <button type="button" role="checkbox" [attr.aria-checked]="splitOn()" (click)="toggleSplit()" data-testid="plan-split"
+        class="press flex min-h-14 items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        [class]="splitOn() ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10' : 'border-edge hover:bg-canvas'">
+        <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors"
+          [class]="splitOn() ? 'border-primary-500 bg-primary-500 text-white' : 'border-edge-field'">
+          @if (splitOn()) { <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 10.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round" /></svg> }
+        </span>
+        <span class="min-w-0">
+          <span class="block text-base font-medium text-fg">Parcelar</span>
+          <span class="block text-sm text-fg-subtle">Dividir uma ou {{ phrases().allInline }} em parcelas.</span>
+        </span>
+      </button>
+    </div>
+  </fieldset>
+
+  <!-- Desconto (jornada B) -->
+  @if (discountOn()) {
+    <div class="enter-up flex flex-col gap-3" data-testid="plan-discount-fields">
+      <div class="grid grid-cols-2 gap-3">
+        <label class="flex flex-col gap-1" for="plan-discount-periods">
+          <span class="text-sm font-medium text-fg-muted">Em quantas cobranças</span>
+          <input id="plan-discount-periods" type="number" inputmode="numeric" min="1" [attr.max]="periods()"
+            [value]="discountPeriods()" (input)="setDiscountPeriods($event)" data-testid="plan-discount-periods"
+            class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
+        </label>
+        <label class="flex flex-col gap-1" for="plan-discount-value">
+          <span class="text-sm font-medium text-fg-muted">Desconto em cada uma{{ discountType() === 'PERCENT' ? ' (%)' : ' (R$)' }}</span>
+          <input id="plan-discount-value" type="text" inputmode="decimal" autocomplete="off"
+            [placeholder]="discountType() === 'PERCENT' ? '10' : '100,00'"
+            [formControl]="discountValue" (input)="onDiscountInput($event)" data-testid="plan-discount-value"
+            class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
+        </label>
+      </div>
+      <fieldset class="flex flex-col gap-1.5">
+        <legend class="text-sm font-medium text-fg-muted">O desconto é em</legend>
+        <div class="grid grid-cols-2 gap-1 rounded-xl bg-surface-sunken p-1" role="radiogroup">
+          <button type="button" role="radio" [attr.aria-checked]="discountType() === 'AMOUNT'" (click)="setDiscountType('AMOUNT')"
+            class="press min-h-11 rounded-lg text-base font-medium transition-colors"
+            [class]="discountType() === 'AMOUNT' ? 'bg-primary-500 text-white' : 'text-fg-soft'">Reais (R$)</button>
+          <button type="button" role="radio" [attr.aria-checked]="discountType() === 'PERCENT'" (click)="setDiscountType('PERCENT')"
+            data-testid="plan-discount-percent"
+            class="press min-h-11 rounded-lg text-base font-medium transition-colors"
+            [class]="discountType() === 'PERCENT' ? 'bg-primary-500 text-white' : 'text-fg-soft'">Porcentagem (%)</button>
+        </div>
+      </fieldset>
+      @if (discountProblem(); as problem) {
+        <p class="text-sm font-medium text-rose-700 dark:text-rose-300" data-testid="plan-discount-problem">{{ problem }}</p>
+      } @else {
+        <app-alert-banner variant="info" [message]="discountSummary()" data-testid="plan-discount-summary" />
+      }
+    </div>
+  }
+
+  <!-- Parcelar (jornada C) -->
+  @if (splitOn()) {
+    <div class="enter-up flex flex-col gap-3" data-testid="plan-split-fields">
+      <fieldset class="flex flex-col gap-1.5">
+        <legend class="text-sm font-medium text-fg-muted">O que parcelar</legend>
+        <div class="grid grid-cols-2 gap-1 rounded-xl bg-surface-sunken p-1" role="radiogroup">
+          <button type="button" role="radio" [attr.aria-checked]="splitScope() === 'ALL'" (click)="setSplitScope('ALL')"
+            data-testid="plan-split-all"
+            class="press min-h-11 rounded-lg text-base font-medium transition-colors"
+            [class]="splitScope() === 'ALL' ? 'bg-primary-500 text-white' : 'text-fg-soft'">{{ phrases().all }}</button>
+          <button type="button" role="radio" [attr.aria-checked]="splitScope() === 'SOME'" (click)="setSplitScope('SOME')"
+            data-testid="plan-split-some"
+            class="press min-h-11 rounded-lg text-base font-medium transition-colors"
+            [class]="splitScope() === 'SOME' ? 'bg-primary-500 text-white' : 'text-fg-soft'">Só algumas</button>
+        </div>
+      </fieldset>
+
+      @if (splitScope() === 'ALL') {
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1" for="plan-split-count">
+            <span class="text-sm font-medium text-fg-muted">Parcelas por {{ word().toLowerCase() }}</span>
+            <input id="plan-split-count" type="number" inputmode="numeric" min="2" max="12" [value]="splitCount()"
+              (input)="setSplitCount($event)" data-testid="plan-split-count"
+              class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
+          </label>
+          <div class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-fg-muted" id="plan-split-interval">Uma a cada</span>
+            <div class="flex gap-2" role="group" aria-labelledby="plan-split-interval">
+              <input type="number" inputmode="numeric" min="1" [value]="splitIntervalN()" aria-label="Quantidade"
+                (input)="setSplitIntervalN($event)" data-testid="plan-split-interval-n"
+                class="min-h-12 w-16 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
+              <select aria-label="Unidade" (change)="setSplitIntervalUnit($event)" data-testid="plan-split-interval-unit"
+                class="min-h-12 min-w-0 flex-1 rounded-xl border border-edge-field bg-surface px-2 text-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-400">
+                @for (u of intervalUnits; track u.value) {
+                  <option [value]="u.value" [selected]="u.value === splitIntervalUnit()">{{ splitIntervalN() === 1 ? u.singular : u.plural }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+        @if (splitAllProblem(); as problem) {
+          <p class="text-sm font-medium text-rose-700 dark:text-rose-300" data-testid="plan-split-problem">{{ problem }}</p>
+        } @else if (splitAllPreview(); as preview) {
+          <p class="text-sm text-fg-subtle tabular-nums" data-testid="plan-split-preview">{{ preview }}</p>
+        }
+      } @else {
+        @if (periodRows().length === 0) {
+          <p class="text-sm text-fg-subtle">Preencha o período e o valor para ver {{ phrases().these }}.</p>
+        } @else {
+          <ul class="flex flex-col gap-2" role="list" data-testid="plan-period-list">
+            @for (row of visiblePeriods(); track row.index) {
+              <li class="flex items-center justify-between gap-3 rounded-xl bg-surface-sunken px-3 py-2.5">
+                @if (overrideOf(row.index); as o) {
+                  <span class="min-w-0">
+                    <span class="block text-base font-medium text-fg">{{ word() }} {{ row.index + 1 }}, em {{ o.count }} parcelas</span>
+                    <span class="block text-sm text-fg-subtle tabular-nums">{{ overrideCaption(o) }}</span>
+                  </span>
+                } @else {
+                  <span class="min-w-0">
+                    <span class="block text-base font-medium text-fg">{{ word() }} {{ row.index + 1 }}</span>
+                    <span class="block text-sm text-fg-subtle tabular-nums">{{ date(row.dueDate) }} · {{ money(row.amountCents) }}</span>
+                  </span>
+                }
+                @if (row.local) {
+                  <span class="shrink-0 text-xs text-fg-subtle">Já vencida</span>
+                } @else {
+                  <button type="button" (click)="openPeriod(row)" [attr.data-testid]="'plan-period-' + row.index"
+                    class="press min-h-11 shrink-0 rounded-xl border border-edge bg-surface px-4 text-base font-medium text-fg-soft hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                    {{ overrideOf(row.index) ? 'Alterar' : 'Parcelar' }}
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+          @if (periodRows().length > 3) {
+            <button type="button" (click)="showAllPeriods.set(!showAllPeriods())" [attr.aria-expanded]="showAllPeriods()"
+              class="press min-h-11 self-start rounded text-base font-medium text-primary-700 underline dark:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+              {{ showAllPeriods() ? 'Mostrar menos' : 'Ver ' + phrases().allN(periodRows().length) }}
+            </button>
+          }
+        }
+      }
+    </div>
+  }
+
+  @if (staleNotice(); as notice) {
+    <app-alert-banner variant="warning" [message]="notice" data-testid="plan-stale-notice" />
+  }
+  @for (p of overrideProblems(); track p) {
+    <p class="text-sm font-medium text-rose-700 dark:text-rose-300" data-testid="plan-override-problem">{{ p }}</p>
+  }
+
+  <!-- A prévia recusou o plano: o motivo, com o texto da locadora (ver flex-errors). -->
+  @if (previewBlocker(); as b) {
+    <app-alert-banner variant="error" [message]="blockerMessage(b)" data-testid="plan-preview-blocker" />
+  }
+</div>
+
+@if (editing(); as e) {
+  <app-bottom-sheet #sheet [title]="'Parcelar a ' + word() + ' ' + (e.index + 1)"
+    [subtitle]="money(editingAmount()) + ' · vence em ' + date(e.due)" (closed)="onSheetClosed()">
+    <div class="flex flex-col gap-4" data-testid="plan-period-sheet">
+      <div class="grid grid-cols-2 gap-3">
+        <label class="flex flex-col gap-1" for="ps-count">
+          <span class="text-sm font-medium text-fg-muted">Parcelas</span>
+          <input id="ps-count" type="number" inputmode="numeric" min="2" max="24" [value]="sheetCount()"
+            (input)="setSheetCount($event)" data-testid="plan-sheet-count"
+            class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
+        </label>
+        <div class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-fg-muted" id="ps-interval">Uma a cada</span>
+          <div class="flex gap-2" role="group" aria-labelledby="ps-interval">
+            <input type="number" inputmode="numeric" min="1" [value]="sheetIntervalN()" aria-label="Quantidade"
+              (input)="setSheetIntervalN($event)" data-testid="plan-sheet-interval-n"
+              class="min-h-12 w-16 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
+            <select aria-label="Unidade" (change)="setSheetUnit($event)"
+              class="min-h-12 min-w-0 flex-1 rounded-xl border border-edge-field bg-surface px-2 text-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-400">
+              @for (u of intervalUnits; track u.value) {
+                <option [value]="u.value" [selected]="u.value === sheetUnit()">{{ sheetIntervalN() === 1 ? u.singular : u.plural }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      </div>
+      <app-date-field label="Primeira parcela em" [min]="today()" [value]="sheetFirst()" (valueChange)="sheetFirst.set($event)" />
+
+      <section class="flex flex-col gap-2" aria-labelledby="ps-preview">
+        <h3 id="ps-preview" class="text-sm font-semibold text-fg">Prévia</h3>
+        <ul class="flex flex-col gap-1.5" role="list" data-testid="plan-sheet-instalments">
+          @for (p of sheetInstalments(); track $index; let last = $last) {
+            <li class="enter-up flex items-baseline justify-between gap-3 rounded-xl bg-surface-sunken px-3 py-2.5" [style.--stagger-i]="$index">
+              <span class="min-w-0">
+                <span class="block text-base text-fg">Parcela {{ $index + 1 }}</span>
+                <span class="block text-sm text-fg-subtle tabular-nums">{{ date(p.dueDate) }}</span>
+              </span>
+              <span class="text-right">
+                <span class="block text-base font-semibold text-fg tabular-nums">{{ money(p.amountCents) }}</span>
+                @if (sheetFineShares(); as shares) {
+                  <span class="block text-xs text-fg-subtle tabular-nums">multa {{ money(shares[$index]) }}{{ last && shares.length > 1 && shares[$index] !== shares[0] ? ', leva os centavos' : '' }}</span>
+                }
+              </span>
+            </li>
+          }
+        </ul>
+        <p class="text-sm text-fg-subtle">
+          Somam {{ money(editingAmount()) }}.
+          @if (sheetFineShares()) {
+            A multa de {{ money(lateFineFixedCents()) }} se divide pelas {{ sheetCount() }}; os centavos que sobram vão na última.
+          }
+          @if (automatic()) {
+            Nenhuma parcela pode ficar abaixo de {{ money(500) }}.
+          }
+        </p>
+        @for (p of sheetProblems(); track p) {
+          <p class="text-sm font-medium text-rose-700 dark:text-rose-300" data-testid="plan-sheet-problem">{{ p }}</p>
+        }
+      </section>
+    </div>
+
+    <div sheetFooter class="flex flex-col-reverse gap-2 lg:flex-row lg:justify-end lg:gap-3">
+      @if (e.existing) {
+        <button type="button" (click)="removeOverride(sheet)"
+          class="press min-h-12 w-full rounded-xl bg-surface-sunken px-5 text-base font-medium text-fg-muted transition-colors hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:w-auto">
+          Não parcelar
+        </button>
+      }
+      <button type="button" (click)="sheet.requestClose()"
+        class="press min-h-12 w-full rounded-xl bg-surface-sunken px-5 text-base font-medium text-fg-muted transition-colors hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:w-auto">
+        Cancelar
+      </button>
+      <button type="button" (click)="saveSheet(sheet)" [disabled]="sheetProblems().length > 0" data-testid="plan-sheet-save"
+        class="press min-h-12 w-full rounded-xl bg-primary-500 px-5 text-base font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 lg:w-auto">
+        Salvar
+      </button>
+    </div>
+  </app-bottom-sheet>
+}

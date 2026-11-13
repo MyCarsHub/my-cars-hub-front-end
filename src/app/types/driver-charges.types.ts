@@ -20,6 +20,10 @@ export interface DriverCharge {
   periodIndex: number | null;
   paidAt: string | null;
   checkoutUrl: string | null;
+  /** FEAT-0573 (aditivos): parcela i de N e o número do acordo de onde ela nasceu. */
+  instalmentIndex?: number;
+  instalmentCount?: number;
+  agreementSeq?: number | null;
 }
 
 /**
