@@ -1,12 +1,14 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  OnDestroy,
   OnInit,
   computed,
   inject,
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { AlertBanner } from '../alert-banner/alert-banner';
 import { FilterChipGroup, FilterChipOption } from '../filter-chip-group/filter-chip-group';
 import { AlertsService } from '../../services/alerts.service';
@@ -73,7 +75,7 @@ export interface DueAlertGroup {
   imports: [RouterLink, AlertBanner, FilterChipGroup],
   templateUrl: './due-alerts-panel.html',
 })
-export class DueAlertsPanel implements OnInit {
+export class DueAlertsPanel implements OnInit, OnDestroy {
   private readonly alertsService = inject(AlertsService);
   private readonly alertSettings = inject(AlertSettingsService);
   private readonly apiErrors = inject(ApiErrorService);
@@ -93,6 +95,13 @@ export class DueAlertsPanel implements OnInit {
   protected readonly typeFilter = signal<NotificationType | 'ALL'>('ALL');
   /** Carregando a PRÓXIMA página (a lista atual fica na tela). */
   protected readonly loadingMore = signal(false);
+
+  /**
+   * A requisição em voo (primeira página ou "Carregar mais"). Uma nova busca CANCELA a
+   * anterior: sem isso, "Carregar mais" seguido de troca de janela somava a página da janela
+   * antiga à lista da nova (review M2) — o `append` do serviço não sabe de janela nenhuma.
+   */
+  private inflight: Subscription | null = null;
 
   protected readonly windowChips = computed<FilterChipOption<AlertWindow>[]>(() =>
     sortWindowsAsc(this.alertSettings.settings()?.windows ?? []).map((days) => ({
@@ -215,8 +224,9 @@ export class DueAlertsPanel implements OnInit {
 
   protected loadMore(): void {
     if (!this.hasMore() || this.loading()) return;
+    this.cancelInflight();
     this.loadingMore.set(true);
-    this.alertsService
+    this.inflight = this.alertsService
       .listDocumentAlerts(this.withinDays(), this.page() + 1, DOCUMENT_ALERTS_PAGE_SIZE, true)
       .subscribe({
         next: () => this.loadingMore.set(false),
@@ -225,6 +235,15 @@ export class DueAlertsPanel implements OnInit {
           this.apiErrors.claim(err);
         },
       });
+  }
+
+  /**
+   * "Tentar de novo" depois de uma falha: com algo já na lista e mais a carregar, repete o
+   * "Carregar mais" (a lista fica); senão, refaz a primeira página.
+   */
+  protected retry(): void {
+    if (this.loadedCount() > 0 && this.hasMore()) this.loadMore();
+    else this.reload();
   }
 
   protected severityChip(severity: NotificationSeverity): string {
@@ -258,8 +277,19 @@ export class DueAlertsPanel implements OnInit {
   }
 
   private reload(): void {
-    this.alertsService
+    this.cancelInflight();
+    this.inflight = this.alertsService
       .listDocumentAlerts(this.withinDays(), 0, DOCUMENT_ALERTS_PAGE_SIZE)
       .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
+  }
+
+  private cancelInflight(): void {
+    this.inflight?.unsubscribe();
+    this.inflight = null;
+    this.loadingMore.set(false);
+  }
+
+  ngOnDestroy(): void {
+    this.cancelInflight();
   }
 }

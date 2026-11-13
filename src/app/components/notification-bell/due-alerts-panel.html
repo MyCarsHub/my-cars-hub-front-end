@@ -43,8 +43,16 @@
 
 <div class="px-2 pb-3" [attr.aria-busy]="loading()">
   @if (error(); as loadError) {
-    <div class="px-2 pt-3">
+    <div class="flex flex-col gap-2 px-2 pt-3" data-due-error>
       <app-alert-banner variant="error" [message]="loadError" />
+      <button
+        type="button"
+        class="flex min-h-11 items-center justify-center self-start rounded-xl bg-primary-500 px-4 text-[15px] font-semibold text-white transition-transform hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 active:scale-[0.98] motion-reduce:transition-none"
+        (click)="retry()"
+        data-due-retry
+      >
+        Tentar de novo
+      </button>
     </div>
   }
 
@@ -72,7 +80,8 @@
           }
           <span class="font-medium text-fg-subtle">({{ group.alerts.length }})</span>
         </h3>
-        <ul class="list-none">
+        <!-- Celular e tablet: cartões. Computador: tabela, como a antiga página (painel largo). -->
+        <ul class="list-none lg:hidden">
           @for (a of group.alerts; track a.entityType + a.entityId + a.type + a.dueDate) {
             <li>
               <a
@@ -99,6 +108,43 @@
             </li>
           }
         </ul>
+        <table class="hidden w-full text-left text-sm lg:table" data-due-table>
+          <caption class="sr-only">{{ group.label }}</caption>
+          <thead>
+            <tr class="text-xs uppercase tracking-wide text-fg-subtle">
+              <th scope="col" class="px-2.5 py-2 font-semibold">Severidade</th>
+              <th scope="col" class="px-2.5 py-2 font-semibold">Documento</th>
+              <th scope="col" class="px-2.5 py-2 font-semibold">Referência</th>
+              <th scope="col" class="px-2.5 py-2 font-semibold">Vencimento</th>
+              <th scope="col" class="px-2.5 py-2 font-semibold">Prazo</th>
+              <th scope="col" class="px-2.5 py-2 text-right font-semibold"><span class="sr-only">Ações</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (a of group.alerts; track a.entityType + a.entityId + a.type + a.dueDate) {
+              <tr class="transition-colors hover:bg-surface-muted motion-reduce:transition-none" data-due-row>
+                <td class="rounded-l-xl px-2.5 py-2.5 align-middle">
+                  <span class="whitespace-nowrap rounded-lg px-2 py-0.5 text-xs font-semibold" [class]="severityChip(a.severity)">{{ severityLabel(a.severity) }}</span>
+                </td>
+                <td class="px-2.5 py-2.5 align-middle">
+                  <p class="font-semibold text-fg">{{ a.title }}</p>
+                  <p class="text-xs text-fg-subtle">{{ a.typeLabel }}</p>
+                </td>
+                <td class="px-2.5 py-2.5 align-middle text-fg-muted">{{ a.subtitle }}</td>
+                <td class="whitespace-nowrap px-2.5 py-2.5 align-middle tabular-nums text-fg-body">{{ formatDate(a.dueDate) }}</td>
+                <td class="whitespace-nowrap px-2.5 py-2.5 align-middle text-fg-body">{{ daysLabel(a) }}</td>
+                <td class="rounded-r-xl px-2.5 py-2.5 text-right align-middle">
+                  <a
+                    [routerLink]="a.actionUrl"
+                    (click)="onSelect()"
+                    class="inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-primary-700 hover:text-primary-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 dark:text-primary-400"
+                    [attr.aria-label]="'Ver detalhes: ' + a.title"
+                  >Ver detalhes</a>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
       </section>
     }
 

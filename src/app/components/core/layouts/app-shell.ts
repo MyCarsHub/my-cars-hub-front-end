@@ -41,10 +41,12 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
   imports: [RouterOutlet, Sidebar, AdminSidebar, PaywallDialog, NoticesPopup, NotificationBell, TourSpotlight, DriverTopBar, ThemeToggle],
   animations: [
     trigger('contentMargin', [
-      state('expanded', style({ marginLeft: '260px' })),
-      state('collapsed', style({ marginLeft: '72px' })),
+      // As MESMAS constantes da largura da sidebar: margem e coluna não podem divergir (o
+      // menu cobriria a borda esquerda de toda página). `app-shell.spec.ts` mede a igualdade.
+      state('expanded', style({ marginLeft: SIDEBAR_WIDTH_EXPANDED })),
+      state('collapsed', style({ marginLeft: SIDEBAR_WIDTH_COLLAPSED })),
       state('mobile', style({ marginLeft: '0' })),
-      transition('expanded <=> collapsed', animate('300ms cubic-bezier(0.4, 0, 0.2, 1)')),
+      transition('expanded <=> collapsed', animate('300ms cubic-bezier(0.32, 0.72, 0, 1)')),
       transition('* => mobile', animate('0ms')),
       transition('mobile => *', animate('0ms')),
     ]),
@@ -73,7 +75,8 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
       [class.flex-col]="layout.mobileTopBar()"
       [style.--page-top]="layout.mobileTopBar() ? '1.25rem' : null"
       [style.--page-fill-offset]="layout.mobileTopBar() ? 'calc(4.75rem + env(safe-area-inset-top) + env(safe-area-inset-bottom) + var(--consent-banner-h, 0px))' : null"
-      [style.--page-header-end]="headerEnd()"
+      [style.--page-top-lg]="layout.mobileTopBar() ? null : '0.75rem'"
+      [style.--sidebar-w]="layout.isMobile() ? '0px' : layout.sidebarWidth()"
     >
       @if (layout.mobileTopBar()) {
         <!-- Menu novo (13/11): no celular o tema e o sino ficam presos na barra de topo. -->
@@ -87,37 +90,35 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
       @if (adminArea()) {
         <app-admin-sidebar />
       } @else {
-        <app-sidebar />
+        <!-- Gaveta do celular como diálogo modal: foco entra, Tab preso, Esc fecha (review M4). -->
+        <app-sidebar [modalDrawer]="true" />
       }
+      <!--
+        Computador (menu novo, prancha 6): o tema e o sino ficam numa FAIXA PRÓPRIA no topo do
+        <main>, que não rola — o conteúdo rola embaixo dela, num scroller só dele. Assim o sino
+        não some ao rolar e também não flutua sobre a página: kebabs de linha, barras de
+        ferramentas e cabeçalhos \`sticky\` das páginas nunca passam por baixo dele. A faixa
+        entra no lugar do respiro de topo da página (\`--page-top-lg\`, lido pelo
+        default-page-layout). No celular os dois moram na barra de topo (acima).
+      -->
       <main
-        class="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip transition-none"
+        class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-none"
         [@contentMargin]="contentState()"
       >
-        <!-- O botão de tema aparece SEMPRE (dono, gerente e motorista; também no onboarding);
-             o sino continua só depois do onboarding concluído. -->
-          <!--
-            Computador: o sino fica no canto de cima da página, na mesma coluna dos cards
-            (max-w-8xl + lg:px-10), e NÃO some ao rolar (menu novo, prancha 6): \`sticky\` de
-            altura zero no topo do scroller — não empurra o conteúdo, que já reserva o espaço
-            (lg:pt-10), e não disputa \`fixed\` com a sidebar. No celular eles moram na barra
-            de topo (acima).
-          -->
-          @if (!layout.mobileTopBar()) {
-            <header class="pointer-events-none sticky inset-x-0 top-0 z-20 h-0">
-              <div
-                class="max-w-8xl mx-auto flex justify-end px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 lg:px-10 lg:pt-10"
-                data-bell-row
-              >
-                <div class="pointer-events-auto flex items-center gap-2">
-                  <app-theme-toggle />
-                  @if (showBell()) {
-                    <app-notification-bell />
-                  }
-                </div>
+        @if (!layout.mobileTopBar()) {
+          <header class="relative z-40 shrink-0" data-desktop-bar>
+            <div class="max-w-8xl mx-auto flex justify-end px-4 pt-4 sm:px-6 lg:px-10" data-bell-row>
+              <!-- O tema aparece SEMPRE (também no onboarding); o sino, só depois dele. -->
+              <div class="flex items-center gap-2">
+                <app-theme-toggle />
+                @if (showBell()) {
+                  <app-notification-bell />
+                }
               </div>
-            </header>
-          }
-        <div>
+            </div>
+          </header>
+        }
+        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip" data-main-scroller>
           <router-outlet />
         </div>
       </main>
@@ -189,17 +190,6 @@ export class AppShell implements OnInit, OnDestroy {
    * pedir o feed sem tenant é ruído garantido. `sessionStorage` não é reativo,
    * por isso o cálculo é reavaliado a cada navegação via `currentUrl()`.
    */
-  /**
-   * Folga à direita do título (`--page-header-end`, lida pelo default-page-layout) para a
-   * coluna do header no computador: 44px do botão de tema, mais 8px e o sino quando ele monta
-   * — que cresce com o contador de não lidas (até "99+", ~80px) —, mais respiro. No celular os
-   * botões moram na barra de topo e não há folga.
-   */
-  protected readonly headerEnd = computed(() => {
-    // Celular: tema e sino moram na barra de topo; o título usa a largura toda.
-    if (this.layout.mobileTopBar()) return null;
-    return this.showBell() ? '8.5rem' : '3.25rem';
-  });
 
   protected readonly showBell = computed(() => {
     const url = this.currentUrl();

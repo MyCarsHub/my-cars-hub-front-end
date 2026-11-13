@@ -13,6 +13,7 @@ import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NotificationBell } from './notification-bell';
+import { BellPanel } from './bell-panel';
 import { DUE_ALERTS_ROLES, NotificationBellStore } from './notification-bell.store';
 import { openDueAlertsGuard } from './open-due-alerts.guard';
 import { NotificationFeedService } from '../../services/notification-feed.service';
@@ -29,6 +30,30 @@ function signInAs(role: string): void {
     .replace(/\//g, '_')
     .replace(/=+$/, '');
   sessionStorage.setItem('token', `header.${b64}.signature`);
+}
+
+
+/** O painel é baixado na primeira abertura (`import()`): clica no sino e espera ele aparecer. */
+async function openPanel(fixture: {
+  detectChanges(): void;
+  whenStable(): Promise<unknown>;
+  nativeElement: HTMLElement;
+}): Promise<void> {
+  fixture.nativeElement.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"]')!.click();
+  await waitFor(fixture, '[role="dialog"]');
+}
+
+/** Espera um seletor existir (chunks baixados com `import()`), sem relógio fixo. */
+async function waitFor(
+  fixture: { detectChanges(): void; whenStable(): Promise<unknown>; nativeElement: HTMLElement },
+  selector: string,
+): Promise<void> {
+  fixture.detectChanges();
+  for (let i = 0; i < 200 && !fixture.nativeElement.querySelector(selector); i++) {
+    await fixture.whenStable();
+    await new Promise((r) => setTimeout(r, 5));
+    fixture.detectChanges();
+  }
 }
 
 /**
@@ -110,11 +135,10 @@ describe('NotificationBell — abas Notificações e Vencimentos', () => {
   afterEach(() => sessionStorage.clear());
 
   for (const role of ['OWNER', 'MANAGER'] as const) {
-    it(`${role}: o painel tem as abas Notificações e Vencimentos, abrindo em Notificações`, () => {
+    it(`${role}: o painel tem as abas Notificações e Vencimentos, abrindo em Notificações`, async () => {
       signInAs(role);
       const { fixture, host } = render();
-      trigger(host).click();
-      fixture.detectChanges();
+        await openPanel(fixture);
 
       expect(tabs(host).map((t) => t.textContent!.trim())).toEqual(['Notificações', 'Vencimentos']);
       expect(tabs(host)[0].getAttribute('aria-selected')).toBe('true');
@@ -125,11 +149,10 @@ describe('NotificationBell — abas Notificações e Vencimentos', () => {
     });
   }
 
-  it('DRIVER: só Notificações, sem abas (Vencimentos é da frota e 403 para ele)', () => {
+  it('DRIVER: só Notificações, sem abas (Vencimentos é da frota e 403 para ele)', async () => {
     signInAs('DRIVER');
     const { fixture, host } = render();
-    trigger(host).click();
-    fixture.detectChanges();
+    await openPanel(fixture);
 
     expect(tabs(host)).toHaveLength(0);
     expect(host.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
@@ -141,8 +164,7 @@ describe('NotificationBell — abas Notificações e Vencimentos', () => {
   it('tocar em Vencimentos troca de aba e carrega os vencimentos sob demanda', async () => {
     signInAs('OWNER');
     const { fixture, host } = render();
-    trigger(host).click();
-    fixture.detectChanges();
+    await openPanel(fixture);
 
     tabs(host)[1].click();
     fixture.detectChanges();
@@ -156,11 +178,10 @@ describe('NotificationBell — abas Notificações e Vencimentos', () => {
     expect(listDocumentAlerts).toHaveBeenCalled();
   });
 
-  it('setas movem entre as abas', () => {
+  it('setas movem entre as abas', async () => {
     signInAs('MANAGER');
     const { fixture, host } = render();
-    trigger(host).click();
-    fixture.detectChanges();
+    await openPanel(fixture);
 
     tabs(host)[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     fixture.detectChanges();
@@ -172,7 +193,7 @@ describe('NotificationBell — abas Notificações e Vencimentos', () => {
     signInAs('OWNER');
     const { fixture, host } = render();
     TestBed.inject(NotificationBellStore).openOn('vencimentos');
-    fixture.detectChanges();
+    await waitFor(fixture, '[role="dialog"]');
 
     expect(host.querySelector('[role="dialog"]')).not.toBeNull();
     expect(tabs(host)[1].getAttribute('aria-selected')).toBe('true');
@@ -180,7 +201,30 @@ describe('NotificationBell — abas Notificações e Vencimentos', () => {
     expect(host.querySelector('app-due-alerts-panel')).not.toBeNull();
   });
 
-  it('o contador é número em fundo tingido, sem bolinha vermelha', () => {
+  it('se a aba Vencimentos não baixar, mostra o erro com "Tentar de novo" (nunca esqueleto eterno)', async () => {
+    signInAs('OWNER');
+    TestBed.inject(NotificationBellStore).selectTab('vencimentos');
+    const fixture = TestBed.createComponent(BellPanel);
+    const panel = fixture.componentInstance as unknown as {
+      duePanel: { set(v: null): void };
+      duePanelFailed: { set(v: boolean): void };
+    };
+    fixture.detectChanges();
+    // Simula a falha do `import()` (arquivo trocado por um deploy): o estado é o que o
+    // `catch` grava.
+    panel.duePanel.set(null);
+    panel.duePanelFailed.set(true);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const error = host.querySelector('[data-due-chunk-error]')!;
+    expect(error.getAttribute('role')).toBe('alert');
+    error.querySelector('button')!.click();
+    await waitFor(fixture, 'app-due-alerts-panel');
+    expect(host.querySelector('[data-due-chunk-error]')).toBeNull();
+    expect(host.querySelector('app-due-alerts-panel')).not.toBeNull();
+  });
+
+  it('o contador é número em fundo tingido, sem bolinha vermelha', async () => {
     signInAs('OWNER');
     const { host } = render();
     const count = trigger(host).querySelector('[data-bell-count]')!;
@@ -190,7 +234,7 @@ describe('NotificationBell — abas Notificações e Vencimentos', () => {
     expect(trigger(host).innerHTML).not.toContain('bg-rose-600');
   });
 
-  it('variant="bar" (barra de topo do celular) tira a caixa do gatilho', () => {
+  it('variant="bar" (barra de topo do celular) tira a caixa do gatilho', async () => {
     const fixture = TestBed.createComponent(NotificationBell);
     fixture.componentRef.setInput('variant', 'bar');
     fixture.detectChanges();
@@ -218,7 +262,7 @@ describe('/alertas abre o sino na aba Vencimentos', () => {
       openDueAlertsGuard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
     ) as boolean | UrlTree;
 
-  it('primeira carga (link de fora): cai no Dashboard com o sino aberto em Vencimentos', () => {
+  it('primeira carga (link de fora): cai no Dashboard com o sino aberto em Vencimentos', async () => {
     signInAs('OWNER');
     const result = run();
     expect(result instanceof UrlTree && result.toString()).toBe('/dashboard');
@@ -234,7 +278,7 @@ describe('/alertas abre o sino na aba Vencimentos', () => {
     expect(TestBed.inject(NotificationBellStore).open()).toBe(true);
   });
 
-  it('motorista: não abre o sino (o roleGuard da rota o manda embora)', () => {
+  it('motorista: não abre o sino (o roleGuard da rota o manda embora)', async () => {
     signInAs('DRIVER');
     run();
     expect(TestBed.inject(NotificationBellStore).open()).toBe(false);
@@ -249,7 +293,7 @@ describe('/alertas abre o sino na aba Vencimentos', () => {
     return undefined;
   }
 
-  it('a rota /alertas continua existindo (URL de sempre), com o roleGuard e este guard', () => {
+  it('a rota /alertas continua existindo (URL de sempre), com o roleGuard e este guard', async () => {
     const alertas = findAlertas(routes)!;
     expect(alertas).toBeDefined();
     expect(alertas.canActivate).toContain(openDueAlertsGuard);
@@ -257,7 +301,7 @@ describe('/alertas abre o sino na aba Vencimentos', () => {
     expect(alertas.loadComponent).toBeUndefined();
   });
 
-  it('a aba Vencimentos é exatamente dos papéis que o roleGuard de /alertas deixa entrar', () => {
+  it('a aba Vencimentos é exatamente dos papéis que o roleGuard de /alertas deixa entrar', async () => {
     const guard = findAlertas(routes)!.canActivate!.find(isRoleGuard) as CanActivateFn;
     for (const role of ['OWNER', 'MANAGER', 'DRIVER']) {
       signInAs(role);

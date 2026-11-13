@@ -329,6 +329,31 @@ describe('Sidebar — comportamento do menu novo', () => {
     expect(group('Frota').getAttribute('aria-expanded')).toBe('true');
   });
 
+  it('gaveta modal do app: o foco entra no Fechar, Tab fica preso e Esc fecha (review M4)', async () => {
+    fixture.componentRef.setInput('modalDrawer', true);
+    layout.setMobile(true);
+    layout.openMobile();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const drawer = host().querySelector<HTMLElement>('aside.app-sidebar')!;
+    expect(drawer.getAttribute('role')).toBe('dialog');
+    expect(drawer.getAttribute('aria-modal')).toBe('true');
+    const close = host().querySelector<HTMLElement>('[data-drawer-close]')!;
+    expect(document.activeElement).toBe(close);
+
+    // Shift+Tab no primeiro focável volta para o último, dentro da gaveta.
+    const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+    close.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(drawer.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(close);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(layout.isMobileOpen()).toBe(false);
+  });
+
   it('nenhuma linha divisória no menu (separação só por espaço)', () => {
     const borders = Array.from(host().querySelectorAll('aside *')).filter((el) =>
       /(^|\s)border(-[trbl])?(\s|$)/.test(el.getAttribute('class') ?? ''),

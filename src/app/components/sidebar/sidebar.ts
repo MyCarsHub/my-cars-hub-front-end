@@ -29,6 +29,7 @@ import {
   DriverNavIcon,
   DriverNavRoutes,
 } from './driver-nav';
+import { SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_EXPANDED } from './sidebar-width';
 import { PersonNamePipe } from '../../pipes/person-name.pipe';
 import { NewsUnreadBadgeStore } from '../../services/news-unread-badge.store';
 import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
@@ -382,9 +383,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-/** Larguras da coluna do computador (canvas "Menu novo", prancha 6). O shell usa as mesmas. */
-export const SIDEBAR_WIDTH_EXPANDED = '300px';
-export const SIDEBAR_WIDTH_COLLAPSED = '76px';
+export { SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_EXPANDED } from './sidebar-width';
 
 /** Duas iniciais do nome ("Marina Lopes" → "ML"). */
 function initialsOf(name: string): string {
@@ -707,13 +706,14 @@ export class Sidebar {
   }
 
   protected onParentClick(item: NavItem): void {
-    if (this.layout.isCollapsed() && !this.layout.isMobile()) {
-      this.layout.isCollapsed.set(false);
-    }
-    const currentlyOpen = this.isExpanded(item);
+    // Coluna recolhida: o toque abre a coluna COM o grupo aberto — alternar fecharia o grupo da
+    // página atual, que já estava aberto por baixo (review L5).
+    const expandingColumn = this.layout.isCollapsed() && !this.layout.isMobile();
+    if (expandingColumn) this.layout.isCollapsed.set(false);
+    const open = expandingColumn ? true : !this.isExpanded(item);
     this.userState.update((prev) => {
       const next = new Map(prev);
-      next.set(item.label, currentlyOpen ? 'closed' : 'open');
+      next.set(item.label, open ? 'open' : 'closed');
       return next;
     });
   }

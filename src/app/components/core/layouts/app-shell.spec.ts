@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AppShell } from './app-shell';
 import { LayoutStore } from './layout.store';
+import { SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_EXPANDED } from '../../sidebar/sidebar-width';
 import { BillingAccessService } from '../../../services/billing-access.service';
 import { SessionService } from '../../../services/session.service';
 import { NotificationFeedService } from '../../../services/notification-feed.service';
@@ -102,12 +103,15 @@ describe('AppShell — gate do sino de notificações', () => {
     expect(startPolling).toHaveBeenCalled();
   });
 
-  it('o scroller do <main> nao pana para o lado (min-w-0 + overflow-x-clip)', () => {
+  it('o scroller do conteúdo nao pana para o lado (min-w-0 + overflow-x-clip)', () => {
     configure(true);
-    const main = render().querySelector('main');
+    const host = render();
+    const scroller = host.querySelector<HTMLElement>('main [data-main-scroller]');
 
-    expect(main?.className).toContain('min-w-0');
-    expect(main?.className).toContain('overflow-x-clip');
+    expect(host.querySelector('main')?.className).toContain('min-w-0');
+    expect(scroller?.className).toContain('min-w-0');
+    expect(scroller?.className).toContain('overflow-x-clip');
+    expect(scroller?.className).toContain('overflow-y-auto');
   });
 });
 
@@ -320,7 +324,12 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('');
   });
 
-  it('no computador o sino fica no canto da página, preso ao rolar (sticky)', () => {
+  /*
+   * Review M1: o sino `sticky` flutuava sobre a página rolada e cobria kebabs e barras de
+   * ferramentas à direita. Agora ele mora numa faixa própria, IRMÃ do scroller: a página
+   * rola embaixo dela e nada passa por baixo do sino.
+   */
+  it('no computador o sino fica numa faixa própria, fora do scroller (não cobre a página)', () => {
     configure('OWNER');
     const fixture = TestBed.createComponent(AppShell);
     fixture.detectChanges();
@@ -328,10 +337,55 @@ describe('AppShell — barra de topo do motorista', () => {
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
     const header = bellRow(host).closest('header')!;
-    expect(header.classList.contains('sticky')).toBe(true);
+    const scroller = host.querySelector('main [data-main-scroller]')!;
+    expect(header.classList.contains('shrink-0')).toBe(true);
+    expect(header.classList.contains('sticky')).toBe(false);
     expect(header.classList.contains('absolute')).toBe(false);
+    expect(scroller.contains(header)).toBe(false);
+    expect(header.nextElementSibling).toBe(scroller);
     expect(bellRow(host).querySelector('app-notification-bell')).not.toBeNull();
-    expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('8.5rem');
+    expect(frame(host).style.getPropertyValue('--page-top-lg')).toBe('0.75rem');
+    expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('');
+  });
+
+  /*
+   * Review H1: a sidebar passou a 300/76px e a margem do conteúdo ficou em 260/72 — o menu
+   * cobria 40px de toda página. As duas vêm agora das mesmas constantes; aqui a igualdade é
+   * medida no DOM, nos dois estados.
+   */
+  it('a margem do conteúdo é a largura da sidebar, aberta e recolhida', async () => {
+    configure('OWNER');
+    const fixture = TestBed.createComponent(AppShell);
+    fixture.detectChanges();
+    const layout = TestBed.inject(LayoutStore);
+    layout.setMobile(false);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const main = () => host.querySelector<HTMLElement>('main')!;
+    const aside = () => host.querySelector<HTMLElement>('aside.app-sidebar')!;
+
+    expect(main().style.marginLeft).toBe(SIDEBAR_WIDTH_EXPANDED);
+    expect(aside().style.width).toBe(SIDEBAR_WIDTH_EXPANDED);
+
+    layout.isCollapsed.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(main().style.marginLeft).toBe(SIDEBAR_WIDTH_COLLAPSED);
+    expect(aside().style.width).toBe(SIDEBAR_WIDTH_COLLAPSED);
+    expect(layout.sidebarWidth()).toBe(SIDEBAR_WIDTH_COLLAPSED);
+  });
+
+  it('o shell monta a sidebar do app como gaveta modal (Tab preso, Esc fecha)', () => {
+    configure('OWNER');
+    const fixture = TestBed.createComponent(AppShell);
+    fixture.detectChanges();
+    TestBed.inject(LayoutStore).setMobile(true);
+    TestBed.inject(LayoutStore).openMobile();
+    fixture.detectChanges();
+    const drawer = (fixture.nativeElement as HTMLElement).querySelector('aside.app-sidebar')!;
+    expect(drawer.getAttribute('role')).toBe('dialog');
+    expect(drawer.getAttribute('aria-modal')).toBe('true');
   });
 
   /*

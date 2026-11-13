@@ -39,154 +39,24 @@
 <!-- Contador anunciado por leitor de tela sem depender do número visual. -->
 <span class="sr-only" aria-live="polite">{{ ariaLabel() }}</span>
 
-<!--
-  Painel é `role="dialog"`, não `role="menu"`: carrega cromo que não é item de menu (abas,
-  "marcar todas", filtros, estados de carga). Separação só por espaço, sem linhas.
--->
+<!-- O painel é baixado na primeira abertura: só o gatilho e o contador ficam no pacote inicial. -->
 @if (open()) {
-  <div
-    #panel
-    appClickOutside
-    (appClickOutside)="onClickOutside($event)"
-    (keydown.escape)="closeAndFocusTrigger()"
-    (keydown)="onPanelKeydown($event)"
-    role="dialog"
-    tabindex="-1"
-    [attr.aria-label]="showTabs() ? 'Notificações e vencimentos' : 'Notificações recentes'"
-    class="bell-panel fixed left-2 right-2 top-[calc(4rem+env(safe-area-inset-top))] z-50 flex max-h-[calc(100dvh-5rem-env(safe-area-inset-top))] flex-col rounded-[20px] bg-surface shadow-xl focus:outline-none sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[440px] sm:max-h-[calc(100dvh-8rem)]"
-  >
-    <div class="flex shrink-0 flex-col gap-1 px-3 pb-1 pt-3">
-      @if (showTabs()) {
-        <div
-          role="tablist"
-          aria-label="Notificações ou vencimentos"
-          class="grid grid-cols-2 rounded-xl bg-surface-sunken p-[3px]"
-          (keydown)="onTabKeydown($event)"
-        >
-          <button
-            #tabButton
-            type="button"
-            role="tab"
-            id="bell-tab-notificacoes"
-            aria-controls="bell-panel-notificacoes"
-            [attr.aria-selected]="activeTab() === 'notificacoes'"
-            [attr.tabindex]="activeTab() === 'notificacoes' ? 0 : -1"
-            class="flex min-h-11 items-center justify-center gap-2 rounded-[9px] text-[15px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 motion-reduce:transition-none"
-            [class.bg-primary-500]="activeTab() === 'notificacoes'"
-            [class.text-white]="activeTab() === 'notificacoes'"
-            [class.text-fg-muted]="activeTab() !== 'notificacoes'"
-            (click)="selectTab('notificacoes')"
-          >
-            Notificações
-          </button>
-          <button
-            #tabButton
-            type="button"
-            role="tab"
-            id="bell-tab-vencimentos"
-            aria-controls="bell-panel-vencimentos"
-            [attr.aria-selected]="activeTab() === 'vencimentos'"
-            [attr.tabindex]="activeTab() === 'vencimentos' ? 0 : -1"
-            class="flex min-h-11 items-center justify-center gap-2 rounded-[9px] text-[15px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 motion-reduce:transition-none"
-            [class.bg-primary-500]="activeTab() === 'vencimentos'"
-            [class.text-white]="activeTab() === 'vencimentos'"
-            [class.text-fg-muted]="activeTab() !== 'vencimentos'"
-            (click)="selectTab('vencimentos')"
-          >
-            Vencimentos
-          </button>
-        </div>
-      }
-
-      @if (activeTab() === 'notificacoes') {
-        <div class="flex items-center justify-between gap-2" [class.pl-1]="!showTabs()">
-          @if (!showTabs()) {
-            <p class="text-[17px] font-bold text-fg">Notificações</p>
-          } @else {
-            <span></span>
-          }
-          <button
-            type="button"
-            class="min-h-11 rounded-lg px-3 text-sm font-semibold text-primary-700 hover:text-primary-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50 dark:text-primary-400 dark:hover:text-primary-400"
-            [disabled]="!hasUnread()"
-            (click)="onMarkAllRead()"
-          >
-            Marcar todas como lidas
-          </button>
-        </div>
-      }
+  @if (panel(); as panelCmp) {
+    <ng-container *ngComponentOutlet="panelCmp; inputs: { trigger: triggerEl() }" />
+  } @else if (panelFailed()) {
+    <div
+      role="alert"
+      class="fixed left-2 right-2 top-[calc(4rem+env(safe-area-inset-top))] z-50 flex flex-col items-start gap-3 rounded-[20px] bg-surface p-4 shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[440px]"
+      data-bell-chunk-error
+    >
+      <p class="text-[15px] text-fg-muted">Não foi possível abrir as notificações. Verifique a conexão e tente de novo.</p>
+      <button
+        type="button"
+        class="flex min-h-11 items-center justify-center rounded-xl bg-primary-500 px-4 text-[15px] font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+        (click)="retryPanel()"
+      >
+        Tentar de novo
+      </button>
     </div>
-
-    @if (activeTab() === 'notificacoes') {
-      <div
-        class="min-h-0 flex-1 overflow-y-auto px-2 pb-2"
-        [attr.role]="showTabs() ? 'tabpanel' : null"
-        [attr.id]="showTabs() ? 'bell-panel-notificacoes' : null"
-        [attr.aria-labelledby]="showTabs() ? 'bell-tab-notificacoes' : null"
-      >
-        @if (loading() && items().length === 0) {
-          <div class="flex flex-col gap-2 p-2">
-            <div class="h-14 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
-            <div class="h-14 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
-          </div>
-        }
-
-        @if (error(); as loadError) {
-          <p class="px-3 py-6 text-sm text-rose-700 dark:text-rose-300">{{ loadError }}</p>
-        }
-
-        @if (!loading() && !error() && items().length === 0) {
-          <p class="px-3 py-8 text-center text-[15px] text-fg-muted">
-            Nenhuma notificação por enquanto.
-          </p>
-        }
-
-        @if (items().length > 0) {
-          <ul class="flex list-none flex-col gap-0.5">
-            @for (item of items(); track item.id) {
-              <li>
-                <button
-                  #menuItem
-                  type="button"
-                  class="flex min-h-14 w-full flex-col gap-1 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 motion-reduce:transition-none"
-                  [class.bg-primary-50]="!item.read"
-                  [class.dark:bg-primary-500/10]="!item.read"
-                  (click)="onItemClick(item)"
-                >
-                  <span class="flex items-start justify-between gap-3">
-                    <span class="min-w-0 truncate text-[15px] font-semibold text-fg">{{ item.title }}</span>
-                    @if (dueLabel(item); as due) {
-                      <span
-                        class="shrink-0 whitespace-nowrap rounded-lg px-2 py-0.5 text-xs font-semibold"
-                        [class]="severityChip(item.severity)"
-                      >{{ due }}</span>
-                    }
-                  </span>
-                  <span class="line-clamp-2 text-sm text-fg-muted">{{ item.message }}</span>
-                </button>
-              </li>
-            }
-          </ul>
-        }
-      </div>
-    } @else {
-      <div
-        class="min-h-0 flex-1 overflow-y-auto"
-        role="tabpanel"
-        id="bell-panel-vencimentos"
-        aria-labelledby="bell-tab-vencimentos"
-        data-bell-due
-      >
-        <!-- Carregada sob demanda: a aba Vencimentos fica fora do pacote inicial. -->
-        @if (duePanel(); as panel) {
-          <ng-container *ngComponentOutlet="panel" />
-        } @else {
-          <div class="flex flex-col gap-2 p-4" aria-hidden="true">
-            <div class="h-16 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
-            <div class="h-16 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
-          </div>
-        }
-      </div>
-    }
-  </div>
+  }
 }

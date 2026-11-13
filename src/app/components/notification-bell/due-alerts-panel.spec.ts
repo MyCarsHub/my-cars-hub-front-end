@@ -216,6 +216,84 @@ describe('DueAlertsPanel (aba Vencimentos do sino)', () => {
     expect(host.querySelector('[data-due-empty]')).toBeNull();
   });
 
+  it('"Carregar mais" seguido de troca de janela: a página da janela antiga é CANCELADA (review M2)', () => {
+    const { fixture, host } = setup();
+    http.expectOne((r) => r.url === URL).flush({
+      content: [alert({ entityId: 'a', title: 'Janela 30, página 0' })],
+      page: 0,
+      size: 20,
+      total: 40,
+    });
+    fixture.detectChanges();
+
+    host.querySelector<HTMLButtonElement>('[data-due-more]')!.click();
+    fixture.detectChanges();
+    const stale = http.expectOne((r) => r.url === URL && r.params.get('page') === '1');
+
+    // Troca a janela antes de a página 1 voltar.
+    host.querySelector<HTMLButtonElement>('[data-due-windows] [role="radio"]')!.click();
+    fixture.detectChanges();
+    expect(stale.cancelled).toBe(true);
+    const fresh = http.expectOne((r) => r.url === URL && r.params.get('withinDays') === '7');
+    expect(fresh.request.params.get('page')).toBe('0');
+    fresh.flush({
+      content: [alert({ entityId: 'b', title: 'Janela 7, página 0' })],
+      page: 0,
+      size: 20,
+      total: 1,
+    });
+    fixture.detectChanges();
+
+    const titles = Array.from(host.querySelectorAll('[data-due-item]')).map((a) => a.textContent);
+    expect(titles).toHaveLength(1);
+    expect(titles[0]).toContain('Janela 7, página 0');
+    expect(host.querySelector('[data-due-end]')?.textContent).toContain('Mostrando 1 de 1');
+  });
+
+  it('"Carregar mais" que falha mostra o erro com "Tentar de novo", que repete a página', () => {
+    const { fixture, host } = setup();
+    http.expectOne((r) => r.url === URL).flush({
+      content: [alert({ entityId: 'a', title: 'Primeiro' })],
+      page: 0,
+      size: 20,
+      total: 2,
+    });
+    fixture.detectChanges();
+
+    host.querySelector<HTMLButtonElement>('[data-due-more]')!.click();
+    fixture.detectChanges();
+    http
+      .expectOne((r) => r.url === URL && r.params.get('page') === '1')
+      .flush('boom', { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+    // A lista que já veio fica; o erro oferece a saída.
+    expect(host.querySelectorAll('[data-due-item]')).toHaveLength(1);
+    host.querySelector<HTMLButtonElement>('[data-due-retry]')!.click();
+    fixture.detectChanges();
+
+    http
+      .expectOne((r) => r.url === URL && r.params.get('page') === '1')
+      .flush({ content: [alert({ entityId: 'b', title: 'Segundo' })], page: 1, size: 20, total: 2 });
+    fixture.detectChanges();
+    expect(host.querySelectorAll('[data-due-item]')).toHaveLength(2);
+    expect(host.querySelector('[data-due-error]')).toBeNull();
+  });
+
+  it('computador: cada grupo também sai como tabela (Severidade, Documento, Referência, Vencimento, Prazo)', () => {
+    const { fixture, host } = setup();
+    http.expectOne((r) => r.url === URL).flush({ content: [alert({})], page: 0, size: 20, total: 1 });
+    fixture.detectChanges();
+    const table = host.querySelector('[data-due-table]')!;
+    const headers = Array.from(table.querySelectorAll('th')).map((th) => th.textContent!.trim());
+    expect(headers).toEqual(['Severidade', 'Documento', 'Referência', 'Vencimento', 'Prazo', 'Ações']);
+    const row = table.querySelector('[data-due-row]')!;
+    expect(row.textContent).toContain('Atenção');
+    expect(row.textContent).toContain('18/11/2026');
+    expect(row.textContent).toContain('Vence em 5 dias');
+    expect(row.querySelector('a')?.getAttribute('href')).toBe('/motoristas/d-1');
+    expect(table.className).toContain('lg:table');
+  });
+
   it('escolher um item fecha o sino', () => {
     const { fixture, host } = setup();
     const store = TestBed.inject(NotificationBellStore);

@@ -8,6 +8,30 @@ import { NotificationBell } from './notification-bell';
 import { NotificationFeedService } from '../../services/notification-feed.service';
 import type { NotificationItem } from '../../types/notification-feed.types';
 
+
+/** O painel é baixado na primeira abertura (`import()`): clica no sino e espera ele aparecer. */
+async function openPanel(fixture: {
+  detectChanges(): void;
+  whenStable(): Promise<unknown>;
+  nativeElement: HTMLElement;
+}): Promise<void> {
+  fixture.nativeElement.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"]')!.click();
+  await waitFor(fixture, '[role="dialog"]');
+}
+
+/** Espera um seletor existir (chunks baixados com `import()`), sem relógio fixo. */
+async function waitFor(
+  fixture: { detectChanges(): void; whenStable(): Promise<unknown>; nativeElement: HTMLElement },
+  selector: string,
+): Promise<void> {
+  fixture.detectChanges();
+  for (let i = 0; i < 200 && !fixture.nativeElement.querySelector(selector); i++) {
+    await fixture.whenStable();
+    await new Promise((r) => setTimeout(r, 5));
+    fixture.detectChanges();
+  }
+}
+
 /**
  * Cobre o sino do header:
  *  - badge escondido em 0 e limitado a "99+", com o número real no aria-label;
@@ -86,7 +110,7 @@ describe('NotificationBell', () => {
     configure();
   });
 
-  it('esconde o badge quando não há não lidas', () => {
+  it('esconde o badge quando não há não lidas', async () => {
     unreadCount.set(0);
     const fixture = TestBed.createComponent(NotificationBell);
     fixture.detectChanges();
@@ -96,7 +120,7 @@ describe('NotificationBell', () => {
     expect(trigger(host).getAttribute('aria-label')).toBe('Notificações, nenhuma não lida');
   });
 
-  it('renderiza "99+" acima de 99 mas mantém o número real no aria-label', () => {
+  it('renderiza "99+" acima de 99 mas mantém o número real no aria-label', async () => {
     unreadCount.set(128);
     const fixture = TestBed.createComponent(NotificationBell);
     fixture.detectChanges();
@@ -106,15 +130,14 @@ describe('NotificationBell', () => {
     expect(trigger(host).getAttribute('aria-label')).toBe('Notificações, 128 não lidas');
   });
 
-  it('abre o painel e reflete o estado em aria-expanded', () => {
+  it('abre o painel e reflete o estado em aria-expanded', async () => {
     const fixture = TestBed.createComponent(NotificationBell);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
     expect(trigger(host).getAttribute('aria-expanded')).toBe('false');
 
-    trigger(host).click();
-    fixture.detectChanges();
+    await openPanel(fixture);
 
     expect(trigger(host).getAttribute('aria-expanded')).toBe('true');
     expect(host.querySelector('[role="dialog"]')).not.toBeNull();
@@ -126,13 +149,12 @@ describe('NotificationBell', () => {
    * todas", skeleton e estado vazio — nada disso é item de menu. O painel é um
    * diálogo rotulado e a lista é uma `<ul>` de verdade.
    */
-  it('não usa role=menu/menuitem no painel — é um diálogo rotulado com lista', () => {
+  it('não usa role=menu/menuitem no painel — é um diálogo rotulado com lista', async () => {
     const fixture = TestBed.createComponent(NotificationBell);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    trigger(host).click();
-    fixture.detectChanges();
+    await openPanel(fixture);
 
     expect(host.querySelector('[role="menu"]')).toBeNull();
     expect(host.querySelector('[role="menuitem"]')).toBeNull();
@@ -142,27 +164,25 @@ describe('NotificationBell', () => {
     expect(panel?.querySelectorAll('ul > li')).toHaveLength(1);
   });
 
-  it('move o foco para o primeiro item ao abrir o painel', () => {
+  it('move o foco para o primeiro item ao abrir o painel', async () => {
     const fixture = TestBed.createComponent(NotificationBell);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
     expect(document.activeElement).not.toBe(itemButtons(host)[0]);
 
-    trigger(host).click();
-    fixture.detectChanges();
+    await openPanel(fixture);
 
     expect(document.activeElement).toBe(itemButtons(host)[0]);
   });
 
-  it('sem notificações o foco ainda entra no painel (primeiro item focável)', () => {
+  it('sem notificações o foco ainda entra no painel (primeiro item focável)', async () => {
     items.set([]);
     const fixture = TestBed.createComponent(NotificationBell);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    trigger(host).click();
-    fixture.detectChanges();
+    await openPanel(fixture);
 
     const panel = host.querySelector('[role="dialog"]');
     // Contêiner focável é a rede de segurança quando nem o link do rodapé existe.
@@ -173,15 +193,14 @@ describe('NotificationBell', () => {
     expect(document.activeElement).toBe(panel);
   });
 
-  it('clicar num item marca como lida e navega para o actionUrl', () => {
+  it('clicar num item marca como lida e navega para o actionUrl', async () => {
     const fixture = TestBed.createComponent(NotificationBell);
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    trigger(host).click();
-    fixture.detectChanges();
+    await openPanel(fixture);
 
     itemButtons(host)[0]?.click();
     fixture.detectChanges();
@@ -191,13 +210,12 @@ describe('NotificationBell', () => {
     expect(host.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it('"Marcar todas como lidas" delega ao service', () => {
+  it('"Marcar todas como lidas" delega ao service', async () => {
     const fixture = TestBed.createComponent(NotificationBell);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    trigger(host).click();
-    fixture.detectChanges();
+    await openPanel(fixture);
 
     const button = Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find(
       (b) => b.textContent?.trim() === 'Marcar todas como lidas',
@@ -207,13 +225,12 @@ describe('NotificationBell', () => {
     expect(markAllReadSpy).toHaveBeenCalled();
   });
 
-  it('Escape fecha o painel e devolve o foco ao gatilho', () => {
+  it('Escape fecha o painel e devolve o foco ao gatilho', async () => {
     const fixture = TestBed.createComponent(NotificationBell);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    trigger(host).click();
-    fixture.detectChanges();
+    await openPanel(fixture);
 
     const panel = host.querySelector('[role="dialog"]');
     panel?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));

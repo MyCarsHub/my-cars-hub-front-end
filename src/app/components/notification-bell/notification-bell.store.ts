@@ -1,4 +1,5 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
+import { SessionResetRegistry } from '../../services/session-reset.registry';
 
 /** Abas do painel do sino. */
 export type BellTab = 'notificacoes' | 'vencimentos';
@@ -6,7 +7,7 @@ export type BellTab = 'notificacoes' | 'vencimentos';
 /**
  * Papéis que veem a aba Vencimentos: os mesmos do `roleGuard` da rota `/alertas`
  * (`GET /v1/alerts/documents` é da frota e responde 403 ao motorista). A paridade é
- * medida em `notification-bell.roles.spec.ts`.
+ * medida em `notification-bell.tabs.spec.ts`.
  */
 export const DUE_ALERTS_ROLES: readonly string[] = ['OWNER', 'MANAGER'];
 
@@ -23,8 +24,16 @@ export class NotificationBellStore {
   private readonly _open = signal(false);
   private readonly _tab = signal<BellTab>('notificacoes');
 
+  private readonly _focusRequests = signal(0);
+
   readonly open = this._open.asReadonly();
   readonly tab = this._tab.asReadonly();
+  /** Conta os pedidos de foco de volta ao gatilho (o sino observa e foca). */
+  readonly focusRequests = this._focusRequests.asReadonly();
+
+  constructor() {
+    inject(SessionResetRegistry).register(() => this.reset());
+  }
 
   /** Abre o painel já na aba pedida. */
   openOn(tab: BellTab): void {
@@ -45,7 +54,15 @@ export class NotificationBellStore {
     this._tab.set(tab);
   }
 
-  close(): void {
+  /** Fecha; `returnFocus` devolve o foco ao gatilho (Escape, item escolhido). */
+  close(returnFocus = false): void {
     this._open.set(false);
+    if (returnFocus) this._focusRequests.update((n) => n + 1);
+  }
+
+  /** Fim de sessão: a próxima pessoa não herda um painel aberto nem a aba (review L4). */
+  reset(): void {
+    this._open.set(false);
+    this._tab.set('notificacoes');
   }
 }
