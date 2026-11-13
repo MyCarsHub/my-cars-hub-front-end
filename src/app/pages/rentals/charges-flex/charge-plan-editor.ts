@@ -226,9 +226,10 @@ export class ChargePlanEditor {
   protected readonly splitAllProblem = computed<string | null>(() => {
     if (!this.splitOn() || this.splitScope() !== 'ALL') return null;
     if (this.splitCount() < 2 || this.splitCount() > 12) return 'Escolha de 2 a 12 parcelas.';
-    const days = this.splitIntervalDays();
-    if (days < 1 || days > MAX_SPLIT_INTERVAL_DAYS) {
-      return `Para parcelar todas, o intervalo entre as parcelas vai de 1 a ${MAX_SPLIT_INTERVAL_DAYS} dias.`;
+    // Contrato B2: a quantidade do intervalo vai de 1 a 31, na unidade escolhida.
+    const n = this.splitIntervalN();
+    if (n < 1 || n > MAX_SPLIT_INTERVAL_DAYS) {
+      return `O intervalo entre as parcelas vai de 1 a ${MAX_SPLIT_INTERVAL_DAYS}.`;
     }
     const smallest = Math.floor(this.discountedRateForSplit() / this.splitCount());
     if (smallest < this.minCents()) {
@@ -252,6 +253,20 @@ export class ChargePlanEditor {
     if (i < 0) return null;
     return `A multa fixa dividida (${brl(shares[i])}) precisa ser menor que a parcela (${brl(instalments[i].amountCents)}).`;
   }
+
+  /**
+   * Prévia local das datas de "Parcelar todas" no 1º período: o vencimento dele e as
+   * próximas a cada intervalo, na unidade escolhida (mês = 30 dias, como o backend).
+   */
+  protected readonly splitAllPreview = computed(() => {
+    if (!this.splitOn() || this.splitScope() !== 'ALL' || this.splitAllProblem()) return null;
+    const first = this.periodRows()[0]?.dueDate ?? this.firstDue();
+    if (!first) return null;
+    const dates = Array.from({ length: this.splitCount() }, (_, i) =>
+      brDate(addDaysIso(first, i * this.splitIntervalDays())),
+    );
+    return `${this.word()} 1: ${dates.join(', ').replace(/, ([^,]+)$/, ' e $1')}. As outras seguem o mesmo intervalo a partir do vencimento de cada uma.`;
+  });
 
   /** O menor valor de período que vai ser dividido (com desconto, se houver). */
   private discountedRateForSplit(): number {
@@ -515,7 +530,7 @@ export class ChargePlanEditor {
         : null,
     splitAll:
       this.splitOn() && this.splitScope() === 'ALL'
-        ? { count: this.splitCount(), intervalDays: this.splitIntervalDays() }
+        ? { count: this.splitCount(), intervalN: this.splitIntervalN(), intervalUnit: this.splitIntervalUnit() }
         : null,
     periodOverrides:
       this.splitOn() && this.splitScope() === 'SOME'

@@ -16,7 +16,7 @@ import { isOpenChargeStatus } from '../../../utils/rental-charges';
 
 /** Mínimo por cobrança que vai ao Asaas (contrato B2: R$ 5,00). */
 export const MIN_GATEWAY_CENTS = 500;
-/** Faixa do `defaultSplit.intervalDays` no contrato B2. */
+/** Faixa do `defaultSplit.intervalDays` no contrato B2 — a quantidade, na unidade escolhida. */
 export const MAX_SPLIT_INTERVAL_DAYS = 31;
 
 export type IntervalUnit = 'DAYS' | 'WEEKS' | 'MONTHS';
@@ -165,7 +165,8 @@ export interface PlanDiscountState {
 export interface PlanState {
   discount: PlanDiscountState | null;
   /** "Todas as semanas": mesmo parcelamento para cada período. */
-  splitAll: { count: number; intervalDays: number } | null;
+  /** `intervalN` na unidade `intervalUnit` (contrato B2 + `intervalUnit`, 12/11). */
+  splitAll: { count: number; intervalN: number; intervalUnit: IntervalUnit } | null;
   /** "Só algumas": parcelas por período (índice 0-based). */
   periodOverrides: ReadonlyArray<{ periodIndex: number; instalments: ChargePlanInstalment[] }>;
   /** "Dividir a caução": as partes. */
@@ -194,7 +195,11 @@ export function buildChargePlan(state: PlanState): ChargePlanDto | null {
       : null;
   const defaultSplit =
     state.splitAll && state.splitAll.count >= 2
-      ? { count: state.splitAll.count, intervalDays: state.splitAll.intervalDays }
+      ? {
+          count: state.splitAll.count,
+          intervalDays: state.splitAll.intervalN,
+          intervalUnit: state.splitAll.intervalUnit,
+        }
       : null;
   const overrides = [
     ...(state.caucaoParts && state.caucaoParts.length >= 2

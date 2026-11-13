@@ -460,7 +460,11 @@ export interface ChargePlanOverride {
 
 export interface ChargePlanDto {
   discount: ChargePlanDiscount | null;
-  defaultSplit: { count: number; intervalDays: number } | null;
+  /**
+   * `intervalDays` é a QUANTIDADE do intervalo na unidade `intervalUnit` (adição ao contrato
+   * B2, 12/11): DAYS, WEEKS (7 dias) ou MONTHS (30 dias). Sem a unidade = DAYS.
+   */
+  defaultSplit: { count: number; intervalDays: number; intervalUnit?: 'DAYS' | 'WEEKS' | 'MONTHS' } | null;
   overrides: ChargePlanOverride[] | null;
 }
 

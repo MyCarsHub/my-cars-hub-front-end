@@ -181,6 +181,8 @@
         </div>
         @if (splitAllProblem(); as problem) {
           <p class="text-sm font-medium text-rose-700 dark:text-rose-300" data-testid="plan-split-problem">{{ problem }}</p>
+        } @else if (splitAllPreview(); as preview) {
+          <p class="text-sm text-fg-subtle tabular-nums" data-testid="plan-split-preview">{{ preview }}</p>
         }
       } @else {
         @if (periodRows().length === 0) {

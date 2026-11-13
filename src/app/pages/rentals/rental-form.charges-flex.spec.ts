@@ -329,6 +329,45 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
     expect(createSpy).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['DAYS', '7', '16/11/2099 e 23/11/2099'],
+    ['WEEKS', '2', '16/11/2099 e 30/11/2099'],
+    ['MONTHS', '1', '16/11/2099 e 16/12/2099'],
+  ] as const)('Parcelar todas a cada %s: a unidade viaja no corpo e a prévia usa a unidade', async (unit, n, dates) => {
+    mount(['CHARGES_FLEX']);
+    await fill();
+    byId<HTMLButtonElement>('plan-split')!.click();
+    await settle(0);
+    byId<HTMLButtonElement>('plan-split-all')!.click();
+    await settle(0);
+    type(byId<HTMLInputElement>('plan-split-interval-n')!, n);
+    const select = byId<HTMLSelectElement>('plan-split-interval-unit')!;
+    select.value = unit;
+    select.dispatchEvent(new Event('change'));
+    await settle();
+
+    expect(byId('plan-split-preview')?.textContent).toContain(`Semana 1: ${dates}.`);
+    const previewBody = chargePreview.mock.calls[chargePreview.mock.calls.length - 1][0] as CreateRentalRequest;
+    expect(previewBody.chargePlan?.defaultSplit).toEqual({ count: 2, intervalDays: Number(n), intervalUnit: unit });
+    cmp().submit();
+    expect(lastCreateBody().chargePlan?.defaultSplit).toEqual({ count: 2, intervalDays: Number(n), intervalUnit: unit });
+  });
+
+  it('Parcelar todas: a quantidade do intervalo vai de 1 a 31 (contrato B2), em qualquer unidade', async () => {
+    mount(['CHARGES_FLEX']);
+    await fill();
+    byId<HTMLButtonElement>('plan-split')!.click();
+    await settle(0);
+    byId<HTMLButtonElement>('plan-split-all')!.click();
+    await settle(0);
+    type(byId<HTMLInputElement>('plan-split-interval-n')!, '32');
+    await settle(0);
+
+    expect(byId('plan-split-problem')?.textContent).toContain('O intervalo entre as parcelas vai de 1 a 31.');
+    cmp().submit();
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
   it('a recusa do plano na prévia aparece no próprio editor (ex.: R$ 5,00)', async () => {
     mount(['CHARGES_FLEX']);
     chargePreview.mockImplementation((body: CreateRentalRequest) =>

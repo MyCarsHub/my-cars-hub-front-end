@@ -131,10 +131,9 @@ describe('charges-flex — regras puras (FEAT-0573)', () => {
     });
 
     it('parcelar todas vira defaultSplit', () => {
-      expect(buildChargePlan({ ...EMPTY_PLAN, splitAll: { count: 2, intervalDays: 7 } })?.defaultSplit).toEqual({
-        count: 2,
-        intervalDays: 7,
-      });
+      expect(
+        buildChargePlan({ ...EMPTY_PLAN, splitAll: { count: 2, intervalN: 7, intervalUnit: 'DAYS' } })?.defaultSplit,
+      ).toEqual({ count: 2, intervalDays: 7, intervalUnit: 'DAYS' });
     });
 
     it('desconto vazio não entra', () => {
