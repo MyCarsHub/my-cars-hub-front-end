@@ -111,6 +111,17 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
     fixture.detectChanges();
   }
 
+  /**
+   * Espera uma CONDIÇÃO, não um tempo. A prévia sai depois do debounce da conferência
+   * (`PREFLIGHT_DEBOUNCE_MS`, 400 ms) e de duas chamadas encadeadas; os 550 ms fixos de
+   * `settle()` sobravam pouco e, com a suíte inteira rodando, a prévia ainda não tinha
+   * chegado. O prazo só existe para um teste que nunca chegaria lá.
+   */
+  async function until(condition: () => boolean, deadlineMs = 10_000): Promise<void> {
+    const deadline = Date.now() + deadlineMs;
+    while (!condition() && Date.now() < deadline) await settle(25);
+  }
+
   async function fill(): Promise<void> {
     cmp().form.patchValue(VALID);
     fixture.detectChanges();
@@ -399,7 +410,7 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
     byId<HTMLButtonElement>('plan-split')!.click();
     await settle(0);
     byId<HTMLButtonElement>('plan-split-all')!.click();
-    await settle();
+    await until(() => byId('plan-preview-blocker') !== null);
 
     expect(byId('plan-preview-blocker')?.textContent).toContain('A parcela 3 ficou com R$ 4,99');
   });

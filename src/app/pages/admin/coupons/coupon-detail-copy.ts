@@ -1,7 +1,7 @@
 import { CouponRedemption } from '../../../types/admin-coupon.types';
 import { formatBRL } from '../../../types/dashboard.types';
 import { formatFullDate, formatTime, parseServerTime } from '../../../utils/server-time';
-import { couponPlanName } from './coupon-copy';
+import { couponPlanName, isAllPlans } from './coupon-copy';
 
 export const UNKNOWN_COMPANY = 'Empresa não identificada';
 export const PENDING_INVOICE = 'Aplicado · aguardando 1ª fatura paga';
@@ -32,7 +32,9 @@ export interface RedemptionView {
 export function redemptionView(item: CouponRedemption, index: number): RedemptionView {
   const date = parseServerTime(item.redeemedAt);
   const pending = item.source === 'APPLIED_NO_INVOICE_YET';
-  const plan = couponPlanName(item.planCode);
+  // Aplicado e ainda sem fatura num cupom de todos os planos: o servidor manda "ALL",
+  // que não diz o plano da empresa. Sem chip, em vez de um chip que não informa.
+  const plan = isAllPlans(item) ? '—' : couponPlanName(item.planCode);
   const showPrices = !pending && item.discountCents > 0;
   return {
     key: `${item.subscriptionId ?? 'sem-assinatura'}-${item.redeemedAt}-${index}`,

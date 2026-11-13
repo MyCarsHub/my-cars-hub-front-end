@@ -24,6 +24,7 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { NotificationService } from '../../../services/notification.service';
 import { AdminCoupon, CouponCompany } from '../../../types/admin-coupon.types';
+import { PlanResponse } from '../../../types/billing.types';
 import { formatBRL } from '../../../types/dashboard.types';
 import { mediaQuerySignal } from '../../../utils/viewport';
 import { AdminCouponsService } from './admin-coupons.service';
@@ -34,10 +35,13 @@ import {
   couponPlanName,
   couponStatus,
   discountLabel,
-  durationLabel,
+  durationShort,
+  durationText,
+  isAllPlans,
   kindLabel,
   usesLabel,
 } from './coupon-copy';
+import { monthlySavingsLine } from './coupon-plan-prices';
 import {
   SituationFilter,
   TypeFilter,
@@ -50,6 +54,7 @@ import {
 } from './coupon-list';
 import { computeCouponStats, monthlyPriceByPlan } from './coupon-stats';
 import { CouponDetail } from './coupon-detail';
+import { CouponShare } from './coupon-share';
 import { CouponSheet } from './coupon-sheet';
 
 const TYPE_OPTIONS: readonly FilterChipOption<TypeFilter>[] = [
@@ -91,6 +96,7 @@ const plural = (n: number, one: string, many: string): string => (n === 1 ? `1 $
     BackLink,
     ConfirmDialog,
     CouponDetail,
+    CouponShare,
     CouponSheet,
     DefaultPageLayout,
     KpiCard,
@@ -118,6 +124,8 @@ export class AdminCoupons implements OnInit {
   private readonly items = signal<AdminCoupon[]>([]);
   private readonly names = signal<Record<string, string>>({});
   private readonly prices = signal<Record<string, number>>({});
+  /** A tabela de planos: preços do "Quanto cada plano paga" e do desconto por mês. */
+  protected readonly plans = signal<PlanResponse[]>([]);
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
 
   protected readonly loading = signal(true);
@@ -129,6 +137,8 @@ export class AdminCoupons implements OnInit {
 
   /** Cupom aberto no detalhe; a linha vem de `allRows`, então o nome da empresa chega sozinho. */
   private readonly detailId = signal<string | null>(null);
+  /** Cupom aberto em "Compartilhar"; vem da lista, igual ao detalhe. */
+  private readonly shareId = signal<string | null>(null);
 
   protected readonly deactivating = signal<AdminCoupon | null>(null);
   protected readonly deactivateBusy = signal(false);
@@ -154,6 +164,8 @@ export class AdminCoupons implements OnInit {
       const isCode = coupon.mode !== 'APPLIED_TO_SUBSCRIPTION';
       const company = this.companyName(coupon.companyId);
       const expires = coupon.expiresAt ? couponDate(coupon.expiresAt) : '—';
+      const all = isAllPlans(coupon);
+      const plan = couponPlanName(coupon.planCode);
       return {
         coupon,
         status,
@@ -165,9 +177,15 @@ export class AdminCoupons implements OnInit {
         // Quem lê procura pelo código; o desconto direto só tem a empresa.
         title: coupon.promotionCode ?? company,
         company,
-        plan: couponPlanName(coupon.planCode),
+        plan,
+        /** "Todos os planos" ou "Plano Pro": a linha embaixo do código, no celular. */
+        planLine: all ? plan : `Plano ${plan}`,
         discount: discountLabel(coupon),
-        duration: durationLabel(coupon.durationMonths),
+        duration: durationShort(coupon),
+        durationText: durationText(coupon),
+        /** Só em % e todos os planos: quanto cada plano economiza por mês. */
+        savings: monthlySavingsLine(coupon, this.plans()),
+        canShare: isCode && status.live && !!coupon.promotionCode,
         usesAria: usesLabel(coupon),
         uses: isCode ? usesSpaced(coupon) : '—',
         progress: isCode ? usesProgress(coupon) : 0,
@@ -223,15 +241,27 @@ export class AdminCoupons implements OnInit {
   protected readonly formatDiscountCompact = (cents: number): string =>
     `≈ R$ ${Math.round(cents / 100).toLocaleString('pt-BR')}`;
 
+  /** "+ R$ 59,80 por mês, para sempre": o que os cupons sem fim descontam, fora do total. */
+  private readonly foreverCaption = computed(() => {
+    const cents = this.stats().foreverMonthlyCents;
+    return cents > 0 ? `+ ${formatBRL(Math.round(cents)).replace(/\u00A0/g, ' ')} por mês, para sempre` : null;
+  });
+
   protected readonly discountCaption = computed(() => {
     const { monthsGranted, skippedNoPrice } = this.stats();
     const months = monthsGranted === 1 ? 'até 1 mês' : `até ${monthsGranted} meses`;
-    return skippedNoPrice > 0 ? `estimado · ${months} · ${skippedNoPrice} sem preço` : `estimado · ${months}`;
+    const parts = ['estimado', months];
+    const forever = this.foreverCaption();
+    if (forever) parts.push(forever);
+    if (skippedNoPrice > 0) parts.push(`${skippedNoPrice} sem preço`);
+    return parts.join(' · ');
   });
 
   protected readonly discountCaptionCompact = computed(() => {
     const { monthsGranted, skippedNoPrice } = this.stats();
     if (skippedNoPrice > 0) return `${skippedNoPrice} sem preço`;
+    const forever = this.foreverCaption();
+    if (forever) return forever;
     return monthsGranted === 1 ? 'até 1 mês' : `até ${monthsGranted} meses`;
   });
 
@@ -248,6 +278,12 @@ export class AdminCoupons implements OnInit {
     return row ? { coupon: row.coupon, company: row.company } : null;
   });
 
+  protected readonly share = computed(() => {
+    const id = this.shareId();
+    const row = id ? this.allRows().find((r) => r.coupon.couponId === id) : undefined;
+    return row ? { coupon: row.coupon, company: row.coupon.companyId ? row.company : null } : null;
+  });
+
   protected readonly hasAny = computed(() => this.items().length > 0);
 
   protected readonly confirmMessage = computed(() => {
@@ -262,7 +298,10 @@ export class AdminCoupons implements OnInit {
     this.destroyRef.onDestroy(() => this.timers.forEach((timer) => clearTimeout(timer)));
     this.load();
     this.service.plans().subscribe({
-      next: (plans) => this.prices.set(monthlyPriceByPlan(plans ?? [])),
+      next: (plans) => {
+        this.plans.set(plans ?? []);
+        this.prices.set(monthlyPriceByPlan(plans ?? []));
+      },
       error: () => this.prices.set({}),
     });
     this.caps.ensureLoaded().subscribe(() => this.openFromShortcut());
@@ -361,6 +400,16 @@ export class AdminCoupons implements OnInit {
 
   protected closeDetail(): void {
     this.detailId.set(null);
+  }
+
+  /** Do kebab ou do detalhe: o detalhe fecha e a folha de compartilhar abre no lugar. */
+  protected openShare(couponId: string): void {
+    this.detailId.set(null);
+    this.shareId.set(couponId);
+  }
+
+  protected closeShare(): void {
+    this.shareId.set(null);
   }
 
   /** Cliques em link, botão de copiar e kebab têm dono próprio e não abrem o detalhe. */

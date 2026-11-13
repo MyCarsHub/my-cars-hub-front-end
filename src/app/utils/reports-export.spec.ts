@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const captured = vi.hoisted(() => ({
   pdfTables: [] as { head: string[][]; body: string[][] }[],
@@ -18,6 +18,8 @@ vi.mock('jspdf', () => ({
     }
     setPage() {}
     save() {}
+    /** Marca do dublê: o teste confere que é ele, e não o jsPDF real, que está em uso. */
+    static readonly isTestDouble = true;
   },
 }));
 vi.mock('jspdf-autotable', () => ({
@@ -38,7 +40,43 @@ vi.mock('xlsx', () => ({
 }));
 
 import type { ReportsOverviewResponse } from '../types/reports.types';
-import { exportReportExcel, exportReportPdf, reportToMarkdown } from './reports-export';
+
+/**
+ * As suítes rodam com `isolate: false`. Se outro arquivo do mesmo worker (ex.:
+ * `relatorios-metric-labels.spec.ts`) já carregou `reports-export` com o jsPDF e o xlsx
+ * REAIS, um `import` estático aqui recebe aquele módulo pronto e os `vi.mock` acima não
+ * chegam nele: as tabelas não são capturadas e o `save()` real grava um PDF de verdade na
+ * raiz do repositório. Por isso: zera o registro de módulos e importa de novo, já com os
+ * dublês; e confere que o jsPDF em uso é o dublê antes de qualquer exportação.
+ */
+let mod: typeof import('./reports-export');
+beforeAll(async () => {
+  vi.resetModules();
+  const jspdf = await import('jspdf');
+  if (!(jspdf.default as unknown as { isTestDouble?: boolean }).isTestDouble) {
+    throw new Error('jsPDF real carregado: o vi.mock não foi aplicado, e o teste gravaria um arquivo.');
+  }
+  mod = await import('./reports-export');
+});
+const reportToMarkdown = (...a: Parameters<typeof mod.reportToMarkdown>) => mod.reportToMarkdown(...a);
+const exportReportPdf = (...a: Parameters<typeof mod.exportReportPdf>) => mod.exportReportPdf(...a);
+const exportReportExcel = (...a: Parameters<typeof mod.exportReportExcel>) => mod.exportReportExcel(...a);
+
+/** `URL.createObjectURL` do teste do XLSX volta ao original: o stub não pode vazar para outro arquivo. */
+const originalUrl = {
+  create: Object.getOwnPropertyDescriptor(URL, 'createObjectURL'),
+  revoke: Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL'),
+};
+afterEach(() => {
+  vi.restoreAllMocks();
+  for (const [key, descriptor] of [
+    ['createObjectURL', originalUrl.create],
+    ['revokeObjectURL', originalUrl.revoke],
+  ] as const) {
+    if (descriptor) Object.defineProperty(URL, key, descriptor);
+    else Reflect.deleteProperty(URL, key);
+  }
+});
 
 /**
  * V141 — motoristas com pendência: o Total do back-end JÁ inclui os ajustes e as cobranças não.

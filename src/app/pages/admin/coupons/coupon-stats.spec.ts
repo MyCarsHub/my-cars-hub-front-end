@@ -34,6 +34,7 @@ describe('computeCouponStats', () => {
       discountCents: 0,
       monthsGranted: 0,
       skippedNoPrice: 0,
+      foreverMonthlyCents: 0,
     });
   });
 

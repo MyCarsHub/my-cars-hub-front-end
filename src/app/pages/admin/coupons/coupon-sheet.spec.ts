@@ -102,6 +102,7 @@ describe('CouponSheet', () => {
   };
 
   const fill = async (amount = '49,90'): Promise<void> => {
+    type('coupon-months', '1');
     type('coupon-amount', amount);
     await settle();
   };
@@ -137,7 +138,7 @@ describe('CouponSheet', () => {
     it('só oferece plano pago, da Stripe, à venda', () => {
       render();
       const options = Array.from(q<HTMLSelectElement>('coupon-plan').options).map((o) => o.value).filter(Boolean);
-      expect(options).toEqual(['STARTER_MONTHLY_STRIPE', 'PRO_MONTHLY_STRIPE']);
+      expect(options).toEqual(['ALL', 'STARTER_MONTHLY_STRIPE', 'PRO_MONTHLY_STRIPE']);
     });
 
     it('pré-seleciona o plano atual da empresa', () => {
@@ -194,6 +195,7 @@ describe('CouponSheet', () => {
 
     it('junta as teclas numa consulta só e manda centavos', async () => {
       render();
+      type('coupon-months', '1');
       type('coupon-amount', '4');
       type('coupon-amount', '49');
       type('coupon-amount', '49,90');
@@ -204,6 +206,7 @@ describe('CouponSheet', () => {
         planCode: 'PRO_MONTHLY_STRIPE',
         amountOffCents: 4990,
         percentOff: null,
+        duration: 'REPEATING',
         durationMonths: 1,
         reason: '',
       });
@@ -213,6 +216,7 @@ describe('CouponSheet', () => {
       render();
       q('coupon-kind-percent').click();
       fixture.detectChanges();
+      type('coupon-months', '2');
       type('coupon-percent', '12,5');
       await settle();
       expect(service['preview']).toHaveBeenCalledWith(
@@ -443,6 +447,7 @@ describe('CouponSheet', () => {
       const select = q<HTMLSelectElement>('coupon-plan');
       select.value = 'PRO_MONTHLY_STRIPE';
       select.dispatchEvent(new Event('change', { bubbles: true }));
+      type('coupon-months', '1');
       type('coupon-amount', '100,00');
       await settle();
     };
@@ -458,6 +463,7 @@ describe('CouponSheet', () => {
         planCode: 'PRO_MONTHLY_STRIPE',
         amountOffCents: 10000,
         percentOff: null,
+        duration: 'REPEATING',
         durationMonths: 1,
         reason: '',
         openCode: true,
@@ -519,10 +525,18 @@ describe('CouponSheet', () => {
       expect('companyId' in body).toBe(false);
       expect(saved).toHaveBeenCalledWith({ coupon: OPEN_CREATED, company: null });
       expect(q('coupon-created-code').textContent).toContain('MANOLO100OFF');
+      expect(q('coupon-share-message').textContent).toContain(
+        'Use o código MANOLO100OFF na hora de assinar o plano Pro e pague R$ 199,00 no primeiro mês.',
+      );
       q('coupon-copy-message').click();
       await vi.advanceTimersByTimeAsync(0);
       expect(writeText).toHaveBeenCalledWith(
-        'Use o código MANOLO100OFF na hora de assinar o plano Pro e pague R$ 199,00 no primeiro mês.',
+        [
+          'Oi! Tem desconto para você assinar o MyCarsHub.',
+          'R$ 100,00 de desconto no primeiro mês, no plano Pro.',
+          'Use o código:\nMANOLO100OFF',
+          'Vale até 29/11/2026. Assine em mycarshub.app.br',
+        ].join('\n\n'),
       );
     });
   });
@@ -538,6 +552,7 @@ describe('CouponSheet', () => {
         planCode: 'PRO_MONTHLY_STRIPE',
         amountOffCents: 4990,
         percentOff: null,
+        duration: 'REPEATING',
         durationMonths: 1,
         reason: 'Negociação',
       });
