@@ -33,13 +33,22 @@ function asItem(raw: unknown): RentalChargePreviewItemDto | null {
   const r = raw as Partial<RentalChargePreviewItemDto>;
   if (r.kind !== 'RENTAL_PERIOD' && r.kind !== 'CAUCAO') return null;
   if (typeof r.dueDate !== 'string' || !DAY_PATTERN.test(r.dueDate.slice(0, 10))) return null;
-  return {
+  const item: RentalChargePreviewItemDto = {
     kind: r.kind,
     index: typeof r.index === 'number' ? r.index : 0,
     dueDate: r.dueDate.slice(0, 10),
     amountCents: asCents(r.amountCents),
     destination: r.destination === 'LOCAL' ? 'LOCAL' : 'ASAAS',
   };
+  // FEAT-0573 — campos aditivos do plano. Só copiados quando o backend os manda, para que
+  // uma prévia sem plano continue com exatamente o formato de antes.
+  if (typeof r.instalmentIndex === 'number') item.instalmentIndex = r.instalmentIndex;
+  if (typeof r.instalmentCount === 'number') item.instalmentCount = r.instalmentCount;
+  if (typeof r.discountCents === 'number') item.discountCents = r.discountCents;
+  if (typeof r.originalAmountCents === 'number') item.originalAmountCents = r.originalAmountCents;
+  if (typeof r.fineFixedCents === 'number') item.fineFixedCents = r.fineFixedCents;
+  if (typeof r.group === 'string') item.group = r.group;
+  return item;
 }
 
 function asBlocker(raw: unknown): RentalChargePreviewBlockerDto | null {
@@ -82,6 +91,12 @@ export function normalizeChargePreview(raw: Partial<RentalChargePreviewDto> | nu
     localCount,
     firstDueDate,
     blocker: asBlocker(source.blocker),
+    ...(typeof source.originalTotalCents === 'number'
+      ? { originalTotalCents: source.originalTotalCents }
+      : {}),
+    ...(typeof source.discountTotalCents === 'number'
+      ? { discountTotalCents: source.discountTotalCents }
+      : {}),
   };
 }
 

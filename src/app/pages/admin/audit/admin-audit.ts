@@ -44,7 +44,12 @@ const ACTION_LABELS: Record<string, string> = {
   DRIVER_CONTACT_REVEALED: 'Contato de motorista revelado',
   COMPANY_CONTACT_REVEALED: 'Contato de empresa revelado',
   CHARGE_ASAAS_COMPARED: 'Cobrança comparada com o Asaas',
-  CHARGE_MARKED_RECEIVED_OUTSIDE: 'Caução recebida por fora',
+  // Cobre qualquer tipo de cobrança, não só a caução (o rótulo antigo dizia "Caução").
+  CHARGE_MARKED_RECEIVED_OUTSIDE: 'Recebida por fora (admin)',
+  // FEAT-0573 — movimentações da locadora nas Cobranças flexíveis.
+  RENTAL_CHARGES_RENEGOTIATED: 'Cobranças renegociadas (acordo)',
+  RENTAL_CHARGE_RECEIVED_OUTSIDE: 'Recebida por fora (locadora)',
+  RENTAL_CHARGE_AGREEMENT_NEEDS_ATTENTION: 'Acordo precisa de atenção',
   CHARGE_RETRIED_BY_ADMIN: 'Cobrança gerada de novo',
   DRIVER_NAME_CORRECTED: 'Nome do motorista corrigido',
   DRIVER_ASAAS_CUSTOMER_SYNCED: 'Cliente atualizado no Asaas',
@@ -86,6 +91,9 @@ const ACTION_CHIPS: Record<string, string> = {
   CHARGE_RETRIED_BY_ADMIN: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
   DRIVER_NAME_CORRECTED: 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-100',
   DRIVER_ASAAS_CUSTOMER_SYNCED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
+  RENTAL_CHARGES_RENEGOTIATED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200',
+  RENTAL_CHARGE_RECEIVED_OUTSIDE: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
+  RENTAL_CHARGE_AGREEMENT_NEEDS_ATTENTION: 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-100',
 };
 
 const DEFAULT_CHIP = 'bg-surface-sunken text-fg-soft';

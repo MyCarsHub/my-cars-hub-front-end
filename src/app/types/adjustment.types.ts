@@ -23,7 +23,8 @@ export type AdjustmentStatus =
   | 'CANCELED'
   | 'FAILED'
   | 'REFUNDED'
-  | 'DISPUTED';
+  | 'DISPUTED'
+  | 'RENEGOTIATED';
 
 /** Filtro das pílulas (`status=` da lista). `ALL` não vai na URL. */
 export type AdjustmentStatusFilter = 'ALL' | 'PENDING' | 'OVERDUE' | 'PAID' | 'CANCELED';

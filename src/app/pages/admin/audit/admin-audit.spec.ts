@@ -123,6 +123,24 @@ describe('AdminAudit', () => {
     expect(text).not.toContain('CONTRACT_TEMPLATE_SAVED');
   });
 
+  it.each([
+    ['RENTAL_CHARGES_RENEGOTIATED', 'Cobranças renegociadas (acordo)'],
+    ['RENTAL_CHARGE_RECEIVED_OUTSIDE', 'Recebida por fora (locadora)'],
+    ['RENTAL_CHARGE_AGREEMENT_NEEDS_ATTENTION', 'Acordo precisa de atenção'],
+    ['CHARGE_MARKED_RECEIVED_OUTSIDE', 'Recebida por fora (admin)'],
+  ])('FEAT-0573: rotula %s como "%s"', (action, label) => {
+    items.set([{ ...ENTRY, id: 'aud-flex', action, targetType: 'RENTAL' }]);
+    total.set(1);
+    configure();
+
+    const fixture = TestBed.createComponent(AdminAudit);
+    fixture.detectChanges();
+
+    const text: string = fixture.nativeElement.textContent;
+    expect(text).toContain(label);
+    expect(text).not.toContain(action);
+  });
+
   it('popula o dropdown de ações a partir do endpoint, sem hardcode', () => {
     actions.set(['BLOG_POST_PUBLISHED', 'USER_STATUS_CHANGED']);
     configure();
