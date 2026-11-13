@@ -1,13 +1,19 @@
+<!--
+  MENU NOVO (canvas "Menu novo", 13/11 — Opção A, rodapé V2). Separação só por espaço, sem
+  linhas; item ativo EXATAMENTE como antes (`.active-link`, pedido do dono); grupo abre/fecha
+  no nome, página navega (e fecha a gaveta no celular); logos reais de `public/svg/`.
+-->
+
 <!-- ==================== MOBILE OVERLAY ==================== -->
 @if (layout.isMobile() && layout.isMobileOpen()) {
 <div class="fixed inset-0 bg-black/50 z-40" @overlayFade (click)="onMobileOverlayClick()" aria-hidden="true"></div>
 }
 
-<!-- O ☰ do celular mora na barra de topo NO FLUXO (`DriverTopBar`, montada pelo shell): um botão fixed flutuava sobre o conteúdo ao rolar. -->
+<!-- O ☰ do celular mora na barra de topo NO FLUXO (`DriverTopBar`, montada pelo shell). -->
 
 <!-- ==================== SIDEBAR (DESKTOP) ==================== -->
 @if (!layout.isMobile()) {
-<aside class="app-sidebar fixed top-0 left-0 z-30 h-[calc(100dvh-var(--consent-banner-h,0px))] bg-surface border-r border-gray-200 dark:border-edge
+<aside class="app-sidebar fixed top-0 left-0 z-30 h-[calc(100dvh-var(--consent-banner-h,0px))] bg-surface
            flex flex-col overflow-hidden" [@.disabled]="animationsDisabled()" [@sidebarWidth]="layout.isCollapsed() ? 'collapsed' : 'expanded'"
   role="navigation" [attr.aria-label]="menuLabel()">
   <ng-container *ngTemplateOutlet="sidebarContent" />
@@ -16,199 +22,244 @@
 
 <!-- ==================== SIDEBAR (MOBILE DRAWER) ==================== -->
 @if (layout.isMobile() && layout.isMobileOpen()) {
-<aside #drawer class="app-sidebar fixed top-0 left-0 z-50 h-[calc(100dvh-var(--consent-banner-h,0px))] w-[260px] bg-surface border-r border-gray-200 dark:border-edge
-           flex flex-col shadow-2xl" @mobileSlide [attr.role]="modalDrawer() ? 'dialog' : 'navigation'"
+<aside #drawer class="app-sidebar fixed top-0 left-0 z-50 h-[calc(100dvh-var(--consent-banner-h,0px))] w-[min(304px,85vw)] bg-surface
+           rounded-r-3xl flex flex-col shadow-2xl" @mobileSlide [attr.role]="modalDrawer() ? 'dialog' : 'navigation'"
   [attr.aria-modal]="modalDrawer() ? 'true' : null" [attr.aria-label]="menuLabel()" (keydown)="trapTab($event)">
-  <!-- Close button -->
-  <!--
-    Motorista: alvo de 44px CENTRADO no cabeçalho do logo (h-16): 10px + 44px + 10px = 64px.
-    Posição e tamanho são condicionais por papel — duas regras de `top` ao mesmo tempo
-    decidiriam pela ordem do CSS gerado. O `top` do motorista é estilo, não classe: um
-    `[class.top-2.5]` não aplica nada (o ponto quebra o nome da classe no binding).
-  -->
-  <button #closeButton class="absolute flex items-center justify-center
-             rounded-lg text-gray-400 dark:text-fg-faint hover:text-gray-600 dark:hover:text-fg-muted hover:bg-gray-100 dark:hover:bg-surface-sunken
-             focus:outline-none focus:ring-2 focus:ring-primary-500" (click)="layout.closeMobile()"
-    [class.top-4]="!isDriverMenu()" [class.right-3]="!isDriverMenu()"
-    [class.w-8]="!isDriverMenu()" [class.h-8]="!isDriverMenu()"
-    [style.top]="isDriverMenu() ? '0.625rem' : null" [class.right-2]="isDriverMenu()"
-    [class.w-11]="isDriverMenu()" [class.h-11]="isDriverMenu()"
-    data-drawer-close
-    aria-label="Fechar menu" type="button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  </button>
-
   <ng-container *ngTemplateOutlet="sidebarContent" />
 </aside>
 }
 
 <!-- ==================== SIDEBAR CONTENT TEMPLATE ==================== -->
 <ng-template #sidebarContent>
-  <!-- ===== LOGO ===== -->
-  <div class="h-16 flex items-center px-4 border-b border-gray-200 dark:border-edge shrink-0">
-    @if (!layout.isCollapsed() || layout.isMobile()) {
-    <!-- Wordmark em #262626 some no escuro: a variante -dark troca só a cor das letras. -->
-    <img src="svg/logo-my-cars-hub-complete.svg" class="h-6 dark:hidden" alt="MyCarsHub logo" @fadeLabel />
-    <img src="svg/logo-my-cars-hub-complete-dark.svg" class="hidden h-6 dark:block" alt="MyCarsHub logo" @fadeLabel />
+  <!-- ===== LOGO (+ Fechar, no celular) ===== -->
+  <div class="h-14 shrink-0 flex items-center" [class.justify-between]="!collapsedDesk()"
+    [class.justify-center]="collapsedDesk()" [class.pl-5]="!collapsedDesk()" [class.pr-2]="!collapsedDesk()">
+    @if (!collapsedDesk()) {
+    <span class="flex items-center min-w-0" @fadeLabel>
+      <!-- Wordmark em #262626 some no escuro: a variante -dark troca só a cor das letras. -->
+      <img src="svg/logo-my-cars-hub-complete.svg" class="h-6 w-auto dark:hidden" alt="MyCarsHub logo" />
+      <img src="svg/logo-my-cars-hub-complete-dark.svg" class="hidden h-6 w-auto dark:block" alt="MyCarsHub logo" />
+    </span>
     } @else {
-    <div class="w-full flex items-center justify-center">
-      <img src="svg/logo-my-cars-hub.svg" class="h-7 w-auto" alt="MyCarsHub" />
-    </div>
+    <img src="svg/logo-my-cars-hub.svg" class="h-7 w-auto" alt="MyCarsHub" />
+    }
+    @if (layout.isMobile()) {
+    <button #closeButton type="button" class="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl
+               text-fg-faint hover:text-fg-muted hover:bg-surface-sunken active:scale-95 transition-transform
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+      (click)="layout.closeMobile()" data-drawer-close aria-label="Fechar menu">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 6L6 18M6 6l12 12" />
+      </svg>
+    </button>
     }
   </div>
 
-  <!-- ===== MULTI-TENANT SWITCHER ===== -->
-  <div class="p-3 border-b border-gray-100 dark:border-edge-soft shrink-0">
+  <!-- ===== BLOCO DA EMPRESA (nome + papel em cinza; o plano não aparece no menu) ===== -->
+  <div class="shrink-0 pb-2" [class.px-3]="!collapsedDesk()" [style.padding-inline]="collapsedDesk() ? '14px' : null">
     @if (layout.showSwitcher() && !headerCard()) {
-    <button class="w-full min-h-11 flex items-center gap-3 bg-canvas hover:bg-gray-100 dark:hover:bg-surface-sunken
-             px-3 py-2.5 rounded-xl transition-colors"
-      [class.justify-center]="layout.isCollapsed() && !layout.isMobile()" (click)="layout.toggleTenant()"
+    <button class="nav-card w-full min-h-14 flex items-center gap-3 rounded-2xl py-2 transition-[background-color,transform] active:scale-[0.98]
+             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+      [class.bg-surface-sunken]="!collapsedDesk()" [class.justify-center]="collapsedDesk()" [class.px-3]="!collapsedDesk()"
+      (click)="layout.toggleTenant()"
       [attr.aria-expanded]="layout.isTenantOpen()" aria-haspopup="dialog" type="button"
-      [title]="layout.isCollapsed() && !layout.isMobile() ? cardTitle(headerView()) : ''">
+      [title]="collapsedDesk() ? cardTitle(headerView()) : ''">
       <ng-container *ngTemplateOutlet="tenantHeader" />
-      @if (!layout.isCollapsed() || layout.isMobile()) {
+      @if (!collapsedDesk()) {
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        class="text-gray-400 dark:text-fg-faint shrink-0" [@rotateTenantChevron]="layout.isTenantOpen() ? 'open' : 'closed'">
+        class="text-fg-faint shrink-0" aria-hidden="true" [@rotateTenantChevron]="layout.isTenantOpen() ? 'open' : 'closed'">
         <polyline points="6 9 12 15 18 9" />
       </svg>
       }
     </button>
 
     <!-- The list opens inside the sidebar, desktop and phone drawer alike (same list, same place). -->
-    @if (layout.isTenantOpen() && (layout.isMobile() || !layout.isCollapsed())) {
+    @if (layout.isTenantOpen() && !collapsedDesk()) {
     <div class="mt-2" @dropdownSlide>
-      <p class="px-3 pt-1 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-fg-subtle">Suas empresas</p>
+      <p class="px-3 pt-1 pb-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Suas empresas</p>
       <app-company-switcher />
     </div>
     }
     } @else {
-    <div class="w-full flex items-center gap-3 bg-canvas px-3 py-2.5 rounded-xl"
-      [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
-      [title]="layout.isCollapsed() && !layout.isMobile() ? cardTitle(headerView()) : ''">
+    <div class="w-full min-h-14 flex items-center gap-3 rounded-2xl py-2"
+      [class.bg-surface-sunken]="!collapsedDesk()" [class.justify-center]="collapsedDesk()" [class.px-3]="!collapsedDesk()"
+      [title]="collapsedDesk() ? cardTitle(headerView()) : ''">
       <ng-container *ngTemplateOutlet="tenantHeader" />
     </div>
     }
   </div>
 
   <ng-template #tenantHeader>
-    <div class="w-8 h-8 bg-primary-500 text-white rounded-full shrink-0
-             flex items-center justify-center font-semibold text-sm">
+    <div class="w-10 h-10 bg-primary-500 text-white rounded-xl shrink-0
+             flex items-center justify-center font-bold text-[17px]">
       {{ headerView().initial }}
     </div>
-    @if (!layout.isCollapsed() || layout.isMobile()) {
+    @if (!collapsedDesk()) {
     <div class="flex-1 text-left min-w-0" @fadeLabel>
-      <p class="text-sm font-semibold text-gray-900 dark:text-fg truncate">{{ headerView().name | personName }}</p>
+      <p class="text-[15px] leading-5 font-semibold text-fg truncate">{{ headerView().name | personName }}</p>
       @if (headerView().subtitle; as role) {
-      <p class="text-xs text-primary-700 dark:text-primary-400 font-medium truncate">{{ role }}</p>
+      <p class="text-[13px] leading-[18px] truncate" data-header-role
+        [class.text-fg-subtle]="isCompanyCard()"
+        [class.text-primary-700]="!isCompanyCard()" [class.dark:text-primary-400]="!isCompanyCard()"
+        [class.font-medium]="!isCompanyCard()">{{ role }}</p>
       }
     </div>
     }
   </ng-template>
 
   <!-- ===== NAVIGATION ===== -->
-  <nav class="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1" aria-label="Navegação principal">
+  <nav class="flex-1 min-h-0 overflow-y-auto py-1 flex flex-col gap-0.5"
+    [class.px-3]="!collapsedDesk()" [style.padding-inline]="collapsedDesk() ? '14px' : null" aria-label="Navegação principal">
     @for (item of navItems(); track trackByKey($index, item)) {
       @if (item.children) {
-        <button type="button" (click)="onParentClick(item)"
-          class="nav-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
-                 text-gray-600 dark:text-fg-muted hover:bg-gray-100 dark:hover:bg-surface-sunken hover:text-gray-900 dark:hover:text-fg transition-colors group"
-          [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
-          [class.min-h-11]="isDriverMenu()"
-          [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''"
-          [attr.aria-expanded]="isExpanded(item)" [attr.aria-label]="item.label"
-          [attr.data-tour]="item.tourKey ?? null">
-          <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+        <div [class.mt-4]="item === firstGapItem()" data-nav-group>
+          <button type="button" (click)="onParentClick(item)"
+            class="nav-link w-full min-h-11 flex items-center gap-3 rounded-xl text-[15px] font-medium text-fg-soft
+                   hover:bg-surface-sunken hover:text-fg transition-[background-color,color,transform] active:scale-[0.98]
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            [class.active-link]="groupPill(item)"
+            [class.nav-group-has]="groupHasActive(item) && !groupPill(item)"
+            [class.justify-center]="collapsedDesk()" [class.px-3]="!collapsedDesk()"
+            [title]="collapsedDesk() ? item.label : ''"
+            [attr.aria-expanded]="isExpanded(item)" [attr.aria-label]="item.label"
+            [attr.data-tour]="item.tourKey ?? null">
+            <span class="nav-icon shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+            @if (!collapsedDesk()) {
+            <span class="flex-1 text-left truncate" @fadeLabel>{{ item.label }}</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+              class="nav-chevron text-fg-faint shrink-0" [class.rotate-90]="isExpanded(item)">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            }
+          </button>
 
-          @if (!layout.isCollapsed() || layout.isMobile()) {
-          <span class="flex-1 text-left text-sm font-medium truncate" @fadeLabel>{{ item.label }}</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="text-gray-400 dark:text-fg-faint shrink-0" [@rotateGroupChevron]="isExpanded(item) ? 'expanded' : 'collapsed'">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-          }
-        </button>
-
-        @if (isExpanded(item) && (!layout.isCollapsed() || layout.isMobile())) {
-        <div class="ml-4 pl-3 border-l border-gray-200 dark:border-edge space-y-1" @dropdownSlide>
-          @for (child of item.children; track trackByKey($index, child)) {
-          <a [routerLink]="child.route" routerLinkActive="active-link"
-            [routerLinkActiveOptions]="child.exactMatch ? { exact: true } : { exact: false }"
-            class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl
-                   text-gray-600 dark:text-fg-muted hover:bg-gray-100 dark:hover:bg-surface-sunken hover:text-gray-900 dark:hover:text-fg transition-colors group"
-            [class.min-h-11]="isDriverMenu()"
-            (click)="onNavClick()" [attr.aria-label]="child.label"
-            [attr.data-tour]="child.tourKey ?? null">
-            <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(child.icon)"></span>
-            <span class="text-sm font-medium truncate">{{ child.label }}</span>
-          </a>
+          <!-- Opção A: as páginas só com o nome, alinhadas ao nome do grupo (ícone 20 + 12 de espaço). -->
+          @if (isExpanded(item) && !collapsedDesk()) {
+          <div class="flex flex-col gap-0.5 pt-0.5" @dropdownSlide>
+            @for (child of item.children; track trackByKey($index, child)) {
+            <a [routerLink]="child.route" routerLinkActive="active-link"
+              [routerLinkActiveOptions]="child.exactMatch ? { exact: true } : { exact: false }"
+              class="nav-link ml-8 min-h-11 flex items-center px-3 rounded-xl text-[15px] font-medium text-fg-muted
+                     hover:bg-surface-sunken hover:text-fg transition-[background-color,color,transform] active:scale-[0.98]
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+              (click)="onNavClick()" [attr.aria-label]="child.label"
+              [attr.data-tour]="child.tourKey ?? null">
+              <span class="truncate">{{ child.label }}</span>
+            </a>
+            }
+          </div>
           }
         </div>
-        }
       } @else {
-        <a [routerLink]="item.route" routerLinkActive="active-link"
-          [routerLinkActiveOptions]="item.exactMatch ? { exact: true } : { exact: false }" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
-                 text-gray-600 dark:text-fg-muted hover:bg-gray-100 dark:hover:bg-surface-sunken hover:text-gray-900 dark:hover:text-fg
-                 transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
-          [class.min-h-11]="isDriverMenu()"
-          [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
-          [attr.aria-label]="badgeText(item) ? item.label + ', ' + badgeText(item) : item.label" [attr.data-tour]="item.tourKey ?? null">
-          <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
-
-          @if (!layout.isCollapsed() || layout.isMobile()) {
-          <span class="text-sm font-medium truncate" [class.flex-1]="!!badgeText(item)" @fadeLabel>{{ item.label }}</span>
-          <!-- "N novas" (Novidades): texto no fundo tingido, sem bolinha. Some sem não lidas. -->
-          @if (badgeText(item); as badge) {
-          <app-status-chip tone="green" size="sm" data-nav-badge>{{ badge }}</app-status-chip>
-          }
-          }
-        </a>
+        <ng-container *ngTemplateOutlet="rowLink; context: { $implicit: item, gap: item === firstGapItem() }" />
       }
     }
   </nav>
 
-  <!-- ===== BOTTOM-PINNED NAV (Suporte, Perfil) — o mesmo bloco para todos os papéis ===== -->
-  @if (bottomNavItems().length > 0) {
-  <div class="px-3 pt-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0 space-y-1" data-nav-bottom>
+  <!-- ===== PÉ: Novidades como linha, bloco do usuário com ⋮ (Perfil, Suporte, Sair), Recolher ===== -->
+  <div class="shrink-0 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-0.5"
+    [class.px-3]="!collapsedDesk()" [style.padding-inline]="collapsedDesk() ? '14px' : null" data-nav-bottom>
     @for (item of bottomNavItems(); track trackByKey($index, item)) {
-    <a [routerLink]="item.route" routerLinkActive="active-link" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
-               text-gray-600 dark:text-fg-muted hover:bg-gray-100 dark:hover:bg-surface-sunken hover:text-gray-900 dark:hover:text-fg
-               transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
-      [class.min-h-11]="isDriverMenu()"
-      [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
-      [attr.aria-label]="item.label" [attr.data-tour]="item.tourKey ?? null">
-      <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+      <ng-container *ngTemplateOutlet="rowLink; context: { $implicit: item, gap: false }" />
+    }
 
-      @if (!layout.isCollapsed() || layout.isMobile()) {
-      <span class="text-sm font-medium truncate" @fadeLabel>{{ item.label }}</span>
+    @if (accountItems().length > 0) {
+    <div class="relative mt-1 flex items-center gap-1" data-user-block>
+      <button type="button" #accountTrigger
+        class="flex-1 min-w-0 min-h-12 flex items-center gap-2 rounded-xl transition-[background-color,transform] hover:bg-surface-sunken active:scale-[0.98]
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        [class.pl-2]="!collapsedDesk()" [class.pr-3]="!collapsedDesk()" [class.justify-center]="collapsedDesk()"
+        [attr.aria-label]="collapsedDesk() ? 'Conta de ' + (userName() | personName) : 'Perfil de ' + (userName() | personName)"
+        [title]="collapsedDesk() ? (userName() | personName) : ''"
+        (click)="onUserClick()" data-user-name>
+        <span class="w-7 h-7 shrink-0 rounded-full bg-surface-strong text-fg-body text-[11px] font-bold flex items-center justify-center" aria-hidden="true">{{ userInitials() }}</span>
+        @if (!collapsedDesk()) {
+        <span class="flex-1 min-w-0 truncate text-left text-[15px] font-semibold text-fg-body">{{ userName() | personName }}</span>
+        }
+      </button>
+      @if (!collapsedDesk()) {
+      <button type="button"
+        class="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-sunken active:scale-95 transition-transform
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        aria-label="Mais opções da conta" aria-haspopup="menu" [attr.aria-expanded]="accountMenuOpen()"
+        (click)="toggleAccountMenu()" data-account-kebab>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="12" cy="5" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="12" cy="19" r="1.8" />
+        </svg>
+      </button>
       }
-    </a>
+
+      @if (accountMenuOpen() && !collapsedDesk()) {
+      <div #accountMenu role="menu" aria-label="Conta" appClickOutside (appClickOutside)="onAccountMenuOutside($event)"
+        (keydown)="onAccountMenuKeydown($event)"
+        class="account-menu absolute right-0 bottom-full z-10 mb-1 w-[210px] rounded-2xl bg-surface-sunken p-1.5 shadow-xl flex flex-col">
+        @for (item of accountItems(); track trackByKey($index, item)) {
+        <a role="menuitem" [routerLink]="item.route" (click)="onAccountItem()"
+          class="min-h-11 flex items-center gap-3 px-3 rounded-xl text-[15px] text-fg-body hover:bg-surface-strong
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
+          [attr.data-account-item]="item.route">
+          <span class="nav-icon shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+          {{ item.label }}
+        </a>
+        }
+        <button type="button" role="menuitem" (click)="logout()"
+          class="min-h-11 flex items-center gap-3 px-3 rounded-xl text-[15px] text-fg-body text-left hover:bg-surface-strong
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
+          data-account-logout>
+          <span class="nav-icon shrink-0 flex items-center justify-center w-5 h-5">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5l-5-5M21 12H9" />
+            </svg>
+          </span>
+          Sair
+        </button>
+      </div>
+      }
+    </div>
+    }
+
+    <!-- Recolher (computador): botão pequeno só com ícone, no canto de baixo à direita. -->
+    @if (!layout.isMobile()) {
+    <div class="flex pt-1" [class.justify-end]="!collapsedDesk()" [class.justify-center]="collapsedDesk()">
+      <button type="button"
+        class="w-10 h-10 flex items-center justify-center rounded-xl text-fg-faint hover:text-fg-muted hover:bg-surface-sunken
+               active:scale-95 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        (click)="layout.toggleCollapse()" [attr.aria-label]="layout.isCollapsed() ? 'Expandir menu' : 'Recolher menu'"
+        [title]="layout.isCollapsed() ? 'Expandir menu' : 'Recolher menu'" data-collapse-toggle>
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+          class="nav-chevron" [class.rotate-180]="layout.isCollapsed()">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+    </div>
     }
   </div>
-  }
+</ng-template>
 
-  <!-- ===== COLLAPSE TOGGLE (Desktop only) ===== -->
-  @if (!layout.isMobile()) {
-  <div class="p-3 border-t border-gray-200 dark:border-edge shrink-0">
-    <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
-               text-gray-500 dark:text-fg-subtle hover:bg-gray-100 dark:hover:bg-surface-sunken hover:text-gray-700 dark:hover:text-fg-soft
-               transition-colors" [class.justify-center]="layout.isCollapsed()" (click)="layout.toggleCollapse()"
-      [attr.aria-label]="layout.isCollapsed() ? 'Expandir sidebar' : 'Recolher sidebar'" type="button">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"
-        [@rotateChevron]="layout.isCollapsed() ? 'collapsed' : 'expanded'">
-        <polyline points="15 18 9 12 15 6" />
-      </svg>
-
-      @if (!layout.isCollapsed()) {
-      <span class="text-sm font-medium" @fadeLabel>Recolher</span>
-      }
-    </button>
-  </div>
-  }
+<!-- Linha de primeiro nível (lista e pé): ícone, nome e, em Novidades, o número de não lidas. -->
+<ng-template #rowLink let-item let-gap="gap">
+  <a [routerLink]="item.route" [routerLinkActive]="item.activeAlso ? [] : 'active-link'"
+    [routerLinkActiveOptions]="item.exactMatch ? { exact: true } : { exact: false }"
+    [class.active-link]="!!item.activeAlso && isActive(item)"
+    class="nav-link relative min-h-11 flex items-center gap-3 rounded-xl text-[15px] font-medium text-fg-soft
+           hover:bg-surface-sunken hover:text-fg transition-[background-color,color,transform] active:scale-[0.98]
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+    [class.mt-4]="gap" [class.justify-center]="collapsedDesk()" [class.px-3]="!collapsedDesk()"
+    [title]="collapsedDesk() ? item.label : ''" (click)="onNavClick()"
+    [attr.aria-label]="itemAriaLabel(item)" [attr.data-tour]="item.tourKey ?? null">
+    <span class="nav-icon shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+    @if (!collapsedDesk()) {
+    <span class="flex-1 truncate" @fadeLabel>{{ item.label }}</span>
+    }
+    <!-- Rodapé V2: só o número, laranja sólido e letra branca; some sem não lidas. -->
+    @if (badgeText(item); as badge) {
+    <span class="shrink-0 rounded-lg bg-primary-500 text-white font-bold tabular-nums"
+      [class]="collapsedDesk() ? 'absolute top-0.5 right-0.5 px-1 text-[10px] leading-4' : 'px-2 text-[13px] leading-5'"
+      aria-hidden="true" data-nav-badge>{{ badge }}</span>
+    }
+  </a>
 </ng-template>

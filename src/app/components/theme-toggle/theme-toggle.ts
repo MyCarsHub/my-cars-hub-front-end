@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { ThemeService } from '../../services/theme.service';
 
 /**
@@ -46,7 +46,8 @@ import { ThemeService } from '../../services/theme.service';
       [attr.aria-label]="label()"
       [attr.title]="label()"
       (click)="theme.toggle()"
-      class="relative flex items-center justify-center w-11 h-11 rounded-lg bg-surface shadow-md border border-gray-200 dark:border-edge text-gray-700 dark:text-fg-soft hover:bg-canvas focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+      class="relative flex items-center justify-center w-11 h-11 text-gray-700 dark:text-fg-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+      [class]="bare() ? 'rounded-xl hover:bg-surface-sunken active:scale-95 transition-transform' : 'rounded-lg bg-surface shadow-md border border-gray-200 dark:border-edge hover:bg-canvas'"
     >
       <!-- Sol: tema claro ativo. -->
       <svg
@@ -87,6 +88,8 @@ import { ThemeService } from '../../services/theme.service';
   `,
 })
 export class ThemeToggle {
+  /** Sem caixa (fundo, borda, sombra): dentro da barra de topo do celular, ao lado do sino. */
+  readonly bare = input(false);
   protected readonly theme = inject(ThemeService);
   protected readonly dark = computed(() => this.theme.resolved() === 'dark');
   protected readonly label = computed(() =>

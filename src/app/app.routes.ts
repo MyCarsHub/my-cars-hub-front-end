@@ -1,6 +1,7 @@
 import { RedirectFunction, Router, Routes } from '@angular/router';
 import { authGuard } from './services/auth-guard';
 import { roleGuard } from './services/role.guard';
+import { openDueAlertsGuard } from './components/notification-bell/open-due-alerts.guard';
 import { adminGuard } from './services/admin.guard';
 import { capabilityGuard } from './services/admin-capability.guard';
 import { driverRoleMatch } from './services/driver-role.match';
@@ -271,12 +272,14 @@ export const routes: Routes = [
                         // vencimentos aqui são os da FROTA e `/v1/alerts` não está
                         // na lista de permitidos do FIX-0360, então para um DRIVER
                         // a tela era 403 inteira.
+                        //
+                        // Menu novo (13/11): a página saiu — os vencimentos moram na aba
+                        // Vencimentos do sino. A URL fica (links antigos e o histórico) e
+                        // abre o sino nessa aba; `openDueAlertsGuard` nunca deixa a rota
+                        // ativar, por isso ela não tem tela, só `children` vazio.
                         path: 'alertas',
-                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
-                        loadComponent: () =>
-                            import('./pages/alertas/alerts-page').then(
-                                (m) => m.AlertsPage
-                            ),
+                        canActivate: [roleGuard(['OWNER', 'MANAGER']), openDueAlertsGuard],
+                        children: [],
                         data: { pageTitle: 'Alertas' },
                     },
                     {

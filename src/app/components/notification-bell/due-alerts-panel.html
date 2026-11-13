@@ -1,0 +1,123 @@
+<!--
+  Aba Vencimentos do sino (canvas "Menu novo", prancha 3). Separação só por espaço, sem
+  linhas; prazo como texto no fundo tingido da severidade, sem bolinha.
+-->
+<div class="flex flex-col gap-3 px-4 pb-1 pt-2">
+  @if (windowChips().length > 0) {
+    <div class="flex flex-col gap-2" data-due-windows>
+      <p id="due-window-label" class="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+        Janela
+      </p>
+      <app-filter-chip-group
+        [options]="windowChips()"
+        [value]="withinDays()"
+        [scrollable]="true"
+        ariaLabelledby="due-window-label"
+        (selectionChange)="onWindowChange($event)"
+      />
+      <p class="text-xs text-fg-subtle">Avisos da empresa: {{ windowsSummary() }}.</p>
+    </div>
+  }
+
+  <div class="flex flex-col gap-2">
+    <p id="due-type-label" class="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+      Tipo
+    </p>
+    <app-filter-chip-group
+      [options]="typeChips"
+      [value]="typeFilter()"
+      [scrollable]="true"
+      ariaLabelledby="due-type-label"
+      (selectionChange)="onTypeChange($event)"
+    />
+  </div>
+
+  @if (typeFilterIsPartial()) {
+    <p class="text-xs text-fg-subtle" data-due-partial>
+      O filtro por tipo vale para os vencimentos já carregados.
+    </p>
+  }
+</div>
+
+<p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ liveStatus() }}</p>
+
+<div class="px-2 pb-3" [attr.aria-busy]="loading()">
+  @if (error(); as loadError) {
+    <div class="px-2 pt-3">
+      <app-alert-banner variant="error" [message]="loadError" />
+    </div>
+  }
+
+  @if (firstLoad()) {
+    <div class="flex flex-col gap-2 px-2 pt-3" aria-hidden="true" data-due-loading>
+      <div class="h-16 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
+      <div class="h-16 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
+    </div>
+  } @else {
+    @if (isEmpty()) {
+      <p class="px-2 py-8 text-center text-[15px] text-fg-muted" data-due-empty>
+        Nenhum documento vencendo neste período.
+      </p>
+    }
+
+    @for (group of groups(); track group.key) {
+      <section [attr.aria-labelledby]="'due-group-' + group.key" data-due-group>
+        <h3
+          [id]="'due-group-' + group.key"
+          class="flex flex-wrap items-baseline gap-x-1.5 px-2 pb-1 pt-3 text-sm font-bold text-fg"
+        >
+          {{ group.label }}
+          @if (group.dateHint) {
+            <span class="font-normal tabular-nums text-fg-subtle">— {{ group.dateHint }}</span>
+          }
+          <span class="font-medium text-fg-subtle">({{ group.alerts.length }})</span>
+        </h3>
+        <ul class="list-none">
+          @for (a of group.alerts; track a.entityType + a.entityId + a.type + a.dueDate) {
+            <li>
+              <a
+                [routerLink]="a.actionUrl"
+                (click)="selected.emit()"
+                class="flex min-h-11 flex-col gap-1 rounded-2xl px-2.5 py-3 transition-colors hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 active:scale-[0.99] motion-reduce:transition-none"
+                data-due-item
+              >
+                <span class="flex items-start justify-between gap-3">
+                  <span class="min-w-0 text-[15px] font-semibold leading-5 text-fg">{{ a.title }}</span>
+                  <span
+                    class="shrink-0 whitespace-nowrap rounded-lg px-2 py-0.5 text-xs font-semibold"
+                    [class]="severityChip(a.severity)"
+                  >{{ daysLabel(a) }}</span>
+                </span>
+                <span class="text-sm text-fg-muted">{{ a.typeLabel }} · {{ a.subtitle }}</span>
+                <span class="flex flex-wrap items-center gap-x-2 text-xs text-fg-subtle">
+                  <span class="tabular-nums">Vencimento {{ formatDate(a.dueDate) }}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{{ severityLabel(a.severity) }}</span>
+                </span>
+                <span class="text-sm font-semibold text-primary-700 dark:text-primary-400">Ver detalhes</span>
+              </a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (!error() && loadedCount() > 0) {
+      @if (hasMore()) {
+        <button
+          type="button"
+          class="mt-2 flex min-h-12 w-full items-center justify-center rounded-xl bg-surface-sunken text-[15px] font-semibold text-primary-700 transition-transform hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 active:scale-[0.98] disabled:opacity-60 dark:text-primary-400 motion-reduce:transition-none"
+          [disabled]="loadingMore()"
+          (click)="loadMore()"
+          data-due-more
+        >
+          {{ loadingMore() ? 'Carregando…' : 'Carregar mais' }}
+        </button>
+      } @else {
+        <p class="px-2 pt-3 text-center text-[13px] text-fg-subtle" data-due-end>
+          Mostrando {{ loadedCount() }} de {{ total() }}. Não há mais vencimentos nesta janela.
+        </p>
+      }
+    }
+  }
+</div>

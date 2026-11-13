@@ -1,6 +1,8 @@
 <app-default-page-layout
-  title="Roadmap"
+  [title]="pageTitle()"
   [description]="pageDescription()">
+
+  <app-news-tabs active="roadmap" class="mb-6" />
 
   @if (error(); as pageError) {
     <app-alert-banner class="mb-6" variant="error" [message]="pageError" />

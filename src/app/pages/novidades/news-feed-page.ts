@@ -9,6 +9,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DOCUMENT } from '@angular/common';
 import { Router } from '@angular/router';
+import { NewsTabs } from '../../components/news-tabs/news-tabs';
 import { map } from 'rxjs';
 import { classifyAppLink } from '../../utils/app-link';
 import { AnnouncementMedia, AnnouncementMediaRefresh } from '../../components/notices/announcement-media';
@@ -105,7 +106,7 @@ function feedLink(url: string | null, label: string | null, currentHost: string 
 @Component({
   selector: 'app-news-feed-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, StatusChip, AnnouncementMedia],
+  imports: [DefaultPageLayout, StatusChip, AnnouncementMedia, NewsTabs],
   templateUrl: './news-feed-page.html',
 })
 export class NewsFeedPage {

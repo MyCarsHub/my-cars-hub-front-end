@@ -26,6 +26,7 @@ import {
 } from '../../components/segmented-toggle/segmented-toggle';
 import { FeedbackService } from '../../services/feedback.service';
 import { SessionService } from '../../services/session.service';
+import { NewsTabs } from '../../components/news-tabs/news-tabs';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { clearServerErrors } from '../../services/api-error';
@@ -108,6 +109,7 @@ const SORT_OPTIONS: readonly SegmentedToggleOption<FeedbackSort>[] = [
     FormField,
     FieldControl,
     SegmentedToggle,
+    NewsTabs,
   ],
   templateUrl: './roadmap.html',
   styleUrl: './roadmap.css',
@@ -182,6 +184,16 @@ export class Roadmap implements OnInit {
    */
   protected readonly readOnly = computed(
     () => this.sessionService.getCompanyRoleFromToken() === 'DRIVER',
+  );
+
+  /**
+   * Menu novo (prancha 4): para quem lê Novidades, o Roadmap é a aba ao lado e a página se
+   * chama Novidades; sem papel de empresa (sem a aba), continua "Roadmap".
+   */
+  protected readonly pageTitle = computed(() =>
+    ['OWNER', 'MANAGER', 'DRIVER'].includes(this.sessionService.getCompanyRoleFromToken() ?? '')
+      ? 'Novidades'
+      : 'Roadmap',
   );
 
   protected readonly pageDescription = computed(() =>

@@ -2,8 +2,9 @@ import { InjectionToken } from '@angular/core';
 
 /**
  * Menu do MOTORISTA, na ordem do protótipo do dono (handoff `design_handoff_motorista`):
- * Dashboard · Financeiro (Ganhos, Custos, Metas) · Novidades · Veículo (Meu aluguel, Vistorias, Multas) ·
- * Alertas · Roadmap · Configurações e, no rodapé (como no menu do dono), Suporte · Perfil.
+ * Dashboard · Financeiro (Ganhos, Custos, Metas) · Novidades (com o Roadmap como aba) · Veículo
+ * (Meu aluguel, Vistorias, Multas) · Alertas · Configurações e, no pé (como no menu do dono), o
+ * bloco do usuário com Perfil e Suporte no menu de três pontos.
  * Sem badges numéricos.
  *
  * Cada item é uma CHAVE; a URL vem de um mapa à parte (`DRIVER_NAV_ROUTES`). Chave sem URL
@@ -70,6 +71,8 @@ export interface DriverNavEntry {
    * template) em que dono e gerente têm Suporte e Perfil. Só vale para item de primeiro nível.
    */
   pinBottom?: boolean;
+  /** Item da conta (Suporte, Perfil): vai para o menu de três pontos do bloco do usuário. */
+  account?: boolean;
   exactMatch?: boolean;
   children?: DriverNavEntry[];
 }
@@ -116,9 +119,10 @@ export const DRIVER_NAV: readonly DriverNavEntry[] = [
     ],
   },
   { key: 'alertas', label: 'Alertas', icon: 'alerts' },
-  { key: 'roadmap', label: 'Roadmap', icon: 'roadmap' },
+  // Menu novo (13/11): o Roadmap não é mais linha — é a aba ao lado de Novidades, e o item
+  // Novidades acende também em `/roadmap` (a chave `roadmap` continua no mapa de rotas).
   { key: 'configuracoes', label: 'Configurações', icon: 'settings', exactMatch: true },
-  // Rodapé, como no menu do dono: pedido do dono depois do lançamento do app do motorista.
-  { key: 'suporte', label: 'Suporte', icon: 'support', pinBottom: true },
-  { key: 'perfil', label: 'Perfil', icon: 'profile', pinBottom: true },
+  // Pé, como no menu do dono: Suporte e Perfil no menu de três pontos do bloco do usuário.
+  { key: 'suporte', label: 'Suporte', icon: 'support', pinBottom: true, account: true },
+  { key: 'perfil', label: 'Perfil', icon: 'profile', pinBottom: true, account: true },
 ];

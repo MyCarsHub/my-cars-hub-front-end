@@ -12,7 +12,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs/operators';
 import { animate, state, style, transition, trigger } from '@angular/animations';
-import { Sidebar } from '../../sidebar/sidebar';
+import { SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_EXPANDED, Sidebar } from '../../sidebar/sidebar';
 import { LayoutStore } from './layout.store';
 import { BillingAccessService } from '../../../services/billing-access.service';
 import { SessionService } from '../../../services/session.service';
@@ -76,7 +76,13 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
       [style.--page-header-end]="headerEnd()"
     >
       @if (layout.mobileTopBar()) {
-        <app-driver-top-bar />
+        <!-- Menu novo (13/11): no celular o tema e o sino ficam presos na barra de topo. -->
+        <app-driver-top-bar>
+          <app-theme-toggle [bare]="true" />
+          @if (showBell()) {
+            <app-notification-bell variant="bar" />
+          }
+        </app-driver-top-bar>
       }
       @if (adminArea()) {
         <app-admin-sidebar />
@@ -90,34 +96,27 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
         <!-- O botão de tema aparece SEMPRE (dono, gerente e motorista; também no onboarding);
              o sino continua só depois do onboarding concluído. -->
           <!--
-            O shell não tem barra de header própria. O sino vive num header
-            posicionado em absolute dentro do scroller do main: ocupa o espaço
-            que o default-page-layout já reserva no topo (pt-20 lg:pt-10),
-            respeita a mesma coluna de conteúdo dos cards (max-w-8xl +
-            px-4/sm:px-6/lg:px-10) e rola junto com a página — sem position
-            fixed, portanto sem disputar z-index com os elementos sticky das
-            páginas.
+            Computador: o sino fica no canto de cima da página, na mesma coluna dos cards
+            (max-w-8xl + lg:px-10), e NÃO some ao rolar (menu novo, prancha 6): \`sticky\` de
+            altura zero no topo do scroller — não empurra o conteúdo, que já reserva o espaço
+            (lg:pt-10), e não disputa \`fixed\` com a sidebar. No celular eles moram na barra
+            de topo (acima).
           -->
-          <!--
-            Abaixo de lg: o <main> já começa ABAIXO da barra de topo, que consumiu o
-            recorte do aparelho. Somar o safe-area aqui de novo derrubaria o sino sobre a
-            descrição; ele se alinha à mesma --page-top do título, e --page-header-end (no
-            frame) reserva a coluna dele para o título e a descrição não correrem por baixo.
-          -->
-          <header class="pointer-events-none absolute inset-x-0 top-0 z-10">
-            <div
-              class="max-w-8xl mx-auto flex justify-end px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 lg:px-10 lg:pt-10"
-              [style.padding-top]="layout.mobileTopBar() ? 'var(--page-top)' : null"
-              data-bell-row
-            >
-              <div class="pointer-events-auto flex items-center gap-2">
-                <app-theme-toggle />
-                @if (showBell()) {
-                  <app-notification-bell />
-                }
+          @if (!layout.mobileTopBar()) {
+            <header class="pointer-events-none sticky inset-x-0 top-0 z-20 h-0">
+              <div
+                class="max-w-8xl mx-auto flex justify-end px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 lg:px-10 lg:pt-10"
+                data-bell-row
+              >
+                <div class="pointer-events-auto flex items-center gap-2">
+                  <app-theme-toggle />
+                  @if (showBell()) {
+                    <app-notification-bell />
+                  }
+                </div>
               </div>
-            </div>
-          </header>
+            </header>
+          }
         <div>
           <router-outlet />
         </div>
@@ -196,7 +195,11 @@ export class AppShell implements OnInit, OnDestroy {
    * 4px de respiro. Vale no celular e no desktop — o título e as ações da página não correm
    * por baixo dos botões.
    */
-  protected readonly headerEnd = computed(() => (this.showBell() ? '6.25rem' : '3.25rem'));
+  protected readonly headerEnd = computed(() => {
+    // Celular: tema e sino moram na barra de topo; o título usa a largura toda.
+    if (this.layout.mobileTopBar()) return null;
+    return this.showBell() ? '6.25rem' : '3.25rem';
+  });
 
   protected readonly showBell = computed(() => {
     const url = this.currentUrl();

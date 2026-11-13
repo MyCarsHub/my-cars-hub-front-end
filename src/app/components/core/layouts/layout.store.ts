@@ -138,7 +138,7 @@ export class LayoutStore {
   readonly mobileTopBar = computed(() => this.isMobile());
 
   /** Current sidebar width token for animations */
-  readonly sidebarWidth = computed(() => (this.isCollapsed() ? '72px' : '260px'));
+  readonly sidebarWidth = computed(() => (this.isCollapsed() ? '76px' : '300px'));
 
   private loadTenantsFromStorage(): Tenant[] {
     try {
