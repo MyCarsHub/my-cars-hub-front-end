@@ -118,15 +118,24 @@ describe('ChargeActionsSheet', () => {
     expect(q(pastDue, 'action-retry')).toBeNull();
   });
 
-  it('"recebida por fora": caução e parcela PENDENTE/ATRASADA sim; FAILED, paga e multa não', () => {
+  it('"recebida por fora": caução e parcela PENDENTE/ATRASADA/COM FALHA sim (G13); paga e multa não', () => {
     expect(q(render({ kind: 'RENTAL_PERIOD', status: 'PENDING' }).nativeElement, 'action-received')).not.toBeNull();
     expect(q(render({ kind: 'RENTAL_TOTAL', status: 'PAST_DUE', daysOverdue: 9 }).nativeElement, 'action-received'))
       .not.toBeNull();
     expect(q(render({ kind: 'CAUCAO', status: 'PAST_DUE', daysOverdue: 2 }).nativeElement, 'action-received'))
       .not.toBeNull();
-    expect(q(render({ kind: 'CAUCAO', status: 'FAILED' }).nativeElement, 'action-received')).toBeNull();
+    expect(q(render({ kind: 'CAUCAO', status: 'FAILED' }).nativeElement, 'action-received')).not.toBeNull();
+    expect(q(render({ kind: 'AGREEMENT', status: 'FAILED' }).nativeElement, 'action-received')).not.toBeNull();
+    expect(q(render({ kind: 'OVERDUE_FEE', status: 'FAILED' }).nativeElement, 'action-received')).toBeNull();
     expect(q(render({ kind: 'RENTAL_PERIOD', status: 'PAID' }).nativeElement, 'action-received')).toBeNull();
     expect(q(render({ kind: 'OVERDUE_FEE', status: 'PENDING' }).nativeElement, 'action-received')).toBeNull();
+  });
+
+  it('G13 — na FAILED o texto não fala em cancelar link (ela nunca chegou ao Asaas)', () => {
+    const failed: HTMLElement = render({ kind: 'RENTAL_PERIOD', status: 'FAILED' }, 'received').nativeElement;
+    expect(q(failed, 'received-explainer')?.textContent).toContain('não chegou a ser criada no Asaas');
+    const pending: HTMLElement = render({ kind: 'RENTAL_PERIOD', status: 'PENDING' }, 'received').nativeElement;
+    expect(q(pending, 'received-explainer')?.textContent).toContain('cancelada no Asaas');
   });
 
   it('"Ver aluguel" mora no menu e avisa a página', () => {

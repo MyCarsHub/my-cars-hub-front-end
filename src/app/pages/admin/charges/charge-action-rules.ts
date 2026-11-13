@@ -3,12 +3,16 @@ import { AdminChargeListItem } from '../../../types/admin-charges.types';
 /** Tipos que o admin pode registrar como recebidos por fora. */
 export const RECEIVABLE_KINDS = ['CAUCAO', 'RENTAL_PERIOD', 'RENTAL_TOTAL', 'AGREEMENT'];
 
+/** Status em que o admin registra "recebida por fora". FAILED entrou com a G13 (FEAT-0573). */
+export const RECEIVABLE_STATUSES = ['PENDING', 'PAST_DUE', 'FAILED'];
+
 /**
- * "Recebida por fora" (só admin, dono 29/10/2026): caução ou parcela do aluguel, PENDENTE ou
- * ATRASADA. Multa e cobrança com falha não. O backend confere tudo de novo.
+ * "Recebida por fora" (só admin, dono 29/10/2026): caução, parcela do aluguel ou parcela de
+ * acordo, PENDENTE, ATRASADA ou COM FALHA (G13, 12/11/2026 — mesma regra da locadora). Multa
+ * não. O backend confere tudo de novo.
  */
 export function canReceiveCharge(item: AdminChargeListItem): boolean {
-  return RECEIVABLE_KINDS.includes(item.kind) && (item.status === 'PENDING' || item.status === 'PAST_DUE');
+  return RECEIVABLE_KINDS.includes(item.kind) && RECEIVABLE_STATUSES.includes(item.status);
 }
 
 /**

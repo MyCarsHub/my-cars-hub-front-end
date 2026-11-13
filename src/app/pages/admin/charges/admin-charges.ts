@@ -49,7 +49,7 @@ const KIND_LABELS: Record<string, string> = {
  * todas as empresas.
  *
  * <p>P1: ações sem impersonar, na folha {@link ChargeActionsSheet} — comparar
- * com o Asaas, recebida por fora (caução), tentar de novo (só FAILED no prazo),
+ * com o Asaas, recebida por fora (também FAILED, G13), tentar de novo (só FAILED no prazo),
  * corrigir nome do motorista e atualizar o cliente no Asaas.</p>
  *
  * <p>"Atrasado é nossa prova" (regra do dono): atrasada nunca é reemitida,

@@ -199,6 +199,27 @@ describe('RentalDetail — Cobranças flexíveis (FEAT-0573)', () => {
     });
   });
 
+  describe('cartões pintados (canvas aprovado, item 1)', () => {
+    it('sem a chave: Valor recebido e Próximo recebimento continuam neutros', async () => {
+      const { fixture } = await mount({ flex: false, charges: [OPEN_W4] });
+      expect(byTestId(fixture, 'kpi-received-painted')).toBeNull();
+      expect(byTestId(fixture, 'kpi-next-painted')).toBeNull();
+      expect(el(fixture).querySelector('app-painted-card')).toBeNull();
+      expect(el(fixture).textContent).toContain('Valor recebido');
+    });
+
+    it('com a chave: recebido verde sólido e próximo recebimento laranja sólido, texto branco', async () => {
+      const { fixture } = await mount({ flex: true, charges: [OPEN_W4] });
+      const received = byTestId(fixture, 'kpi-received-painted')!;
+      const next = byTestId(fixture, 'kpi-next-painted')!;
+      expect(received.getAttribute('data-tone')).toBe('green');
+      expect(received.className).toContain('text-white');
+      expect(next.getAttribute('data-tone')).toBe('orange');
+      expect(next.className).toContain('bg-primary-500');
+      expect(next.textContent).toContain('750,00');
+    });
+  });
+
   describe('com CHARGES_FLEX', () => {
     it('o ⋮ de uma semana atrasada oferece Renegociar e Recebida por fora (aluguel automático)', async () => {
       const { fixture } = await mount({ flex: true, charges: [OVERDUE_W2] });

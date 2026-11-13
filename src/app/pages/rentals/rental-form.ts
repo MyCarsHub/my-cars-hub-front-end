@@ -63,6 +63,7 @@ import {
   syncServerMarks,
 } from './rental-preflight';
 import { ChargePreviewSummary, summarizeChargePreview } from '../../utils/rental-charge-preview';
+import { PaintedCard } from '../../components/core/painted-card/painted-card';
 import { FeatureFlagsService } from '../../services/feature-flags.service';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import { ChargePlanChange, ChargePlanEditor } from './charges-flex/charge-plan-editor';
@@ -105,6 +106,7 @@ const CONTACT_STILL_INCOMPLETE_COPY =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ChargePlanEditor,
+    PaintedCard,
     PersonNamePipe,
     VehicleLabelPipe,
     ReactiveFormsModule,
@@ -394,6 +396,8 @@ export class RentalForm implements OnInit {
   // create e da prévia é exatamente o de hoje (sem a chave `chargePlan`).
   // ------------------------------------------------------------------
   private readonly featureFlags = inject(FeatureFlagsService);
+  /** Canvas aprovado (item 1): cartões pintados só para quem tem a chave. */
+  protected readonly chargesFlexOn = this.featureFlags.chargesFlex;
   protected readonly showChargePlan = computed(
     () => this.featureFlags.chargesFlex() && !this.isEdit(),
   );

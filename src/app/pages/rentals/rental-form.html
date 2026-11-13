@@ -313,6 +313,16 @@
           />
         }
 
+        <!-- FEAT-0573 (canvas aprovado, item 1): com CHARGES_FLEX, Total previsto pintado de laranja. -->
+        @if (chargesFlexOn()) {
+          <app-painted-card tone="orange" class="!p-4 !gap-1 sm:flex-row sm:items-center sm:justify-between" data-testid="total-painted">
+            <div>
+              <p class="text-xs uppercase tracking-wide font-semibold text-white/90">Total previsto</p>
+              <p class="text-xs text-white/90 mt-0.5">{{ totalDays() }} dia(s) · {{ totalPreviewCaption() }}</p>
+            </div>
+            <p class="text-2xl font-semibold tabular-nums">{{ totalAmountLabel() }}</p>
+          </app-painted-card>
+        } @else {
         <!-- Live computed total -->
         <div class="rounded-xl border border-primary-100 dark:border-primary-500/20 bg-primary-50/40 dark:bg-primary-500/10 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
@@ -325,6 +335,7 @@
             {{ totalAmountLabel() }}
           </p>
         </div>
+        }
 
         <!-- FIX-0754/0763: resumo curto; a lista completa fica recolhida. -->
         @if (scheduleSummary(); as sum) {

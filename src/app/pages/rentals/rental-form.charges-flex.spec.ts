@@ -153,6 +153,20 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
     expect('chargePlan' in lastCreateBody()).toBe(false);
   });
 
+  it('Total previsto: neutro sem a chave, laranja sólido com ela (canvas aprovado, item 1)', async () => {
+    mount(null);
+    await fill();
+    expect(byId('total-painted')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Total previsto');
+
+    mount(['CHARGES_FLEX']);
+    await fill();
+    const painted = byId('total-painted')!;
+    expect(painted.getAttribute('data-tone')).toBe('orange');
+    expect(painted.className).toContain('text-white');
+    expect(painted.textContent).toContain('Total previsto');
+  });
+
   it('H1 — aluguel manual mostra que "Como cobrar funciona igual"', async () => {
     mount(['CHARGES_FLEX']);
     await fill();

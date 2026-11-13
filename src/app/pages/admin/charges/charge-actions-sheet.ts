@@ -166,10 +166,12 @@ export class ChargeActionsSheet implements OnInit {
   /** "Tentar de novo": FAILED e hoje ≤ vencimento (daysOverdue ≤ 0). */
   protected readonly canRetry = computed(() => canRetryCharge(this.item()));
   /**
-   * "Recebida por fora" (só admin, dono 29/10/2026): caução ou parcela do aluguel, PENDENTE ou
-   * ATRASADA. Multa e cobrança com falha não. O backend confere tudo de novo.
+   * "Recebida por fora" (só admin): caução, parcela do aluguel ou de acordo, PENDENTE, ATRASADA
+   * ou COM FALHA (G13). Multa não. O backend confere tudo de novo.
    */
   protected readonly canReceive = computed(() => canReceiveCharge(this.item()));
+  /** Cobrança com falha nunca chegou ao Asaas: não há link a cancelar. */
+  protected readonly receiveFailed = computed(() => this.item().status === 'FAILED');
   protected readonly isCaucao = computed(() => this.item().kind === 'CAUCAO');
   protected readonly hasDriver = computed(() => this.item().driverId !== null);
   protected readonly isOverdue = computed(() => this.item().daysOverdue > 0);

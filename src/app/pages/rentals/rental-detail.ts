@@ -80,6 +80,7 @@ import { RENTAL_STATUS_META } from '../../utils/status-maps';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import { formatPlate, formatVehicleLabel } from '../../utils/display-format';
 import { PersonNamePipe } from '../../pipes/person-name.pipe';
+import { PaintedCard } from '../../components/core/painted-card/painted-card';
 import { FeatureFlagsService } from '../../services/feature-flags.service';
 import { ChargesFlexService } from './charges-flex/charges-flex.service';
 import { RenegotiateSheet, RenegotiableOption } from './charges-flex/renegotiate-sheet';
@@ -124,6 +125,7 @@ import {
     RenegotiateSheet,
     ReceivedOutsideSheet,
     AgreementSheet,
+    PaintedCard,
   ],
   templateUrl: './rental-detail.html',
 })
