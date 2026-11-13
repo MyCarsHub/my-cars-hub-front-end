@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, InjectionToken, inject } from '@angular/core';
 import { EMPTY, Observable, catchError, expand, map, of, reduce, switchMap } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { isOpenChargeStatus } from '../../utils/rental-charges';
 import { DriverProfileService } from '../../services/driver-profile.service';
 import { RentalChargeDto } from '../../types/rental.types';
 import { todayInBusinessTz } from '../../utils/business-clock';
@@ -491,20 +492,30 @@ export function toRentalContext(
   today: string,
   startDate: string | null = null,
 ): DriverRentalContext | null {
+  // FEAT-0573 — RENEGOTIATED saiu de cobrança (entrou num acordo): não é devida, nunca é
+  // "próximo aluguel". Parcelas de acordo e parcelas de período SÃO devidas, cada uma pelo
+  // próprio valor e vencimento.
   const rent = charges
-    .filter((c) => RENT_KINDS.has(c.kind) && c.dueDate && c.status !== 'CANCELED')
+    .filter(
+      (c) =>
+        RENT_KINDS.has(c.kind) && c.dueDate && c.status !== 'CANCELED' && c.status !== 'RENEGOTIATED',
+    )
     .sort((a, b) => (a.dueDate! < b.dueDate! ? -1 : 1));
-  const next = rent.find((c) => !PAID.has(c.status) && c.dueDate! >= today) ?? null;
-  const reference = next ?? rent[rent.length - 1] ?? null;
+  const next = rent.find((c) => isOpenChargeStatus(c.status) && c.dueDate! >= today) ?? null;
+  // Duração e valor do período saem SÓ das cobranças inteiras do aluguel (1 de 1): parcela de
+  // acordo ou de período dividido tem outro intervalo e outro valor.
+  const whole = rent.filter((c) => c.kind !== 'AGREEMENT' && (c.instalmentCount ?? 1) === 1);
+  const wholeNext = whole.find((c) => isOpenChargeStatus(c.status) && c.dueDate! >= today) ?? null;
+  const reference = wholeNext ?? whole[whole.length - 1] ?? null;
   let periodDays = 7;
-  if (rent.length >= 2) {
-    const gap = daysBetween(rent[rent.length - 2].dueDate!, rent[rent.length - 1].dueDate!);
+  if (whole.length >= 2) {
+    const gap = daysBetween(whole[whole.length - 2].dueDate!, whole[whole.length - 1].dueDate!);
     if (gap > 0) periodDays = gap;
   }
   return {
     vehicleLabel,
     plate,
-    periodAmount: reference?.amount ?? 0,
+    periodAmount: reference?.amount ?? next?.amount ?? 0,
     periodDays,
     startDate,
     nextCharge: next ? { amount: next.amount, dueDate: next.dueDate! } : null,

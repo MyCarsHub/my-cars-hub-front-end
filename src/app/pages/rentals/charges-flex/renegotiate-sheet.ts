@@ -32,7 +32,7 @@ import {
 } from '../../../types/agreement.types';
 import { RentalChargeDto, RentalResponseDto } from '../../../types/rental.types';
 import { ChargesFlexService } from './charges-flex.service';
-import { apiErrorCode, flexErrorMessage } from './flex-errors';
+import { apiErrorCode, flexErrorMessage, planBlockerMessage } from './flex-errors';
 import {
   INTERVAL_UNIT_OPTIONS,
   IntervalUnit,
@@ -183,6 +183,8 @@ export class RenegotiateSheet {
   protected setCount(event: Event): void {
     const n = Math.trunc(Number((event.target as HTMLInputElement).value));
     this.count.set(Number.isFinite(n) ? Math.min(AGREEMENT_LIMITS.maxInstalments, Math.max(2, n)) : 2);
+    // O campo mostra o número que vale (2 a 24), não o digitado fora da faixa.
+    (event.target as HTMLInputElement).value = String(this.count());
     this.preview.set(null);
   }
 
@@ -349,6 +351,10 @@ export class RenegotiateSheet {
   }
 
   // ---------------------------------------------------------------- texto
+  protected blockerMessage(b: { code: string; message: string }): string {
+    return AGREEMENT_ERROR_MESSAGES[b.code] ?? planBlockerMessage(b);
+  }
+
   protected money(cents: number | null | undefined): string {
     return brl(cents);
   }

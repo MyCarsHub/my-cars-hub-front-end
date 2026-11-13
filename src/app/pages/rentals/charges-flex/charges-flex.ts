@@ -286,3 +286,30 @@ export function renegotiatedTotalCents(charges: readonly Pick<RentalChargeDto, '
     .filter((c) => c.status === ('RENEGOTIATED' satisfies ChargeStatus))
     .reduce((acc, c) => acc + c.amount, 0);
 }
+
+// ---------------------------------------------------------------------------
+// G2 — caução dentro de um acordo (REGRA PROVISÓRIA, aguardando o dono)
+// ---------------------------------------------------------------------------
+
+/** O mínimo de um acordo que a regra G2 lê (contrato B5: fontes com tipo e valor original). */
+export interface AgreementShareSource {
+  originalTotalCents: number;
+  sources: ReadonlyArray<{ kind: string; originalAmountCents: number }>;
+}
+
+/**
+ * Quanto de UMA cobrança do acordo continua sendo caução. ÚNICO lugar da regra G2.
+ *
+ * Provisório até o dono decidir (decisão do coordenador, 12/11): a parte da caução num acordo
+ * segue sendo caução. Cada cobrança do acordo é rateada pelos valores originais das fontes —
+ * fração de caução = soma dos originais das fontes CAUCAO ÷ total original. O backend aplica a
+ * mesma regra. Quando o dono responder, muda-se só aqui.
+ */
+export function agreementCaucaoShareCents(amountCents: number, agreement: AgreementShareSource | null): number {
+  if (!agreement || agreement.originalTotalCents <= 0) return 0;
+  const caucao = agreement.sources
+    .filter((s) => s.kind === 'CAUCAO')
+    .reduce((acc, s) => acc + s.originalAmountCents, 0);
+  if (caucao <= 0) return 0;
+  return Math.round((amountCents * caucao) / agreement.originalTotalCents);
+}

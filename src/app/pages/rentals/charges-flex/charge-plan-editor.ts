@@ -44,6 +44,7 @@ import {
   periodWordPlural,
   splitEvenly,
 } from './charges-flex';
+import { planBlockerMessage } from './flex-errors';
 
 /** O que o editor entrega ao formulário a cada mudança. */
 export interface ChargePlanChange {
@@ -70,6 +71,8 @@ interface PeriodOverride {
   /** Vencimento e valor CHEIO do período quando o parcelamento foi feito. */
   baseDue: string;
   fullCents: number;
+  /** Valor, 1º vencimento, frequência e nº de períodos quando foi salvo (ver `contextKey`). */
+  context: string;
   count: number;
   intervalN: number;
   unit: IntervalUnit;
@@ -163,6 +166,9 @@ export class ChargePlanEditor {
   protected readonly discountProblem = computed<string | null>(() => {
     if (!this.discountOn()) return null;
     const raw = this.discountRaw();
+    if (raw === null && this.discountType() === 'PERCENT' && this.discountText().trim() !== '') {
+      return 'Use um número com até duas casas decimais (ex.: 12,5).';
+    }
     if (raw === null || raw <= 0) return 'Informe o desconto.';
     if (this.discountType() === 'PERCENT' && raw > 9999) return 'O desconto em porcentagem vai até 99,99%.';
     if (this.discountPeriods() < 1 || this.discountPeriods() > Math.max(1, this.periods())) {
@@ -228,8 +234,24 @@ export class ChargePlanEditor {
     if (smallest < this.minCents()) {
       return `Cada parcela precisa ser de pelo menos ${brl(this.minCents())}. Cada uma ficaria com ${brl(smallest)}.`;
     }
-    return null;
+    return this.fineShareProblem(
+      this.splitCount(),
+      splitEvenly(this.discountedRateForSplit(), this.splitCount()).map((amountCents) => ({ dueDate: '', amountCents })),
+    );
   });
+
+  /**
+   * B2: a multa FIXA dividida (centavos na última) precisa ser menor que cada parcela.
+   * Conferido aqui para o aviso sair junto do de R$ 5,00, antes da prévia.
+   */
+  private fineShareProblem(count: number, instalments: readonly ChargePlanInstalment[]): string | null {
+    const fine = this.lateFineFixedCents();
+    if (!fine || fine <= 0 || instalments.length === 0) return null;
+    const shares = splitEvenly(fine, count);
+    const i = instalments.findIndex((p, k) => (shares[k] ?? 0) >= p.amountCents);
+    if (i < 0) return null;
+    return `A multa fixa dividida (${brl(shares[i])}) precisa ser menor que a parcela (${brl(instalments[i].amountCents)}).`;
+  }
 
   /** O menor valor de período que vai ser dividido (com desconto, se houver). */
   private discountedRateForSplit(): number {
@@ -353,6 +375,8 @@ export class ChargePlanEditor {
       minCents: this.minCents(),
     });
     if (this.sheetCount() < 2 || this.sheetCount() > 24) problems.unshift('Escolha de 2 a 24 parcelas.');
+    const fine = this.fineShareProblem(this.sheetCount(), this.sheetInstalments());
+    if (fine) problems.push(fine);
     return problems;
   });
 
@@ -392,6 +416,7 @@ export class ChargePlanEditor {
       periodIndex: e.index,
       baseDue: e.due,
       fullCents: e.full,
+      context: this.contextKey(),
       count: this.sheetCount(),
       intervalN: this.sheetIntervalN(),
       unit: this.sheetUnit(),
@@ -473,7 +498,13 @@ export class ChargePlanEditor {
       expectedTotal: this.caucaoCents(),
       today: this.today(),
       minCents: this.minCents(),
-    }).map((p) => p.replace('parcelas', 'partes').replace('parcela', 'parte').replace('da cobrança', 'da caução'));
+    }).map((p) =>
+      p
+        .replace(/parcelas/g, 'partes')
+        .replace(/parcela/g, 'parte')
+        .replace(/Parcela/g, 'Parte')
+        .replace('valor da cobrança', 'valor da caução'),
+    );
   });
 
   // ------------------------------------------------------------ plano
@@ -498,8 +529,40 @@ export class ChargePlanEditor {
 
   protected readonly plan = computed(() => buildChargePlan(this.state()));
 
+  /**
+   * O que define um período: valor, 1ª cobrança, frequência e quantos períodos há. Mudou
+   * qualquer um, o parcelamento salvo não vale mais (soma, datas ou o próprio período).
+   */
+  private readonly contextKey = computed(
+    () => `${this.rateCents() ?? ''}|${this.firstDue() ?? ''}|${this.frequency()}|${this.periods()}`,
+  );
+
+  /** Avisa que parcelamentos foram desfeitos porque o aluguel mudou. */
+  protected readonly staleNotice = signal<string | null>(null);
+
+  /** Problemas das parcelas salvas, com o desconto ATUAL (B2: precisam somar o período). */
+  protected readonly overrideProblems = computed<string[]>(() => {
+    if (!this.splitOn() || this.splitScope() !== 'SOME') return [];
+    const out: string[] = [];
+    for (const o of this.overrides().values()) {
+      const problems = instalmentProblems(this.overrideInstalments(o), {
+        expectedTotal: this.periodAmount(o.periodIndex, o.fullCents),
+        today: this.today(),
+        minCents: this.minCents(),
+      });
+      const fine = this.fineShareProblem(o.count, this.overrideInstalments(o));
+      if (fine) problems.push(fine);
+      for (const p of problems) out.push(`${this.word()} ${o.periodIndex + 1}: ${p}`);
+    }
+    return out;
+  });
+
   protected readonly valid = computed(
-    () => !this.discountProblem() && !this.splitAllProblem() && this.caucaoProblems().length === 0,
+    () =>
+      !this.discountProblem() &&
+      !this.splitAllProblem() &&
+      this.caucaoProblems().length === 0 &&
+      this.overrideProblems().length === 0,
   );
 
   private readonly discountTotal = computed(() =>
@@ -511,6 +574,23 @@ export class ChargePlanEditor {
   private lastEmitted = '';
 
   constructor() {
+    // Valor, datas ou nº de períodos mudaram: o parcelamento salvo desfaz-se (avisando) em vez
+    // de viajar com uma soma ou um período que o backend recusaria.
+    effect(() => {
+      const key = this.contextKey();
+      const current = untracked(() => this.overrides());
+      const stale = [...current.values()].filter((o) => o.context !== key || o.periodIndex >= this.periods());
+      if (stale.length === 0) return;
+      const next = new Map(current);
+      for (const o of stale) next.delete(o.periodIndex);
+      untracked(() => {
+        this.overrides.set(next);
+        const names = stale.map((o) => `${this.word()} ${o.periodIndex + 1}`).join(', ');
+        this.staleNotice.set(
+          `O parcelamento de ${names} foi desfeito porque o valor ou as datas do aluguel mudaram. Parcele de novo.`,
+        );
+      });
+    });
     effect(() => {
       const change: ChargePlanChange = {
         plan: this.plan(),
@@ -525,6 +605,10 @@ export class ChargePlanEditor {
   }
 
   // ------------------------------------------------------------ texto
+  protected blockerMessage(b: RentalChargePreviewBlockerDto): string {
+    return planBlockerMessage(b);
+  }
+
   protected money(cents: number | null | undefined): string {
     return brl(cents);
   }

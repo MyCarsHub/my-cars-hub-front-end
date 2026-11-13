@@ -188,7 +188,15 @@ describe('RentalDetail — Cobranças flexíveis (FEAT-0573)', () => {
 
       expect(menuItem(fixture, 'charge-menu-renegotiate')).toBeNull();
       expect(menuItem(fixture, 'charge-menu-received-outside')).toBeNull();
-      expect(byTestId(fixture, 'kpi-renegotiated')).toBeNull();
+      http.expectNone((r) => r.url.includes('/agreements'));
+    });
+
+    it('mesmo com dados de acordo vindos do backend, sem a chave não há vínculo, "Ver acordo" nem busca de acordos', async () => {
+      const w2 = { ...OVERDUE_W2, status: 'RENEGOTIATED' as const, renegotiatedInAgreementId: 'ag-1' };
+      const { fixture, http } = await mount({ flex: false, charges: [w2, OPEN_W4] });
+
+      expect(byTestId(fixture, 'charge-agreement-link')).toBeNull();
+      expect(menuItem(fixture, 'charge-menu-view-agreement')).toBeNull();
       http.expectNone((r) => r.url.includes('/agreements'));
     });
 
@@ -435,6 +443,35 @@ describe('RentalDetail — Cobranças flexíveis (FEAT-0573)', () => {
 
       expect(byTestId(fixture, 'charge-received-outside-tag')).not.toBeNull();
       expect(byTestId(fixture, 'charge-settled-by')?.textContent).toContain('Registrada por Marina Souza');
+    });
+
+    it('G2 (provisório) — a parte da caução de um acordo pago fica fora do "Valor recebido"', async () => {
+      // Acordo de R$ 2.250 que juntou caução (R$ 1.500) e uma semana (R$ 750): 2/3 é caução.
+      const ag = agreement({
+        originalTotalCents: 225_000,
+        agreedTotalCents: 225_000,
+        differenceCents: 0,
+        sources: [
+          { chargeId: 'k1', kind: 'CAUCAO', periodIndex: null, instalmentIndex: 1, instalmentCount: 1, originalStatus: 'PENDING', originalAmountCents: 150_000, originalDueDate: '2020-01-06', fromAgreementId: null, fromAgreementSeq: null },
+          { chargeId: 'w2', kind: 'RENTAL_PERIOD', periodIndex: 1, instalmentIndex: 1, instalmentCount: 1, originalStatus: 'PAST_DUE', originalAmountCents: 75_000, originalDueDate: '2020-01-13', fromAgreementId: null, fromAgreementSeq: null },
+        ],
+      });
+      const paid = charge({ id: 'a1', kind: 'AGREEMENT', amount: 112_500, status: 'PAID', paidAt: '2026-12-09T10:00:00', periodIndex: null, agreementId: 'ag-1', agreementSeq: 1, instalmentIndex: 1, instalmentCount: 2 });
+      const open = charge({ id: 'a2', kind: 'AGREEMENT', amount: 112_500, periodIndex: null, agreementId: 'ag-1', agreementSeq: 1, instalmentIndex: 2, instalmentCount: 2 });
+      const { fixture } = await mount({ flex: true, charges: [paid, open], agreements: [ag] });
+
+      // Recebido: só a parte de aluguel (1/3 de R$ 1.125,00 = R$ 375,00).
+      expect(byTestId(fixture, 'kpi-received-painted')!.textContent).toContain('375,00');
+    });
+
+    it('E — cobrança com falha (sem Pix): o aviso não fala em Pix', async () => {
+      const failed = charge({ id: 'wf', periodIndex: 1, status: 'FAILED', externalId: null, checkoutUrl: null, dueDate: '2099-01-13' });
+      const { fixture } = await mount({ flex: true, charges: [failed] });
+      menuItem(fixture, 'charge-menu-received-outside')!.click();
+      await settle(fixture);
+      const warning = byTestId(fixture, 'received-outside-warning')!;
+      expect(warning.textContent).toContain('não dá para desfazer');
+      expect(warning.textContent).not.toContain('Pix');
     });
 
     it('B/C — linha com desconto mostra o valor cheio riscado; parcela do período ganha o rótulo', async () => {

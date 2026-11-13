@@ -268,6 +268,67 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
     expect(fixture.nativeElement.textContent).toContain('Confira o desconto, as parcelas ou as partes da caução.');
   });
 
+  it('M2 — mudar o valor do aluguel desfaz o parcelamento salvo (com aviso) e ele não viaja', async () => {
+    mount(['CHARGES_FLEX']);
+    await fill();
+    byId<HTMLButtonElement>('plan-split')!.click();
+    await settle();
+    byId<HTMLButtonElement>('plan-period-0')!.click();
+    await settle(0);
+    byId<HTMLButtonElement>('plan-sheet-save')!.click();
+    await settle();
+    expect(byId('plan-period-list')?.textContent).toContain('Semana 1, em 3 parcelas');
+
+    cmp().form.patchValue({ periodRateReais: '800,00' });
+    fixture.detectChanges();
+    await settle();
+
+    expect(byId('plan-stale-notice')?.textContent).toContain('Semana 1 foi desfeito');
+    expect(byId('plan-period-list')?.textContent).not.toContain('em 3 parcelas');
+    cmp().submit();
+    expect('chargePlan' in lastCreateBody()).toBe(false);
+  });
+
+  it('L1 — multa fixa dividida maior que a parcela é avisada antes da prévia e impede criar', async () => {
+    mount(['CHARGES_FLEX']);
+    await fill();
+    cmp().form.patchValue({ periodRateReais: '10,00' });
+    fixture.detectChanges();
+    await settle();
+    byId<HTMLButtonElement>('plan-split')!.click();
+    await settle(0);
+    byId<HTMLButtonElement>('plan-split-all')!.click();
+    await settle();
+
+    expect(byId('plan-split-problem')?.textContent).toContain('A multa fixa dividida (R$ 25,00) precisa ser menor que a parcela (R$ 5,00).');
+    cmp().submit();
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it('M4 — recusa da prévia que cita o provedor vira texto da locadora e impede criar', async () => {
+    mount(['CHARGES_FLEX']);
+    chargePreview.mockImplementation((body: CreateRentalRequest) =>
+      of({
+        ...PREVIEW,
+        blocker: body.chargePlan
+          ? { code: 'CHARGE_BELOW_MINIMUM', message: 'Cada parcela precisa ser de pelo menos R$ 5,00 (limite do Asaas). A parcela 2 ficou com R$ 4,99.' }
+          : null,
+      }),
+    );
+    await fill();
+    byId<HTMLButtonElement>('plan-split')!.click();
+    await settle(0);
+    byId<HTMLButtonElement>('plan-split-all')!.click();
+    await settle();
+
+    const text = byId('plan-preview-blocker')!.textContent ?? '';
+    expect(text).toContain('valor mínimo por parcela');
+    expect(text).toContain('A parcela 2 ficou com R$ 4,99.');
+    expect(text).not.toContain('Asaas');
+    cmp().submit();
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
   it('a recusa do plano na prévia aparece no próprio editor (ex.: R$ 5,00)', async () => {
     mount(['CHARGES_FLEX']);
     chargePreview.mockImplementation((body: CreateRentalRequest) =>

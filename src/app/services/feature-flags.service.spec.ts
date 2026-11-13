@@ -107,3 +107,56 @@ describe('AuthService grava `features` do /auth/me', () => {
     expect(sessionStorage.getItem('features')).toBe('[]');
   });
 });
+
+describe('CHARGES_FLEX acompanha logout e login na mesma aba (sem recarregar)', () => {
+  let me: MeResponse;
+
+  function meWith(features: string[] | null): MeResponse {
+    return {
+      id: 'u-1',
+      name: 'Lia',
+      email: 'lia@example.com',
+      document: null,
+      companies: [{ companyId: 'c-1', companyName: 'Locadora', role: 'OWNER' }],
+      onboardingCompleted: true,
+      hasCompletedOnboarding: true,
+      systemRole: 'USER',
+      features,
+    };
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        AuthService,
+        { provide: HttpClient, useValue: { get: vi.fn(() => of(me)), post: vi.fn() } },
+        { provide: ImpersonationService, useValue: { active: () => false, reset: vi.fn() } },
+      ],
+    });
+  });
+
+  afterEach(() => sessionStorage.clear());
+
+  it('liberado → logout → outra conta sem a chave → mesma conta de novo', () => {
+    const auth = TestBed.inject(AuthService);
+    const flags = TestBed.inject(FeatureFlagsService);
+
+    me = meWith(['CHARGES_FLEX']);
+    auth.hydrateSession().subscribe();
+    expect(flags.chargesFlex()).toBe(true);
+
+    auth.logout();
+    expect(flags.chargesFlex()).toBe(false);
+
+    me = meWith([]);
+    auth.hydrateSession().subscribe();
+    expect(flags.chargesFlex()).toBe(false);
+
+    auth.logout();
+    me = meWith(['CHARGES_FLEX']);
+    auth.hydrateSession().subscribe();
+    expect(flags.chargesFlex()).toBe(true);
+  });
+});

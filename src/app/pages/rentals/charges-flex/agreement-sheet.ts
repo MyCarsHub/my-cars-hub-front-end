@@ -17,6 +17,7 @@ import { ApiErrorService } from '../../../services/api-error.service';
 import { AgreementDto, agreementReasonLabel } from '../../../types/agreement.types';
 import { RentalBillingFrequency, RentalResponseDto } from '../../../types/rental.types';
 import { ChargesFlexService } from './charges-flex.service';
+import { companySafe } from './flex-errors';
 import { agreementName, brDate, brDayMonth, brl, flexChargeLabel, periodWord, splitEvenly } from './charges-flex';
 
 const ROLE_LABELS: Record<string, string> = { OWNER: 'dono', MANAGER: 'gerente' };
@@ -147,7 +148,8 @@ export class AgreementSheet implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.loading.set(false);
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível abrir o acordo.'));
+        const fallback = 'Não foi possível abrir o acordo.';
+        this.error.set(companySafe(this.apiErrors.messageFor(err, fallback), fallback));
       },
     });
   }

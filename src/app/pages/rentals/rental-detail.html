@@ -217,7 +217,9 @@
 
 
       <!-- KPI cards — mesmo shell/estilo do financing-detail -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="grid grid-cols-2 gap-3"
+        [class.lg:grid-cols-4]="renegotiatedCents() === 0"
+        [class.lg:grid-cols-5]="renegotiatedCents() > 0">
         <!-- FEAT-0573 (canvas aprovado, item 1): com CHARGES_FLEX, recebido pintado de verde. -->
         @if (chargesFlex()) {
           <app-painted-card tone="green" class="!p-4 !gap-1" data-testid="kpi-received-painted">
@@ -1331,6 +1333,7 @@
     <app-received-outside-sheet
       [subtitle]="receivedOutsideSubtitle()"
       [amountCents]="target.amount"
+      [hasPix]="target.status !== 'FAILED' && !!(target.externalId || target.checkoutUrl)"
       [minDate]="r.startDate"
       [today]="flexToday()"
       [draft]="receivedOutsideDraft()"

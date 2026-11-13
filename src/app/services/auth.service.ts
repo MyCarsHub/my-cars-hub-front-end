@@ -10,6 +10,7 @@ import { ImpersonationService } from './impersonation.service';
 import { TenantCachesService } from './tenant-caches.service';
 import { MembershipsService } from './memberships.service';
 import { pickLoginCompany } from './company-role-priority';
+import { markFeaturesChanged } from './features-session';
 
 interface TokenResponse {
     token: string;
@@ -122,6 +123,7 @@ export class AuthService {
             'features',
             JSON.stringify(Array.isArray(user.features) ? user.features : []),
         );
+        markFeaturesChanged();
 
         // Defensive: if /auth/me returns companies=[] but session already has
         // entries (typically written by applyFinishResponse right after

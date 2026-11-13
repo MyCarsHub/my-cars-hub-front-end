@@ -1,8 +1,9 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, inject } from '@angular/core';
 
 import { SessionService } from './session.service';
 import { SessionResetRegistry } from './session-reset.registry';
 import { ImpersonationService } from './impersonation.service';
+import { featuresSessionVersion, markFeaturesChanged } from './features-session';
 
 /**
  * Chave de `sessionStorage` com a lista crua (JSON) devolvida por `GET /auth/me`. Quem
@@ -28,19 +29,27 @@ export const CHARGES_FLEX_FEATURE = 'CHARGES_FLEX';
 export class FeatureFlagsService {
   private readonly session = inject(SessionService);
   private readonly impersonation = inject(ImpersonationService);
-  private readonly features = signal<readonly string[]>(this.readStored());
+  /**
+   * Relida da sessão sempre que ela muda (login, `/auth/me`, logout) — nunca presa no valor
+   * da construção do serviço.
+   */
+  private readonly features = computed<readonly string[]>(() => {
+    featuresSessionVersion();
+    return this.readStored();
+  });
 
   readonly chargesFlex = computed(
     () => !this.impersonation.active() && this.features().includes(CHARGES_FLEX_FEATURE),
   );
 
   constructor() {
-    inject(SessionResetRegistry).register(() => this.features.set([]));
+    // A sessão foi zerada (logout e afins): relê, agora vazia.
+    inject(SessionResetRegistry).register(() => markFeaturesChanged());
   }
 
-  /** Relê a sessão (ex.: depois de um `/auth/me` na mesma aba). */
+  /** Relê a sessão (ex.: algo gravou `features` por fora do `AuthService`). */
   refresh(): void {
-    this.features.set(this.readStored());
+    markFeaturesChanged();
   }
 
   /** Grava e aplica uma lista (testes e quem já tem o `/auth/me` em mãos). */
@@ -49,7 +58,7 @@ export class FeatureFlagsService {
       ? features.filter((f): f is string => typeof f === 'string')
       : [];
     this.session.setItem(FEATURES_SESSION_KEY, JSON.stringify(list));
-    this.features.set(list);
+    markFeaturesChanged();
   }
 
   private readStored(): readonly string[] {

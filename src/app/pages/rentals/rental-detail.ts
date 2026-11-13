@@ -87,6 +87,7 @@ import { RenegotiateSheet, RenegotiableOption } from './charges-flex/renegotiate
 import { ReceivedOutsideSheet } from './charges-flex/received-outside-sheet';
 import { AgreementSheet } from './charges-flex/agreement-sheet';
 import {
+  agreementCaucaoShareCents,
   agreementName,
   brDate,
   brDayMonth,
@@ -543,18 +544,29 @@ export class RentalDetail implements OnInit {
     return [...byIndex.values()].sort((a, b) => (a.instalmentIndex ?? 1) - (b.instalmentIndex ?? 1));
   });
 
+  /**
+   * A parte de ALUGUEL de uma cobrança. Igual ao `amount`, exceto na parcela de acordo que
+   * levou caução: a parte da caução continua caução (regra G2 provisória, ver
+   * `agreementCaucaoShareCents`) e fica fora de "recebido/restante".
+   */
+  private rentPartCents(c: RentalChargeDto): number {
+    if (c.kind !== 'AGREEMENT' || !c.agreementId) return c.amount;
+    const agreement = this.agreements().find((a) => a.id === c.agreementId) ?? null;
+    return c.amount - agreementCaucaoShareCents(c.amount, agreement);
+  }
+
   /** SUM(amount) — status='PAID' em RENTAL_PERIOD + RENTAL_TOTAL (sem CAUCAO). */
   protected readonly paidCents = computed<number>(() =>
     this.scheduleCharges()
       .filter((c) => c.status === 'PAID')
-      .reduce((acc, c) => acc + c.amount, 0),
+      .reduce((acc, c) => acc + this.rentPartCents(c), 0),
   );
 
   /** SUM(amount) das cobrancas EM ABERTO em RENTAL_PERIOD + RENTAL_TOTAL. */
   protected readonly remainingCents = computed<number>(() =>
     this.scheduleCharges()
       .filter((c) => isOpenChargeStatus(c.status))
-      .reduce((acc, c) => acc + c.amount, 0),
+      .reduce((acc, c) => acc + this.rentPartCents(c), 0),
   );
 
   /**

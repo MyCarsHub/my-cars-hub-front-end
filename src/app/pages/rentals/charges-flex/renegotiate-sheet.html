@@ -230,7 +230,7 @@
             </div>
           } @else if (preview(); as p) {
             @if (p.blocker; as b) {
-              <app-alert-banner variant="error" [message]="b.message" data-testid="renegotiate-blocker" />
+              <app-alert-banner variant="error" [message]="blockerMessage(b)" data-testid="renegotiate-blocker" />
             }
             <section class="flex flex-col gap-2" aria-labelledby="rn-out">
               <h3 id="rn-out" class="text-sm font-semibold text-fg">Saem de cobrança</h3>

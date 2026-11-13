@@ -21,19 +21,16 @@
       @if (caucaoSplitOn()) {
         <ul class="flex flex-col gap-3" role="list" data-testid="plan-caucao-parts">
           @for (part of parts(); track part.key; let i = $index) {
-            <li class="enter-up grid grid-cols-[1fr_1fr_auto] items-end gap-2" [style.--stagger-i]="i">
+            <li class="enter-up grid grid-cols-[1fr_1fr_auto] items-start gap-2" [style.--stagger-i]="i">
               <label class="flex min-w-0 flex-col gap-1">
                 <span class="text-sm font-medium text-fg-muted">Parte {{ i + 1 }} (R$)</span>
                 <input type="text" inputmode="decimal" autocomplete="off" [formControl]="part.amount"
                   [attr.data-testid]="'plan-caucao-part-amount-' + i" (input)="onPartInput($event, part)"
                   class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
               </label>
-              <label class="flex min-w-0 flex-col gap-1">
-                <span class="text-sm font-medium text-fg-muted">Vence em</span>
-                <input type="date" [value]="part.due" [attr.min]="today()" (input)="setPartDue(part, $any($event.target).value)"
-                  [attr.data-testid]="'plan-caucao-part-due-' + i"
-                  class="min-h-12 w-full rounded-xl border border-edge-field bg-surface px-2 text-base text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-400" />
-              </label>
+              <div class="min-w-0" [attr.data-testid]="'plan-caucao-part-due-' + i">
+                <app-date-field label="Vence em" [min]="today()" [value]="part.due" (valueChange)="setPartDue(part, $event)" />
+              </div>
               @if (parts().length > 2) {
                 <button type="button" (click)="removePart(part)" [attr.aria-label]="'Remover parte ' + (i + 1)"
                   class="press inline-flex h-12 w-11 items-center justify-center rounded-xl text-fg-subtle hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
@@ -225,9 +222,16 @@
     </div>
   }
 
-  <!-- A conta do backend recusou o plano: o motivo, do jeito que ele mandou. -->
+  @if (staleNotice(); as notice) {
+    <app-alert-banner variant="warning" [message]="notice" data-testid="plan-stale-notice" />
+  }
+  @for (p of overrideProblems(); track p) {
+    <p class="text-sm font-medium text-rose-700 dark:text-rose-300" data-testid="plan-override-problem">{{ p }}</p>
+  }
+
+  <!-- A prévia recusou o plano: o motivo, com o texto da locadora (ver flex-errors). -->
   @if (previewBlocker(); as b) {
-    <app-alert-banner variant="error" [message]="b.message" data-testid="plan-preview-blocker" />
+    <app-alert-banner variant="error" [message]="blockerMessage(b)" data-testid="plan-preview-blocker" />
   }
 </div>
 

@@ -68,6 +68,7 @@ import { FeatureFlagsService } from '../../services/feature-flags.service';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import { ChargePlanChange, ChargePlanEditor } from './charges-flex/charge-plan-editor';
 import { brl } from './charges-flex/charges-flex';
+import { PLAN_ERROR_MESSAGES, apiErrorCode, planBlockerMessage } from './charges-flex/flex-errors';
 import {
   RentalChargePreviewBlockerDto,
   RentalChargePreviewItemDto,
@@ -409,6 +410,8 @@ export class RentalForm implements OnInit {
   /** Linhas cruas da última prévia (o editor lista os períodos a partir delas). */
   protected readonly previewItems = signal<RentalChargePreviewItemDto[]>([]);
   protected readonly previewBlocker = signal<RentalChargePreviewBlockerDto | null>(null);
+  /** Desconto total que a PRÉVIA calculou (vale mais que a estimativa local do editor). */
+  private readonly previewDiscountTotal = signal<number | null>(null);
   protected readonly todayDay = todayInBusinessTz();
 
   protected onChargePlanChange(change: ChargePlanChange): void {
@@ -420,9 +423,13 @@ export class RentalForm implements OnInit {
     return this.showChargePlan() ? this.chargePlanState().plan : null;
   }
 
-  private readonly planDiscountCents = computed(() =>
-    this.showChargePlan() ? this.chargePlanState().discountTotalCents : 0,
-  );
+  private readonly planDiscountCents = computed(() => {
+    if (!this.showChargePlan()) return 0;
+    const estimate = this.chargePlanState().discountTotalCents;
+    // A conta do backend vence a local (período parcial, cobrança só registrada) — mas só
+    // enquanto o plano tem desconto; sem ele, zero.
+    return estimate > 0 ? (this.previewDiscountTotal() ?? estimate) : 0;
+  });
 
   protected readonly lateFineFixedCentsForPlan = computed(() => {
     this.formValue();
@@ -495,6 +502,11 @@ export class RentalForm implements OnInit {
             if (this.showChargePlan()) {
               this.previewItems.set(preview.charges);
               this.previewBlocker.set(payload.chargePlan ? preview.blocker : null);
+              this.previewDiscountTotal.set(
+                payload.chargePlan?.discount && !preview.blocker && typeof preview.discountTotalCents === 'number'
+                  ? preview.discountTotalCents
+                  : null,
+              );
             }
             return {
               response,
@@ -1194,7 +1206,10 @@ export class RentalForm implements OnInit {
       return;
     }
     // FEAT-0573 — plano com algo a corrigir: o aviso já está no próprio campo.
-    if (this.showChargePlan() && !this.chargePlanState().valid) {
+    if (
+      this.showChargePlan() &&
+      (!this.chargePlanState().valid || (this.chargePlanState().plan !== null && this.previewBlocker() !== null))
+    ) {
       this.error.set('Confira o desconto, as parcelas ou as partes da caução.');
       return;
     }
@@ -1589,6 +1604,14 @@ export class RentalForm implements OnInit {
     }
     if (this.claimPreflightError(err)) return;
     if (this.claimFeeBelowChargeError(err)) return;
+    // FEAT-0573 — recusa do plano (400 com o código B2): texto da locadora, sem o provedor.
+    const planCode = apiErrorCode(err);
+    if (planCode && PLAN_ERROR_MESSAGES[planCode]) {
+      this.apiErrors.claim(err);
+      this.error.set(planBlockerMessage({ code: planCode, message: (err.error as { message?: string } | null)?.message ?? null }));
+      this.revealError();
+      return;
+    }
     const { formMessage } = this.apiErrors.handleForm(err, this.form, fallback);
     // The driver was registered without CNH/address and has not completed it yet.
     this.error.set(

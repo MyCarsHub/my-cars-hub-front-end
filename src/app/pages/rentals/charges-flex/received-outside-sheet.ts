@@ -68,7 +68,10 @@ import { brl } from './charges-flex';
 
         <app-alert-banner
           variant="warning"
-          message="Depois de registrar, o Pix desta cobrança para de funcionar e não dá para desfazer."
+          data-testid="received-outside-warning"
+          [message]="hasPix()
+            ? 'Depois de registrar, o Pix desta cobrança para de funcionar e não dá para desfazer.'
+            : 'Depois de registrar, não dá para desfazer.'"
         />
       </div>
 
@@ -91,6 +94,8 @@ export class ReceivedOutsideSheet implements OnInit {
   /** Início do aluguel (yyyy-MM-dd): a data não pode ser anterior. */
   readonly minDate = input<string | null>(null);
   readonly today = input.required<string>();
+  /** A cobrança tem Pix emitido (aberta e emitida). Com falha, nunca teve: o aviso muda. */
+  readonly hasPix = input(true);
   /** Rascunho de uma volta do diálogo de confirmação ("Voltar"). */
   readonly draft = input<ReceivedOutsideRequestDto | null>(null);
 
