@@ -16,18 +16,24 @@ import { StatusChip } from '../../../components/core/status-chip/status-chip';
 import { KpiCard } from '../../../components/kpi-card/kpi-card';
 import { NotificationService } from '../../../services/notification.service';
 import { AdminCoupon, CouponRedemptions } from '../../../types/admin-coupon.types';
+import { PlanResponse } from '../../../types/billing.types';
 import { formatBRL } from '../../../types/dashboard.types';
 import { AdminCouponsService } from './admin-coupons.service';
 import {
   copyCouponCode,
   couponErrorMessage,
+  couponPlanLabel,
   couponPlanName,
   couponStatus,
   discountLabel,
-  durationLabel,
+  durationNote,
+  durationText,
+  isAllPlans,
   kindLabel,
   validityLabel,
 } from './coupon-copy';
+import { couponPriceRows } from './coupon-plan-prices';
+import { CouponPlanPricesTable } from './coupon-plan-prices-table';
 import {
   EMPTY_TITLE,
   PENDING_INVOICE,
@@ -50,7 +56,7 @@ const COPIED_MS = 1600;
 @Component({
   selector: 'app-coupon-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BottomSheet, KpiCard, StatusChip],
+  imports: [BottomSheet, CouponPlanPricesTable, KpiCard, StatusChip],
   templateUrl: './coupon-detail.html',
 })
 export class CouponDetail implements OnInit {
@@ -63,7 +69,12 @@ export class CouponDetail implements OnInit {
   readonly coupon = input.required<AdminCoupon>();
   /** Nome da empresa do cupom; vem da lista, que já o resolveu. */
   readonly company = input<string>('—');
+  /** A tabela de planos da página: dela sai "Quanto cada plano paga com o cupom". */
+  readonly plans = input<readonly PlanResponse[]>([]);
+  /** A página sabe compartilhar; sem ela (ou num cupom que não serve mais), o botão some. */
+  readonly canShare = input(false);
   readonly closed = output<void>();
+  readonly share = output<void>();
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -88,8 +99,20 @@ export class CouponDetail implements OnInit {
   protected readonly status = computed(() => couponStatus(this.live(), this.now));
   protected readonly kind = computed(() => kindLabel(this.live().mode));
   protected readonly discount = computed(() => discountLabel(this.live()));
-  protected readonly duration = computed(() => durationLabel(this.live().durationMonths));
+  protected readonly duration = computed(() => durationText(this.live()));
   protected readonly plan = computed(() => couponPlanName(this.live().planCode));
+  protected readonly allPlans = computed(() => isAllPlans(this.live()));
+  /** Só código que ainda serve: compartilhar um código vencido ou esgotado não ajuda ninguém. */
+  protected readonly shareable = computed(
+    () => this.canShare() && this.isCode() && !!this.code() && this.status().live,
+  );
+  protected readonly priceRows = computed(() => (this.allPlans() ? couponPriceRows(this.live(), this.plans()) : []));
+  protected readonly priceNote = computed(() => durationNote(this.live()));
+  /** Planos à venda que o cupom não cobre (Product novo na Stripe): avisar e pedir outro cupom. */
+  protected readonly uncovered = computed(() => {
+    const codes = this.live().uncoveredPlanCodes ?? [];
+    return codes.length ? codes.map((code) => couponPlanLabel(code)).join(', ') : null;
+  });
   protected readonly validity = computed(() => validityLabel(this.live()));
   protected readonly usesText = computed(() => usesSpaced(this.live()));
   protected readonly progress = computed(() => usesProgress(this.live()));

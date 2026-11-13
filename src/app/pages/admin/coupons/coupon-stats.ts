@@ -1,7 +1,25 @@
 import { AdminCoupon } from '../../../types/admin-coupon.types';
 import { PlanResponse } from '../../../types/billing.types';
 import { parseServerTime } from '../../../utils/server-time';
-import { couponStatus } from './coupon-copy';
+import { planTierOf } from '../../../utils/plan-features';
+import { ALL_PLANS_TIERS, couponStatus, isAllPlans } from './coupon-copy';
+
+/**
+ * Cupom de todos os planos não diz em qual plano cada uso caiu: a estimativa conta o
+ * preço mensal do plano coberto mais barato, e fica do lado de baixo.
+ */
+function cheapestCovered(
+  coupon: Pick<AdminCoupon, 'planCodes'>,
+  monthlyPrices: Readonly<Record<string, number>>,
+): number | undefined {
+  const codes = coupon.planCodes?.length
+    ? coupon.planCodes
+    : Object.keys(monthlyPrices).filter((code) =>
+        (ALL_PLANS_TIERS as readonly string[]).includes(planTierOf(code.split('_')[0]) ?? ''),
+      );
+  const prices = codes.map((code) => monthlyPrices[code]).filter((price): price is number => price > 0);
+  return prices.length ? Math.min(...prices) : undefined;
+}
 
 const DAY_MS = 86_400_000;
 
@@ -79,7 +97,7 @@ export function computeCouponStats(
     if (coupon.amountOffCents !== null) {
       perMonth = coupon.amountOffCents;
     } else if (coupon.percentOff !== null) {
-      const price = coupon.planCode ? monthlyPrices[coupon.planCode] : undefined;
+      const price = isAllPlans(coupon) ? cheapestCovered(coupon, monthlyPrices) : coupon.planCode ? monthlyPrices[coupon.planCode] : undefined;
       perMonth = price ? Math.round((price * coupon.percentOff) / 100) : null;
     }
     if (perMonth === null) {
