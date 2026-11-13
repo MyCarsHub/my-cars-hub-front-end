@@ -1,0 +1,119 @@
+<app-bottom-sheet title="Compartilhar cupom" (closed)="closed.emit()">
+  <div class="flex flex-col gap-4" data-testid="coupon-share">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div class="flex flex-col gap-2">
+        <span class="text-sm font-medium text-fg-muted">Formato</span>
+        <app-segmented-tabs
+          ariaLabel="Formato da imagem"
+          [options]="formatOptions"
+          [value]="format()"
+          (selected)="setFormat($event)"
+        />
+      </div>
+      <div class="flex flex-col gap-2">
+        <span class="text-sm font-medium text-fg-muted">Cor</span>
+        <app-segmented-tabs
+          ariaLabel="Cor da imagem"
+          [options]="toneOptions"
+          [value]="tone()"
+          (selected)="setTone($event)"
+        />
+      </div>
+    </div>
+
+    <!-- The preview IS the PNG that gets shared: what the owner sees is what the customer gets. -->
+    <div
+      class="mx-auto w-full"
+      [class]="format() === 'STORY' ? 'max-w-[15rem]' : 'max-w-[22rem]'"
+      [attr.aria-busy]="rendering() ? 'true' : null"
+    >
+      @if (imageUrl(); as url) {
+        <img
+          [src]="url"
+          [alt]="imageAlt()"
+          class="fade-in block h-auto w-full rounded-2xl shadow-sm transition-opacity duration-200 motion-reduce:transition-none"
+          [class.opacity-60]="rendering()"
+          data-testid="share-image"
+        />
+      } @else if (renderError()) {
+        <div class="flex flex-col items-center gap-3 rounded-2xl bg-surface-sunken p-5 text-center" role="alert" data-testid="share-image-error">
+          <p class="text-sm text-fg-soft">Não foi possível gerar a imagem. A mensagem e o código continuam aqui embaixo.</p>
+          <button
+            type="button"
+            class="press min-h-11 rounded-xl bg-surface px-4 text-sm font-semibold text-fg-soft
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            data-testid="share-image-retry"
+            (click)="draw()"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      } @else {
+        <div
+          class="w-full rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"
+          [class]="format() === 'STORY' ? 'aspect-[9/16]' : 'aspect-square'"
+          role="status"
+          aria-label="Gerando a imagem"
+          data-testid="share-image-loading"
+        ></div>
+      }
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <span class="text-sm font-medium text-fg-muted" id="share-message-label">Mensagem</span>
+      <div class="flex flex-col gap-3 rounded-xl bg-surface-sunken p-3.5 text-[15px] leading-relaxed text-fg"
+           aria-labelledby="share-message-label" data-testid="share-message">
+        @for (paragraph of paragraphs(); track $index) {
+          <p>
+            {{ paragraph.text }}
+            @if (paragraph.code) {
+              <b class="mt-0.5 block font-mono text-[17px] font-bold tracking-wide break-all" data-testid="share-message-code">{{ paragraph.code }}</b>
+            }
+          </p>
+        }
+      </div>
+    </div>
+
+    <p class="text-xs text-fg-subtle">
+      Compartilhar imagem abre o WhatsApp, o Instagram e os outros apps do celular. No computador, a imagem é baixada.
+    </p>
+  </div>
+
+  <div sheetFooter class="flex flex-col gap-2 pt-3">
+    <button
+      type="button"
+      class="press flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-base font-semibold
+             text-white transition-colors hover:bg-primary-600 disabled:opacity-60
+             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+      [disabled]="rendering() || renderError() || sharing()"
+      data-testid="share-image-button"
+      (click)="shareImage()"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v13" />
+      </svg>
+      Compartilhar imagem
+    </button>
+    <div class="flex flex-col gap-2">
+      <button
+        type="button"
+        class="press min-h-12 w-full rounded-xl bg-surface-sunken px-4 text-base font-semibold text-fg-soft
+               hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        data-testid="share-copy-message"
+        (click)="copyMessage()"
+      >
+        Copiar mensagem
+      </button>
+      <button
+        type="button"
+        class="press min-h-12 w-full rounded-xl bg-surface-sunken px-4 text-base font-semibold text-fg-soft
+               hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        data-testid="share-copy-code"
+        (click)="copyCode()"
+      >
+        Copiar código
+      </button>
+    </div>
+  </div>
+</app-bottom-sheet>
