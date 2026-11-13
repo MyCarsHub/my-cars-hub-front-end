@@ -227,14 +227,14 @@
             <p class="text-lg font-semibold tabular-nums">{{ formatCurrency(paidCents()) }}</p>
           </app-painted-card>
         } @else {
-        <div class="rounded-2xl border border-edge bg-surface p-4">
+        <div class="rounded-2xl border border-edge bg-surface p-4" data-testid="kpi-received">
           <p class="text-xs uppercase tracking-wide text-fg-faint">Valor recebido</p>
           <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
             {{ formatCurrency(paidCents()) }}
           </p>
         </div>
         }
-        <div class="rounded-2xl border border-edge bg-surface p-4">
+        <div class="rounded-2xl border border-edge bg-surface p-4" data-testid="kpi-remaining">
           <p class="text-xs uppercase tracking-wide text-fg-faint">Valor restante</p>
           <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
             {{ formatCurrency(remainingCents()) }}
@@ -1107,6 +1107,7 @@
       }
       @if (canUnmarkAsPaid(charge)) {
         <button type="button" role="menuitem" (click)="askUnmarkPaid(charge)"
+          data-testid="charge-menu-unmark"
           class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
           Desmarcar como paga
         </button>

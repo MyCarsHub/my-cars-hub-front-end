@@ -7,10 +7,12 @@ import {
   buildInstalments,
   discountFor,
   flexChargeLabel,
+  businessDayOf,
   instalmentProblems,
   intervalToDays,
   isReceivableOutsideCharge,
   isRenegotiableCharge,
+  periodPhrases,
   percentTextToBps,
   renegotiatedTotalCents,
   splitEvenly,
@@ -138,6 +140,36 @@ describe('charges-flex — regras puras (FEAT-0573)', () => {
 
     it('desconto vazio não entra', () => {
       expect(buildChargePlan({ ...EMPTY_PLAN, discount: { type: 'AMOUNT', value: null, firstPeriods: 3 } })).toBeNull();
+    });
+  });
+
+  describe('dia em Brasília (não o dia UTC)', () => {
+    it('23:38 de 12/11 em Brasília é 13/11 em UTC e continua 12/11', () => {
+      expect(businessDayOf('2026-11-13T02:38:00Z')).toBe('2026-11-12');
+    });
+
+    it('logo depois da meia-noite em Brasília já é o dia seguinte', () => {
+      expect(businessDayOf('2026-11-13T03:00:00Z')).toBe('2026-11-13');
+      expect(businessDayOf('2026-11-13T02:59:59Z')).toBe('2026-11-12');
+    });
+
+    it('instante vazio ou ilegível é null', () => {
+      expect(businessDayOf(null)).toBeNull();
+      expect(businessDayOf('não é data')).toBeNull();
+    });
+  });
+
+  describe('concordância do período (semana é feminina; dia e mês, masculinos)', () => {
+    it.each([
+      ['WEEKLY', 'Todas as semanas', 'As primeiras semanas', 'As 3 primeiras semanas', 'Da semana'],
+      ['DAILY', 'Todos os dias', 'Os primeiros dias', 'Os 3 primeiros dias', 'Do dia'],
+      ['MONTHLY', 'Todos os meses', 'Os primeiros meses', 'Os 3 primeiros meses', 'Do mês'],
+    ] as const)('%s', (freq, all, ones, firstN, from) => {
+      const p = periodPhrases(freq);
+      expect(p.all).toBe(all);
+      expect(p.firstOnes).toBe(ones);
+      expect(p.firstN(3)).toBe(firstN);
+      expect(p.from).toBe(from);
     });
   });
 

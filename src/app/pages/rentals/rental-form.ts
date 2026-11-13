@@ -1472,7 +1472,12 @@ export class RentalForm implements OnInit {
       const each = d.type === 'AMOUNT' ? formatBrl(d.value) : `${(d.value / 100).toLocaleString('pt-BR')}%`;
       rows.push({
         label: 'Desconto',
-        value: `${each} ${d.firstPeriods === 1 ? 'na primeira' : `nas ${d.firstPeriods} primeiras`}`,
+        // Concordância: a semana é feminina; o dia e o mês, masculinos.
+        value: `${each} ${
+          this.billingFrequency() === 'WEEKLY'
+            ? d.firstPeriods === 1 ? 'na primeira' : `nas ${d.firstPeriods} primeiras`
+            : d.firstPeriods === 1 ? 'no primeiro' : `nos ${d.firstPeriods} primeiros`
+        }`,
       });
     }
     if (plan?.defaultSplit) {

@@ -41,6 +41,7 @@ import {
   intervalToDays,
   percentTextToBps,
   periodWord,
+  periodPhrases,
   periodWordPlural,
   splitEvenly,
 } from './charges-flex';
@@ -117,6 +118,7 @@ export class ChargePlanEditor {
 
   protected readonly word = computed(() => periodWord(this.frequency()));
   protected readonly wordPlural = computed(() => periodWordPlural(this.frequency()));
+  protected readonly phrases = computed(() => periodPhrases(this.frequency()));
   protected readonly intervalUnits = INTERVAL_UNIT_OPTIONS;
   private readonly minCents = computed(() => (this.automatic() ? MIN_GATEWAY_CENTS : 1));
 
@@ -190,10 +192,10 @@ export class ChargePlanEditor {
         ? `${word} 1 sai`
         : n <= 4
           ? `${this.wordPlural().charAt(0).toUpperCase() + this.wordPlural().slice(1)} ${Array.from({ length: n }, (_, i) => i + 1).join(', ').replace(/, (\d+)$/, ' e $1')} saem`
-          : `As ${n} primeiras ${this.wordPlural()} saem`;
+          : `${this.phrases().firstN(n)} saem`;
     const rest =
       n < this.periods()
-        ? ` Da ${word.toLowerCase()} ${n + 1} em diante, ${brl(this.rateCents())}.`
+        ? ` ${this.phrases().from} ${n + 1} em diante, ${brl(this.rateCents())}.`
         : '';
     return `${names} a ${brl(this.discountedRate())}.${rest} Multa e juros contam sobre o valor com desconto.`;
   });

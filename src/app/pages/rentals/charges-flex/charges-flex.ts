@@ -6,6 +6,7 @@ import {
   RentalChargeDto,
 } from '../../../types/rental.types';
 import { isOpenChargeStatus } from '../../../utils/rental-charges';
+import { todayInBusinessTz } from '../../../utils/business-clock';
 
 /**
  * FEAT-0573 — Cobranças flexíveis: regras PURAS da interface (sem IO, sem Angular).
@@ -41,6 +42,16 @@ export function intervalLabel(n: number, unit: IntervalUnit): string {
 }
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * O DIA (`yyyy-MM-dd`) de um instante, no fuso de Brasília — nunca o `slice(0, 10)` do texto
+ * UTC, que adianta o dia para quem fez algo depois das 21h. `null` se o instante não existe.
+ */
+export function businessDayOf(instant: string | null | undefined): string | null {
+  if (!instant) return null;
+  const d = new Date(instant);
+  return Number.isNaN(d.getTime()) ? null : todayInBusinessTz(d);
+}
 
 /** Soma dias a uma data ISO em UTC (sem fuso: a data é civil). */
 export function addDaysIso(iso: string, days: number): string {
@@ -225,6 +236,52 @@ export function periodWord(frequency: RentalBillingFrequency | null | undefined)
   return 'Período';
 }
 
+/**
+ * Frases com o gênero certo de cada período (a semana, o dia, o mês): "Todas as semanas",
+ * "Todos os dias", "Os 3 primeiros meses". Concordância à parte, o resto da cópia não muda.
+ */
+export interface PeriodPhrases {
+  /** "Todas as semanas" / "Todos os dias" / "Todos os meses". */
+  all: string;
+  /** "todas as semanas" / "todos os dias" / "todos os meses" (no meio da frase). */
+  allInline: string;
+  /** "as semanas" / "os dias" / "os meses". */
+  these: string;
+  /** "As primeiras semanas" / "Os primeiros dias" / "Os primeiros meses". */
+  firstOnes: string;
+  /** "As 3 primeiras semanas" / "Os 3 primeiros dias". */
+  firstN: (n: number) => string;
+  /** "todas as 12 semanas" / "todos os 12 dias". */
+  allN: (n: number) => string;
+  /** "Da semana" / "Do dia" / "Do mês". */
+  from: string;
+}
+
+export function periodPhrases(frequency: RentalBillingFrequency | null | undefined): PeriodPhrases {
+  const plural = periodWordPlural(frequency);
+  if (frequency === 'WEEKLY') {
+    return {
+      all: `Todas as ${plural}`,
+      allInline: `todas as ${plural}`,
+      these: `as ${plural}`,
+      firstOnes: `As primeiras ${plural}`,
+      firstN: (n) => `As ${n} primeiras ${plural}`,
+      allN: (n) => `todas as ${n} ${plural}`,
+      from: 'Da semana',
+    };
+  }
+  // Dia, mês e período são masculinos.
+  return {
+    all: `Todos os ${plural}`,
+    allInline: `todos os ${plural}`,
+    these: `os ${plural}`,
+    firstOnes: `Os primeiros ${plural}`,
+    firstN: (n) => `Os ${n} primeiros ${plural}`,
+    allN: (n) => `todos os ${n} ${plural}`,
+    from: frequency === 'MONTHLY' ? 'Do mês' : frequency === 'DAILY' ? 'Do dia' : 'Do período',
+  };
+}
+
 export function periodWordPlural(frequency: RentalBillingFrequency | null | undefined): string {
   if (frequency === 'WEEKLY') return 'semanas';
   if (frequency === 'MONTHLY') return 'meses';
@@ -290,31 +347,4 @@ export function renegotiatedTotalCents(charges: readonly Pick<RentalChargeDto, '
   return charges
     .filter((c) => c.status === ('RENEGOTIATED' satisfies ChargeStatus))
     .reduce((acc, c) => acc + c.amount, 0);
-}
-
-// ---------------------------------------------------------------------------
-// G2 — caução dentro de um acordo (REGRA PROVISÓRIA, aguardando o dono)
-// ---------------------------------------------------------------------------
-
-/** O mínimo de um acordo que a regra G2 lê (contrato B5: fontes com tipo e valor original). */
-export interface AgreementShareSource {
-  originalTotalCents: number;
-  sources: ReadonlyArray<{ kind: string; originalAmountCents: number }>;
-}
-
-/**
- * Quanto de UMA cobrança do acordo continua sendo caução. ÚNICO lugar da regra G2.
- *
- * Provisório até o dono decidir (decisão do coordenador, 12/11): a parte da caução num acordo
- * segue sendo caução. Cada cobrança do acordo é rateada pelos valores originais das fontes —
- * fração de caução = soma dos originais das fontes CAUCAO ÷ total original. O backend aplica a
- * mesma regra. Quando o dono responder, muda-se só aqui.
- */
-export function agreementCaucaoShareCents(amountCents: number, agreement: AgreementShareSource | null): number {
-  if (!agreement || agreement.originalTotalCents <= 0) return 0;
-  const caucao = agreement.sources
-    .filter((s) => s.kind === 'CAUCAO')
-    .reduce((acc, s) => acc + s.originalAmountCents, 0);
-  if (caucao <= 0) return 0;
-  return Math.round((amountCents * caucao) / agreement.originalTotalCents);
 }

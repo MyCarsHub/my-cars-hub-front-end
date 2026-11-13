@@ -18,7 +18,7 @@ import { AgreementDto, agreementReasonLabel } from '../../../types/agreement.typ
 import { RentalBillingFrequency, RentalResponseDto } from '../../../types/rental.types';
 import { ChargesFlexService } from './charges-flex.service';
 import { companySafe } from './flex-errors';
-import { agreementName, brDate, brDayMonth, brl, flexChargeLabel, periodWord, splitEvenly } from './charges-flex';
+import { agreementName, brDate, businessDayOf, brDayMonth, brl, flexChargeLabel, periodWord, splitEvenly } from './charges-flex';
 
 const ROLE_LABELS: Record<string, string> = { OWNER: 'dono', MANAGER: 'gerente' };
 
@@ -169,7 +169,7 @@ export class AgreementSheet implements OnInit {
   protected readonly title = computed(() => {
     const a = this.agreement();
     if (!a) return 'Acordo';
-    return `${agreementName(a.seq)} de ${brDate(a.createdAt?.slice(0, 10))}`;
+    return `${agreementName(a.seq)} de ${brDate(businessDayOf(a.createdAt))}`;
   });
 
   protected readonly who = computed(() => {

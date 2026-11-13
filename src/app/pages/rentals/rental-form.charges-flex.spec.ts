@@ -167,6 +167,23 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
     expect(painted.textContent).toContain('Total previsto');
   });
 
+  it.each([
+    ['DAILY', 'Todos os dias a R$ 750,00.', 'Os primeiros dias saem mais baratas.'],
+    ['WEEKLY', 'Todas as semanas a R$ 750,00.', 'As primeiras semanas saem mais baratas.'],
+    ['MONTHLY', 'Todos os meses a R$ 750,00.', 'Os primeiros meses saem mais baratas.'],
+  ] as const)('concordância (%s): "%s" e "%s"', async (frequency, full, first) => {
+    mount(['CHARGES_FLEX']);
+    await fill();
+    cmp().form.patchValue({ billingFrequency: frequency });
+    fixture.detectChanges();
+    await settle();
+
+    const text = (byId('charge-plan-editor')?.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain(full);
+    expect(text).toContain(first);
+    expect(text).not.toMatch(/Todas as (dias|meses)|As primeiras (dias|meses)/);
+  });
+
   it('H1 — aluguel manual mostra que "Como cobrar funciona igual"', async () => {
     mount(['CHARGES_FLEX']);
     await fill();

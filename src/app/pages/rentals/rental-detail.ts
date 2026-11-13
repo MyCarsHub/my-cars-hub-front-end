@@ -87,8 +87,8 @@ import { RenegotiateSheet, RenegotiableOption } from './charges-flex/renegotiate
 import { ReceivedOutsideSheet } from './charges-flex/received-outside-sheet';
 import { AgreementSheet } from './charges-flex/agreement-sheet';
 import {
-  agreementCaucaoShareCents,
   agreementName,
+  businessDayOf,
   brDate,
   brDayMonth,
   flexChargeLabel,
@@ -104,6 +104,10 @@ import {
   RECEIVED_OUTSIDE_REASON_OPTIONS,
   ReceivedOutsideRequestDto,
 } from '../../types/agreement.types';
+
+/** Recebida por fora não se desfaz (mesma frase do backend, sem depender de ele chegar até aqui). */
+const UNMARK_RECEIVED_OUTSIDE_COPY =
+  'Cobrança registrada como recebida por fora não pode ser desmarcada.';
 
 @Component({
   selector: 'app-rental-detail',
@@ -545,28 +549,24 @@ export class RentalDetail implements OnInit {
   });
 
   /**
-   * A parte de ALUGUEL de uma cobrança. Igual ao `amount`, exceto na parcela de acordo que
-   * levou caução: a parte da caução continua caução (regra G2 provisória, ver
-   * `agreementCaucaoShareCents`) e fica fora de "recebido/restante".
+   * FEAT-0573 — UMA regra para todo mundo: a parcela de acordo conta pelo valor inteiro, em
+   * "recebido" e em "restante", exatamente como o Total do aluguel (que o backend recalcula
+   * com o acordo inteiro). A parte da caução dentro de um acordo (G2, provisória) só dá para
+   * separar com o dado do backend na própria cobrança; o cliente a estimava pela lista de
+   * acordos, que só quem tem a chave lê, e por isso "recebido" mudava de quem olhava.
    */
-  private rentPartCents(c: RentalChargeDto): number {
-    if (c.kind !== 'AGREEMENT' || !c.agreementId) return c.amount;
-    const agreement = this.agreements().find((a) => a.id === c.agreementId) ?? null;
-    return c.amount - agreementCaucaoShareCents(c.amount, agreement);
-  }
-
   /** SUM(amount) — status='PAID' em RENTAL_PERIOD + RENTAL_TOTAL (sem CAUCAO). */
   protected readonly paidCents = computed<number>(() =>
     this.scheduleCharges()
       .filter((c) => c.status === 'PAID')
-      .reduce((acc, c) => acc + this.rentPartCents(c), 0),
+      .reduce((acc, c) => acc + c.amount, 0),
   );
 
   /** SUM(amount) das cobrancas EM ABERTO em RENTAL_PERIOD + RENTAL_TOTAL. */
   protected readonly remainingCents = computed<number>(() =>
     this.scheduleCharges()
       .filter((c) => isOpenChargeStatus(c.status))
-      .reduce((acc, c) => acc + this.rentPartCents(c), 0),
+      .reduce((acc, c) => acc + c.amount, 0),
   );
 
   /**
@@ -1251,6 +1251,9 @@ export class RentalDetail implements OnInit {
 
   /** Show "Desmarcar" for PAID charges the gateway does not own (see above). */
   protected canUnmarkAsPaid(charge: RentalChargeDto): boolean {
+    // FEAT-0573: recebida por fora não se desfaz (o dinheiro entrou fora do sistema e o Pix foi
+    // cancelado). O item nem aparece; a recusa abaixo cobre uma tela desatualizada.
+    if (charge.receivedOutside === true) return false;
     if (!this.isManuallySettleable(charge)) return false;
     return charge.status === 'PAID';
   }
@@ -1365,7 +1368,10 @@ export class RentalDetail implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.unmarkPaidBusy.set(false);
         this.unmarkPaidTarget.set(null);
-        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível desmarcar o pagamento.'));
+        // O backend não manda código próprio nesta recusa (contrato B6: "sem desfazer"), então a
+        // frase dedicada vem do que a tela sabe: a cobrança foi registrada como recebida por fora.
+        const generic = this.apiErrors.messageFor(err, 'Não foi possível desmarcar o pagamento.');
+        this.actionError.set(target.receivedOutside ? UNMARK_RECEIVED_OUTSIDE_COPY : generic);
       },
     });
   }
@@ -1835,12 +1841,17 @@ export class RentalDetail implements OnInit {
     const id = this.agreementIdOf(charge);
     const a = id ? this.agreements().find((x) => x.id === id) : null;
     const seq = a?.seq ?? charge.renegotiatedInAgreementSeq ?? charge.agreementSeq ?? null;
-    if (a?.createdAt) return `${agreementName(seq)} de ${brDayMonth(a.createdAt.slice(0, 10))}`;
+    // O dia em Brasília: o `slice` do texto UTC adianta o dia de quem fechou o acordo à noite.
+    const day = businessDayOf(a?.createdAt);
+    if (day) return `${agreementName(seq)} de ${brDayMonth(day)}`;
     return seq && seq > 1 ? `Ver ${agreementName(seq).toLowerCase()}` : 'Ver acordo';
   }
 
   /** O valor cheio riscado ao lado do valor com desconto. */
   protected originalAmount(charge: RentalChargeDto): number | null {
+    // O valor cheio é do PERÍODO inteiro. Numa parcela (N > 1) o backend põe o desconto todo
+    // na 1ª, e riscar "R$ 316,66" nela mostraria um preço que nunca existiu.
+    if ((charge.instalmentCount ?? 1) > 1) return null;
     const o = charge.originalAmountCents;
     return typeof o === 'number' && o > charge.amount ? o : null;
   }

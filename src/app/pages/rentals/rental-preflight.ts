@@ -333,8 +333,10 @@ export interface ChargeScheduleRow {
   fine: string | null;
   interest: string | null;
   destination: string;
-  /** FEAT-0573 — valor cheio antes do desconto; só existe quando há desconto. */
+  /** FEAT-0573 — valor cheio antes do desconto; só em cobrança INTEIRA com desconto. */
   original?: string;
+  /** FEAT-0573 — o período teve desconto (inteiro ou dividido), com o valor cheio dele. */
+  periodDiscount?: { key: string; original: string };
   /** FEAT-0573 — a cobrança é parte de uma dividida ("Cobrança 1", "Caução"); só quando N > 1. */
   splitOf?: string;
 }
@@ -357,6 +359,17 @@ export function buildChargeSchedule(
       : `Multa ${formatPercent((payload.lateFineValue ?? 0) / 100)}`;
   const pct = payload.lateInterestPercentPerMonth ?? 0;
   const interest = pct > 0 ? `Juros ${formatPercent(pct)} ao mês` : 'Sem juros';
+  // Valor cheio por período: a soma das parcelas + o desconto que o backend pôs nelas.
+  const full = new Map<string, number>();
+  const groupOf = (c: (typeof preview.charges)[number]): string => c.group ?? `${c.kind}:${c.index}`;
+  const discounted = new Set(
+    preview.charges.filter((c) => c.kind === 'RENTAL_PERIOD' && (c.discountCents ?? 0) > 0).map(groupOf),
+  );
+  for (const c of preview.charges) {
+    if (c.kind === 'RENTAL_PERIOD' && discounted.has(groupOf(c))) {
+      full.set(groupOf(c), (full.get(groupOf(c)) ?? 0) + c.amountCents + (c.discountCents ?? 0));
+    }
+  }
   return preview.charges.map((c, i) => {
     const isPeriod = c.kind === 'RENTAL_PERIOD';
     // FEAT-0573 — parcela/parte e desconto do plano. Sem plano, a linha é a de antes.
@@ -372,8 +385,11 @@ export function buildChargeSchedule(
       interest: isPeriod ? interest : null,
       destination: c.destination === 'ASAAS' ? 'Vai ao Asaas' : 'Fica só registrada aqui',
     };
-    if (typeof c.originalAmountCents === 'number' && c.originalAmountCents > c.amountCents) {
+    if (count <= 1 && typeof c.originalAmountCents === 'number' && c.originalAmountCents > c.amountCents) {
       row.original = formatBrl(c.originalAmountCents);
+    }
+    if (discounted.has(groupOf(c))) {
+      row.periodDiscount = { key: groupOf(c), original: formatBrl(full.get(groupOf(c)) ?? 0) };
     }
     if (count > 1) row.splitOf = isPeriod ? `Cobrança ${c.index + 1}` : 'Caução';
     return row;
@@ -453,10 +469,12 @@ export function summarizeChargeSchedule(rows: readonly ChargeScheduleRow[]): Cha
       `${name} em ${parts.length} parcelas ${value}: ${parts.map((p) => p.due.slice(0, 5)).join(', ').replace(/, ([^,]+)$/, ' e $1')}.`,
     );
   }
-  const discounted = period.filter((r) => r.original);
-  if (discounted.length > 0) {
+  // Uma linha por PERÍODO com desconto (as parcelas de um período contam uma vez só).
+  const discountedPeriods = new Map<string, string>();
+  for (const r of period) if (r.periodDiscount) discountedPeriods.set(r.periodDiscount.key, r.periodDiscount.original);
+  if (discountedPeriods.size > 0) {
     differences.push(
-      `Desconto: ${discounted.length === 1 ? '1 cobrança sai' : `${discounted.length} cobranças saem`} abaixo de ${discounted[0].original}.`,
+      `Desconto: ${discountedPeriods.size === 1 ? '1 cobrança sai' : `${discountedPeriods.size} cobranças saem`} abaixo de ${[...discountedPeriods.values()][0]}.`,
     );
   }
   const oddAmount = period.filter((r) => r.amount !== common);

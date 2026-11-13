@@ -445,23 +445,82 @@ describe('RentalDetail — Cobranças flexíveis (FEAT-0573)', () => {
       expect(byTestId(fixture, 'charge-settled-by')?.textContent).toContain('Registrada por Marina Souza');
     });
 
-    it('G2 (provisório) — a parte da caução de um acordo pago fica fora do "Valor recebido"', async () => {
-      // Acordo de R$ 2.250 que juntou caução (R$ 1.500) e uma semana (R$ 750): 2/3 é caução.
-      const ag = agreement({
-        originalTotalCents: 225_000,
-        agreedTotalCents: 225_000,
-        differenceCents: 0,
-        sources: [
-          { chargeId: 'k1', kind: 'CAUCAO', periodIndex: null, instalmentIndex: 1, instalmentCount: 1, originalStatus: 'PENDING', originalAmountCents: 150_000, originalDueDate: '2020-01-06', fromAgreementId: null, fromAgreementSeq: null },
-          { chargeId: 'w2', kind: 'RENTAL_PERIOD', periodIndex: 1, instalmentIndex: 1, instalmentCount: 1, originalStatus: 'PAST_DUE', originalAmountCents: 75_000, originalDueDate: '2020-01-13', fromAgreementId: null, fromAgreementSeq: null },
-        ],
-      });
-      const paid = charge({ id: 'a1', kind: 'AGREEMENT', amount: 112_500, status: 'PAID', paidAt: '2026-12-09T10:00:00', periodIndex: null, agreementId: 'ag-1', agreementSeq: 1, instalmentIndex: 1, instalmentCount: 2 });
-      const open = charge({ id: 'a2', kind: 'AGREEMENT', amount: 112_500, periodIndex: null, agreementId: 'ag-1', agreementSeq: 1, instalmentIndex: 2, instalmentCount: 2 });
-      const { fixture } = await mount({ flex: true, charges: [paid, open], agreements: [ag] });
+    describe('Valor recebido e restante: uma regra só, igual para quem tem e para quem não tem a chave', () => {
+      // Acordo que juntou caução e semana, depois renegociado de novo: o cliente não tem como
+      // separar a caução sem o dado do backend, então a parcela conta inteira para todos.
+      const paid = charge({ id: 'a1', kind: 'AGREEMENT', amount: 50_000, status: 'PAID', paidAt: '2026-12-09T10:00:00', periodIndex: null, agreementId: 'ag-1', agreementSeq: 1, instalmentIndex: 1, instalmentCount: 2 });
+      const open = charge({ id: 'a2', kind: 'AGREEMENT', amount: 25_000, periodIndex: null, agreementId: 'ag-2', agreementSeq: 2, instalmentIndex: 1, instalmentCount: 3 });
+      const week = charge({ id: 'w9', periodIndex: 8, dueDate: '2099-12-07' });
+      const sourceKinds = [
+        { chargeId: 'k1', kind: 'CAUCAO' as const, periodIndex: null, instalmentIndex: 1, instalmentCount: 1, originalStatus: 'PENDING' as const, originalAmountCents: 20_000, originalDueDate: '2020-01-06', fromAgreementId: null, fromAgreementSeq: null },
+      ];
 
-      // Recebido: só a parte de aluguel (1/3 de R$ 1.125,00 = R$ 375,00).
-      expect(byTestId(fixture, 'kpi-received-painted')!.textContent).toContain('375,00');
+      function kpis(fixture: ComponentFixture<RentalDetail>): { received: string; remaining: string } {
+        const received = byTestId(fixture, 'kpi-received-painted') ?? byTestId(fixture, 'kpi-received');
+        const remaining = byTestId(fixture, 'kpi-remaining');
+        return {
+          received: /R\$\s[\d.,]+/.exec(received!.textContent!)![0].replace(/\s/g, ' '),
+          remaining: /R\$\s[\d.,]+/.exec(remaining!.textContent!)![0].replace(/\s/g, ' '),
+        };
+      }
+
+      it('com e sem a chave os dois números são os mesmos e batem com a soma das cobranças', async () => {
+        const withFlag = await mount({ flex: true, charges: [paid, open, week], agreements: [agreement({ id: 'ag-1', sources: sourceKinds })] });
+        const a = kpis(withFlag.fixture);
+        const withoutFlag = await mount({ flex: false, charges: [paid, open, week] });
+        const b = kpis(withoutFlag.fixture);
+
+        expect(a.received).toBe('R$ 500,00');
+        expect(a.remaining).toBe('R$ 1.000,00'); // 250,00 do acordo + 750,00 da semana
+        expect(b.received).toBe(a.received);
+        expect(b.remaining).toBe(a.remaining);
+      });
+
+      it('sem a chave nada é estimado: a lista de acordos nem é pedida', async () => {
+        const { http } = await mount({ flex: false, charges: [paid, open, week] });
+        http.expectNone((r) => r.url.includes('/agreements'));
+      });
+    });
+
+    it('2026-11-12 23:38 em Brasília: o vínculo e o título dizem 12/11, não o dia UTC seguinte', async () => {
+      const late = agreement({ createdAt: '2026-11-13T02:38:00Z' });
+      const w2 = { ...OVERDUE_W2, status: 'RENEGOTIATED' as const, renegotiatedInAgreementId: 'ag-1', renegotiatedInAgreementSeq: 1 };
+      const { fixture } = await mount({ flex: true, charges: [w2, ...late.instalments], agreements: [late] });
+
+      expect(byTestId(fixture, 'charge-agreement-link')?.textContent).toContain('Acordo de 12/11');
+      byTestId<HTMLButtonElement>(fixture, 'charge-agreement-link')!.click();
+      await settle(fixture);
+      expect(el(fixture).textContent).toContain('Acordo de 12/11/2026');
+      expect(el(fixture).textContent).toContain('12/11/2026 às 23:38');
+      expect(el(fixture).textContent).not.toContain('13/11');
+    });
+
+    it('parcela de período dividido não risca valor cheio (o desconto é do período, não da parcela)', async () => {
+      const part1 = charge({ id: 'p1', periodIndex: 0, amount: 21_666, discountCents: 10_000, originalAmountCents: 31_666, instalmentIndex: 1, instalmentCount: 3 });
+      const part2 = charge({ id: 'p2', periodIndex: 0, amount: 21_666, instalmentIndex: 2, instalmentCount: 3 });
+      const { fixture } = await mount({ flex: true, charges: [part1, part2] });
+
+      expect(byTestId(fixture, 'charge-original-amount')).toBeNull();
+      expect(el(fixture).textContent).not.toContain('316,66');
+    });
+
+    it('desmarcar: cobrança recebida por fora não oferece o item e a recusa tem frase própria', async () => {
+      const received = charge({
+        id: 'ro', periodIndex: 4, status: 'PAID', externalId: null, checkoutUrl: null,
+        paidAt: '2026-12-10T12:00:00', receivedOutside: true, dueDate: '2020-02-03',
+      });
+      const { fixture, http } = await mount({ flex: true, charges: [received] });
+      expect(menuItem(fixture, 'charge-menu-unmark')).toBeNull();
+
+      const cmp = fixture.componentInstance as unknown as { askUnmarkPaid(c: RentalChargeDto): void; confirmUnmarkPaid(): void };
+      cmp.askUnmarkPaid(received);
+      cmp.confirmUnmarkPaid();
+      http
+        .expectOne(`${BASE}/${RENTAL_ID}/charges/ro/unmark-paid`)
+        .flush({ message: 'Cobranças automáticas só podem ser marcadas como pagas via webhook do gateway.' }, { status: 400, statusText: 'Bad Request' });
+      await settle(fixture);
+      expect(el(fixture).textContent).toContain('Cobrança registrada como recebida por fora não pode ser desmarcada.');
+      expect(el(fixture).textContent).not.toContain('webhook');
     });
 
     it('E — cobrança com falha (sem Pix): o aviso não fala em Pix', async () => {

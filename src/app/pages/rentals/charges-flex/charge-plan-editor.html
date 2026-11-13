@@ -71,7 +71,7 @@
         </span>
         <span class="min-w-0">
           <span class="block text-base font-medium text-fg">Valor cheio</span>
-          <span class="block text-sm text-fg-subtle">Todas as {{ wordPlural() }} a {{ money(rateCents()) }}.</span>
+          <span class="block text-sm text-fg-subtle">{{ phrases().all }} a {{ money(rateCents()) }}.</span>
         </span>
       </button>
       <button type="button" role="checkbox" [attr.aria-checked]="discountOn()" (click)="toggleDiscount()" data-testid="plan-discount"
@@ -83,7 +83,7 @@
         </span>
         <span class="min-w-0">
           <span class="block text-base font-medium text-fg">Desconto nas primeiras</span>
-          <span class="block text-sm text-fg-subtle">As primeiras {{ wordPlural() }} saem mais baratas.</span>
+          <span class="block text-sm text-fg-subtle">{{ phrases().firstOnes }} saem mais baratas.</span>
         </span>
       </button>
       <button type="button" role="checkbox" [attr.aria-checked]="splitOn()" (click)="toggleSplit()" data-testid="plan-split"
@@ -95,7 +95,7 @@
         </span>
         <span class="min-w-0">
           <span class="block text-base font-medium text-fg">Parcelar</span>
-          <span class="block text-sm text-fg-subtle">Dividir uma ou todas as {{ wordPlural() }} em parcelas.</span>
+          <span class="block text-sm text-fg-subtle">Dividir uma ou {{ phrases().allInline }} em parcelas.</span>
         </span>
       </button>
     </div>
@@ -148,7 +148,7 @@
           <button type="button" role="radio" [attr.aria-checked]="splitScope() === 'ALL'" (click)="setSplitScope('ALL')"
             data-testid="plan-split-all"
             class="press min-h-11 rounded-lg text-base font-medium transition-colors"
-            [class]="splitScope() === 'ALL' ? 'bg-primary-500 text-white' : 'text-fg-soft'">Todas as {{ wordPlural() }}</button>
+            [class]="splitScope() === 'ALL' ? 'bg-primary-500 text-white' : 'text-fg-soft'">{{ phrases().all }}</button>
           <button type="button" role="radio" [attr.aria-checked]="splitScope() === 'SOME'" (click)="setSplitScope('SOME')"
             data-testid="plan-split-some"
             class="press min-h-11 rounded-lg text-base font-medium transition-colors"
@@ -186,7 +186,7 @@
         }
       } @else {
         @if (periodRows().length === 0) {
-          <p class="text-sm text-fg-subtle">Preencha o período e o valor para ver as {{ wordPlural() }}.</p>
+          <p class="text-sm text-fg-subtle">Preencha o período e o valor para ver {{ phrases().these }}.</p>
         } @else {
           <ul class="flex flex-col gap-2" role="list" data-testid="plan-period-list">
             @for (row of visiblePeriods(); track row.index) {
@@ -216,7 +216,7 @@
           @if (periodRows().length > 3) {
             <button type="button" (click)="showAllPeriods.set(!showAllPeriods())" [attr.aria-expanded]="showAllPeriods()"
               class="press min-h-11 self-start rounded text-base font-medium text-primary-700 underline dark:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
-              {{ showAllPeriods() ? 'Mostrar menos' : 'Ver as ' + periodRows().length + ' ' + wordPlural() }}
+              {{ showAllPeriods() ? 'Mostrar menos' : 'Ver ' + phrases().allN(periodRows().length) }}
             </button>
           }
         }
