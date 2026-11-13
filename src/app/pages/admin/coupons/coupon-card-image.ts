@@ -32,6 +32,8 @@ const INK = '#262626';
 const DISPLAY = "Sora, 'DM Sans', system-ui, sans-serif";
 /** Letra de máquina: não confunde O com 0 nem I com 1. */
 const MONO = "'JetBrains Mono', ui-monospace, 'SF Mono', monospace";
+/** O peso mais forte do JetBrains Mono que o `index.html` carrega; um peso acima sairia sintetizado. */
+export const CODE_WEIGHT = 600;
 
 /** O que vai escrito no cartão. Tudo sai do cupom; nada é digitado à parte. */
 export interface CardContent {
@@ -180,10 +182,10 @@ function drawCode(
   palette: Palette,
 ): number {
   let size = box.size;
-  ctx.font = `700 ${size}px ${MONO}`;
+  ctx.font = `${CODE_WEIGHT} ${size}px ${MONO}`;
   const natural = ctx.measureText(code).width;
   if (natural + box.padX * 2 > maxWidth) size = Math.floor((size * (maxWidth - box.padX * 2)) / natural);
-  ctx.font = `700 ${size}px ${MONO}`;
+  ctx.font = `${CODE_WEIGHT} ${size}px ${MONO}`;
   const width = ctx.measureText(code).width + box.padX * 2;
   const height = codeBoxHeight(box);
   ctx.fillStyle = palette.codeBg;
@@ -335,17 +337,23 @@ export class CouponCardRenderer {
     const fonts = this.doc.fonts;
     if (!fonts?.load) return;
     await Promise.all(
-      [`800 96px Sora`, `700 28px Sora`, `500 21px Sora`, `600 18px Sora`, `700 44px 'JetBrains Mono'`].map((font) =>
+      [`800 96px Sora`, `700 28px Sora`, `500 21px Sora`, `600 18px Sora`, `${CODE_WEIGHT} 44px 'JetBrains Mono'`].map((font) =>
         fonts.load(font).catch(() => []),
       ),
     );
   }
 
-  /** Sem logo (rede caiu), o cartão sai sem ele em vez de não sair. */
+  /**
+   * Sem logo (rede caiu), o cartão sai sem ele em vez de não sair. A falha não fica
+   * guardada: o próximo cartão tenta buscar o logo de novo.
+   */
   private logo(tone: CardTone): Promise<{ image: HTMLImageElement; ratio: number } | null> {
     let pending = this.logos.get(tone);
     if (!pending) {
-      pending = this.loadLogo(tone).catch(() => null);
+      pending = this.loadLogo(tone).catch(() => {
+        this.logos.delete(tone);
+        return null;
+      });
       this.logos.set(tone, pending);
     }
     return pending;

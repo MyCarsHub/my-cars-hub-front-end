@@ -5,6 +5,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { AdminCoupon } from '../../../types/admin-coupon.types';
 import {
   CARD_SIZE,
+  CODE_WEIGHT,
   CardContent,
   CouponCardRenderer,
   cardContent,
@@ -36,6 +37,26 @@ const BEMVINDO20: AdminCoupon = {
 /** As cores do logo real (`public/svg/logo-my-cars-hub-complete-dark.svg`). */
 const LOGO_SVG =
   '<svg width="1033" height="137"><path d="M1" fill="#F4F4F5"/><path d="M2" fill="#e3230c"/></svg>';
+
+
+/**
+ * Troca uma propriedade global e guarda a original. As suítes rodam com `isolate: false`:
+ * sem devolver no `afterEach`, o stub (share, clipboard, matchMedia...) chega ao próximo arquivo.
+ * `vi.restoreAllMocks()` não desfaz `Object.defineProperty`.
+ */
+const originals: [object, PropertyKey, PropertyDescriptor | undefined][] = [];
+const stubGlobal = (target: object, key: PropertyKey, value: unknown): void => {
+  if (!originals.some(([t, k]) => t === target && k === key)) {
+    originals.push([target, key, Object.getOwnPropertyDescriptor(target, key)]);
+  }
+  Object.defineProperty(target, key, { value, configurable: true, writable: true });
+};
+const restoreGlobals = (): void => {
+  for (const [target, key, descriptor] of originals.splice(0).reverse()) {
+    if (descriptor) Object.defineProperty(target, key, descriptor);
+    else Reflect.deleteProperty(target, key);
+  }
+};
 
 describe('imagem do cupom', () => {
   it('o texto do cartão sai do cupom (prancha G)', () => {
@@ -82,6 +103,26 @@ describe('imagem do cupom', () => {
     const white = recolourLogo(LOGO_SVG, 'WHITE');
     expect(white).toContain('fill="#F63B04"');
     expect(white).toContain('fill="#262626"');
+  });
+
+  it('falha ao buscar o logo não fica guardada: o próximo cartão tenta de novo', async () => {
+    TestBed.resetTestingModule();
+    const fetch = vi.fn(() => Promise.reject(new Error('rede')));
+    stubGlobal(window, 'fetch', fetch);
+    try {
+      const renderer = TestBed.inject(CouponCardRenderer) as unknown as {
+        logo(tone: 'ORANGE' | 'WHITE'): Promise<unknown>;
+      };
+      expect(await renderer.logo('ORANGE')).toBeNull();
+      expect(await renderer.logo('ORANGE')).toBeNull();
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      restoreGlobals();
+    }
+  });
+
+  it('o código sai num peso que o index.html carrega (até 600)', () => {
+    expect(CODE_WEIGHT).toBeLessThanOrEqual(600);
   });
 
   it('nome do arquivo diz o código e o formato', () => {
@@ -176,9 +217,7 @@ describe('CouponShare', () => {
   };
 
   const setNavigator = (props: Record<string, unknown>): void => {
-    for (const [key, value] of Object.entries(props)) {
-      Object.defineProperty(window.navigator, key, { value, configurable: true });
-    }
+    for (const [key, value] of Object.entries(props)) stubGlobal(window.navigator, key, value);
   };
 
   beforeEach(() => {
@@ -187,8 +226,8 @@ describe('CouponShare', () => {
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
     writeText = vi.fn(() => Promise.resolve());
     setNavigator({ clipboard: { writeText }, share: undefined, canShare: undefined });
-    Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:cupom'), configurable: true });
-    Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true });
+    stubGlobal(URL, 'createObjectURL', vi.fn(() => 'blob:cupom'));
+    stubGlobal(URL, 'revokeObjectURL', vi.fn());
     TestBed.configureTestingModule({
       imports: [CouponShare],
       providers: [
@@ -200,6 +239,7 @@ describe('CouponShare', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    restoreGlobals();
   });
 
   it('gera a imagem quadrada laranja e mostra a mensagem com o código em destaque', async () => {

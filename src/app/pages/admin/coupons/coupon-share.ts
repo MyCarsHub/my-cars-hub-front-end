@@ -137,7 +137,7 @@ export class CouponShare implements OnInit {
     const file = new File([blob], name, { type: 'image/png' });
     const nav = this.doc.defaultView?.navigator;
     const data: ShareData = { files: [file], text: this.message() };
-    if (nav?.share && nav.canShare?.({ files: [file] })) {
+    if (nav?.share && nav.canShare?.(data)) {
       this.sharing.set(true);
       try {
         await nav.share(data);

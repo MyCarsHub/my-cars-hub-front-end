@@ -50,9 +50,19 @@ export function planPriceRows(prices: readonly PlanPrice[]): PlanPriceRow[] {
   return [...rows.values()];
 }
 
-/** O preço com o cupom: percentual sobre o preço, valor fixo descontado, nunca abaixo de zero. */
+/** Base 10.000 (centésimos de ponto percentual): conta inteira, sem ponto flutuante no meio. */
+const PERCENT_BASIS = 10_000;
+
+/**
+ * O preço com o cupom: percentual sobre o preço, valor fixo descontado, nunca abaixo de zero.
+ * O percentual vira inteiro antes da conta, e o arredondamento é meio para cima, como o
+ * `HALF_UP` do servidor: o detalhe e a prévia dão o mesmo centavo.
+ */
 export function discountedCents(listCents: number, coupon: Pick<AdminCoupon, 'amountOffCents' | 'percentOff'>): number {
-  if (coupon.percentOff !== null) return Math.round((listCents * (100 - coupon.percentOff)) / 100);
+  if (coupon.percentOff !== null) {
+    const basis = Math.round(coupon.percentOff * 100);
+    return Math.round((listCents * (PERCENT_BASIS - basis)) / PERCENT_BASIS);
+  }
   if (coupon.amountOffCents !== null) return Math.max(listCents - coupon.amountOffCents, 0);
   return listCents;
 }
@@ -60,15 +70,18 @@ export function discountedCents(listCents: number, coupon: Pick<AdminCoupon, 'am
 /**
  * Os planos que o cupom cobre, lidos da tabela de planos. Usa `planCodes` quando o
  * servidor manda; num cupom antigo de todos os planos, os planos pagos STARTER, PRO e SCALE.
+ * O que o servidor lista em `uncoveredPlanCodes` sai sempre: a tabela nunca mostra
+ * desconto num plano que a nota diz que fica de fora.
  */
 export function coveredPlans(
-  coupon: Pick<AdminCoupon, 'planCode'> & Partial<Pick<AdminCoupon, 'allPlans' | 'planCodes'>>,
+  coupon: Pick<AdminCoupon, 'planCode'> & Partial<Pick<AdminCoupon, 'allPlans' | 'planCodes' | 'uncoveredPlanCodes'>>,
   plans: readonly PlanResponse[],
 ): PlanResponse[] {
   const codes = coupon.planCodes?.length ? coupon.planCodes : null;
   const all = isAllPlans(coupon);
+  const uncovered = new Set(coupon.uncoveredPlanCodes ?? []);
   return plans
-    .filter((plan) => plan.price > 0)
+    .filter((plan) => plan.price > 0 && !uncovered.has(plan.code))
     .filter((plan) =>
       codes
         ? codes.includes(plan.code)
@@ -82,7 +95,7 @@ export function coveredPlans(
 /** "Quanto cada plano paga com o cupom", calculado da tabela de planos (o detalhe não tem prévia). */
 export function couponPriceRows(
   coupon: Pick<AdminCoupon, 'planCode' | 'amountOffCents' | 'percentOff'> &
-    Partial<Pick<AdminCoupon, 'allPlans' | 'planCodes'>>,
+    Partial<Pick<AdminCoupon, 'allPlans' | 'planCodes' | 'uncoveredPlanCodes'>>,
   plans: readonly PlanResponse[],
 ): PlanPriceRow[] {
   return planPriceRows(
@@ -105,7 +118,7 @@ export function couponPriceRows(
  */
 export function monthlySavingsLine(
   coupon: Pick<AdminCoupon, 'planCode' | 'amountOffCents' | 'percentOff'> &
-    Partial<Pick<AdminCoupon, 'allPlans' | 'planCodes'>>,
+    Partial<Pick<AdminCoupon, 'allPlans' | 'planCodes' | 'uncoveredPlanCodes'>>,
   plans: readonly PlanResponse[],
 ): string | null {
   if (!isAllPlans(coupon) || coupon.percentOff === null) return null;

@@ -80,6 +80,26 @@ const CREATED: AdminCoupon = {
 const apiError = (status: number, code: string, field: string, message = 'texto do servidor'): HttpErrorResponse =>
   new HttpErrorResponse({ status, error: { message, code, fieldErrors: { [field]: message } } });
 
+
+/**
+ * Troca uma propriedade global e guarda a original. As suítes rodam com `isolate: false`:
+ * sem devolver no `afterEach`, o stub (share, clipboard, matchMedia...) chega ao próximo arquivo.
+ * `vi.restoreAllMocks()` não desfaz `Object.defineProperty`.
+ */
+const originals: [object, PropertyKey, PropertyDescriptor | undefined][] = [];
+const stubGlobal = (target: object, key: PropertyKey, value: unknown): void => {
+  if (!originals.some(([t, k]) => t === target && k === key)) {
+    originals.push([target, key, Object.getOwnPropertyDescriptor(target, key)]);
+  }
+  Object.defineProperty(target, key, { value, configurable: true, writable: true });
+};
+const restoreGlobals = (): void => {
+  for (const [target, key, descriptor] of originals.splice(0).reverse()) {
+    if (descriptor) Object.defineProperty(target, key, descriptor);
+    else Reflect.deleteProperty(target, key);
+  }
+};
+
 describe('CouponSheet — todos os planos e duração', () => {
   let service: Record<string, ReturnType<typeof vi.fn>>;
   let writeText: ReturnType<typeof vi.fn>;
@@ -144,7 +164,7 @@ describe('CouponSheet — todos os planos e duração', () => {
       company: vi.fn(() => of(COMPANY)),
     };
     writeText = vi.fn(() => Promise.resolve());
-    Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
+    stubGlobal(window.navigator, 'clipboard', { writeText });
     TestBed.configureTestingModule({
       imports: [CouponSheet],
       providers: [
@@ -157,6 +177,7 @@ describe('CouponSheet — todos os planos e duração', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    restoreGlobals();
   });
 
   describe('plano', () => {

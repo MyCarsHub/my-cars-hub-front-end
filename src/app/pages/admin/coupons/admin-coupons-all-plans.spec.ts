@@ -74,6 +74,26 @@ const HORIZONTE: AdminCoupon = {
 
 const DONO: AdminCapabilityCode[] = ['ver', 'cupom.gerir'];
 
+
+/**
+ * Troca uma propriedade global e guarda a original. As suítes rodam com `isolate: false`:
+ * sem devolver no `afterEach`, o stub (share, clipboard, matchMedia...) chega ao próximo arquivo.
+ * `vi.restoreAllMocks()` não desfaz `Object.defineProperty`.
+ */
+const originals: [object, PropertyKey, PropertyDescriptor | undefined][] = [];
+const stubGlobal = (target: object, key: PropertyKey, value: unknown): void => {
+  if (!originals.some(([t, k]) => t === target && k === key)) {
+    originals.push([target, key, Object.getOwnPropertyDescriptor(target, key)]);
+  }
+  Object.defineProperty(target, key, { value, configurable: true, writable: true });
+};
+const restoreGlobals = (): void => {
+  for (const [target, key, descriptor] of originals.splice(0).reverse()) {
+    if (descriptor) Object.defineProperty(target, key, descriptor);
+    else Reflect.deleteProperty(target, key);
+  }
+};
+
 describe('Cupons — todos os planos na lista e compartilhar', () => {
   let service: Record<string, ReturnType<typeof vi.fn>>;
   let render: ReturnType<typeof vi.fn>;
@@ -100,15 +120,12 @@ describe('Cupons — todos os planos na lista e compartilhar', () => {
   };
 
   const stubWide = (wide: boolean): void => {
-    Object.defineProperty(window, 'matchMedia', {
-      configurable: true,
-      value: (query: string) => ({
-        matches: wide && query.includes('min-width'),
-        media: query,
-        addEventListener: () => undefined,
-        removeEventListener: () => undefined,
-      }),
-    });
+    stubGlobal(window, 'matchMedia', (query: string) => ({
+      matches: wide && query.includes('min-width'),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
   };
 
   const card = (el: HTMLElement, text: string): HTMLElement =>
@@ -119,8 +136,8 @@ describe('Cupons — todos os planos na lista e compartilhar', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
     render = vi.fn(() => Promise.resolve(new Blob(['png'], { type: 'image/png' })));
-    Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:cupom'), configurable: true });
-    Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true });
+    stubGlobal(URL, 'createObjectURL', vi.fn(() => 'blob:cupom'));
+    stubGlobal(URL, 'revokeObjectURL', vi.fn());
     service = {
       list: vi.fn(() => of([BEMVINDO20, HORIZONTE])),
       company: vi.fn(() => of({ id: 'co-1', name: 'Locadora Horizonte', documentMasked: null, planCode: null, planName: null })),
@@ -135,7 +152,7 @@ describe('Cupons — todos os planos na lista e compartilhar', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    Reflect.deleteProperty(window, 'matchMedia');
+    restoreGlobals();
   });
 
   it('no celular: "Todos os planos · qualquer pessoa" e quanto cada plano economiza por mês', () => {
@@ -257,6 +274,12 @@ describe('Detalhe — todos os planos', () => {
 
   it('plano novo que o cupom não cobre aparece, pedindo outro cupom', () => {
     const { el } = mountDetail({ ...BEMVINDO20, uncoveredPlanCodes: ['PRO_YEARLY_STRIPE'] });
+    const pro = Array.from(el.querySelectorAll('[data-testid="coupon-plan-price-row"]')).find(
+      (row) => row.querySelector('[role="rowheader"]')?.textContent?.trim() === 'Pro',
+    );
+    // A nota diz que o Pro anual fica de fora: a tabela não pode mostrar desconto nele.
+    expect(pro?.querySelectorAll('b')).toHaveLength(1);
+    expect(pro?.textContent).not.toContain('R$ 1.199,20');
     expect(q(el, 'detail-uncovered')?.textContent?.trim()).toBe(
       'O plano Pro anual fica de fora deste cupom. Para cobri-lo, crie outro cupom.',
     );

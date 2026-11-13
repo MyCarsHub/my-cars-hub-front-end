@@ -241,15 +241,27 @@ export class AdminCoupons implements OnInit {
   protected readonly formatDiscountCompact = (cents: number): string =>
     `≈ R$ ${Math.round(cents / 100).toLocaleString('pt-BR')}`;
 
+  /** "+ R$ 59,80 por mês, para sempre": o que os cupons sem fim descontam, fora do total. */
+  private readonly foreverCaption = computed(() => {
+    const cents = this.stats().foreverMonthlyCents;
+    return cents > 0 ? `+ ${formatBRL(Math.round(cents)).replace(/\u00A0/g, ' ')} por mês, para sempre` : null;
+  });
+
   protected readonly discountCaption = computed(() => {
     const { monthsGranted, skippedNoPrice } = this.stats();
     const months = monthsGranted === 1 ? 'até 1 mês' : `até ${monthsGranted} meses`;
-    return skippedNoPrice > 0 ? `estimado · ${months} · ${skippedNoPrice} sem preço` : `estimado · ${months}`;
+    const parts = ['estimado', months];
+    const forever = this.foreverCaption();
+    if (forever) parts.push(forever);
+    if (skippedNoPrice > 0) parts.push(`${skippedNoPrice} sem preço`);
+    return parts.join(' · ');
   });
 
   protected readonly discountCaptionCompact = computed(() => {
     const { monthsGranted, skippedNoPrice } = this.stats();
     if (skippedNoPrice > 0) return `${skippedNoPrice} sem preço`;
+    const forever = this.foreverCaption();
+    if (forever) return forever;
     return monthsGranted === 1 ? 'até 1 mês' : `até ${monthsGranted} meses`;
   });
 

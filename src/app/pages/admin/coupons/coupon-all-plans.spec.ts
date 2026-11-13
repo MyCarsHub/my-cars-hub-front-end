@@ -18,7 +18,7 @@ import {
   uncoveredNote,
 } from './coupon-copy';
 import { redemptionView } from './coupon-detail-copy';
-import { couponPriceRows, monthlySavingsLine, planPriceRows } from './coupon-plan-prices';
+import { couponPriceRows, discountedCents, monthlySavingsLine, planPriceRows } from './coupon-plan-prices';
 import { computeCouponStats, monthlyPriceByPlan } from './coupon-stats';
 
 const NOW = new Date('2026-11-13T12:00:00Z');
@@ -302,7 +302,7 @@ describe('desconto estimado do topo', () => {
     expect(stats.discountCents).toBe(1598 * 12);
   });
 
-  it('uma vez e para sempre contam um mês por uso', () => {
+  it('uma vez conta um mês por uso', () => {
     const once = computeCouponStats(
       [{ ...BEMVINDO20, duration: 'ONCE', durationMonths: null, amountOffCents: 1000, percentOff: null }],
       NOW,
@@ -310,5 +310,54 @@ describe('desconto estimado do topo', () => {
     );
     expect(once.monthsGranted).toBe(4);
     expect(once.discountCents).toBe(4000);
+    expect(once.foreverMonthlyCents).toBe(0);
+  });
+
+  it('para sempre fica fora do total e vira desconto por mês', () => {
+    const stats = computeCouponStats(
+      [{ ...BEMVINDO20, duration: 'FOREVER', durationMonths: null, amountOffCents: 1000, percentOff: null }],
+      NOW,
+      {},
+    );
+    expect(stats.discountCents).toBe(0);
+    expect(stats.monthsGranted).toBe(0);
+    expect(stats.foreverMonthlyCents).toBe(4000);
+    expect(stats.uses).toBe(4);
+  });
+
+  it('plano que fica de fora não entra no preço mais barato da estimativa', () => {
+    const coupon = { ...BEMVINDO20, uncoveredPlanCodes: ['STARTER_MONTHLY_STRIPE', 'STARTER_YEARLY_STRIPE'] };
+    const stats = computeCouponStats([coupon], NOW, monthlyPriceByPlan(PLANS));
+    // Sem o Starter, o mais barato é o Pro mensal: 20% de R$ 149,90 = R$ 29,98 por mês.
+    expect(stats.discountCents).toBe(2998 * 12);
+  });
+});
+
+describe('planos que ficam de fora, na tabela e na linha da lista', () => {
+  const PRO_OUT = { ...BEMVINDO20, uncoveredPlanCodes: ['PRO_MONTHLY_STRIPE'] };
+
+  it('a tabela do detalhe não mostra desconto no plano que a nota diz que fica de fora', () => {
+    const rows = couponPriceRows(PRO_OUT, PLANS);
+    const pro = rows.find((r) => r.name === 'Pro');
+    expect(pro?.monthly).toBeNull();
+    expect(pro?.yearly?.price).toBe('R$ 1.199,20');
+  });
+
+  it('todos os períodos de um plano de fora: o plano some da tabela', () => {
+    const rows = couponPriceRows({ ...BEMVINDO20, uncoveredPlanCodes: ['PRO_MONTHLY_STRIPE', 'PRO_YEARLY_STRIPE'] }, PLANS);
+    expect(rows.map((r) => r.name)).toEqual(['Starter', 'Scale']);
+  });
+
+  it('a linha "por mês" da lista também deixa o plano de fora', () => {
+    expect(monthlySavingsLine(PRO_OUT, PLANS)).toBe('Starter R$ 15,98 · Scale R$ 59,80');
+  });
+});
+
+describe('arredondamento do percentual', () => {
+  it('conta em inteiros e arredonda meio centavo para cima, como o HALF_UP do servidor', () => {
+    // 5% de R$ 79,90 = 75,905 → R$ 75,91; 33,3% de R$ 149,90 = 99,9833 → R$ 99,98.
+    expect(discountedCents(7990, { amountOffCents: null, percentOff: 5 })).toBe(7591);
+    expect(discountedCents(14990, { amountOffCents: null, percentOff: 33.3 })).toBe(9998);
+    expect(discountedCents(14990, { amountOffCents: null, percentOff: 100 })).toBe(0);
   });
 });
