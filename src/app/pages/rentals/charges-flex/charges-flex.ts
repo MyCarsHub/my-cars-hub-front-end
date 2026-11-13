@@ -83,7 +83,7 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 export function brl(cents: number | null | undefined): string {
   // `Intl` usa espaço não separável entre "R$" e o número; normalizado para espaço comum
   // para a cópia (e os testes) lerem como o resto do app escreve.
-  return BRL.format((cents ?? 0) / 100).replace(/ /g, ' ');
+  return BRL.format((cents ?? 0) / 100).replace(/\u00a0/g, ' ');
 }
 
 /**
