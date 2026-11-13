@@ -65,7 +65,18 @@ describe('Google return trip of an invite, through the real guards', { timeout: 
     });
   }
 
-  /** Answers every request from `table` (longest-prefix wins by order) until the page settles. */
+  /**
+   * Answers every request from `table` (longest-prefix wins by order) until the page settles.
+   *
+   * "Settled" is a condition, not a time budget: no navigation in flight and no request
+   * waiting, for `QUIET_TICKS` ticks in a row. The real route table lazy-loads page chunks,
+   * and under full-suite load a fixed 800 ms ran out mid-trip (the first case of a cold
+   * worker ended on /convite). `SETTLE_DEADLINE_MS` only stops a trip that never settles.
+   */
+  const TICK_MS = 20;
+  const QUIET_TICKS = 5;
+  const SETTLE_DEADLINE_MS = 15_000;
+
   async function drive(
     start: string,
     table: Record<string, Reply>,
@@ -86,9 +97,12 @@ describe('Google return trip of an invite, through the real guards', { timeout: 
     const harness = await RouterTestingHarness.create();
     void harness.navigateByUrl(start);
 
-    for (let i = 0; i < 40; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      for (const req of backend.match(() => true)) {
+    const deadline = Date.now() + SETTLE_DEADLINE_MS;
+    let quiet = 0;
+    while (quiet < QUIET_TICKS && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, TICK_MS));
+      const pending = backend.match(() => true);
+      for (const req of pending) {
         const path = req.request.url.replace(API, '').split('?')[0];
         calls.push(`${req.request.method} ${path}`);
         const reply = Object.entries(table).find(([prefix]) => path.startsWith(prefix))?.[1];
@@ -100,6 +114,7 @@ describe('Google return trip of an invite, through the real guards', { timeout: 
           req.flush(reply.body);
         }
       }
+      quiet = pending.length === 0 && router.currentNavigation() === null ? quiet + 1 : 0;
     }
 
     harness.detectChanges();

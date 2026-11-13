@@ -7,69 +7,60 @@ import {
   computed,
   effect,
   inject,
+  input,
   signal,
+  Type,
+  untracked,
   viewChild,
-  viewChildren,
 } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
-import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
+import { NgComponentOutlet } from '@angular/common';
 import { NotificationFeedService } from '../../services/notification-feed.service';
-import { NotificationItem, NotificationSeverity } from '../../types/notification-feed.types';
+import { NotificationBellStore } from './notification-bell.store';
 
-/** Quantidade de notificações mostradas no painel do sino. */
-const PANEL_SIZE = 10;
-
-/** Acima disso o badge vira "99+" (o número real segue no aria-label). */
+/** Acima disso o contador vira "99+" (o número real segue no aria-label). */
 const BADGE_CAP = 99;
 
-const SEVERITY_DOT: Record<NotificationSeverity, string> = {
-  DANGER: 'bg-rose-500',
-  WARNING: 'bg-amber-500',
-  INFO: 'bg-sky-500',
-};
-
 /**
- * Sino de notificações do header — painel com as 10 mais recentes, ação de
- * "marcar todas como lidas" e atalho para `/alertas`.
+ * Sino de notificações (canvas "Menu novo", prancha 3) — o GATILHO e o contador.
  *
- * Acessibilidade: gatilho é `<button aria-haspopup="dialog">` com `aria-expanded`
- * e `aria-label` contendo o número de não lidas; o painel é `role="dialog"`
- * rotulado, recebe o foco ao abrir e é navegável por setas; `Escape` fecha e
- * devolve o foco ao gatilho; o contador é anunciado por `aria-live="polite"`.
+ * O painel (abas Notificações e Vencimentos) é o `BellPanel`, baixado com `import()` na
+ * primeira abertura: ele não pesa no pacote inicial, onde o menu e o sino moram. Se o
+ * download falhar, o lugar do painel mostra o erro com "Tentar de novo".
  *
- * Mobile: o painel vira uma folha full-width ancorada abaixo do header em vez
- * de um dropdown estreito cortado pela borda da tela.
+ * Abrir/fechar e a aba vivem no `NotificationBellStore`: o chip do Dashboard e um link antigo
+ * para `/alertas` abrem o painel direto em Vencimentos.
+ *
+ * Onde mora: na barra de topo do celular (`variant="bar"`, sem caixa) e na faixa do topo do
+ * conteúdo no computador (`variant="floating"`, com a caixa de sempre).
+ *
+ * Acessibilidade: `<button aria-haspopup="dialog">` com `aria-expanded` e o número real no
+ * `aria-label`; o contador também sai numa região `aria-live`. `Escape` e a escolha de um
+ * item devolvem o foco ao gatilho (`store.close(true)`).
  */
 @Component({
   selector: 'app-notification-bell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, ClickOutsideDirective],
+  imports: [NgComponentOutlet],
   templateUrl: './notification-bell.html',
   host: { class: 'relative block' },
 })
 export class NotificationBell implements OnInit, OnDestroy {
+  /** `bar`: dentro da barra de topo do celular. `floating`: faixa do topo no computador. */
+  readonly variant = input<'bar' | 'floating'>('floating');
+
   private readonly feed = inject(NotificationFeedService);
-  private readonly router = inject(Router);
+  protected readonly store = inject(NotificationBellStore);
 
   private readonly trigger = viewChild<ElementRef<HTMLButtonElement>>('trigger');
-  private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
-  private readonly menuItems = viewChildren<ElementRef<HTMLElement>>('menuItem');
+  protected readonly triggerEl = computed(() => this.trigger()?.nativeElement ?? null);
 
-  /**
-   * Armado por `toggle()` e consumido pelo efeito de foco. Campo simples (não
-   * signal) de propósito: o efeito já reage à renderização do painel — este
-   * flag só distingue "acabei de abrir" de "a lista recarregou", para o foco
-   * não ser roubado de volta ao primeiro item enquanto o usuário navega.
-   */
-  private focusOnRender = false;
+  protected readonly open = this.store.open;
+  private readonly unreadCount = this.feed.unreadCount;
 
-  protected readonly open = signal(false);
-  protected readonly items = this.feed.items;
-  protected readonly loading = this.feed.loading;
-  protected readonly error = this.feed.error;
-  protected readonly unreadCount = this.feed.unreadCount;
+  /** O painel, baixado na primeira abertura. */
+  protected readonly panel = signal<Type<unknown> | null>(null);
+  protected readonly panelFailed = signal(false);
 
-  /** Texto do badge: escondido em 0, "99+" acima do teto. */
   protected readonly badgeLabel = computed(() => {
     const n = this.unreadCount();
     return n > BADGE_CAP ? `${BADGE_CAP}+` : `${n}`;
@@ -77,7 +68,6 @@ export class NotificationBell implements OnInit, OnDestroy {
 
   protected readonly hasUnread = computed(() => this.unreadCount() > 0);
 
-  /** Rótulo do gatilho e da região aria-live — sempre com o número real. */
   protected readonly ariaLabel = computed(() => {
     const n = this.unreadCount();
     if (n === 0) return 'Notificações, nenhuma não lida';
@@ -85,27 +75,30 @@ export class NotificationBell implements OnInit, OnDestroy {
     return `Notificações, ${n} não lidas`;
   });
 
-  /**
-   * Ao abrir, o foco entra no painel — no primeiro item quando já há lista, no
-   * próprio painel (`tabindex="-1"`) enquanto ela carrega. Sem isso o foco
-   * permanecia no gatilho e as setas de `onPanelKeydown` nunca disparavam:
-   * quem usa teclado abria um painel inalcançável.
-   */
+  protected readonly triggerClass = computed(() =>
+    this.variant() === 'bar'
+      ? 'rounded-xl hover:bg-surface-sunken'
+      : 'rounded-lg bg-surface shadow-md border border-gray-200 dark:border-edge hover:bg-canvas',
+  );
+
   constructor() {
+    // Abriu (pelo sino ou de fora): baixa o painel, se ainda não veio.
     effect(() => {
-      const items = this.menuItems();
-      const panel = this.panel();
-      if (!this.focusOnRender) return;
-      const target = items[0]?.nativeElement ?? panel?.nativeElement;
-      if (!target) return;
-      this.focusOnRender = false;
-      target.focus();
+      if (this.open()) untracked(() => this.ensurePanel());
+    });
+
+    // O painel pediu o foco de volta (Escape, item escolhido).
+    let seen = this.store.focusRequests();
+    effect(() => {
+      const requests = this.store.focusRequests();
+      if (requests === seen) return;
+      seen = requests;
+      this.trigger()?.nativeElement.focus();
     });
   }
 
   ngOnInit(): void {
-    // Polling do contador (60s, pausado com a aba escondida) sobe na primeira
-    // montagem do sino — nunca antes do usuário estar autenticado.
+    // Polling do contador (60s, pausado com a aba escondida) sobe na primeira montagem.
     this.feed.startPolling();
   }
 
@@ -114,96 +107,23 @@ export class NotificationBell implements OnInit, OnDestroy {
   }
 
   protected toggle(): void {
-    const next = !this.open();
-    this.focusOnRender = next;
-    this.open.set(next);
-    if (next) this.loadPanel();
+    this.store.toggle();
   }
 
-  protected close(): void {
-    this.focusOnRender = false;
-    this.open.set(false);
-  }
-
-  /**
-   * O directive escuta `pointerdown`, que dispara ANTES do `click` do gatilho.
-   * Sem ignorar cliques no próprio gatilho o painel fecharia e o `click`
-   * seguinte o reabriria, tornando impossível fechar pelo sino.
-   */
-  protected onClickOutside(event: Event): void {
-    const triggerEl = this.trigger()?.nativeElement;
-    const target = event.target;
-    if (triggerEl && target instanceof Node && triggerEl.contains(target)) return;
-    this.close();
-  }
-
-  /** Fecha e devolve o foco ao gatilho (Escape / seleção de item). */
   protected closeAndFocusTrigger(): void {
-    this.close();
-    this.trigger()?.nativeElement.focus();
+    this.store.close(true);
   }
 
-  protected onItemClick(item: NotificationItem): void {
-    const target = item.actionUrl;
-    const navigate = (): void => {
-      this.closeAndFocusTrigger();
-      if (target) this.router.navigateByUrl(target);
-    };
-    if (item.read) {
-      navigate();
-      return;
-    }
-    // Nunca otimista: navega depois do 2xx, e navega mesmo se a marcação falhar.
-    this.feed.markRead(item.id).subscribe({ next: navigate, error: navigate });
+  protected retryPanel(): void {
+    this.panelFailed.set(false);
+    this.ensurePanel();
   }
 
-  protected onMarkAllRead(): void {
-    this.feed.markAllRead().subscribe({ error: () => void 0 });
-  }
-
-  /** Setas percorrem os itens do painel; Home/End vão às extremidades. */
-  protected onPanelKeydown(event: KeyboardEvent): void {
-    const elements = this.menuItems().map((ref) => ref.nativeElement);
-    if (elements.length === 0) return;
-
-    // `event.target` é o elemento focado (o handler está no container do menu),
-    // o que evita tocar em `document` dentro do componente.
-    const current = elements.findIndex((el) => el === event.target);
-    let next: number | null = null;
-
-    if (event.key === 'ArrowDown') next = current < 0 ? 0 : (current + 1) % elements.length;
-    else if (event.key === 'ArrowUp') next = current <= 0 ? elements.length - 1 : current - 1;
-    else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = elements.length - 1;
-
-    if (next === null) return;
-    event.preventDefault();
-    elements[next].focus();
-  }
-
-  protected severityDot(severity: NotificationSeverity): string {
-    return SEVERITY_DOT[severity] ?? SEVERITY_DOT.INFO;
-  }
-
-  /**
-   * Vencimento relativo em pt-BR. Sem `new Date()` no template (proibido) —
-   * a conta vive aqui.
-   */
-  protected dueLabel(item: NotificationItem): string {
-    const iso = item.dueDate;
-    if (!iso) return '';
-    const due = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso);
-    if (Number.isNaN(due.getTime())) return '';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    due.setHours(0, 0, 0, 0);
-    const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
-    if (days === 0) return 'vence hoje';
-    if (days < 0) return `vencido há ${Math.abs(days)} dia(s)`;
-    return `faltam ${days} dia(s)`;
-  }
-
-  private loadPanel(): void {
-    this.feed.list(false, 0, PANEL_SIZE).subscribe({ error: () => void 0 });
+  private ensurePanel(): void {
+    if (this.panel() || this.panelFailed()) return;
+    import('./bell-panel').then(
+      (m) => this.panel.set(m.BellPanel),
+      () => this.panelFailed.set(true),
+    );
   }
 }

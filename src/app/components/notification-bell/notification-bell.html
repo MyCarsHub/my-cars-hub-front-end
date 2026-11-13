@@ -1,10 +1,12 @@
 <button
   #trigger
   type="button"
-  class="relative flex items-center justify-center w-11 h-11 rounded-lg bg-surface shadow-md border border-gray-200 dark:border-edge text-gray-700 dark:text-fg-soft hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-500"
+  class="relative inline-flex h-11 min-w-11 items-center justify-center gap-2 px-2.5 text-gray-700 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 active:scale-95 dark:text-fg-soft motion-reduce:transition-none"
+  [class]="triggerClass()"
   [attr.aria-label]="ariaLabel()"
   aria-haspopup="dialog"
   [attr.aria-expanded]="open()"
+  data-tour="alerts"
   (click)="toggle()"
   (keydown.escape)="closeAndFocusTrigger()"
 >
@@ -24,110 +26,37 @@
     <path d="M13.73 21a2 2 0 0 1-3.46 0" />
   </svg>
 
+  <!-- Contador: número em fundo laranja claro, sem bolinha (canvas, prancha 3). -->
   @if (hasUnread()) {
     <span
-      class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-semibold leading-[18px] text-center tabular-nums"
+      class="rounded-lg bg-primary-500/15 px-2 text-[13px] font-bold leading-[18px] text-primary-700 tabular-nums dark:text-primary-400"
       aria-hidden="true"
-    >
-      {{ badgeLabel() }}
-    </span>
+      data-bell-count
+    >{{ badgeLabel() }}</span>
   }
 </button>
 
-<!-- Contador anunciado por leitor de tela sem depender do badge visual. -->
+<!-- Contador anunciado por leitor de tela sem depender do número visual. -->
 <span class="sr-only" aria-live="polite">{{ ariaLabel() }}</span>
 
-<!--
-  Painel é `role="dialog"`, não `role="menu"`: ele contém cromo que não é item de
-  menu (cabeçalho, botão "marcar todas", skeleton e estado vazio), e um `menu`
-  com esses filhos reprova no AXE `aria-required-children`. A lista de
-  notificações vira uma `list`/`listitem` de verdade dentro do diálogo.
--->
+<!-- O painel é baixado na primeira abertura: só o gatilho e o contador ficam no pacote inicial. -->
 @if (open()) {
-  <div
-    #panel
-    appClickOutside
-    (appClickOutside)="onClickOutside($event)"
-    (keydown.escape)="closeAndFocusTrigger()"
-    (keydown)="onPanelKeydown($event)"
-    role="dialog"
-    tabindex="-1"
-    aria-label="Notificações recentes"
-    class="fixed left-2 right-2 top-16 z-50 rounded-xl border border-edge bg-surface shadow-xl focus:outline-none sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96"
-  >
-    <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-edge-soft">
-      <p class="text-sm font-semibold text-fg">Notificações</p>
+  @if (panel(); as panelCmp) {
+    <ng-container *ngComponentOutlet="panelCmp; inputs: { trigger: triggerEl() }" />
+  } @else if (panelFailed()) {
+    <div
+      role="alert"
+      class="fixed left-2 right-2 top-[calc(4rem+env(safe-area-inset-top))] z-50 flex flex-col items-start gap-3 rounded-[20px] bg-surface p-4 shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[440px]"
+      data-bell-chunk-error
+    >
+      <p class="text-[15px] text-fg-muted">Não foi possível abrir as notificações. Verifique a conexão e tente de novo.</p>
       <button
         type="button"
-        class="text-xs font-medium text-primary-700 dark:text-primary-400 hover:text-primary-900 dark:hover:text-primary-400 px-3 min-h-[44px] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-50"
-        [disabled]="!hasUnread()"
-        (click)="onMarkAllRead()"
+        class="flex min-h-11 items-center justify-center rounded-xl bg-primary-500 px-4 text-[15px] font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+        (click)="retryPanel()"
       >
-        Marcar todas como lidas
+        Tentar de novo
       </button>
     </div>
-
-    <div class="max-h-[60vh] overflow-y-auto">
-      @if (loading() && items().length === 0) {
-        <div class="p-4 space-y-2">
-          <div class="h-12 rounded-lg bg-surface-sunken animate-pulse"></div>
-          <div class="h-12 rounded-lg bg-surface-sunken animate-pulse"></div>
-        </div>
-      }
-
-      @if (error(); as loadError) {
-        <p class="px-4 py-6 text-sm text-rose-700 dark:text-rose-300">{{ loadError }}</p>
-      }
-
-      @if (!loading() && !error() && items().length === 0) {
-        <p class="px-4 py-8 text-sm text-fg-subtle text-center">
-          Nenhuma notificação por enquanto.
-        </p>
-      }
-
-      @if (items().length > 0) {
-        <ul class="list-none">
-          @for (item of items(); track item.id) {
-            <li class="border-b border-edge-faint last:border-b-0">
-              <button
-                #menuItem
-                type="button"
-                class="w-full flex items-start gap-3 px-4 py-3 text-left min-h-[56px] hover:bg-surface-muted focus:outline-none focus:bg-surface-muted focus:ring-2 focus:ring-inset focus:ring-primary-400"
-                [class.bg-primary-50]="!item.read" [class.dark:bg-primary-500/10]="!item.read"
-                (click)="onItemClick(item)"
-              >
-                <span
-                  class="mt-1.5 w-2 h-2 rounded-full shrink-0"
-                  [class]="severityDot(item.severity)"
-                  aria-hidden="true"
-                ></span>
-                <span class="min-w-0 flex-1">
-                  <span class="block text-sm font-semibold text-fg truncate">
-                    {{ item.title }}
-                  </span>
-                  <span class="block text-xs text-fg-muted mt-0.5 line-clamp-2">
-                    {{ item.message }}
-                  </span>
-                  @if (dueLabel(item); as due) {
-                    <span class="block text-[11px] text-fg-subtle mt-1">{{ due }}</span>
-                  }
-                </span>
-              </button>
-            </li>
-          }
-        </ul>
-      }
-    </div>
-
-    <div class="px-4 py-3 border-t border-edge-soft">
-      <a
-        #menuItem
-        routerLink="/alertas"
-        class="flex items-center min-h-[44px] text-sm font-medium text-primary-700 dark:text-primary-400 hover:text-primary-900 dark:hover:text-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400 rounded-lg"
-        (click)="closeAndFocusTrigger()"
-      >
-        Ver todos os alertas
-      </a>
-    </div>
-  </div>
+  }
 }

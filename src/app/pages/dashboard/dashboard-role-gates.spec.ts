@@ -1,3 +1,4 @@
+import { NotificationBellStore } from '../../components/notification-bell/notification-bell.store';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import {
@@ -253,7 +254,8 @@ describe('DashboardHome — o que a tela oferece é o que o guard aceita', () =>
      * volta para `0`.
      */
     expect(GUARDS_BY_PATH.has('/alertas')).toBe(true);
-    expect(GUARDS_BY_PATH.get('/alertas')?.length).toBe(1);
+    // Menu novo (13/11): o roleGuard e o `openDueAlertsGuard`, que abre o sino em Vencimentos.
+    expect(GUARDS_BY_PATH.get('/alertas')?.length).toBe(2);
   });
 
   // ------------------------------------------------------- IGUALDADE DAS PONTAS
@@ -297,6 +299,27 @@ describe('DashboardHome — o que a tela oferece é o que o guard aceita', () =>
     expect(guardAdmits('/alertas')).toBe(false);
     expect(host.textContent).not.toContain('Documentos a vencer');
   });
+
+  /*
+   * Menu novo (13/11): os vencimentos saíram da página `/alertas` para a aba Vencimentos do
+   * sino. O chip de documentos abre o sino nessa aba, sem navegar.
+   */
+  it.each(['OWNER', 'MANAGER'] as const)(
+    '%s: o chip de documentos abre o sino na aba Vencimentos, sem trocar de página',
+    (tokenRole) => {
+      const host = render(tokenRole);
+      const chip = Array.from(host.querySelectorAll('app-alert-chip')).find((c) =>
+        c.textContent?.includes('documentos a vencer'),
+      )!;
+      navigateByUrl.mockClear();
+      chip.querySelector('button')!.click();
+
+      const bell = TestBed.inject(NotificationBellStore);
+      expect(bell.open()).toBe(true);
+      expect(bell.tab()).toBe('vencimentos');
+      expect(navigateByUrl).not.toHaveBeenCalled();
+    },
+  );
 
   it('sem o alerta de documentos, o motorista não fica com uma faixa VAZIA no lugar', () => {
     // A faixa inteira sai quando não sobrou chip nenhum: um buraco entre os

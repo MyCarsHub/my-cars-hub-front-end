@@ -1,7 +1,32 @@
 import { AdminCoupon } from '../../../types/admin-coupon.types';
 import { PlanResponse } from '../../../types/billing.types';
 import { parseServerTime } from '../../../utils/server-time';
-import { couponStatus } from './coupon-copy';
+import { planTierOf } from '../../../utils/plan-features';
+import { ALL_PLANS_TIERS, couponDuration, couponStatus, isAllPlans } from './coupon-copy';
+
+/**
+ * Cupom de todos os planos não diz em qual plano cada uso caiu: a estimativa conta o
+ * preço do plano mensal coberto mais barato, e fica do lado de baixo.
+ */
+function cheapestCovered(
+  coupon: Pick<AdminCoupon, 'planCodes' | 'uncoveredPlanCodes'>,
+  monthlyPrices: Readonly<Record<string, number>>,
+): number | undefined {
+  const uncovered = new Set(coupon.uncoveredPlanCodes ?? []);
+  const codes = (
+    coupon.planCodes?.length
+      ? coupon.planCodes
+      : Object.keys(monthlyPrices).filter((code) =>
+          (ALL_PLANS_TIERS as readonly string[]).includes(planTierOf(code.split('_')[0]) ?? ''),
+        )
+  ).filter((code) => !uncovered.has(code));
+  // O mensal, como na linha "Desconto por mês" da lista; o anual só se não houver mensal.
+  const monthly = codes.filter((code) => code.includes('_MONTHLY'));
+  const prices = (monthly.length ? monthly : codes)
+    .map((code) => monthlyPrices[code])
+    .filter((price): price is number => price > 0);
+  return prices.length ? Math.min(...prices) : undefined;
+}
 
 const DAY_MS = 86_400_000;
 
@@ -26,6 +51,11 @@ export interface CouponStats {
   monthsGranted: number;
   /** Cupons por porcentagem que tiveram uso, mas cujo plano não tem preço conhecido: ficaram fora da estimativa. */
   skippedNoPrice: number;
+  /**
+   * ESTIMATIVA em centavos POR MÊS dos cupons "para sempre" (valor por mês x usos). Fica fora
+   * de `discountCents`: não tem fim, então não vira total.
+   */
+  foreverMonthlyCents: number;
 }
 
 /** Preço mensal em centavos por código de plano; plano anual conta 1/12 do preço. */
@@ -58,6 +88,7 @@ export function computeCouponStats(
     discountCents: 0,
     monthsGranted: 0,
     skippedNoPrice: 0,
+    foreverMonthlyCents: 0,
   };
   for (const coupon of coupons) {
     const status = couponStatus(coupon, now);
@@ -74,16 +105,21 @@ export function computeCouponStats(
     stats.uses += uses;
     if (uses === 0) continue;
 
+    const forever = couponDuration(coupon) === 'FOREVER';
     const months = Math.max(coupon.durationMonths ?? 1, 1) * uses;
     let perMonth: number | null = null;
     if (coupon.amountOffCents !== null) {
       perMonth = coupon.amountOffCents;
     } else if (coupon.percentOff !== null) {
-      const price = coupon.planCode ? monthlyPrices[coupon.planCode] : undefined;
+      const price = isAllPlans(coupon) ? cheapestCovered(coupon, monthlyPrices) : coupon.planCode ? monthlyPrices[coupon.planCode] : undefined;
       perMonth = price ? Math.round((price * coupon.percentOff) / 100) : null;
     }
     if (perMonth === null) {
       stats.skippedNoPrice++;
+      continue;
+    }
+    if (forever) {
+      stats.foreverMonthlyCents += perMonth * uses;
       continue;
     }
     stats.discountCents += perMonth * months;

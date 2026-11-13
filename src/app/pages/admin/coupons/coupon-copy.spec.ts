@@ -167,10 +167,10 @@ describe('coupon-copy', () => {
   });
 
   it('escreve a mensagem pronta para o cliente', () => {
-    expect(openCodeMessage('MANOLO100OFF', 'SCALE_MONTHLY_STRIPE', { discountedAmountCents: 19900 }, 1)).toBe(
+    expect(openCodeMessage('MANOLO100OFF', { planCode: 'SCALE_MONTHLY_STRIPE', amountOffCents: 10000, percentOff: null, durationMonths: 1 }, 19900)).toBe(
       'Use o código MANOLO100OFF na hora de assinar o plano Scale e pague R$ 199,00 no primeiro mês.',
     );
-    expect(openCodeMessage('X-1234', 'PRO_MONTHLY_STRIPE', { discountedAmountCents: 9990 }, 3)).toBe(
+    expect(openCodeMessage('X-1234', { planCode: 'PRO_MONTHLY_STRIPE', amountOffCents: 5000, percentOff: null, durationMonths: 3 }, 9990)).toBe(
       'Use o código X-1234 na hora de assinar o plano Pro e pague R$ 99,90 nos primeiros 3 meses.',
     );
   });

@@ -48,3 +48,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Reports downloaded by a spec run (jsPDF/xlsx save() under Node writes to the cwd)
+/relatorio-mycarshub-*.pdf
+/relatorio-mycarshub-*.xlsx

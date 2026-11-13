@@ -32,7 +32,7 @@
 
       <p class="text-lg font-semibold text-fg tabular-nums" data-testid="detail-discount">
         {{ discount() }}
-        <span class="text-sm font-normal text-fg-subtle">por {{ duration() }}</span>
+        <span class="text-sm font-normal text-fg-subtle">{{ duration() }}</span>
       </p>
 
       <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-xs text-fg-subtle">
@@ -54,7 +54,35 @@
           </div>
         }
       </dl>
+
+      @if (uncovered(); as note) {
+        <p class="text-sm text-fg-soft" data-testid="detail-uncovered">{{ note }}</p>
+      }
+
+      @if (shareable()) {
+        <button
+          type="button"
+          class="press flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-base
+                 font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          data-testid="detail-share"
+          (click)="share.emit()"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v13" />
+          </svg>
+          Compartilhar
+        </button>
+      }
     </header>
+
+    @if (priceRows().length > 0) {
+      <section class="space-y-3 rounded-2xl bg-surface-sunken p-3.5" aria-labelledby="detail-prices" data-testid="detail-prices">
+        <h3 id="detail-prices" class="text-sm font-semibold text-fg-body">Quanto cada plano paga com o cupom</h3>
+        <app-coupon-plan-prices [rows]="priceRows()" tone="plain" />
+        <p class="text-xs text-fg-subtle" data-testid="detail-price-note">{{ priceNote() }}</p>
+      </section>
+    }
 
     <section class="grid grid-cols-2 gap-3" aria-label="Resumo dos usos">
       <div app-kpi-card data-kpi="uses" variant="primary" label="Usos" [anchored]="true"

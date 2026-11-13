@@ -1,3 +1,4 @@
+import { SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_EXPANDED } from '../../sidebar/sidebar-width';
 import { computed, Injectable, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { SessionService } from '../../../services/session.service';
@@ -138,7 +139,9 @@ export class LayoutStore {
   readonly mobileTopBar = computed(() => this.isMobile());
 
   /** Current sidebar width token for animations */
-  readonly sidebarWidth = computed(() => (this.isCollapsed() ? '72px' : '260px'));
+  readonly sidebarWidth = computed(() =>
+    this.isCollapsed() ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED,
+  );
 
   private loadTenantsFromStorage(): Tenant[] {
     try {

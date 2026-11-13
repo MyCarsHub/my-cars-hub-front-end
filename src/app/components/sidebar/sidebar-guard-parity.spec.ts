@@ -160,23 +160,22 @@ describe('paridade nav x guard de rota', () => {
     '/vistorias',
     '/multas',
     '/sinistros',
-    '/financiamentos',
-    '/seguros',
-    '/ipva',
     '/motoristas',
     '/gastos',
     '/ajustes',
     '/relatorios',
-    '/alertas',
-    '/novidades',
-    '/roadmap',
+    '/financiamentos',
+    '/seguros',
+    '/ipva',
     '/billing',
     '/configuracoes',
     '/configuracoes/integracoes',
     '/configuracoes/contratos',
     '/configuracoes/membros',
-    '/suporte',
+    '/novidades',
+    '/roadmap',
     '/perfil',
+    '/suporte',
   ];
 
   it('o menu tem EXATAMENTE as rotas esperadas — nem uma a menos', () => {
@@ -186,13 +185,27 @@ describe('paridade nav x guard de rota', () => {
   /**
    * A forma da arvore, pela mesma razao: a lista acima achata pais e filhos, e
    * sozinha nao veria um filho PROMOVIDO a item de topo (mesmas rotas, outro
-   * menu). Os numeros sao os da base medida por AST: 14 de topo, 11 filhos (Gastos, FEAT-0425, e o 14o) — o
-   * item de topo a mais e o Painel do motorista (`/meu-painel`). Novidades (12/11) e o 16o de topo.
+   * menu). Menu novo (13/11): 13 de topo (Administracao, Dashboard, Painel, Alugueis, Frota,
+   * Motoristas, Financeiro, Assinatura, Configuracoes, Novidades, Roadmap de reserva, Perfil,
+   * Suporte) e 15 filhos (Frota 5, Financeiro 6, Configuracoes 4). `/alertas` saiu do menu
+   * (aba Vencimentos do sino), a rota continua.
    */
-  it('a arvore do menu mantem a forma: 16 itens de topo (Novidades, 12/11), 12 filhos', () => {
+  it('a arvore do menu mantem a forma: 13 itens de topo, 15 filhos (menu novo, 13/11)', () => {
     const children = NAV_ITEMS.reduce((total, item) => total + (item.children?.length ?? 0), 0);
 
-    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 16, filhos: 12 });
+    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 13, filhos: 15 });
+    const group = (label: string) =>
+      NAV_ITEMS.find((i) => i.label === label)?.children?.map((c) => c.label);
+    expect(group('Frota')).toEqual(['Veículos', 'Manutenções', 'Vistorias', 'Multas', 'Sinistros']);
+    expect(group('Financeiro')).toEqual([
+      'Gastos',
+      'Ajustes',
+      'Relatórios',
+      'Financiamentos',
+      'Seguros',
+      'IPVA',
+    ]);
+    expect(group('Configurações')).toEqual(['Empresa', 'Integrações', 'Contratos', 'Membros']);
   });
 
   /**
@@ -231,8 +244,8 @@ describe('paridade nav x guard de rota', () => {
     '/vistorias',
     '/novidades',
     '/roadmap',
-    '/suporte',
     '/perfil',
+    '/suporte',
   ] as const;
 
   describe('o motorista', () => {
@@ -352,11 +365,10 @@ describe('paridade nav x guard de rota', () => {
    * para dono e gerente. O back-end nega o DRIVER em todo verbo de /v1/expenses.
    */
   describe('Gastos', () => {
-    it('e raiz do menu, seguida de Ajustes e Relatorios, e nao filho de Frota', () => {
-      const index = NAV_ITEMS.findIndex((i) => i.route === '/gastos');
-      expect(index).toBeGreaterThan(-1);
-      expect(NAV_ITEMS[index + 1]?.route).toBe('/ajustes');
-      expect(NAV_ITEMS[index + 2]?.route).toBe('/relatorios');
+    it('abre o grupo Financeiro, seguida de Ajustes e Relatorios, e nao e filho de Frota', () => {
+      const financeiro = NAV_ITEMS.find((i) => i.label === 'Financeiro')!;
+      const routes = financeiro.children!.map((c) => c.route);
+      expect(routes.slice(0, 3)).toEqual(['/gastos', '/ajustes', '/relatorios']);
       const frota = NAV_ITEMS.find((i) => i.label === 'Frota');
       expect(frota?.children?.some((c) => c.route === '/gastos')).toBe(false);
     });
@@ -383,8 +395,9 @@ describe('paridade nav x guard de rota', () => {
   describe('Ajustes', () => {
     const ROUTES = ['/ajustes', '/ajustes/novo', '/ajustes/abc'];
 
-    it('e raiz do menu, nao filho de Frota', () => {
-      expect(NAV_ITEMS.some((i) => i.route === '/ajustes')).toBe(true);
+    it('e filho de Financeiro, nao de Frota', () => {
+      const financeiro = NAV_ITEMS.find((i) => i.label === 'Financeiro');
+      expect(financeiro?.children?.some((c) => c.route === '/ajustes')).toBe(true);
       const frota = NAV_ITEMS.find((i) => i.label === 'Frota');
       expect(frota?.children?.some((c) => c.route === '/ajustes')).toBe(false);
     });

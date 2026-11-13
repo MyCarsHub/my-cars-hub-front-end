@@ -109,8 +109,11 @@ describe('Sidebar', () => {
 
     const host: HTMLElement = fixture.nativeElement;
     expect(host.querySelector('[data-tour="dashboard"]')).not.toBeNull();
-    expect(host.querySelector('[data-tour="alerts"]')).not.toBeNull();
-    expect(host.querySelector('[data-tour="roadmap"]')).not.toBeNull();
+    // Menu novo: Relatórios mora no grupo Financeiro (o tour abre o grupo pelo botão) e o
+    // Roadmap é a aba de Novidades, no pé. Alertas saiu do menu: a âncora é o sino.
+    expect(host.querySelector('[data-tour="finance-group"]')).not.toBeNull();
+    expect(host.querySelector('[data-tour="roadmap"]')?.getAttribute('href')).toBe('/novidades');
+    expect(host.querySelector('[data-tour="alerts"]')).toBeNull();
   });
 
   describe('Novidades no menu da locadora', () => {
@@ -122,23 +125,30 @@ describe('Sidebar', () => {
       return fixture.nativeElement as HTMLElement;
     }
 
-    it('fica entre Alertas e Roadmap', () => {
-      signInOwner();
+    it('fica no pé, como linha (rodapé V2), e acende também no Roadmap', async () => {
+      const host = signInOwner();
       const labels = (component as unknown as { navItems: () => NavItem[] })
         .navItems()
         .map((item) => item.label);
-      const at = labels.indexOf('Novidades');
-      expect(labels.slice(at - 1, at + 2)).toEqual(['Alertas', 'Novidades', 'Roadmap']);
+      expect(labels).not.toContain('Novidades');
+      expect(labels).not.toContain('Roadmap');
+      const link = host.querySelector('[data-nav-bottom] a.nav-link[href="/novidades"]')!;
+      expect(link).not.toBeNull();
+      expect(host.querySelector('a.nav-link[href="/roadmap"]')).toBeNull();
     });
 
-    it('mostra "1 nova" com uma não lida e nenhum chip sem não lidas', () => {
+    it('mostra o número de não lidas (laranja sólido) e some sem não lidas', () => {
       const badge = TestBed.inject(NewsUnreadBadgeStore);
       const host = signInOwner();
       expect(host.querySelector('[data-nav-badge]')).toBeNull();
       badge.set(1);
       fixture.detectChanges();
       const link = host.querySelector('a.nav-link[href="/novidades"]')!;
-      expect(link.querySelector('[data-nav-badge]')?.textContent?.trim()).toBe('1 nova');
+      const count = link.querySelector('[data-nav-badge]')!;
+      expect(count.textContent?.trim()).toBe('1');
+      expect(count.className).toContain('bg-primary-500');
+      expect(count.className).toContain('text-white');
+      expect(link.getAttribute('aria-label')).toBe('Novidades, 1 nova');
       badge.set(0);
       fixture.detectChanges();
       expect(host.querySelector('[data-nav-badge]')).toBeNull();
@@ -189,6 +199,21 @@ describe('Sidebar', () => {
         .map((item) => item.label);
     }
 
+    function accountLabels(): string[] {
+      return (component as unknown as { accountItems: () => NavItem[] })
+        .accountItems()
+        .map((item) => item.label);
+    }
+
+    /** Abre o ⋮ do bloco do usuário e devolve os itens do menu da conta, na ordem do DOM. */
+    function openAccountMenu(host: HTMLElement): string[] {
+      host.querySelector<HTMLButtonElement>('[data-account-kebab]')!.click();
+      fixture.detectChanges();
+      return Array.from(host.querySelectorAll('[role="menu"] [role="menuitem"]')).map(
+        (el) => el.textContent!.trim(),
+      );
+    }
+
     /** Rótulos renderizados no rodapé fixo (o bloco acima de "Recolher"), na ordem do DOM. */
     function footerLinks(host: HTMLElement): string[] {
       return Array.from(host.querySelectorAll('[data-nav-bottom] a.nav-link')).map(
@@ -207,9 +232,11 @@ describe('Sidebar', () => {
 
     it('na ordem do protótipo, só com o que tem rota para ele', () => {
       signInDriver();
-      // Multas e Alertas são da frota; Configurações espera o endpoint de preferências.
-      expect(topLabels()).toEqual(['Dashboard', 'Financeiro', 'Novidades', 'Veículo', 'Roadmap']);
-      expect(bottomLabels()).toEqual(['Suporte', 'Perfil']);
+      // Multas e Alertas são da frota; Configurações espera o endpoint de preferências. O
+      // Roadmap virou aba de Novidades (menu novo); Suporte e Perfil, o menu da conta.
+      expect(topLabels()).toEqual(['Dashboard', 'Financeiro', 'Novidades', 'Veículo']);
+      expect(bottomLabels()).toEqual([]);
+      expect(accountLabels()).toEqual(['Perfil', 'Suporte']);
     });
 
     it('Financeiro leva a Ganhos, Custos e Metas dentro de /meu-painel', () => {
@@ -225,12 +252,12 @@ describe('Sidebar', () => {
       expect(map.get('Metas')).toBe('/meu-painel/metas');
     });
 
-    it('Novidades vem logo depois de Metas, com "N novas" enquanto houver não lida', () => {
+    it('Novidades vem logo depois de Metas, com o número enquanto houver não lida', () => {
       TestBed.inject(NewsUnreadBadgeStore).set(2);
       const host = signInDriver();
       const link = host.querySelector('a.nav-link[href="/novidades"]')!;
       expect(link.getAttribute('aria-label')).toBe('Novidades, 2 novas');
-      expect(link.querySelector('[data-nav-badge]')?.textContent?.trim()).toBe('2 novas');
+      expect(link.querySelector('[data-nav-badge]')?.textContent?.trim()).toBe('2');
       const metas = host.querySelector('a[aria-label="Metas"]')!;
       expect(metas.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
@@ -266,31 +293,31 @@ describe('Sidebar', () => {
 
     /*
      * Pedido do dono em produção: "suporte e perfil devem ficar em baixo, igual de
-     * dono/gerenciador". Antes ficavam no MEIO da lista rolável, depois de um <hr>.
+     * dono/gerenciador". Menu novo (rodapé V2): moram no ⋮ do bloco do usuário, no pé.
      */
-    it('Suporte e Perfil ficam no rodapé fixo, fora da lista rolável (desktop)', () => {
+    it('Suporte e Perfil ficam no ⋮ do bloco do usuário, no pé, fora da lista rolável', () => {
       const host = signInDriver();
-      expect(footerLinks(host)).toEqual(['Suporte', 'Perfil']);
       const nav = host.querySelector('nav')!;
       expect(nav.querySelector('a[aria-label="Suporte"]')).toBeNull();
       expect(nav.querySelector('a[aria-label="Perfil"]')).toBeNull();
-      expect(nav.querySelector('hr')).toBeNull();
-      // O rodapé vem DEPOIS da lista e ANTES do "Recolher", como no menu do dono.
+      expect(footerLinks(host)).toEqual([]);
       const footer = host.querySelector('[data-nav-bottom]')!;
-      const collapse = host.querySelector('button[aria-label="Recolher sidebar"]')!;
+      expect(footer.querySelector('[data-user-block]')).not.toBeNull();
+      expect(openAccountMenu(host)).toEqual(['Perfil', 'Suporte', 'Sair']);
+      const collapse = host.querySelector('button[aria-label="Recolher menu"]')!;
       expect(nav.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(footer.compareDocumentPosition(collapse) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('no drawer do celular, Suporte e Perfil também ficam no rodapé', () => {
+    it('no drawer do celular, o ⋮ da conta também está no pé e leva a /perfil e /suporte', () => {
       const host = signInDriver();
       layout.setMobile(true);
       layout.openMobile();
       fixture.detectChanges();
-      expect(footerLinks(host)).toEqual(['Suporte', 'Perfil']);
-      expect(host.querySelector('nav a[aria-label="Suporte"]')).toBeNull();
-      expect(links(host).get('Suporte')).toBe('/suporte');
-      expect(links(host).get('Perfil')).toBe('/perfil');
+      openAccountMenu(host);
+      const menu = host.querySelector('[role="menu"]')!;
+      expect(menu.querySelector('[data-account-item="/perfil"]')?.getAttribute('href')).toBe('/perfil');
+      expect(menu.querySelector('[data-account-item="/suporte"]')?.getAttribute('href')).toBe('/suporte');
     });
 
     it('todo item do motorista tem alvo de 44px, inclusive os do rodapé', () => {
@@ -310,38 +337,20 @@ describe('Sidebar', () => {
       expect(layout.mobileTopBar()).toBe(true);
     });
 
-    it('no drawer, o Fechar do motorista tem 44px e cabe no cabeçalho do logo', () => {
-      const host = signInDriver();
-      layout.setMobile(true);
-      layout.openMobile();
-      fixture.detectChanges();
-      const close = host.querySelector<HTMLButtonElement>('[data-drawer-close]')!;
-      for (const cls of ['w-11', 'h-11', 'right-2']) {
-        expect(close.classList.contains(cls), cls).toBe(true);
+    it('no drawer, o Fechar tem 44px e mora no cabeçalho do logo, para todos os papéis', () => {
+      for (const role of ['DRIVER', 'OWNER']) {
+        signInAs(role);
+        layout.tenants.set([tenant(role)]);
+        layout.selectedTenant.set(tenant(role));
+        layout.setMobile(true);
+        layout.openMobile();
+        fixture.detectChanges();
+        const close = (fixture.nativeElement as HTMLElement).querySelector('[data-drawer-close]')!;
+        expect(close.classList.contains('w-11'), role).toBe(true);
+        expect(close.classList.contains('h-11'), role).toBe(true);
+        expect(close.classList.contains('absolute'), role).toBe(false);
+        expect(close.parentElement?.querySelector('img[alt="MyCarsHub logo"]')).not.toBeNull();
       }
-      // 10px + 44px + 10px = os 64px (h-16) do cabeçalho do logo.
-      expect(close.style.top).toBe('0.625rem');
-      // Uma só regra de `top` e de tamanho — duas decidiriam pela ordem do CSS gerado.
-      for (const cls of ['top-4', 'right-3', 'w-8', 'h-8']) {
-        expect(close.classList.contains(cls), cls).toBe(false);
-      }
-    });
-
-    it('no drawer, o Fechar do dono fica como era (32px em top-4)', () => {
-      signInAs('OWNER');
-      layout.tenants.set([tenant('OWNER')]);
-      layout.selectedTenant.set(tenant('OWNER'));
-      layout.setMobile(true);
-      layout.openMobile();
-      fixture.detectChanges();
-      const close = (fixture.nativeElement as HTMLElement).querySelector('[data-drawer-close]')!;
-      for (const cls of ['top-4', 'right-3', 'w-8', 'h-8']) {
-        expect(close.classList.contains(cls), cls).toBe(true);
-      }
-      for (const cls of ['w-11', 'h-11', 'right-2']) {
-        expect(close.classList.contains(cls), cls).toBe(false);
-      }
-      expect((close as HTMLElement).style.top).toBe('');
     });
 
     it('no celular o dono também não tem ☰ flutuante: o dele mora na barra de topo no fluxo', () => {
@@ -356,7 +365,7 @@ describe('Sidebar', () => {
       expect(layout.mobileTopBar()).toBe(true);
     });
 
-    it('não mexe no menu do dono nem no do gerente', () => {
+    it('dono e gerente: Novidades no pé e o ⋮ com Perfil, Suporte e Sair', () => {
       for (const role of ['OWNER', 'MANAGER']) {
         signInAs(role);
         layout.tenants.set([tenant(role)]);
@@ -364,14 +373,14 @@ describe('Sidebar', () => {
         fixture.detectChanges();
         const host = fixture.nativeElement as HTMLElement;
         expect(topLabels()).toContain('Frota');
+        expect(topLabels()).toContain('Financeiro');
         expect(topLabels()).not.toContain('Suporte');
         expect(topLabels()).not.toContain('Perfil');
         expect(links(host).get('Dashboard')).toBe('/dashboard');
         expect(host.querySelector('hr')).toBeNull();
-        expect(host.querySelector('.nav-link.min-h-11')).toBeNull();
-        // O rodapé do dono/gerente é o de sempre: Suporte e Perfil, no mesmo bloco.
-        expect(bottomLabels()).toEqual(['Suporte', 'Perfil']);
-        expect(footerLinks(host)).toEqual(['Suporte', 'Perfil']);
+        expect(bottomLabels()).toEqual(['Novidades']);
+        expect(footerLinks(host)).toEqual(['Novidades']);
+        expect(accountLabels()).toEqual(['Perfil', 'Suporte']);
       }
     });
   });
@@ -408,13 +417,12 @@ describe('Sidebar', () => {
         'Novidades',
         'Veículo',
         'Alertas',
-        'Roadmap',
         'Configurações',
       ]);
-      const bottom = (f.componentInstance as unknown as { bottomNavItems: () => NavItem[] })
-        .bottomNavItems()
+      const account = (f.componentInstance as unknown as { accountItems: () => NavItem[] })
+        .accountItems()
         .map((item) => item.label);
-      expect(bottom).toEqual(['Suporte', 'Perfil']);
+      expect(account).toEqual(['Perfil', 'Suporte']);
 
       const finance = host.querySelector<HTMLButtonElement>('button[aria-label="Financeiro"]')!;
       expect(finance.getAttribute('aria-expanded')).toBe('true');
@@ -496,6 +504,9 @@ describe('Sidebar', () => {
       expect(host.querySelector('[data-tour="dashboard"]')).not.toBeNull();
       expect(host.querySelector('[data-tour="rentals"]')).not.toBeNull();
       expect(host.querySelector('[data-tour="drivers"]')).not.toBeNull();
+      // Relatórios é filho de Financeiro: a âncora existe com o grupo aberto (o tour o abre).
+      host.querySelector<HTMLButtonElement>('[data-tour="finance-group"]')!.click();
+      fixture.detectChanges();
       expect(host.querySelector('[data-tour="reports"]')).not.toBeNull();
     });
   });

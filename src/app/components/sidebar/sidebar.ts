@@ -29,9 +29,11 @@ import {
   DriverNavIcon,
   DriverNavRoutes,
 } from './driver-nav';
+import { SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_EXPANDED } from './sidebar-width';
 import { PersonNamePipe } from '../../pipes/person-name.pipe';
 import { NewsUnreadBadgeStore } from '../../services/news-unread-badge.store';
-import { StatusChip } from '../core/status-chip/status-chip';
+import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
+import { AuthService } from '../../services/auth.service';
 
 export interface NavItem {
   route?: string;
@@ -51,15 +53,32 @@ export interface NavItem {
   tourKey?: string;
   /** Grupo que nasce aberto antes de qualquer clique (menu do motorista: Financeiro). */
   defaultOpen?: boolean;
-  /** Chip ao lado do rótulo. `news` = "N novas" enquanto houver novidade não lida. */
+  /** Contador ao lado do rótulo. `news` = quantas novidades não lidas (some em zero). */
   badge?: 'news';
+  /**
+   * Outras rotas que acendem o item. Novidades acende também em `/roadmap`: o Roadmap virou
+   * uma aba dentro de Novidades (menu novo, 13/11), com a URL de sempre.
+   */
+  activeAlso?: readonly string[];
+  /**
+   * O item só aparece quando NÃO aparece o item desta rota. O Roadmap é aba de Novidades para
+   * quem lê Novidades; quem não lê (sem papel de empresa) continua tendo a linha Roadmap.
+   */
+  fallbackFor?: string;
+  /**
+   * Item da CONTA (Perfil, Suporte): mora no menu de três pontos do bloco do usuário, no pé
+   * (rodapé V2 do canvas), e não como linha. Só vale com `pinBottom`.
+   */
+  account?: boolean;
+  /** Respiro acima do item (só o primeiro visível com a marca o recebe): Assinatura/Configurações. */
+  gapBefore?: boolean;
 }
 
 /** Cartão do topo no lugar do seletor de empresa (a área de administração mostra a PESSOA). */
 export interface SidebarHeaderCard {
   initial: string;
   name: string;
-  /** Linha laranja sob o nome (papel). */
+  /** Linha sob o nome (papel). */
   subtitle: string;
 }
 
@@ -89,6 +108,7 @@ const ICON_IPVA = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20
 const ICON_INSURANCE = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>`;
 const ICON_MEMBERS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
 const ICON_DRIVERS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+const ICON_WALLET = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v10a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z"/><path d="M16.5 14h.01"/></svg>`;
 const ICON_EXPENSES = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>`;
 const ICON_ADJUSTMENTS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4"/></svg>`;
 const ICON_REPORTS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
@@ -152,8 +172,11 @@ export function buildDriverNavItems(routes: DriverNavRoutes): NavItem[] {
       icon,
       exactMatch: entry.exactMatch,
       badge: entry.key === 'novidades' ? 'news' : undefined,
+      // Roadmap é aba de Novidades também para o motorista (menu novo, 13/11).
+      activeAlso: entry.key === 'novidades' && routes.roadmap ? [routes.roadmap] : undefined,
       // Mesmo campo do `NAV_ITEMS`: `navItems`/`bottomNavItems` separam os dois menus igual.
       pinBottom: entry.pinBottom,
+      account: entry.account,
     };
   };
   return DRIVER_NAV.map(toItem).filter((i): i is NavItem => i !== null);
@@ -204,6 +227,14 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['OWNER', 'MANAGER', 'DRIVER'],
     tourKey: TOUR_ANCHORS.rentals,
   },
+  /*
+   * MENU NOVO (canvas "Menu novo", 13/11, aprovado pelo dono): Frota só com o que é do carro
+   * no dia a dia; o dinheiro (Gastos, Ajustes, Relatórios e os três custos fixos do carro) no
+   * grupo Financeiro; Alertas saiu do menu (aba Vencimentos do sino); Roadmap virou aba de
+   * Novidades; Novidades no pé; Suporte e Perfil no menu de três pontos do bloco do usuário.
+   * Nenhuma URL mudou, só o menu. Os `roles` de cada item são os mesmos de antes: a paridade
+   * com os guards é `sidebar-guard-parity.spec.ts`, e o que cada papel vê é `sidebar-roles.spec.ts`.
+   */
   {
     label: 'Frota',
     icon: ICON_VEHICLES,
@@ -222,16 +253,10 @@ export const NAV_ITEMS: NavItem[] = [
         icon: ICON_MAINT,
         roles: ['OWNER', 'MANAGER'],
       },
-      // FEAT-0142 — "Frota → Vistorias", pedido do dono, e FILHA de Frota:
-      // entre Manutenções e Multas, nunca item de primeiro nível. `roles` casa
-      // com o `roleGuard` da rota `/vistorias` em `app.routes.ts` — os dois
-      // conjuntos são iguais, então o item nunca oferece porta que o guard bata
-      // na cara.
-      //
-      // O MOTORISTA também vê este item: é a única entrada dele para continuar
-      // uma vistoria e ler uma recusa. Como Veículos, Manutenções e o resto do
-      // grupo não são dele, `allowedItems` não desenha um grupo "Frota" com um
-      // filho só — o item sobe para o primeiro nível (ver lá).
+      // FEAT-0142 — filha de Frota, entre Manutenções e Multas. `roles` casa com o `roleGuard`
+      // da rota `/vistorias`. O MOTORISTA também vê este item (a entrada dele para continuar
+      // uma vistoria); como o resto do grupo não é dele, `allowedItems` sobe o item para o
+      // primeiro nível em vez de desenhar "Frota" com um filho só.
       {
         route: '/vistorias',
         label: 'Vistorias',
@@ -245,15 +270,6 @@ export const NAV_ITEMS: NavItem[] = [
         icon: ICON_INCIDENTS,
         roles: ['OWNER', 'MANAGER'],
       },
-      {
-        route: '/financiamentos',
-        label: 'Financiamentos',
-        icon: ICON_FINANCING,
-        roles: ['OWNER', 'MANAGER'],
-      },
-      { route: '/seguros', label: 'Seguros', icon: ICON_INSURANCE, roles: ['OWNER', 'MANAGER'] },
-      // STORY-VEHICLE-FINANCE — junto de Financiamentos e Seguros: os três custos fixos do carro.
-      { route: '/ipva', label: 'IPVA', icon: ICON_IPVA, roles: ['OWNER', 'MANAGER'] },
     ],
   },
   {
@@ -263,72 +279,43 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['OWNER', 'MANAGER'],
     tourKey: TOUR_ANCHORS.drivers,
   },
-  // FEAT-0425 — Gastos da locadora: item de PRIMEIRO nível, antes de Relatórios, fora de Frota.
-  // `roles` casa com o `roleGuard` da rota `gastos`; o back-end nega o DRIVER em tudo.
-  { route: '/gastos', label: 'Gastos', icon: ICON_EXPENSES, roles: ['OWNER', 'MANAGER'] },
-  // V141 — Ajustes (cobrança avulsa ao motorista): primeiro nível, logo depois de Gastos e fora
-  // de Frota, como no canvas MenuLateral. `roles` casa com o `roleGuard` da rota `ajustes`.
-  { route: '/ajustes', label: 'Ajustes', icon: ICON_ADJUSTMENTS, roles: ['OWNER', 'MANAGER'] },
   {
-    /*
-     * FIX-0607 — estava `roles: ['OWNER']` enquanto a rota rodava
-     * `roleGuard(['OWNER', 'MANAGER'])` (`app.routes.ts`, rota `relatorios`).
-     * O gerente TINHA a permissão e não via o item: chegava só digitando a URL.
-     * Não dava erro nenhum, e por isso ninguém reportou — a tela simplesmente
-     * não existia para ele.
-     *
-     * A paridade que este item quebrava agora é teste:
-     * `sidebar-guard-parity.spec.ts` varre NAV_ITEMS contra os guards reais e
-     * falha nos DOIS sentidos.
-     */
-    route: '/relatorios',
-    label: 'Relatórios',
-    icon: ICON_REPORTS,
-    roles: ['OWNER', 'MANAGER'],
-    tourKey: TOUR_ANCHORS.reports,
+    label: 'Financeiro',
+    icon: ICON_WALLET,
+    tourKey: TOUR_ANCHORS.financeGroup,
+    children: [
+      // FEAT-0425 — Gastos da locadora. `roles` casa com o `roleGuard` da rota `gastos`.
+      { route: '/gastos', label: 'Gastos', icon: ICON_EXPENSES, roles: ['OWNER', 'MANAGER'] },
+      // V141 — Ajustes (cobrança avulsa ao motorista). `roles` casa com o `roleGuard` da rota.
+      { route: '/ajustes', label: 'Ajustes', icon: ICON_ADJUSTMENTS, roles: ['OWNER', 'MANAGER'] },
+      // FIX-0607 — OWNER e MANAGER, como o `roleGuard` da rota `relatorios`.
+      {
+        route: '/relatorios',
+        label: 'Relatórios',
+        icon: ICON_REPORTS,
+        roles: ['OWNER', 'MANAGER'],
+        tourKey: TOUR_ANCHORS.reports,
+      },
+      {
+        route: '/financiamentos',
+        label: 'Financiamentos',
+        icon: ICON_FINANCING,
+        roles: ['OWNER', 'MANAGER'],
+      },
+      { route: '/seguros', label: 'Seguros', icon: ICON_INSURANCE, roles: ['OWNER', 'MANAGER'] },
+      { route: '/ipva', label: 'IPVA', icon: ICON_IPVA, roles: ['OWNER', 'MANAGER'] },
+    ],
   },
-  // Transversal (CNH, CRLV, seguro, financiamento) — fica fora do grupo "Frota".
-  // FEAT-0108: deixou de ser sem restrição. `/v1/alerts` não está na lista de
-  // permitidos do FIX-0360, então para um DRIVER a tela é 403 — os vencimentos
-  // aqui são os da FROTA, não os dele.
-  {
-    route: '/alertas',
-    label: 'Alertas',
-    icon: ICON_ALERTS,
-    roles: ['OWNER', 'MANAGER'],
-    tourKey: TOUR_ANCHORS.alerts,
-  },
-  // Novidades (feed de anúncios): entre Alertas e Roadmap, com "N novas" enquanto houver não
-  // lida (canvas NovidadesPagina, 12/11). Todos os papéis de empresa: cada um lê as do seu
-  // público. `roles` casa com o `roleGuard` da rota `novidades`.
-  {
-    route: '/novidades',
-    label: 'Novidades',
-    icon: ICON_NEWS,
-    roles: ['OWNER', 'MANAGER', 'DRIVER'],
-    badge: 'news',
-  },
-  // O MOTORISTA lê o Roadmap, e só lê: `GET /v1/feedback/tasks` é dele, criar,
-  // editar e votar não — a tela esconde esses controles por papel.
-  { route: '/roadmap', label: 'Roadmap', icon: ICON_ROADMAP, tourKey: TOUR_ANCHORS.roadmap },
-  { route: '/billing', label: 'Assinatura', icon: ICON_BILLING, roles: ['OWNER'] },
+  // Plano e cobrança: só o dono (o gerente é "dono menos billing", FEAT-0228).
+  { route: '/billing', label: 'Assinatura', icon: ICON_BILLING, roles: ['OWNER'], gapBefore: true },
   {
     label: 'Configurações',
     icon: ICON_SETTINGS,
     tourKey: TOUR_ANCHORS.settingsGroup,
+    gapBefore: true,
     children: [
-      // FEAT-0228 — esta área VOLTOU para o MANAGER: a regra do produto agora é
-      // uma só, **gerente é dono MENOS billing**. Decisão do dono.
-      //
-      // O texto anterior ("a área toda é OWNER-only", porque a regra de multa
-      // por atraso perdeu a tela e sobrava só leitura) era verdade e deixou de
-      // ser. Substituído, não complementado: um comentário que afirma o
-      // contrário do código abaixo dele é pior que comentário nenhum.
-      //
-      // O que continua OWNER-only é `/billing` (Assinatura), acima — plano e
-      // cobrança, só ele. Não reintroduza `roles: ['OWNER']` nestes filhos
-      // achando que restaura o fix antigo: `sidebar-guard-parity.spec.ts`
-      // reprova, e os `roleGuard` de `app.routes.ts` mudaram junto.
+      // FEAT-0228 — esta área é do OWNER e do MANAGER (gerente é dono MENOS billing). Não
+      // reintroduza `roles: ['OWNER']` aqui: `sidebar-guard-parity.spec.ts` reprova.
       {
         route: '/configuracoes',
         label: 'Empresa',
@@ -350,36 +337,8 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ['OWNER', 'MANAGER'],
         tourKey: TOUR_ANCHORS.contractTemplate,
       },
-      /*
-       * FEAT-0267 — Convites DEIXOU DE TER ITEM PROPRIO, e isto nao e remocao de
-       * funcionalidade: a tela continua existindo em `/configuracoes/convites` e
-       * continua sendo o formulario, agora alcancada pelo botao "Convidar pessoa"
-       * dentro de Membros.
-       *
-       * Dois itens para a MESMA lista seria pior que duas listas: a pessoa clica num,
-       * ve tudo, clica no outro, ve o mesmo, e passa a desconfiar da tela. Membros
-       * mostra quem tem acesso E quem foi convidado, com o estado por linha.
-       *
-       * O nome ficou MEMBROS de proposito. "Pessoas" ou "Equipe" descreveriam igual,
-       * e o usuario ja aprendeu esta palavra — renomear agora custaria mais do que
-       * ganha.
-       */
-      /*
-       * FEAT-0266 — Membros ao lado de Convites, que e o vizinho logico: quem JA
-       * tem acesso e quem ainda NAO tem sao a mesma pergunta em dois tempos.
-       *
-       * A tela nasceu alcancavel so por URL, e isso nao e entregue: ninguem digita
-       * `/configuracoes/membros`. Mesmo defeito que o FIX-0553 consertou para
-       * Convites, uma carta antes — rota, tela e guard existindo sem porta.
-       *
-       * `roles` casa EXATAMENTE com o `roleGuard(['OWNER', 'MANAGER'])` da rota e com
-       * o do pai `/configuracoes`: nem mais, nem menos, para o item nunca oferecer
-       * porta que o guard bata na cara. Quem prova a igualdade e
-       * `sidebar-guard-parity.spec.ts`, nao este paragrafo.
-       *
-       * Sem `tourKey`, pela mesma razao que Convites: acrescentar um passo exigiria
-       * mexer em `TOUR_ANCHORS` e no servico do tour, que e outro no.
-       */
+      // FEAT-0266/0267 — Membros mostra quem tem acesso E quem foi convidado; Convites não tem
+      // item próprio (botão "Convidar pessoa" dentro de Membros).
       {
         route: '/configuracoes/membros',
         label: 'Membros',
@@ -388,32 +347,64 @@ export const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  // Suporte é de todos os papéis: o MOTORISTA voltou. Ele tinha saído porque
-  // `/v1/support/tickets` era 403 e a tela só mostrava erro; o backend agora libera a ele
-  // abrir e ler os PRÓPRIOS tickets, e a tela só faz essas duas chamadas. A rota tem o
-  // mesmo `roleGuard` — `sidebar-guard-parity.spec.ts` mede a igualdade.
+  // Novidades no pé (rodapé V2): os três papéis de empresa, como o `roleGuard` da rota. O
+  // Roadmap é a aba ao lado, por isso o item acende também em `/roadmap`.
+  {
+    route: '/novidades',
+    label: 'Novidades',
+    icon: ICON_NEWS,
+    roles: ['OWNER', 'MANAGER', 'DRIVER'],
+    badge: 'news',
+    pinBottom: true,
+    activeAlso: ['/roadmap'],
+    tourKey: TOUR_ANCHORS.roadmap,
+  },
+  // O Roadmap não tem guard de papel. Quem lê Novidades chega a ele pela aba; quem não lê
+  // (sessão sem papel de empresa) continua com a linha própria, para não perder a tela.
+  {
+    route: '/roadmap',
+    label: 'Roadmap',
+    icon: ICON_ROADMAP,
+    pinBottom: true,
+    fallbackFor: '/novidades',
+    tourKey: TOUR_ANCHORS.roadmap,
+  },
+  // Conta (menu de três pontos do bloco do usuário, na ordem do canvas: Perfil, Suporte, Sair).
+  { route: '/perfil', label: 'Perfil', icon: ICON_PROFILE, pinBottom: true, account: true },
+  // Suporte é de todos os papéis de empresa (o backend libera ao motorista os PRÓPRIOS
+  // tickets); a rota tem o mesmo `roleGuard`.
   {
     route: '/suporte',
     label: 'Suporte',
     icon: ICON_SUPPORT,
     roles: ['OWNER', 'MANAGER', 'DRIVER'],
     pinBottom: true,
+    account: true,
   },
-  { route: '/perfil', label: 'Perfil', icon: ICON_PROFILE, pinBottom: true },
 ];
+
+export { SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_EXPANDED } from './sidebar-width';
+
+/** Duas iniciais do nome ("Marina Lopes" → "ML"). */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  const last = parts.length > 1 ? parts[parts.length - 1].charAt(0) : '';
+  return (parts[0].charAt(0) + last).toUpperCase();
+}
 
 @Component({
   selector: 'app-sidebar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PersonNamePipe, NgTemplateOutlet, RouterLink, RouterLinkActive, CompanySwitcher, StatusChip],
-  host: { '(document:keydown.escape)': 'onEscape()' },
+  imports: [PersonNamePipe, NgTemplateOutlet, RouterLink, RouterLinkActive, CompanySwitcher, ClickOutsideDirective],
+  host: { '(document:keydown.escape)': 'onEscape()', '[@.disabled]': 'reducedMotion' },
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css',
   animations: [
     trigger('sidebarWidth', [
-      state('expanded', style({ width: '260px' })),
-      state('collapsed', style({ width: '72px' })),
-      transition('expanded <=> collapsed', animate('300ms cubic-bezier(0.4, 0, 0.2, 1)')),
+      state('expanded', style({ width: SIDEBAR_WIDTH_EXPANDED })),
+      state('collapsed', style({ width: SIDEBAR_WIDTH_COLLAPSED })),
+      transition('expanded <=> collapsed', animate('300ms cubic-bezier(0.32, 0.72, 0, 1)')),
     ]),
     trigger('fadeLabel', [
       transition(':enter', [
@@ -428,11 +419,11 @@ export const NAV_ITEMS: NavItem[] = [
     trigger('dropdownSlide', [
       transition(':enter', [
         style({ height: 0, opacity: 0, overflow: 'hidden' }),
-        animate('250ms cubic-bezier(0.4, 0, 0.2, 1)', style({ height: '*', opacity: 1 })),
+        animate('300ms cubic-bezier(0.32, 0.72, 0, 1)', style({ height: '*', opacity: 1 })),
       ]),
       transition(':leave', [
         style({ overflow: 'hidden' }),
-        animate('200ms cubic-bezier(0.4, 0, 0.2, 1)', style({ height: 0, opacity: 0 })),
+        animate('240ms cubic-bezier(0.32, 0.72, 0, 1)', style({ height: 0, opacity: 0 })),
       ]),
     ]),
     trigger('overlayFade', [
@@ -445,26 +436,16 @@ export const NAV_ITEMS: NavItem[] = [
     trigger('mobileSlide', [
       transition(':enter', [
         style({ transform: 'translateX(-100%)' }),
-        animate('300ms cubic-bezier(0.4, 0, 0.2, 1)', style({ transform: 'translateX(0)' })),
+        animate('340ms cubic-bezier(0.32, 0.72, 0, 1)', style({ transform: 'translateX(0)' })),
       ]),
       transition(':leave', [
-        animate('250ms cubic-bezier(0.4, 0, 0.2, 1)', style({ transform: 'translateX(-100%)' })),
+        animate('280ms cubic-bezier(0.32, 0.72, 0, 1)', style({ transform: 'translateX(-102%)' })),
       ]),
-    ]),
-    trigger('rotateChevron', [
-      state('expanded', style({ transform: 'rotate(0deg)' })),
-      state('collapsed', style({ transform: 'rotate(180deg)' })),
-      transition('expanded <=> collapsed', animate('300ms cubic-bezier(0.4, 0, 0.2, 1)')),
     ]),
     trigger('rotateTenantChevron', [
       state('closed', style({ transform: 'rotate(0deg)' })),
       state('open', style({ transform: 'rotate(180deg)' })),
       transition('closed <=> open', animate('250ms cubic-bezier(0.4, 0, 0.2, 1)')),
-    ]),
-    trigger('rotateGroupChevron', [
-      state('collapsed', style({ transform: 'rotate(0deg)' })),
-      state('expanded', style({ transform: 'rotate(90deg)' })),
-      transition('collapsed <=> expanded', animate('200ms cubic-bezier(0.4, 0, 0.2, 1)')),
     ]),
   ],
 })
@@ -484,6 +465,8 @@ export class Sidebar {
   private readonly doc = inject(DOCUMENT);
   private readonly injector = inject(Injector);
   private readonly drawer = viewChild<ElementRef<HTMLElement>>('drawer');
+  private readonly accountMenu = viewChild<ElementRef<HTMLElement>>('accountMenu');
+  private readonly accountTrigger = viewChild<ElementRef<HTMLButtonElement>>('accountTrigger');
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly sanitizer = inject(DomSanitizer);
   private readonly session = inject(SessionService);
@@ -540,6 +523,18 @@ export class Sidebar {
     return { initial: tenant.initial, name: tenant.name, subtitle: this.roleLabel(tenant.role) };
   });
 
+  /** Bloco da empresa (papel em cinza, menu novo) ou cartão da área (papel em laranja, como era). */
+  protected readonly isCompanyCard = computed(() => this.headerCard() === null);
+
+  /** Movimento reduzido pedido pelo sistema: as animações do menu ficam desligadas. */
+  protected readonly reducedMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /** Menu de três pontos da conta (Perfil, Suporte, Sair). */
+  protected readonly accountMenuOpen = signal(false);
+
   /**
    * Label enter animation (`fadeLabel`: width 0 -> auto with `truncate`) must NOT play on the
    * first paint: on a hard reload the main thread is busy, the animation freezes part-way and
@@ -592,7 +587,7 @@ export class Sidebar {
       if (item.roles && !(role && item.roles.includes(role))) return false;
       return true;
     };
-    return NAV_ITEMS.reduce<NavItem[]>((acc, item) => {
+    const visible = NAV_ITEMS.reduce<NavItem[]>((acc, item) => {
       if (!passes(item)) return acc;
       if (item.children) {
         const visibleChildren = item.children.filter(passes);
@@ -611,14 +606,42 @@ export class Sidebar {
       }
       return acc;
     }, []);
+    // `fallbackFor`: a linha só fica quando o item que ela substitui não está no menu.
+    const shown = new Set(visible.map((item) => item.route).filter(Boolean));
+    return visible.filter((item) => !item.fallbackFor || !shown.has(item.fallbackFor));
   });
 
   protected readonly navItems = computed(() =>
     this.allowedItems().filter((item) => !item.pinBottom),
   );
 
+  /** Linhas do pé (Novidades; na área de administração, as do modelo dela). */
   protected readonly bottomNavItems = computed(() =>
-    this.allowedItems().filter((item) => item.pinBottom),
+    this.allowedItems().filter((item) => item.pinBottom && !item.account),
+  );
+
+  /** Perfil e Suporte: o menu de três pontos do bloco do usuário (rodapé V2). */
+  protected readonly accountItems = computed(() =>
+    this.allowedItems().filter((item) => item.pinBottom && item.account),
+  );
+
+  /** Primeiro item com respiro acima (Assinatura para o dono, Configurações para o gerente). */
+  protected readonly firstGapItem = computed(() => this.navItems().find((i) => i.gapBefore) ?? null);
+
+  /**
+   * Nome de quem está logado, para o bloco do usuário no pé — a mesma fonte do Perfil
+   * (`sessionStorage.name`, gravado por `/auth/me`). Relido a cada troca de empresa.
+   */
+  protected readonly userName = computed(() => {
+    this.layout.selectedTenant();
+    return this.session.getItem('name') || 'Sua conta';
+  });
+
+  protected readonly userInitials = computed(() => initialsOf(this.userName()));
+
+  /** Coluna do computador recolhida (só ícones). */
+  protected readonly collapsedDesk = computed(
+    () => this.layout.isCollapsed() && !this.layout.isMobile(),
   );
 
   protected isExpanded(item: NavItem): boolean {
@@ -629,9 +652,43 @@ export class Sidebar {
     return item.children?.some((c) => !!c.route && url.startsWith(c.route)) ?? false;
   }
 
-  /** Texto do chip do item (só `news` hoje); vazio = sem chip. */
+  /** Algum filho do grupo é a página atual. */
+  protected groupHasActive(item: NavItem): boolean {
+    return item.children?.some((c) => this.isRouteActive(c.route, c.exactMatch)) ?? false;
+  }
+
+  /**
+   * Grupo pintado como item ativo (o MESMO `.active-link`): fechado, ou com a coluna
+   * recolhida, enquanto a página atual é de um filho — senão a pessoa não veria onde está.
+   */
+  protected groupPill(item: NavItem): boolean {
+    return this.groupHasActive(item) && (this.collapsedDesk() || !this.isExpanded(item));
+  }
+
+  /** Item de `activeAlso` (Novidades): o realce é calculado aqui, não pelo `routerLinkActive`. */
+  protected isActive(item: NavItem): boolean {
+    if (this.isRouteActive(item.route, item.exactMatch)) return true;
+    return item.activeAlso?.some((route) => this.isRouteActive(route, false)) ?? false;
+  }
+
+  private isRouteActive(route: string | undefined, exact: boolean | undefined): boolean {
+    if (!route) return false;
+    const path = this.currentUrl().split(/[?#]/)[0];
+    return exact ? path === route : path === route || path.startsWith(`${route}/`);
+  }
+
+  /** Contador de Novidades (rodapé V2): só o número; some em zero. */
   protected badgeText(item: NavItem): string {
-    return item.badge === 'news' ? this.newsBadge.label() : '';
+    if (item.badge !== 'news') return '';
+    const n = this.newsBadge.unread();
+    if (n <= 0) return '';
+    return n > 99 ? '99+' : `${n}`;
+  }
+
+  /** Rótulo acessível do item com contador ("Novidades, 2 novas"). */
+  protected itemAriaLabel(item: NavItem): string {
+    const label = item.badge === 'news' ? this.newsBadge.label() : '';
+    return label ? `${item.label}, ${label}` : item.label;
   }
 
   protected safeIcon(icon: string): SafeHtml {
@@ -649,18 +706,23 @@ export class Sidebar {
   }
 
   protected onParentClick(item: NavItem): void {
-    if (this.layout.isCollapsed() && !this.layout.isMobile()) {
-      this.layout.isCollapsed.set(false);
-    }
-    const currentlyOpen = this.isExpanded(item);
+    // Coluna recolhida: o toque abre a coluna COM o grupo aberto — alternar fecharia o grupo da
+    // página atual, que já estava aberto por baixo (review L5).
+    const expandingColumn = this.layout.isCollapsed() && !this.layout.isMobile();
+    if (expandingColumn) this.layout.isCollapsed.set(false);
+    const open = expandingColumn ? true : !this.isExpanded(item);
     this.userState.update((prev) => {
       const next = new Map(prev);
-      next.set(item.label, currentlyOpen ? 'closed' : 'open');
+      next.set(item.label, open ? 'open' : 'closed');
       return next;
     });
   }
 
   protected onEscape(): void {
+    if (this.accountMenuOpen()) {
+      this.closeAccountMenu(true);
+      return;
+    }
     if (this.modalDrawer() && this.layout.isMobile() && this.layout.isMobileOpen()) {
       this.layout.closeMobile();
     }
@@ -691,6 +753,72 @@ export class Sidebar {
       event.preventDefault();
       first.focus();
     }
+  }
+
+  /** Nome no bloco do usuário: abre o Perfil; com a coluna recolhida, abre a coluna e o menu. */
+  protected onUserClick(): void {
+    if (this.collapsedDesk()) {
+      this.layout.isCollapsed.set(false);
+      this.openAccountMenu();
+      return;
+    }
+    const perfil = this.accountItems().find((i) => i.route === '/perfil');
+    if (perfil?.route) void this.router.navigateByUrl(perfil.route);
+    this.onNavClick();
+  }
+
+  protected toggleAccountMenu(): void {
+    if (this.accountMenuOpen()) this.closeAccountMenu(false);
+    else this.openAccountMenu();
+  }
+
+  private openAccountMenu(): void {
+    this.accountMenuOpen.set(true);
+    afterNextRender(
+      () => this.accountMenu()?.nativeElement.querySelector<HTMLElement>('[role="menuitem"]')?.focus(),
+      { injector: this.injector },
+    );
+  }
+
+  protected closeAccountMenu(returnFocus: boolean): void {
+    this.accountMenuOpen.set(false);
+    if (returnFocus) this.accountTrigger()?.nativeElement.focus();
+  }
+
+  /** O `pointerdown` no próprio ⋮ não conta como "fora": o clique dele é quem alterna. */
+  protected onAccountMenuOutside(event: Event): void {
+    const trigger = this.accountTrigger()?.nativeElement;
+    if (trigger && event.target instanceof Node && trigger.contains(event.target)) return;
+    this.closeAccountMenu(false);
+  }
+
+  protected onAccountItem(): void {
+    this.closeAccountMenu(false);
+    this.onNavClick();
+  }
+
+  /** Setas para cima/baixo percorrem Perfil, Suporte e Sair. */
+  protected onAccountMenuKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const items = Array.from(
+      this.accountMenu()?.nativeElement.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+    );
+    if (items.length === 0) return;
+    event.preventDefault();
+    const current = items.indexOf(this.doc.activeElement as HTMLElement);
+    const step = event.key === 'ArrowDown' ? 1 : -1;
+    items[(current + step + items.length) % items.length].focus();
+  }
+
+  /**
+   * Sair: o mesmo caminho do botão do Perfil. `AuthService` é pedido só aqui, no toque, para o
+   * menu não passar a exigir `HttpClient` de quem o monta.
+   */
+  protected logout(): void {
+    this.closeAccountMenu(false);
+    this.layout.closeMobile();
+    this.injector.get(AuthService).logout();
+    void this.router.navigateByUrl('/login', { replaceUrl: true });
   }
 
   /** Papel traduzido para exibição; string vazia quando não há papel. */

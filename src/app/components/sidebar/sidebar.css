@@ -13,6 +13,43 @@
     background-color: color-mix(in srgb, var(--color-primary-500) 15%, transparent);
 }
 
+/*
+ * Menu novo: o ícone de um item parado é mais apagado que o nome (canvas, Opção A). No item
+ * ativo ele volta a herdar a cor do link — o laranja do `.active-link`, exatamente como era.
+ */
+.nav-icon {
+    color: var(--color-fg-faint);
+    transition: color 200ms ease;
+}
+
+.active-link .nav-icon {
+    color: currentColor;
+}
+
+/* Grupo ABERTO com a página atual dentro: nome em destaque e ícone laranja (o filho é o pill). */
+.nav-group-has {
+    color: var(--color-fg);
+    font-weight: 600;
+}
+
+.nav-group-has .nav-icon {
+    color: var(--color-primary-500);
+}
+
+/* Setas (grupo e Recolher) giram na curva do iOS. */
+.nav-chevron {
+    transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-icon,
+    .nav-chevron,
+    .nav-link,
+    .nav-card {
+        transition: none;
+    }
+}
+
 /* Scrollbar for navigation overflow */
 nav::-webkit-scrollbar {
     width: 4px;

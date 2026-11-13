@@ -371,6 +371,14 @@ export class TourService {
       if (!this._active()) return null;
     }
 
+    // O contrário: o alvo mora FORA da barra (o sino, na barra de topo do celular) e o drawer
+    // aberto por um passo anterior o cobriria.
+    if (!step.inSidebar && this.layout.isMobile() && this.layout.isMobileOpen()) {
+      this.layout.closeMobile();
+      await this.wait(DRAWER_ANIMATION_MS);
+      if (!this._active()) return null;
+    }
+
     let element = this.query(step.key);
 
     // Só clicamos no grupo quando o filho REALMENTE não está no DOM: o botão do

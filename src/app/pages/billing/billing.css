@@ -152,7 +152,13 @@
 
 @media (min-width: 1024px) {
   .hv { padding: 28px 32px 24px; }
-  .hv-top { grid-template-columns: minmax(0, 1fr) auto minmax(260px, 300px); align-items: center; gap: 40px; }
+  /*
+   * Menu novo: a coluna do menu passou a 300px e, entre 1024 e 1279px, sobram ~580px de
+   * cartão — pouco para valor (52px) + anel + linha do tempo lado a lado. Ali são duas colunas
+   * (valor e anel) com a linha do tempo embaixo; as três lado a lado voltam a partir de 1280px.
+   */
+  .hv-top { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 32px 40px; }
+  .hv-top > :nth-child(3) { grid-column: 1 / -1; }
   .hv .eyebrow { justify-content: flex-start; }
   .hv-tile { display: grid; }
   .amount .big { font-size: 52px; }
@@ -162,6 +168,11 @@
   .dial .c span { font-size: 13px; }
   .tl b { font-size: 14px; }
   .tl li > span:not(.dot) { font-size: 13px; }
+}
+
+@media (min-width: 1280px) {
+  .hv-top { grid-template-columns: minmax(0, 1fr) auto minmax(260px, 300px); gap: 40px; }
+  .hv-top > :nth-child(3) { grid-column: auto; }
 }
 
 /* ---------- grupos ---------- */
