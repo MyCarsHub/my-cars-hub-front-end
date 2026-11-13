@@ -104,10 +104,12 @@ describe('Sidebar — o papel do menu vem da MESMA fonte do roleGuard', () => {
   function menuOf(fixture: { componentInstance: unknown }): {
     navItems: () => MenuItemView[];
     bottomNavItems: () => MenuItemView[];
+    accountItems: () => MenuItemView[];
   } {
     return fixture.componentInstance as {
       navItems: () => MenuItemView[];
       bottomNavItems: () => MenuItemView[];
+      accountItems: () => MenuItemView[];
     };
   }
 
@@ -115,7 +117,8 @@ describe('Sidebar — o papel do menu vem da MESMA fonte do roleGuard', () => {
     const fixture = TestBed.createComponent(Sidebar);
     fixture.detectChanges();
     const menu = menuOf(fixture);
-    return [...menu.navItems(), ...menu.bottomNavItems()].flatMap((item: MenuItemView) => [
+    // Menu novo: Perfil e Suporte moram no ⋮ da conta (`accountItems`), que também é menu.
+    return [...menu.navItems(), ...menu.bottomNavItems(), ...menu.accountItems()].flatMap((item: MenuItemView) => [
       ...(item.route ? [item.route] : []),
       ...(item.children ?? [])
         .map((child: MenuItemView) => child.route)

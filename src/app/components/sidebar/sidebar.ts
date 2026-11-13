@@ -368,8 +368,10 @@ export const NAV_ITEMS: NavItem[] = [
     fallbackFor: '/novidades',
     tourKey: TOUR_ANCHORS.roadmap,
   },
+  // Conta (menu de três pontos do bloco do usuário, na ordem do canvas: Perfil, Suporte, Sair).
+  { route: '/perfil', label: 'Perfil', icon: ICON_PROFILE, pinBottom: true, account: true },
   // Suporte é de todos os papéis de empresa (o backend libera ao motorista os PRÓPRIOS
-  // tickets); a rota tem o mesmo `roleGuard`. Mora no menu de três pontos da conta.
+  // tickets); a rota tem o mesmo `roleGuard`.
   {
     route: '/suporte',
     label: 'Suporte',
@@ -378,7 +380,6 @@ export const NAV_ITEMS: NavItem[] = [
     pinBottom: true,
     account: true,
   },
-  { route: '/perfil', label: 'Perfil', icon: ICON_PROFILE, pinBottom: true, account: true },
 ];
 
 /** Larguras da coluna do computador (canvas "Menu novo", prancha 6). O shell usa as mesmas. */

@@ -123,6 +123,6 @@ export const DRIVER_NAV: readonly DriverNavEntry[] = [
   // Novidades acende também em `/roadmap` (a chave `roadmap` continua no mapa de rotas).
   { key: 'configuracoes', label: 'Configurações', icon: 'settings', exactMatch: true },
   // Pé, como no menu do dono: Suporte e Perfil no menu de três pontos do bloco do usuário.
-  { key: 'suporte', label: 'Suporte', icon: 'support', pinBottom: true, account: true },
   { key: 'perfil', label: 'Perfil', icon: 'profile', pinBottom: true, account: true },
+  { key: 'suporte', label: 'Suporte', icon: 'support', pinBottom: true, account: true },
 ];
