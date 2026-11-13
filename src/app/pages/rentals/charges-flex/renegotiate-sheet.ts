@@ -248,7 +248,8 @@ export class RenegotiateSheet {
       case 1:
         return this.selected().length > 0;
       case 2:
-        return this.amount.valid && this.agreedCents() > 0 && this.step2Problems().length === 0;
+        // Só sinais aqui: `amount.valid` não é reativo e congelaria o computed.
+        return this.agreedCents() > 0 && this.step2Problems().length === 0;
       case 3:
         return this.reason() !== null && this.descriptionOk();
       default:
