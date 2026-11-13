@@ -241,8 +241,20 @@ describe('RentalForm período nos pickers', () => {
   let vehiclesList: Mock;
   let driversList: Mock;
 
-  /** `debounceTime(300)` do pipeline. Timers reais, como no rental-detail.spec. */
-  async function afterDebounce(fixture: { detectChanges: () => void }): Promise<void> {
+  /**
+   * `debounceTime(300)` do pipeline, com timers reais. O debounce fica atrás de
+   * `toObservable(periodKey)`, que só emite quando o efeito roda no tick do agendador — então
+   * o relógio do debounce começa NO TICK, não no `patchValue`. Esperar 400ms a partir do
+   * `patchValue` falhava sob carga (suíte cheia): o tick atrasava e o debounce ainda não
+   * tinha disparado. Aqui o tick é forçado ANTES de armar a espera: o timer de 300ms do
+   * debounce é armado antes do nosso de 400ms e dispara antes dele, com ou sem carga.
+   */
+  async function afterDebounce(fixture: {
+    detectChanges: () => void;
+    whenStable: () => Promise<unknown>;
+  }): Promise<void> {
+    fixture.detectChanges();
+    await fixture.whenStable();
     await new Promise((resolve) => setTimeout(resolve, 400));
     fixture.detectChanges();
   }
@@ -461,7 +473,13 @@ describe('RentalForm seleção que deixa de valer no novo período', () => {
   let vehiclesList: Mock;
   let driversList: Mock;
 
-  async function afterDebounce(fixture: { detectChanges: () => void }): Promise<void> {
+  /** Mesma espera do bloco "período nos pickers": tick primeiro, depois o debounce. */
+  async function afterDebounce(fixture: {
+    detectChanges: () => void;
+    whenStable: () => Promise<unknown>;
+  }): Promise<void> {
+    fixture.detectChanges();
+    await fixture.whenStable();
     await new Promise((resolve) => setTimeout(resolve, 400));
     fixture.detectChanges();
   }

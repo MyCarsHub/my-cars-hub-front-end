@@ -82,7 +82,7 @@ describe('AdminSidebar (FIX-0864: a sidebar do app com o modelo da administraç�
       'Voltar ao app',
       'Perfil',
     ]);
-    expect(el.textContent).toContain('Recolher');
+    expect(el.querySelector('button[aria-label="Recolher menu"]')).not.toBeNull();
     expect(el.textContent).not.toContain('Testar templates');
     expect(el.textContent).not.toContain('Ferramentas');
     expect(el.textContent).not.toContain('Ver como');
@@ -106,7 +106,7 @@ describe('AdminSidebar (FIX-0864: a sidebar do app com o modelo da administraç�
   it('cartão do topo no lugar do seletor: avatar, nome e papel em laranja', () => {
     const { el } = render(['ver']);
     expect(el.querySelector('app-company-switcher')).toBeNull();
-    const avatar = el.querySelector('.bg-primary-500.rounded-full');
+    const avatar = el.querySelector('.bg-primary-500.rounded-xl');
     expect(avatar).not.toBeNull();
     expect(el.querySelector('.text-primary-700')!.textContent).toContain('Dono da plataforma');
   });
@@ -138,13 +138,14 @@ describe('AdminSidebar (FIX-0864: a sidebar do app com o modelo da administraç�
     expect(kids(a)).toEqual(kids(c));
     expect(cls(admin.querySelector('nav'))).toBe(cls(company.querySelector('nav')));
     expect(cls(admin.querySelector('[data-nav-bottom]'))).toBe(cls(company.querySelector('[data-nav-bottom]')));
-    expect(cls(admin.querySelector('.bg-primary-500.rounded-full')!.parentElement)).toBe(
-      cls(company.querySelector('.bg-primary-500.rounded-full')!.parentElement),
+    expect(cls(admin.querySelector('.bg-primary-500.rounded-xl')!.parentElement)).toBe(
+      cls(company.querySelector('.bg-primary-500.rounded-xl')!.parentElement),
     );
     // item simples e grupo: classes idênticas às do item/grupo de empresa.
     expect(cls(link(admin, 'Usuários'))).toBe(cls(company.querySelector('nav a.nav-link')));
     expect(cls(link(admin, 'Dinheiro'))).toBe(cls(company.querySelector('nav button.nav-link')));
-    expect(cls(link(admin, 'Perfil'))).toBe(cls(link(company, 'Perfil')));
+    // Menu novo: o Perfil da empresa foi para o ⋮ da conta; a linha do pé de empresa é Novidades.
+    expect(cls(link(admin, 'Perfil'))).toBe(cls(company.querySelector('[data-nav-bottom] a.nav-link')));
     // o rótulo do item: mesma escala tipográfica (text-sm font-medium), sem negrito grande.
     const label = (n: HTMLElement) => cls(n.querySelector('span:not([class*="w-5"])'));
     expect(label(link(admin, 'Usuários')!)).toBe(label(company.querySelector<HTMLElement>('nav a.nav-link')!));
@@ -225,12 +226,12 @@ describe('AdminSidebar (FIX-0864: a sidebar do app com o modelo da administraç�
 
   it('Recolher: o mesmo botão do app encolhe a coluna', () => {
     const { el, layout, fixture } = render(['ver']);
-    const collapse = link(el, 'Recolher sidebar')!;
+    const collapse = link(el, 'Recolher menu')!;
     expect(collapse).not.toBeNull();
     collapse.click();
     fixture.detectChanges();
     expect(layout.isCollapsed()).toBe(true);
-    expect(link(el, 'Expandir sidebar')).not.toBeNull();
+    expect(link(el, 'Expandir menu')).not.toBeNull();
     layout.isCollapsed.set(false);
   });
 

@@ -87,7 +87,7 @@
                         variant="danger"
                         label="documentos a vencer (7d)"
                         [count]="docsExpiringCount"
-                        (chipClick)="onAlertClick('/alertas')"
+                        (chipClick)="openDueAlerts()"
                     />
                 }
                 @if (isOperator() && s.alerts.expiringInsurance30d?.count; as expiringInsuranceCount) {

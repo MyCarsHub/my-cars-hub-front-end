@@ -17,8 +17,12 @@ export const TOUR_ANCHORS = {
   fleetGroup: 'fleet-group',
   vehicles: 'vehicles',
   drivers: 'drivers',
+  /** Botão do acordeão "Financeiro" (menu novo) — precisa ser aberto para Relatórios existir. */
+  financeGroup: 'finance-group',
+  /** O sino (aba Vencimentos), fora da barra lateral desde o menu novo. */
   alerts: 'alerts',
   reports: 'reports',
+  /** A linha Novidades no pé do menu: o Roadmap é uma aba dela desde o menu novo. */
   roadmap: 'roadmap',
   /** Botão do acordeão "Configurações" — mesmo papel de `fleetGroup`. */
   settingsGroup: 'settings-group',
@@ -92,22 +96,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inSidebar: true,
   },
   {
-    key: TOUR_ANCHORS.alerts,
-    title: 'Avisamos antes de vencer',
-    body: 'CNH, licenciamento, seguro e financiamento: você é avisado antes do prazo estourar.',
-    inSidebar: true,
-  },
-  {
     key: TOUR_ANCHORS.reports,
     title: 'Feche o mês sem planilha',
-    body: 'Exporte receitas, despesas e o resultado da frota no período que você escolher.',
+    body: 'Em Financeiro, exporte receitas, despesas e o resultado da frota no período que você escolher.',
     roles: ['OWNER'],
-    inSidebar: true,
-  },
-  {
-    key: TOUR_ANCHORS.roadmap,
-    title: 'Peça o que falta',
-    body: 'Sugira melhorias e vote nas ideias dos outros — é daí que sai o que construímos.',
+    expandGroup: TOUR_ANCHORS.financeGroup,
     inSidebar: true,
   },
   {
@@ -125,5 +118,20 @@ export const TOUR_STEPS: readonly TourStep[] = [
     roles: ['OWNER'],
     expandGroup: TOUR_ANCHORS.settingsGroup,
     inSidebar: true,
+  },
+  {
+    key: TOUR_ANCHORS.roadmap,
+    title: 'Peça o que falta',
+    body: 'Em Novidades, na aba Roadmap, sugira melhorias e vote nas ideias dos outros — é daí que sai o que construímos.',
+    inSidebar: true,
+  },
+  // Último de propósito: é o único passo fora da barra lateral (no celular o drawer fecha
+  // para o sino da barra de topo aparecer).
+  {
+    key: TOUR_ANCHORS.alerts,
+    title: 'Avisamos antes de vencer',
+    body: 'No sino, em Vencimentos: CNH, licenciamento, seguro e financiamento antes do prazo estourar.',
+    roles: ['OWNER', 'MANAGER'],
+    inSidebar: false,
   },
 ];

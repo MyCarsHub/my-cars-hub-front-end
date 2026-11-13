@@ -2,8 +2,8 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { LayoutStore } from '../core/layouts/layout.store';
 
 /**
- * Barra de topo abaixo de `lg`, para TODOS os papéis (protótipo do dono): 56px, fundo branco, borda
- * inferior e só o ☰. O logo NÃO entra aqui (pedido do dono): ele mora no cabeçalho do
+ * Barra de topo abaixo de `lg`, para TODOS os papéis (protótipo do dono): 56px, o ☰ à esquerda e,
+ * à direita, o que o shell projeta (tema e sino — menu novo, 13/11: o sino fica preso aqui). O logo NÃO entra aqui (pedido do dono): ele mora no cabeçalho do
  * sidebar/drawer, e repeti-lo na barra o mostrava duas vezes com o menu aberto. Fica NO FLUXO, acima do conteúdo — o ☰ flutuante do dono rolava por cima
  * dos botões da página. Quem a monta é o shell (`AppShell`, e a demo), quando
  * `LayoutStore.mobileTopBar()` é verdadeiro; o `Sidebar` não desenha mais ☰ nenhum.
@@ -14,8 +14,8 @@ import { LayoutStore } from '../core/layouts/layout.store';
   host: { class: 'block shrink-0' },
   template: `
     <header
-      class="flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-2 border-b
-             border-edge bg-surface px-2 pt-[env(safe-area-inset-top)]"
+      class="flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-1 bg-surface px-2
+             pt-[env(safe-area-inset-top)]"
       data-driver-top-bar
     >
       <button
@@ -35,6 +35,11 @@ import { LayoutStore } from '../core/layouts/layout.store';
           <line x1="3" y1="18" x2="21" y2="18" />
         </svg>
       </button>
+      <!-- Sino e tema presos à barra (menu novo): não rolam com a página. -->
+      <span class="flex-1"></span>
+      <div class="flex items-center gap-1" data-top-bar-actions>
+        <ng-content />
+      </div>
     </header>
   `,
 })

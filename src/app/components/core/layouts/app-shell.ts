@@ -12,7 +12,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs/operators';
 import { animate, state, style, transition, trigger } from '@angular/animations';
-import { Sidebar } from '../../sidebar/sidebar';
+import { SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_EXPANDED, Sidebar } from '../../sidebar/sidebar';
 import { LayoutStore } from './layout.store';
 import { BillingAccessService } from '../../../services/billing-access.service';
 import { SessionService } from '../../../services/session.service';
@@ -41,10 +41,12 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
   imports: [RouterOutlet, Sidebar, AdminSidebar, PaywallDialog, NoticesPopup, NotificationBell, TourSpotlight, DriverTopBar, ThemeToggle],
   animations: [
     trigger('contentMargin', [
-      state('expanded', style({ marginLeft: '260px' })),
-      state('collapsed', style({ marginLeft: '72px' })),
+      // As MESMAS constantes da largura da sidebar: margem e coluna não podem divergir (o
+      // menu cobriria a borda esquerda de toda página). `app-shell.spec.ts` mede a igualdade.
+      state('expanded', style({ marginLeft: SIDEBAR_WIDTH_EXPANDED })),
+      state('collapsed', style({ marginLeft: SIDEBAR_WIDTH_COLLAPSED })),
       state('mobile', style({ marginLeft: '0' })),
-      transition('expanded <=> collapsed', animate('300ms cubic-bezier(0.4, 0, 0.2, 1)')),
+      transition('expanded <=> collapsed', animate('300ms cubic-bezier(0.32, 0.72, 0, 1)')),
       transition('* => mobile', animate('0ms')),
       transition('mobile => *', animate('0ms')),
     ]),
@@ -73,44 +75,41 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
       [class.flex-col]="layout.mobileTopBar()"
       [style.--page-top]="layout.mobileTopBar() ? '1.25rem' : null"
       [style.--page-fill-offset]="layout.mobileTopBar() ? 'calc(4.75rem + env(safe-area-inset-top) + env(safe-area-inset-bottom) + var(--consent-banner-h, 0px))' : null"
-      [style.--page-header-end]="headerEnd()"
+      [style.--page-top-lg]="layout.mobileTopBar() ? null : '0.75rem'"
+      [style.--sidebar-w]="layout.isMobile() ? '0px' : layout.sidebarWidth()"
     >
       @if (layout.mobileTopBar()) {
-        <app-driver-top-bar />
+        <!-- Menu novo (13/11): no celular o tema e o sino ficam presos na barra de topo. -->
+        <app-driver-top-bar>
+          <app-theme-toggle [bare]="true" />
+          @if (showBell()) {
+            <app-notification-bell variant="bar" />
+          }
+        </app-driver-top-bar>
       }
       @if (adminArea()) {
         <app-admin-sidebar />
       } @else {
-        <app-sidebar />
+        <!-- Gaveta do celular como diálogo modal: foco entra, Tab preso, Esc fecha (review M4). -->
+        <app-sidebar [modalDrawer]="true" />
       }
+      <!--
+        Computador (menu novo, prancha 6): o tema e o sino ficam numa FAIXA PRÓPRIA no topo do
+        <main>, que não rola — o conteúdo rola embaixo dela, num scroller só dele. Assim o sino
+        não some ao rolar e também não flutua sobre a página: kebabs de linha, barras de
+        ferramentas e cabeçalhos \`sticky\` das páginas nunca passam por baixo dele. A faixa
+        entra no lugar do respiro de topo da página (\`--page-top-lg\`, lido pelo
+        default-page-layout). No celular os dois moram na barra de topo (acima).
+      -->
       <main
-        class="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip transition-none"
+        class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-none"
         [@contentMargin]="contentState()"
       >
-        <!-- O botão de tema aparece SEMPRE (dono, gerente e motorista; também no onboarding);
-             o sino continua só depois do onboarding concluído. -->
-          <!--
-            O shell não tem barra de header própria. O sino vive num header
-            posicionado em absolute dentro do scroller do main: ocupa o espaço
-            que o default-page-layout já reserva no topo (pt-20 lg:pt-10),
-            respeita a mesma coluna de conteúdo dos cards (max-w-8xl +
-            px-4/sm:px-6/lg:px-10) e rola junto com a página — sem position
-            fixed, portanto sem disputar z-index com os elementos sticky das
-            páginas.
-          -->
-          <!--
-            Abaixo de lg: o <main> já começa ABAIXO da barra de topo, que consumiu o
-            recorte do aparelho. Somar o safe-area aqui de novo derrubaria o sino sobre a
-            descrição; ele se alinha à mesma --page-top do título, e --page-header-end (no
-            frame) reserva a coluna dele para o título e a descrição não correrem por baixo.
-          -->
-          <header class="pointer-events-none absolute inset-x-0 top-0 z-10">
-            <div
-              class="max-w-8xl mx-auto flex justify-end px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 lg:px-10 lg:pt-10"
-              [style.padding-top]="layout.mobileTopBar() ? 'var(--page-top)' : null"
-              data-bell-row
-            >
-              <div class="pointer-events-auto flex items-center gap-2">
+        @if (!layout.mobileTopBar()) {
+          <header class="relative z-40 shrink-0" data-desktop-bar>
+            <div class="max-w-8xl mx-auto flex justify-end px-4 pt-4 sm:px-6 lg:px-10" data-bell-row>
+              <!-- O tema aparece SEMPRE (também no onboarding); o sino, só depois dele. -->
+              <div class="flex items-center gap-2">
                 <app-theme-toggle />
                 @if (showBell()) {
                   <app-notification-bell />
@@ -118,7 +117,8 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
               </div>
             </div>
           </header>
-        <div>
+        }
+        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip" data-main-scroller>
           <router-outlet />
         </div>
       </main>
@@ -190,13 +190,6 @@ export class AppShell implements OnInit, OnDestroy {
    * pedir o feed sem tenant é ruído garantido. `sessionStorage` não é reativo,
    * por isso o cálculo é reavaliado a cada navegação via `currentUrl()`.
    */
-  /**
-   * Folga à direita do título (`--page-header-end`, lida pelo default-page-layout) para a
-   * coluna do header: 44px do botão de tema, mais 8px + 44px do sino quando ele monta, mais
-   * 4px de respiro. Vale no celular e no desktop — o título e as ações da página não correm
-   * por baixo dos botões.
-   */
-  protected readonly headerEnd = computed(() => (this.showBell() ? '6.25rem' : '3.25rem'));
 
   protected readonly showBell = computed(() => {
     const url = this.currentUrl();

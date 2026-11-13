@@ -65,7 +65,12 @@ describe('AppShell — botão de tema ao lado do sino', () => {
     for (const width of [375, 1280]) {
       it(`${role} a ${width}px: botão de tema no header, ao lado do sino`, () => {
         const host = render(role, true, width);
-        const row = host.querySelector('header [data-bell-row]');
+        // Menu novo: no celular os dois ficam presos na barra de topo; no computador, no canto
+        // de cima da página.
+        const row =
+          width < 1024
+            ? host.querySelector('app-driver-top-bar [data-top-bar-actions]')
+            : host.querySelector('header [data-bell-row]');
         const toggle = row?.querySelector('[data-theme-toggle]');
         const bell = row?.querySelector('app-notification-bell');
         expect(toggle).not.toBeNull();

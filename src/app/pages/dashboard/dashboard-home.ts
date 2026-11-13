@@ -41,6 +41,7 @@ import { RankingCard, RankingItem } from '../../components/charts/ranking-card/r
 import { PillTabs, PillTabOption } from '../../components/core/pill-tabs/pill-tabs';
 import { DetailDialog } from '../../components/core/detail-dialog/detail-dialog';
 import { QuickActionCard } from './components/quick-action-card';
+import { NotificationBellStore } from '../../components/notification-bell/notification-bell.store';
 
 /** Delta comparativo entre janela atual e imediatamente anterior. */
 export interface DeltaInfo {
@@ -126,6 +127,7 @@ function monthLong(key: string): string {
 export class DashboardHome {
     private readonly service = inject(DashboardService);
     private readonly router = inject(Router);
+    private readonly bell = inject(NotificationBellStore);
     private readonly doc = inject(DOCUMENT);
     private readonly activation = inject(FleetActivationService);
 
@@ -647,6 +649,11 @@ export class DashboardHome {
 
     protected onAlertClick(target: string): void {
         this.router.navigateByUrl(target);
+    }
+
+    /** Documentos a vencer: os vencimentos moram na aba Vencimentos do sino (menu novo). */
+    protected openDueAlerts(): void {
+        this.bell.openOn('vencimentos');
     }
 
     protected onDaySelect(iso: string): void {

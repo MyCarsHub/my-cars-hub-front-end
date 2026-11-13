@@ -61,11 +61,15 @@ export class AlertsService {
    * pela empresa (`/companies/current/alert-settings`) — não mais 30 fixo.
    * Passar um valor explícito continua vencendo, e é o que a página faz assim
    * que conhece as janelas da empresa.
+   *
+   * `append` soma a página pedida ao que já está carregado (o "Carregar mais" da aba
+   * Vencimentos do sino); sem ele a página substitui a lista, como sempre foi.
    */
   listDocumentAlerts(
     withinDays: number | null = null,
     page = 0,
     size = DOCUMENT_ALERTS_PAGE_SIZE,
+    append = false,
   ): Observable<PagedResponse<DocumentAlert>> {
     this._loading.set(true);
     this._error.set(null);
@@ -77,7 +81,8 @@ export class AlertsService {
 
     return this.http.get<PagedResponse<DocumentAlert>>(`${BASE}/documents`, { params }).pipe(
       tap((res) => {
-        this._documentAlerts.set(res?.content ?? []);
+        const content = res?.content ?? [];
+        this._documentAlerts.update((current) => (append ? [...current, ...content] : content));
         this._page.set(res?.page ?? page);
         this._size.set(res?.size ?? size);
         this._total.set(res?.total ?? 0);
