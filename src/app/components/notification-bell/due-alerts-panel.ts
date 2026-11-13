@@ -4,7 +4,6 @@ import {
   OnInit,
   computed,
   inject,
-  output,
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -21,6 +20,7 @@ import {
   NotificationType,
 } from '../../types/notification-feed.types';
 import { alertWindowLabel, formatAlertWindows, sortWindowsAsc } from '../../utils/alert-windows';
+import { NotificationBellStore } from './notification-bell.store';
 
 /** Chip de filtro por tipo de documento. `'ALL'` é o chip "Todos". */
 type TypeChip = FilterChipOption<NotificationType | 'ALL'>;
@@ -62,7 +62,7 @@ export interface DueAlertGroup {
  * filtro por tipo, grupos por urgência com contagem, detalhes por item e "Carregar mais"
  * no lugar da paginação (mesma fonte: `GET /v1/alerts/documents`, 20 por página).
  *
- * Carregada sob demanda (`@defer` no sino): não pesa no pacote inicial.
+ * Carregada sob demanda (`import()` no sino): não pesa no pacote inicial.
  *
  * O filtro por tipo é local, como era na página — o backend não tem parâmetro de tipo —,
  * então ele recorta só o que já foi carregado, e a aba diz isso enquanto houver mais.
@@ -78,8 +78,7 @@ export class DueAlertsPanel implements OnInit {
   private readonly alertSettings = inject(AlertSettingsService);
   private readonly apiErrors = inject(ApiErrorService);
 
-  /** Um item foi escolhido: o sino fecha antes de a página abrir. */
-  readonly selected = output<void>();
+  private readonly bell = inject(NotificationBellStore);
 
   protected readonly typeChips = TYPE_CHIPS;
 
@@ -197,6 +196,11 @@ export class DueAlertsPanel implements OnInit {
       // Sem a configuração (o gerente recebe 403) a aba continua útil: some só a régua.
       error: (err: unknown) => this.apiErrors.claim(err),
     });
+  }
+
+  /** Um item foi escolhido: o sino fecha e a página do item abre. */
+  protected onSelect(): void {
+    this.bell.close();
   }
 
   protected onWindowChange(value: AlertWindow | null): void {

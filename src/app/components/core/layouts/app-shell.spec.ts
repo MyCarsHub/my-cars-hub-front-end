@@ -306,11 +306,31 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(host.querySelector('app-driver-top-bar + app-sidebar + main')).not.toBeNull();
   });
 
-  it('motorista no celular: o sino não soma o recorte de novo — alinha à --page-top', () => {
+  /*
+   * Menu novo (13/11): no celular o sino e o tema ficam presos na barra de topo, não rolam
+   * com a página. O cabeçalho da página não reserva mais coluna para eles.
+   */
+  it('motorista no celular: sino e tema presos na barra de topo, título com a largura toda', () => {
     configure('DRIVER');
     const host = renderMobile();
-    expect(bellRow(host).style.paddingTop).toBe('var(--page-top)');
-    // ...e reserva a coluna do tema + sino (44 + 8 + 44 + 4px) no cabeçalho da página.
+    const actions = host.querySelector('app-driver-top-bar [data-top-bar-actions]');
+    expect(actions?.querySelector('app-notification-bell')).not.toBeNull();
+    expect(actions?.querySelector('[data-theme-toggle]')).not.toBeNull();
+    expect(bellRow(host)).toBeNull();
+    expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('');
+  });
+
+  it('no computador o sino fica no canto da página, preso ao rolar (sticky)', () => {
+    configure('OWNER');
+    const fixture = TestBed.createComponent(AppShell);
+    fixture.detectChanges();
+    TestBed.inject(LayoutStore).setMobile(false);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const header = bellRow(host).closest('header')!;
+    expect(header.classList.contains('sticky')).toBe(true);
+    expect(header.classList.contains('absolute')).toBe(false);
+    expect(bellRow(host).querySelector('app-notification-bell')).not.toBeNull();
     expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('6.25rem');
   });
 
@@ -327,7 +347,7 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(host.querySelector('app-driver-top-bar + app-sidebar + main')).not.toBeNull();
     expect(frame(host).classList.contains('flex-col')).toBe(true);
     expect(frame(host).style.getPropertyValue('--page-top')).toBe('1.25rem');
-    expect(bellRow(host).style.paddingTop).toBe('var(--page-top)');
+    expect(host.querySelector('app-driver-top-bar app-notification-bell')).not.toBeNull();
     const menus = host.querySelectorAll('button[aria-label="Abrir menu"]');
     expect(menus.length).toBe(1);
     expect(menus[0].closest('app-driver-top-bar')).not.toBeNull();
@@ -358,7 +378,7 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(frame(host).classList.contains('h-dvh')).toBe(false);
   });
 
-  it('motorista no desktop: sem barra (a sidebar de 260px é o menu)', () => {
+  it('motorista no desktop: sem barra (a sidebar é o menu)', () => {
     configure('DRIVER');
     const fixture = TestBed.createComponent(AppShell);
     fixture.detectChanges();

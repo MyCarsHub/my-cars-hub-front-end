@@ -77,7 +77,7 @@
             <li>
               <a
                 [routerLink]="a.actionUrl"
-                (click)="selected.emit()"
+                (click)="onSelect()"
                 class="flex min-h-11 flex-col gap-1 rounded-2xl px-2.5 py-3 transition-colors hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 active:scale-[0.99] motion-reduce:transition-none"
                 data-due-item
               >

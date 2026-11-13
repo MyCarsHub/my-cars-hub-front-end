@@ -8,16 +8,18 @@ import {
   effect,
   inject,
   input,
+  signal,
+  Type,
   untracked,
   viewChild,
   viewChildren,
 } from '@angular/core';
+import { NgComponentOutlet } from '@angular/common';
 import { Router } from '@angular/router';
 import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
 import { NotificationFeedService } from '../../services/notification-feed.service';
 import { SessionService } from '../../services/session.service';
 import { NotificationItem, NotificationSeverity } from '../../types/notification-feed.types';
-import { DueAlertsPanel } from './due-alerts-panel';
 import { BellTab, DUE_ALERTS_ROLES, NotificationBellStore } from './notification-bell.store';
 
 /** Quantidade de notificações mostradas no painel do sino. */
@@ -57,7 +59,7 @@ const TABS: readonly BellTab[] = ['notificacoes', 'vencimentos'];
 @Component({
   selector: 'app-notification-bell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ClickOutsideDirective, DueAlertsPanel],
+  imports: [ClickOutsideDirective, NgComponentOutlet],
   templateUrl: './notification-bell.html',
   host: { class: 'relative block' },
   styles: `
@@ -125,6 +127,14 @@ export class NotificationBell implements OnInit, OnDestroy {
     this.showTabs() ? this.tab() : 'notificacoes',
   );
 
+  /**
+   * A aba Vencimentos, baixada na primeira vez que alguém a abre (`import()` dinâmico): o
+   * conteúdo da antiga página `/alertas` não entra no pacote inicial, onde o menu mora.
+   * Não é `@defer` porque um bloco adiado obriga todo teste que monta o shell a compilar de
+   * forma assíncrona.
+   */
+  protected readonly duePanel = signal<Type<unknown> | null>(null);
+
   protected readonly badgeLabel = computed(() => {
     const n = this.unreadCount();
     return n > BADGE_CAP ? `${BADGE_CAP}+` : `${n}`;
@@ -156,6 +166,8 @@ export class NotificationBell implements OnInit, OnDestroy {
           if (this.activeTab() === 'notificacoes') this.loadPanel();
         });
       }
+      // Aba Vencimentos visível (pelo sino, pelo Dashboard ou por um link antigo): baixa a aba.
+      if (open && this.activeTab() === 'vencimentos') untracked(() => this.ensureDuePanel());
       if (!open) this.focusOnRender = false;
       wasOpen = open;
     });
@@ -193,6 +205,13 @@ export class NotificationBell implements OnInit, OnDestroy {
     if (this.tab() === tab) return;
     this.store.selectTab(tab);
     if (tab === 'notificacoes') this.loadPanel();
+    else this.ensureDuePanel();
+  }
+
+  /** Baixa a aba Vencimentos quando ela vai aparecer; uma vez só. */
+  private ensureDuePanel(): void {
+    if (this.duePanel() || this.activeTab() !== 'vencimentos') return;
+    void import('./due-alerts-panel').then((m) => this.duePanel.set(m.DueAlertsPanel));
   }
 
   /** Setas esquerda/direita, Home e End entre as abas (a seleção acompanha o foco). */

@@ -628,11 +628,13 @@ export class Sidebar {
   /** Primeiro item com respiro acima (Assinatura para o dono, Configurações para o gerente). */
   protected readonly firstGapItem = computed(() => this.navItems().find((i) => i.gapBefore) ?? null);
 
-  /** Nome de quem está logado, para o bloco do usuário no pé. */
+  /**
+   * Nome de quem está logado, para o bloco do usuário no pé — a mesma fonte do Perfil
+   * (`sessionStorage.name`, gravado por `/auth/me`). Relido a cada troca de empresa.
+   */
   protected readonly userName = computed(() => {
     this.layout.selectedTenant();
-    const identity = this.session.getIdentityFromToken();
-    return this.session.getItem('name') || identity?.name || identity?.email || 'Sua conta';
+    return this.session.getItem('name') || 'Sua conta';
   });
 
   protected readonly userInitials = computed(() => initialsOf(this.userName()));

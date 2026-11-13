@@ -178,9 +178,9 @@
         data-bell-due
       >
         <!-- Carregada sob demanda: a aba Vencimentos fica fora do pacote inicial. -->
-        @defer (on immediate) {
-          <app-due-alerts-panel (selected)="closeAndFocusTrigger()" />
-        } @placeholder {
+        @if (duePanel(); as panel) {
+          <ng-container *ngComponentOutlet="panel" />
+        } @else {
           <div class="flex flex-col gap-2 p-4" aria-hidden="true">
             <div class="h-16 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
             <div class="h-16 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>

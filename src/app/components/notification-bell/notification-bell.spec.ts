@@ -80,6 +80,8 @@ describe('NotificationBell', () => {
   }
 
   beforeEach(() => {
+    // Sem papel no token: o painel é só de notificações (as abas têm spec próprio).
+    sessionStorage.clear();
     TestBed.resetTestingModule();
     configure();
   });
@@ -90,7 +92,7 @@ describe('NotificationBell', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    expect(trigger(host).querySelector('span[aria-hidden="true"]')).toBeNull();
+    expect(trigger(host).querySelector('[data-bell-count]')).toBeNull();
     expect(trigger(host).getAttribute('aria-label')).toBe('Notificações, nenhuma não lida');
   });
 
@@ -166,10 +168,9 @@ describe('NotificationBell', () => {
     // Contêiner focável é a rede de segurança quando nem o link do rodapé existe.
     expect(panel?.getAttribute('tabindex')).toBe('-1');
     expect(itemButtons(host)).toHaveLength(0);
-    expect(panel?.contains(document.activeElement)).toBe(true);
-    expect((document.activeElement as HTMLElement | null)?.textContent?.trim()).toBe(
-      'Ver todos os alertas',
-    );
+    // Sem item nem o antigo "Ver todos os alertas" (a página virou a aba Vencimentos), o
+    // contêiner focável é quem recebe o foco.
+    expect(document.activeElement).toBe(panel);
   });
 
   it('clicar num item marca como lida e navega para o actionUrl', () => {
