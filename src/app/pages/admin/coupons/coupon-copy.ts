@@ -2,7 +2,12 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { StatusChipTone } from '../../../components/core/status-chip/status-chip';
 import { parseApiError } from '../../../services/api-error';
 import { NotificationService } from '../../../services/notification.service';
-import { AdminCoupon, AdminCouponMode, AdminCouponPreview } from '../../../types/admin-coupon.types';
+import {
+  ALL_PLANS_CODE,
+  AdminCoupon,
+  AdminCouponMode,
+  CouponDuration,
+} from '../../../types/admin-coupon.types';
 import { formatBRL } from '../../../types/dashboard.types';
 import { planTierOf } from '../../../utils/plan-features';
 import { PLAN_COPY } from '../../../utils/plan-grid-copy';
@@ -21,6 +26,13 @@ const PERCENT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
 
 const PERIOD_LABEL: Record<string, string> = { MONTHLY: 'mensal', YEARLY: 'anual' };
 
+/** O texto que quem lê vê no lugar de um plano só. */
+export const ALL_PLANS_LABEL = 'Todos os planos';
+/** Os planos que "todos os planos" cobre, na ordem do preço. O ENTERPRISE fica de fora. */
+export const ALL_PLANS_TIERS = ['STARTER', 'PRO', 'SCALE'] as const;
+/** Onde quem recebe o código assina. */
+export const SIGNUP_HOST = 'mycarshub.app.br';
+
 const CODE_MESSAGES: Record<string, string> = {
   COUPON_ZEROES_PLAN:
     'Este desconto zera o plano. Reduza o valor: a fatura precisa ficar acima do mínimo da Stripe.',
@@ -32,6 +44,19 @@ const CODE_MESSAGES: Record<string, string> = {
   COUPON_INVALID: 'O desconto informado não é válido. Confira os valores.',
   COUPON_NO_INVOICE_IN_WINDOW:
     'Nenhuma fatura cai dentro destes meses: o desconto nunca seria usado. Aumente a duração.',
+  COUPON_AMOUNT_NOT_BELOW_CHEAPEST_PLAN:
+    'Em todos os planos, o desconto em R$ precisa ser menor que o plano mais barato. Use um valor menor ou escolha um plano só.',
+  COUPON_ALL_PLANS_SHARED_PRODUCT:
+    'Na Stripe, o Enterprise usa o mesmo produto de um dos planos, e o cupom valeria nele também. Separe os produtos na Stripe antes de criar um cupom para todos os planos.',
+  COUPON_NO_PLAN_ON_SALE: 'Nenhum plano pago está à venda agora, então não há plano para o cupom valer.',
+  COUPON_BELOW_MIN_CHARGE:
+    'Com este desconto, alguma fatura fica abaixo do mínimo que a Stripe cobra. Use um desconto menor ou de 100%.',
+};
+
+/** Mesmo código, outra causa: o campo diz qual. */
+const FIELD_MESSAGES: Record<string, string> = {
+  'COUPON_PLAN_MISMATCH:allPlans':
+    'O plano que esta empresa paga não entra em Todos os planos. Escolha o plano dela.',
 };
 
 const STRIPE_DOWN: Record<CouponAction, string> = {
@@ -61,6 +86,85 @@ export function durationLabel(months: number | null): string {
   return months === 1 ? '1 mês' : `${months} meses`;
 }
 
+type DurationFields = Partial<Pick<AdminCoupon, 'duration' | 'durationMonths'>>;
+
+/** Cupom antigo não traz `duration`: era sempre por meses. */
+export function couponDuration(coupon: DurationFields): CouponDuration {
+  return coupon.duration ?? 'REPEATING';
+}
+
+/** "3 meses", "uma vez" ou "para sempre": a coluna da tabela. */
+export function durationShort(coupon: DurationFields): string {
+  switch (couponDuration(coupon)) {
+    case 'ONCE':
+      return 'uma vez';
+    case 'FOREVER':
+      return 'para sempre';
+    default:
+      return durationLabel(coupon.durationMonths ?? null);
+  }
+}
+
+/** "por 3 meses", "uma vez" ou "para sempre": ao lado do desconto. */
+export function durationText(coupon: DurationFields): string {
+  return couponDuration(coupon) === 'REPEATING' ? `por ${durationShort(coupon)}` : durationShort(coupon);
+}
+
+/** "nos primeiros 3 meses", "na próxima fatura" ou "em todas as faturas": o que o cliente ganha. */
+export function durationBenefit(coupon: DurationFields): string {
+  switch (couponDuration(coupon)) {
+    case 'ONCE':
+      return 'na próxima fatura';
+    case 'FOREVER':
+      return 'em todas as faturas';
+    default: {
+      const months = coupon.durationMonths ?? 1;
+      return months === 1 ? 'no primeiro mês' : `nos primeiros ${months} meses`;
+    }
+  }
+}
+
+/** Quando o desconto começa e até quando vale: a nota abaixo dos valores por plano. */
+export function durationNote(coupon: DurationFields): string {
+  switch (couponDuration(coupon)) {
+    case 'ONCE':
+      return 'Vale só na próxima fatura, no mensal ou no anual. O cliente escolhe o plano na hora de assinar.';
+    case 'FOREVER':
+      return 'Começa na próxima fatura e vale em todas, até você desativar o cupom.';
+    default: {
+      const months = coupon.durationMonths ?? 1;
+      const monthly = months === 1 ? 'vale na próxima fatura' : `vale nas ${months} próximas faturas`;
+      return `Começa na próxima fatura do cliente. No mensal, ${monthly}. No anual, a próxima fatura do ano já sai com o desconto.`;
+    }
+  }
+}
+
+/** "20% de desconto por 3 meses.", "10% de desconto na próxima fatura.", "100% de desconto, para sempre." */
+export function offerHeadline(
+  coupon: Pick<AdminCoupon, 'amountOffCents' | 'percentOff'> & DurationFields,
+): string {
+  const off = `${discountLabel(coupon)} de desconto`;
+  switch (couponDuration(coupon)) {
+    case 'ONCE':
+      return `${off} na próxima fatura.`;
+    case 'FOREVER':
+      return `${off}, para sempre.`;
+    default:
+      return `${off} ${durationText(coupon)}.`;
+  }
+}
+
+/** Vale em STARTER, PRO e SCALE. O `planCode` `"ALL"` também diz isso. */
+export function isAllPlans(coupon: Partial<Pick<AdminCoupon, 'planCode' | 'allPlans'>>): boolean {
+  return coupon.allPlans === true || coupon.planCode === ALL_PLANS_CODE;
+}
+
+/** "Starter, Pro e Scale" (ou "Starter, Pro ou Scale"). */
+export function allPlansNames(joiner: 'e' | 'ou' = 'e'): string {
+  const names = ALL_PLANS_TIERS.map((tier) => PLAN_COPY[tier].name);
+  return `${names.slice(0, -1).join(', ')} ${joiner} ${names[names.length - 1]}`;
+}
+
 export function couponDate(value: string | null): string {
   return formatFullDate(parseServerTime(value));
 }
@@ -73,6 +177,7 @@ export function validityLabel(coupon: Pick<AdminCoupon, 'mode' | 'expiresAt'>): 
 /** "Pro mensal", a partir de `PRO_MONTHLY_STRIPE`. */
 export function couponPlanLabel(planCode: string | null): string {
   if (!planCode) return '—';
+  if (planCode === ALL_PLANS_CODE) return ALL_PLANS_LABEL;
   const [name, period] = planCode.split('_');
   const tier = planTierOf(name);
   const label = tier ? PLAN_COPY[tier].name : name;
@@ -144,6 +249,10 @@ export function createOutcomeUnknown(err: unknown): boolean {
 /** Cada recusa do contrato tem texto próprio; status sem código dizem o que aconteceu. */
 export function couponErrorMessage(err: unknown, action: CouponAction): string {
   const parsed = parseApiError(err);
+  for (const field of Object.keys(parsed.fieldErrors)) {
+    const text = FIELD_MESSAGES[`${parsed.code}:${field}`];
+    if (text) return text;
+  }
   if (parsed.code === 'COUPON_INVALID' && parsed.message) return parsed.message;
   if (parsed.code && CODE_MESSAGES[parsed.code]) return CODE_MESSAGES[parsed.code];
   if (action === 'create' && createOutcomeUnknown(err)) return STRIPE_DOWN.create;
@@ -180,18 +289,71 @@ export async function copyCouponCode(view: Window | null, notify: NotificationSe
   }
 }
 
-/** "Mensagem" do dono: o texto pronto para colar no WhatsApp. Vem dos valores da prévia. */
+/**
+ * O texto curto da folha depois de gerar: "Use o código X na hora de assinar qualquer
+ * plano (Starter, Pro ou Scale) e ganhe 20% de desconto nos primeiros 3 meses."
+ */
 export function openCodeMessage(
   code: string,
-  planCode: string | null,
-  preview: Pick<AdminCouponPreview, 'discountedAmountCents'>,
-  durationMonths: number,
+  coupon: Pick<AdminCoupon, 'planCode' | 'amountOffCents' | 'percentOff'> &
+    Partial<Pick<AdminCoupon, 'allPlans'>> &
+    DurationFields,
+  /** Um plano só: o preço com desconto da prévia, para dizer quanto o cliente paga. */
+  discountedAmountCents: number | null = null,
 ): string {
-  const tier = planTierOf((planCode ?? '').split('_')[0]);
-  const plan = tier ? PLAN_COPY[tier].name : couponPlanLabel(planCode);
-  const price = formatBRL(preview.discountedAmountCents).replace(/\u00a0/g, ' ');
-  const when = durationMonths === 1 ? 'no primeiro mês' : `nos primeiros ${durationMonths} meses`;
-  return `Use o código ${code} na hora de assinar o plano ${plan} e pague ${price} ${when}.`;
+  if (isAllPlans(coupon)) {
+    return `Use o código ${code} na hora de assinar qualquer plano (${allPlansNames('ou')}) e ganhe ${discountLabel(coupon)} de desconto ${durationBenefit(coupon)}.`;
+  }
+  const plan = `o plano ${couponPlanName(coupon.planCode)}`;
+  if (discountedAmountCents !== null) {
+    const price = formatBRL(discountedAmountCents).replace(/ /g, ' ');
+    return `Use o código ${code} na hora de assinar ${plan} e pague ${price} ${durationBenefit(coupon)}.`;
+  }
+  return `Use o código ${code} na hora de assinar ${plan} e ganhe ${discountLabel(coupon)} de desconto ${durationBenefit(coupon)}.`;
+}
+
+export interface ShareMessageInput {
+  code: string;
+  coupon: Pick<AdminCoupon, 'mode' | 'planCode' | 'amountOffCents' | 'percentOff' | 'expiresAt'> &
+    Partial<Pick<AdminCoupon, 'allPlans'>> &
+    DurationFields;
+  /** Nome da empresa do código de empresa; ausente no código aberto. */
+  company?: string | null;
+}
+
+/**
+ * A mensagem que vai junto com a imagem, ou sozinha em "Copiar mensagem". Curta, com o
+ * código sozinho numa linha e o endereço para assinar.
+ */
+export function shareMessage({ code, coupon, company }: ShareMessageInput): string {
+  const all = isAllPlans(coupon);
+  const companyName = coupon.mode === 'PROMOTION_CODE' ? (company ?? '').trim() : '';
+  const plan = `no plano ${couponPlanName(coupon.planCode)}`;
+  const where = companyName
+    ? all
+      ? 'no plano que vocês escolherem'
+      : plan
+    : all
+      ? `em qualquer plano: ${allPlansNames('ou')}`
+      : plan;
+  const opening = companyName
+    ? `Oi! Separei um desconto só para a ${companyName} no MyCarsHub.`
+    : 'Oi! Tem desconto para você assinar o MyCarsHub.';
+  const date = coupon.expiresAt ? couponDate(coupon.expiresAt) : '—';
+  const until = date !== '—' ? date : null;
+  const signup = `Assine em ${SIGNUP_HOST}`;
+  let closing: string;
+  if (coupon.mode === 'PROMOTION_CODE') {
+    closing = until ? `É de uso único e vale até ${until}. ${signup}` : `É de uso único. ${signup}`;
+  } else {
+    closing = until ? `Vale até ${until}. ${signup}` : signup;
+  }
+  return [
+    opening,
+    `${discountLabel(coupon)} de desconto ${durationBenefit(coupon)}, ${where}.`,
+    `Use o código:\n${code}`,
+    closing,
+  ].join('\n\n');
 }
 
 /** "usos 0/5" na lista. */
@@ -213,14 +375,17 @@ export function kindLabel(mode: AdminCouponMode): string {
 /** "Scale", sem o período: o que o cliente lê na mensagem e na linha da lista. */
 export function couponPlanName(planCode: string | null): string {
   if (!planCode) return '—';
+  if (planCode === ALL_PLANS_CODE) return ALL_PLANS_LABEL;
   const [name] = planCode.split('_');
   const tier = planTierOf(name);
   return tier ? PLAN_COPY[tier].name : name;
 }
 
-/** "R$ 100,00 de desconto por 1 mês". */
-export function discountSummary(coupon: Pick<AdminCoupon, 'amountOffCents' | 'percentOff' | 'durationMonths'>): string {
-  return `${discountLabel(coupon)} de desconto por ${durationLabel(coupon.durationMonths)}`;
+/** "R$ 100,00 de desconto por 1 mês", "10% de desconto uma vez". */
+export function discountSummary(
+  coupon: Pick<AdminCoupon, 'amountOffCents' | 'percentOff' | 'durationMonths'> & DurationFields,
+): string {
+  return `${discountLabel(coupon)} de desconto ${durationText(coupon)}`;
 }
 
 /** Mensagem pronta copiada pelo dono; mesma regra do código: sem clipboard, entrega por escrito. */

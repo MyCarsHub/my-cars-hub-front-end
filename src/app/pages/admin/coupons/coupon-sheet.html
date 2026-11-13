@@ -10,7 +10,7 @@
             <p class="text-sm font-semibold">Código para qualquer pessoa</p>
             <p class="mt-1 text-3xl font-bold tracking-wide tabular-nums break-all select-all" data-testid="coupon-created-code">{{ code }}</p>
           </div>
-          @if (shareMessage(); as message) {
+          @if (createdSummary(); as message) {
             <p class="text-sm" data-testid="coupon-share-message">{{ message }}</p>
           }
           <p class="text-sm">
@@ -146,10 +146,16 @@
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             <option value="" disabled>Escolha o plano</option>
+            <option [value]="allPlansCode" data-testid="coupon-plan-all">{{ allPlansLabel }}</option>
             @for (option of planOptions(); track option.code) {
               <option [value]="option.code">{{ option.label }}</option>
             }
           </select>
+          @if (allPlans()) {
+            <span class="text-xs text-fg-subtle" data-testid="coupon-plan-all-hint">
+              Vale no mensal e no anual. O Enterprise fica de fora: ele é sob consulta.
+            </span>
+          }
         </label>
         @if (plansError(); as err) {
           <app-alert-banner variant="error" [message]="err" />
@@ -174,11 +180,21 @@
                 placeholder="0,00"
                 [formControl]="amountControl"
                 (input)="onAmountInput($event)"
+                [attr.aria-invalid]="amountOverLimit() ? 'true' : null"
+                [attr.aria-describedby]="amountOverLimit() || amountLimitHint() ? 'coupon-amount-note' : null"
                 data-testid="coupon-amount"
-                class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg tabular-nums
+                class="min-h-12 rounded-xl border bg-surface px-3 text-base text-fg tabular-nums
                        focus:outline-none focus:ring-2 focus:ring-primary-400"
+                [class]="amountOverLimit() ? 'border-rose-500 dark:border-rose-400' : 'border-edge-field'"
               />
             </label>
+            @if (amountOverLimit(); as message) {
+              <p id="coupon-amount-note" class="text-sm text-rose-700 dark:text-rose-300" data-testid="coupon-amount-limit-error">
+                {{ message }}
+              </p>
+            } @else if (amountLimitHint(); as hint) {
+              <p id="coupon-amount-note" class="text-sm text-fg-subtle" data-testid="coupon-amount-limit">{{ hint }}</p>
+            }
           } @else {
             <label class="flex flex-col gap-1">
               <span class="sr-only">Desconto em percentual</span>
@@ -202,19 +218,42 @@
         </div>
 
         <!-- Duração -->
-        <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-fg-muted">Por quantos meses</span>
-          <select
-            [formControl]="monthsControl"
-            data-testid="coupon-months"
-            class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
-                   focus:outline-none focus:ring-2 focus:ring-primary-400"
-          >
-            @for (month of monthOptions; track month.value) {
-              <option [ngValue]="month.value">{{ month.label }}</option>
+        <div class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-fg-muted">Duração</span>
+          <app-segmented-tabs
+            ariaLabel="Duração do desconto"
+            [options]="durationOptions"
+            [value]="duration()"
+            (selected)="setDuration($event)"
+          />
+          @if (isRepeating()) {
+            <label class="flex flex-col gap-1">
+              <span class="sr-only">Quantos meses</span>
+              <span
+                class="flex min-h-12 items-center gap-2 rounded-xl border bg-surface px-3
+                       focus-within:ring-2 focus-within:ring-primary-400"
+                [class]="monthsInvalid() ? 'border-rose-500 dark:border-rose-400' : 'border-edge-field'"
+              >
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  maxlength="2"
+                  placeholder="Quantos meses"
+                  [formControl]="monthsControl"
+                  [attr.aria-invalid]="monthsInvalid() ? 'true' : null"
+                  data-testid="coupon-months"
+                  class="min-h-12 min-w-0 flex-1 bg-transparent text-base text-fg tabular-nums focus:outline-none"
+                />
+                <span class="shrink-0 text-base text-fg-subtle" aria-hidden="true">meses</span>
+              </span>
+            </label>
+            @if (monthsInvalid()) {
+              <p class="text-sm text-rose-700 dark:text-rose-300" data-testid="coupon-months-error">De 1 a {{ maxMonths }} meses.</p>
             }
-          </select>
-        </label>
+          }
+          <p class="text-xs text-fg-subtle" data-testid="coupon-duration-hint">{{ durationHint() }}</p>
+        </div>
 
         @if (isOpen()) {
           <!-- Código -->
@@ -325,18 +364,31 @@
                 <p class="mt-0.5 text-sm">{{ modeView()?.detail }}</p>
               </div>
               @if (!noInvoiceInWindow()) {
-                <p class="text-xl font-bold leading-snug">{{ result.summary }}</p>
+                <p class="text-xl font-bold leading-snug" data-testid="coupon-headline">{{ headline() }}</p>
+              }
+              @if (priceRows().length > 0) {
+                <div class="flex flex-col gap-2.5" data-testid="coupon-plan-prices">
+                  <p class="text-sm font-semibold">Quanto cada plano paga</p>
+                  <app-coupon-plan-prices [rows]="priceRows()" />
+                  <p class="text-sm" data-testid="coupon-price-note">{{ priceNote() }}</p>
+                </div>
               }
               @if (invoiceDates().length > 0) {
                 <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
                   <dt>Com desconto</dt>
-                  <dd class="text-right font-semibold tabular-nums">
-                    @for (date of invoiceDates(); track date) {
-                      <span class="block">{{ date }}</span>
+                  <dd class="text-right font-semibold tabular-nums" data-testid="coupon-discounted-dates">
+                    @if (foreverPreview()) {
+                      <span class="block">{{ invoiceDates()[0] }} em diante</span>
+                    } @else {
+                      @for (date of invoiceDates(); track date) {
+                        <span class="block">{{ date }}</span>
+                      }
                     }
                   </dd>
                   <dt>Primeira cheia</dt>
-                  <dd class="text-right font-semibold tabular-nums">{{ firstFullDate() }}</dd>
+                  <dd class="text-right font-semibold tabular-nums" data-testid="coupon-first-full">
+                    {{ foreverPreview() || !preview()?.firstFullInvoice ? 'Não tem' : firstFullDate() }}
+                  </dd>
                 </dl>
               } @else if (noInvoiceInWindow()) {
                 <p class="text-sm font-semibold" data-testid="coupon-no-invoice">
@@ -372,7 +424,33 @@
   </div>
 
   <div sheetFooter class="pt-3">
-    @if (created()) {
+    @if (confirmingFree()) {
+      <div class="flex flex-col gap-2.5 rounded-2xl bg-surface-sunken p-4" role="alertdialog"
+           aria-labelledby="coupon-free-title" aria-describedby="coupon-free-text" data-testid="coupon-free-confirm">
+        <p id="coupon-free-title" class="text-lg font-semibold text-fg">Criar cupom de 100% para sempre</p>
+        <p id="coupon-free-text" class="text-base text-fg-soft">Esse cupom deixa o plano grátis para sempre. Confirmar?</p>
+        <div class="mt-1 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            class="press min-h-12 rounded-xl bg-surface px-4 text-base font-semibold text-fg-soft
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            data-testid="coupon-free-cancel"
+            (click)="cancelFree()"
+          >
+            Voltar
+          </button>
+          <button
+            type="button"
+            class="press min-h-12 rounded-xl bg-primary-500 px-4 text-base font-semibold text-white hover:bg-primary-600
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            data-testid="coupon-free-confirm-button"
+            (click)="confirmFree()"
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    } @else if (created()) {
       <button
         type="button"
         class="press w-full min-h-12 rounded-xl bg-surface-sunken px-4 text-base font-semibold text-fg-soft

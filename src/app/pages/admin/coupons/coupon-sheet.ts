@@ -30,16 +30,20 @@ import { PaintedCard } from '../../../components/core/painted-card/painted-card'
 import { SegmentedTabs, SegmentedTabsOption } from '../../../components/core/segmented-tabs/segmented-tabs';
 import { NotificationService } from '../../../services/notification.service';
 import {
+  ALL_PLANS_CODE,
   AdminCoupon,
   AdminCouponPreview,
   AdminCouponRequest,
   CouponCompany,
+  CouponDuration,
 } from '../../../types/admin-coupon.types';
 import { PlanResponse } from '../../../types/billing.types';
 import { applyPtBrMoneyMaskToControl } from '../../../utils/ptbr-money-mask';
 import { parsePtBrMoneyCents, parsePtBrNumber } from '../../../utils/ptbr-number';
 import { AdminCouponsService } from './admin-coupons.service';
 import {
+  ALL_PLANS_TIERS,
+  allPlansNames,
   copyCouponCode,
   copyCouponMessage,
   couponDate,
@@ -47,10 +51,15 @@ import {
   couponPlanLabel,
   createOutcomeUnknown,
   discountLabel,
-  durationLabel,
+  durationNote,
   modeCopy,
+  offerHeadline,
   openCodeMessage,
+  shareMessage,
 } from './coupon-copy';
+import { PlanPriceRow, planPriceRows } from './coupon-plan-prices';
+import { CouponPlanPricesTable } from './coupon-plan-prices-table';
+import { planTierOf } from '../../../utils/plan-features';
 
 export const PREVIEW_DEBOUNCE_MS = 350;
 export const CREATE_TIMEOUT_MS = 20000;
@@ -65,6 +74,8 @@ type Audience = 'COMPANY' | 'OPEN';
 export const DEFAULT_EXPIRES_IN_DAYS = 30;
 export const DEFAULT_MAX_REDEMPTIONS = 1;
 const MAX_DAYS = 365;
+/** Teto de meses do servidor (`AdminCouponService.MAX_MONTHS`). */
+export const MAX_MONTHS = 36;
 const MAX_USES = 1000;
 /** Letras, números e hífen, de 4 a 30: a mesma regra do servidor. */
 const CODE_PATTERN = /^[A-Za-z0-9-]{4,30}$/;
@@ -79,10 +90,20 @@ const KIND_OPTIONS: readonly SegmentedTabsOption<DiscountKind>[] = [
   { value: 'PERCENT', label: 'Em %', testId: 'coupon-kind-percent' },
 ];
 
-const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
-  value: i + 1,
-  label: durationLabel(i + 1),
-}));
+const DURATION_OPTIONS: readonly SegmentedTabsOption<CouponDuration>[] = [
+  { value: 'ONCE', label: 'Uma vez', testId: 'coupon-duration-once' },
+  { value: 'REPEATING', label: 'Por meses', testId: 'coupon-duration-repeating' },
+  { value: 'FOREVER', label: 'Para sempre', testId: 'coupon-duration-forever' },
+];
+
+const DURATION_HINT: Record<CouponDuration, string> = {
+  ONCE: 'O desconto entra só na próxima fatura do cliente.',
+  REPEATING: `De 1 a ${MAX_MONTHS} meses. O desconto começa na próxima fatura do cliente.`,
+  FOREVER: 'O desconto começa na próxima fatura e vale em todas, até você desativar o cupom.',
+};
+
+/** 100% para sempre é liberado, mas deixa o plano grátis: o botão só pede uma confirmação. */
+const FREE_FOREVER_PERCENT = 100;
 
 /**
  * "Criar cupom". O servidor escolhe o modo: a prévia diz qual foi e o botão
@@ -92,7 +113,7 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
 @Component({
   selector: 'app-coupon-sheet',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, AlertBanner, BottomSheet, PaintedCard, SegmentedTabs],
+  imports: [ReactiveFormsModule, AlertBanner, BottomSheet, CouponPlanPricesTable, PaintedCard, SegmentedTabs],
   templateUrl: './coupon-sheet.html',
 })
 export class CouponSheet implements OnInit {
@@ -110,14 +131,18 @@ export class CouponSheet implements OnInit {
 
   protected readonly audienceOptions = AUDIENCE_OPTIONS;
   protected readonly kindOptions = KIND_OPTIONS;
-  protected readonly monthOptions = MONTH_OPTIONS;
+  protected readonly durationOptions = DURATION_OPTIONS;
+  protected readonly allPlansCode = ALL_PLANS_CODE;
+  protected readonly allPlansLabel = `Todos os planos (${allPlansNames()})`;
+  protected readonly maxMonths = MAX_MONTHS;
 
   protected readonly searchControl = new FormControl('', { nonNullable: true });
   protected readonly planControl = new FormControl('', { nonNullable: true });
   /** Texto mascarado: o valor só vira centavos em `discount`. */
   protected readonly amountControl = new FormControl('', { nonNullable: true });
   protected readonly percentControl = new FormControl('', { nonNullable: true });
-  protected readonly monthsControl = new FormControl(1, { nonNullable: true });
+  /** Texto: vazio até o admin digitar, e `3,5` ou `40` não viram meses. */
+  protected readonly monthsControl = new FormControl('', { nonNullable: true });
   protected readonly reasonControl = new FormControl('', { nonNullable: true });
   protected readonly codeControl = new FormControl('', { nonNullable: true });
   protected readonly daysControl = new FormControl(String(DEFAULT_EXPIRES_IN_DAYS), { nonNullable: true });
@@ -127,7 +152,7 @@ export class CouponSheet implements OnInit {
   private readonly planValue = toSignal(this.planControl.valueChanges, { initialValue: '' });
   private readonly amountValue = toSignal(this.amountControl.valueChanges, { initialValue: '' });
   private readonly percentValue = toSignal(this.percentControl.valueChanges, { initialValue: '' });
-  private readonly monthsValue = toSignal(this.monthsControl.valueChanges, { initialValue: 1 });
+  private readonly monthsValue = toSignal(this.monthsControl.valueChanges, { initialValue: '' });
   private readonly reasonValue = toSignal(this.reasonControl.valueChanges, { initialValue: '' });
   private readonly codeValue = toSignal(this.codeControl.valueChanges, { initialValue: '' });
   private readonly daysValue = toSignal(this.daysControl.valueChanges, { initialValue: String(DEFAULT_EXPIRES_IN_DAYS) });
@@ -137,6 +162,9 @@ export class CouponSheet implements OnInit {
   protected readonly audience = signal<Audience>('COMPANY');
   protected readonly selected = signal<CouponCompany | null>(null);
   protected readonly kind = signal<DiscountKind>('AMOUNT');
+  protected readonly duration = signal<CouponDuration>('REPEATING');
+  /** O admin tocou em criar um cupom de 100% para sempre e falta confirmar. */
+  protected readonly confirmingFree = signal(false);
   protected readonly results = signal<CouponCompany[]>([]);
   protected readonly searchError = signal<string | null>(null);
   private readonly plans = signal<PlanResponse[]>([]);
@@ -152,15 +180,19 @@ export class CouponSheet implements OnInit {
 
   private readonly previewRequests = new Subject<AdminCouponRequest | null>();
 
+  /** Planos pagos, da Stripe, à venda: os que um cupom pode cobrir. */
+  private readonly onSale = computed(() =>
+    this.plans().filter(
+      (plan) =>
+        plan.price > 0 &&
+        plan.gateway === STRIPE_GATEWAY &&
+        plan.purchasable !== false &&
+        plan.contactOnly !== true,
+    ),
+  );
+
   protected readonly planOptions = computed(() =>
-    this.plans()
-      .filter(
-        (plan) =>
-          plan.price > 0 &&
-          plan.gateway === STRIPE_GATEWAY &&
-          plan.purchasable !== false &&
-          plan.contactOnly !== true,
-      )
+    this.onSale()
       .map((plan) => ({
         code: plan.code,
         label: `${couponPlanLabel(plan.code)} · ${discountLabel({
@@ -186,6 +218,48 @@ export class CouponSheet implements OnInit {
   });
 
   protected readonly isOpen = computed(() => this.audience() === 'OPEN');
+  protected readonly allPlans = computed(() => this.planValue() === ALL_PLANS_CODE);
+  protected readonly isRepeating = computed(() => this.duration() === 'REPEATING');
+  protected readonly durationHint = computed(() => DURATION_HINT[this.duration()]);
+
+  /**
+   * O plano mais barato que "todos os planos" cobre: um desconto em R$ do tamanho dele
+   * deixaria esse plano de graça. O servidor confere de novo com a tabela de planos.
+   */
+  protected readonly cheapest = computed(() => {
+    const covered = this.onSale().filter((plan) =>
+      (ALL_PLANS_TIERS as readonly string[]).includes(planTierOf(plan.name) ?? ''),
+    );
+    const plan = covered.reduce<PlanResponse | null>((min, p) => (!min || p.price < min.price ? p : min), null);
+    if (!plan) return null;
+    const cents = Math.round(plan.price * 100);
+    return { cents, plan: couponPlanLabel(plan.code), price: discountLabel({ amountOffCents: cents, percentOff: null }) };
+  });
+
+  /** Em R$ e todos os planos: o limite aparece antes de digitar. */
+  protected readonly amountLimitHint = computed(() => {
+    const cheapest = this.cheapest();
+    if (!this.allPlans() || this.kind() !== 'AMOUNT' || !cheapest) return null;
+    return `Em todos os planos, o valor precisa ser menor que ${cheapest.price}: é o ${cheapest.plan}, o plano mais barato.`;
+  });
+
+  /** Valor em R$ que zera (ou passa) o plano mais barato. */
+  protected readonly amountOverLimit = computed(() => {
+    const cheapest = this.cheapest();
+    const cents = this.discount()?.amountOffCents ?? null;
+    if (!this.allPlans() || this.kind() !== 'AMOUNT' || !cheapest || cents === null || cents < cheapest.cents) {
+      return null;
+    }
+    const typed = discountLabel({ amountOffCents: cents, percentOff: null });
+    const relation = cents === cheapest.cents ? 'é o preço do' : 'é mais que o';
+    return `${typed} ${relation} ${cheapest.plan} (${cheapest.price}), o plano mais barato. Use um valor menor ou escolha um plano só.`;
+  });
+
+  private readonly months = computed(() => wholeNumber(this.monthsValue(), 1, MAX_MONTHS));
+  /** Vazio ainda não é erro; o botão só espera. */
+  protected readonly monthsInvalid = computed(
+    () => this.isRepeating() && this.monthsValue().trim() !== '' && this.months() === null,
+  );
 
   private readonly code = computed(() => this.codeValue().trim().toUpperCase());
   private readonly days = computed(() => wholeNumber(this.daysValue(), 1, MAX_DAYS));
@@ -198,8 +272,12 @@ export class CouponSheet implements OnInit {
   private readonly draft = computed<AdminCouponRequest | null>(() => {
     const planCode = this.planValue();
     const discount = this.discount();
-    if (!planCode || !discount) return null;
-    const base = { planCode, ...discount, durationMonths: this.monthsValue(), reason: '' };
+    if (!planCode || !discount || this.amountOverLimit()) return null;
+    const duration = this.duration();
+    const durationMonths = duration === 'REPEATING' ? this.months() : null;
+    if (duration === 'REPEATING' && durationMonths === null) return null;
+    const plan = planCode === ALL_PLANS_CODE ? { planCode: null, allPlans: true } : { planCode };
+    const base = { ...plan, ...discount, duration, durationMonths, reason: '' };
     if (this.isOpen()) {
       const days = this.days();
       const uses = this.uses();
@@ -246,6 +324,39 @@ export class CouponSheet implements OnInit {
   /** `null` = o código ainda não tem janela; lista vazia = nenhuma fatura cai nela. */
   protected readonly noInvoiceInWindow = computed(() => this.preview()?.discountedInvoices?.length === 0);
 
+  /** Para sempre não tem fatura cheia: a data única vira "em diante". */
+  protected readonly foreverPreview = computed(() => (this.preview()?.duration ?? this.duration()) === 'FOREVER');
+
+  /** Em todos os planos, num código, quem lê quer a oferta; o valor de cada plano vem na tabela. */
+  protected readonly headline = computed(() => {
+    const preview = this.preview();
+    const discount = this.discount();
+    if (!preview) return null;
+    if (this.allPlans() && preview.mode !== 'APPLIED_TO_SUBSCRIPTION' && discount) {
+      return offerHeadline({ ...discount, duration: this.duration(), durationMonths: this.months() });
+    }
+    return preview.summary;
+  });
+
+  /** "Quanto cada plano paga": só em todos os planos, com a prévia do servidor. */
+  protected readonly priceRows = computed<PlanPriceRow[]>(() => {
+    const preview = this.preview();
+    if (!preview || !this.allPlans() || preview.mode === 'APPLIED_TO_SUBSCRIPTION') return [];
+    return planPriceRows(
+      (preview.plans ?? []).map((plan) => ({
+        planCode: plan.planCode,
+        planName: plan.planName,
+        period: plan.period,
+        listCents: plan.listAmountCents,
+        discountedCents: plan.discountedAmountCents,
+      })),
+    );
+  });
+
+  protected readonly priceNote = computed(() =>
+    durationNote({ duration: this.duration(), durationMonths: this.months() }),
+  );
+
   protected readonly title = computed(() => {
     const coupon = this.created();
     if (!coupon) return 'Criar cupom';
@@ -253,16 +364,23 @@ export class CouponSheet implements OnInit {
   });
 
   /** A frase pronta para o dono mandar; só existe para o código aberto. */
-  protected readonly shareMessage = computed(() => {
+  protected readonly createdSummary = computed(() => {
+    const coupon = this.createdView();
+    if (!coupon?.promotionCode || coupon.mode !== 'OPEN_CODE') return null;
+    return openCodeMessage(coupon.promotionCode, coupon, this.preview()?.discountedAmountCents ?? null);
+  });
+
+  /** O cupom criado, com o que a resposta não trouxer completado pelo que estava na folha. */
+  private readonly createdView = computed(() => {
     const coupon = this.created();
-    const preview = this.preview();
-    if (!coupon?.promotionCode || coupon.mode !== 'OPEN_CODE' || !preview) return null;
-    return openCodeMessage(
-      coupon.promotionCode,
-      coupon.planCode ?? this.planValue(),
-      preview,
-      coupon.durationMonths ?? this.monthsValue(),
-    );
+    if (!coupon) return null;
+    return {
+      ...coupon,
+      planCode: coupon.planCode ?? (this.allPlans() ? ALL_PLANS_CODE : this.planValue()),
+      allPlans: coupon.allPlans ?? this.allPlans(),
+      duration: coupon.duration ?? this.duration(),
+      durationMonths: coupon.durationMonths ?? this.months(),
+    };
   });
 
   protected readonly createdValidity = computed(() => couponDate(this.created()?.expiresAt ?? null));
@@ -355,6 +473,12 @@ export class CouponSheet implements OnInit {
     this.refreshPreview();
   }
 
+  protected setDuration(duration: CouponDuration): void {
+    this.duration.set(duration);
+    this.confirmingFree.set(false);
+    this.refreshPreview();
+  }
+
   protected onAmountInput(event: Event): void {
     applyPtBrMoneyMaskToControl(event, this.amountControl);
   }
@@ -369,6 +493,7 @@ export class CouponSheet implements OnInit {
 
   /** Qualquer mudança invalida a prévia na hora: é ela que libera o botão. */
   protected refreshPreview(): void {
+    this.confirmingFree.set(false);
     const request = this.draft();
     this.preview.set(null);
     this.previewError.set(null);
@@ -391,7 +516,30 @@ export class CouponSheet implements OnInit {
     );
   }
 
+  /** 100% e para sempre: nada bloqueia, só uma confirmação neutra antes. */
+  private readonly freeForever = computed(
+    () => this.duration() === 'FOREVER' && this.discount()?.percentOff === FREE_FOREVER_PERCENT,
+  );
+
   protected submit(): void {
+    if (!this.canSubmit()) return;
+    if (this.freeForever()) {
+      this.confirmingFree.set(true);
+      return;
+    }
+    this.create();
+  }
+
+  protected confirmFree(): void {
+    this.confirmingFree.set(false);
+    this.create();
+  }
+
+  protected cancelFree(): void {
+    this.confirmingFree.set(false);
+  }
+
+  private create(): void {
     const request = this.draft();
     const company = this.isOpen() ? null : this.selected();
     if (!this.canSubmit() || !request || (!this.isOpen() && !company)) return;
@@ -416,9 +564,12 @@ export class CouponSheet implements OnInit {
     if (code) void copyCouponCode(this.doc.defaultView, this.notify, code);
   }
 
+  /** Copia a mensagem completa de compartilhar, não o resumo da tela. */
   protected copyMessage(): void {
-    const text = this.shareMessage();
-    if (text) void copyCouponMessage(this.doc.defaultView, this.notify, text);
+    const coupon = this.createdView();
+    if (!coupon?.promotionCode) return;
+    const text = shareMessage({ code: coupon.promotionCode, coupon, company: this.selected()?.name ?? null });
+    void copyCouponMessage(this.doc.defaultView, this.notify, text);
   }
 
   protected finish(): void {
