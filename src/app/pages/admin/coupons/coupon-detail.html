@@ -55,10 +55,8 @@
         }
       </dl>
 
-      @if (uncovered(); as plans) {
-        <p class="text-sm text-fg-soft" data-testid="detail-uncovered">
-          Este cupom não cobre: {{ plans }}. Para esses planos, crie outro cupom.
-        </p>
+      @if (uncovered(); as note) {
+        <p class="text-sm text-fg-soft" data-testid="detail-uncovered">{{ note }}</p>
       }
 
       @if (shareable()) {

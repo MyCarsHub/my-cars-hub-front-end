@@ -22,7 +22,6 @@ import { AdminCouponsService } from './admin-coupons.service';
 import {
   copyCouponCode,
   couponErrorMessage,
-  couponPlanLabel,
   couponPlanName,
   couponStatus,
   discountLabel,
@@ -30,6 +29,7 @@ import {
   durationText,
   isAllPlans,
   kindLabel,
+  uncoveredNote,
   validityLabel,
 } from './coupon-copy';
 import { couponPriceRows } from './coupon-plan-prices';
@@ -109,10 +109,9 @@ export class CouponDetail implements OnInit {
   protected readonly priceRows = computed(() => (this.allPlans() ? couponPriceRows(this.live(), this.plans()) : []));
   protected readonly priceNote = computed(() => durationNote(this.live()));
   /** Planos à venda que o cupom não cobre (Product novo na Stripe): avisar e pedir outro cupom. */
-  protected readonly uncovered = computed(() => {
-    const codes = this.live().uncoveredPlanCodes ?? [];
-    return codes.length ? codes.map((code) => couponPlanLabel(code)).join(', ') : null;
-  });
+  protected readonly uncovered = computed(() =>
+    this.allPlans() ? uncoveredNote(this.live().uncoveredPlanCodes, false) : null,
+  );
   protected readonly validity = computed(() => validityLabel(this.live()));
   protected readonly usesText = computed(() => usesSpaced(this.live()));
   protected readonly progress = computed(() => usesProgress(this.live()));

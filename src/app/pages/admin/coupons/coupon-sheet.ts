@@ -56,6 +56,7 @@ import {
   offerHeadline,
   openCodeMessage,
   shareMessage,
+  uncoveredNote,
 } from './coupon-copy';
 import { PlanPriceRow, planPriceRows } from './coupon-plan-prices';
 import { CouponPlanPricesTable } from './coupon-plan-prices-table';
@@ -352,6 +353,11 @@ export class CouponSheet implements OnInit {
       })),
     );
   });
+
+  /** Todos os planos: o plano que não está à venda fica de fora, e o admin sabe antes de criar. */
+  protected readonly uncovered = computed(() =>
+    this.allPlans() ? uncoveredNote(this.preview()?.uncoveredPlanCodes, true) : null,
+  );
 
   protected readonly priceNote = computed(() =>
     durationNote({ duration: this.duration(), durationMonths: this.months() }),

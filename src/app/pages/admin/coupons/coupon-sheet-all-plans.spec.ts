@@ -279,6 +279,20 @@ describe('CouponSheet — todos os planos e duração', () => {
       expect(q('coupon-price-note').textContent).toContain('No mensal, vale nas 3 próximas faturas');
     });
 
+    it('plano fora de venda: avisa antes de criar que ele fica de fora', async () => {
+      service['preview'].mockReturnValue(of({ ...ALL_PREVIEW, uncoveredPlanCodes: ['PRO_MONTHLY_STRIPE'] }));
+      await fillOpenAllPlans();
+      expect(q('coupon-uncovered').textContent?.trim()).toBe(
+        'O plano Pro mensal não está à venda e fica de fora deste cupom.',
+      );
+    });
+
+    it('todos à venda (lista vazia) não mostra aviso', async () => {
+      service['preview'].mockReturnValue(of({ ...ALL_PREVIEW, uncoveredPlanCodes: [] }));
+      await fillOpenAllPlans();
+      expect(q('coupon-uncovered')).toBeNull();
+    });
+
     it('um plano só continua com o resumo do servidor, sem tabela', async () => {
       service['preview'].mockReturnValue(of({ ...ALL_PREVIEW, allPlans: false, plans: undefined }));
       render();

@@ -50,6 +50,8 @@ export interface AdminCouponPreview {
   allPlans?: boolean;
   /** Todos os planos: um item por plano coberto. Um plano só: um item. Backend antigo: ausente. */
   plans?: CouponPreviewPlan[];
+  /** Todos os planos: planos que ficam de fora (hoje, os que não estão à venda). `null` num plano só. */
+  uncoveredPlanCodes?: string[] | null;
   listAmountCents: number;
   discountedAmountCents: number;
   /** "Paga R$ 100,00 por 2 meses, depois R$ 149,90". */
@@ -79,8 +81,9 @@ export interface AdminCoupon {
   /** Planos cobertos na criação; um item num cupom de um plano só. */
   planCodes?: string[];
   /**
-   * Só todos os planos: planos à venda hoje que o cupom NÃO cobre (Product novo na
-   * Stripe). `[]` = cobre todos; `null` = um plano só, ou a Stripe não respondeu.
+   * Só todos os planos: planos que o cupom NÃO cobre (fora de venda na criação, ou
+   * Product novo na Stripe depois). `[]` = cobre todos; `null` = um plano só, ou a
+   * Stripe não respondeu.
    */
   uncoveredPlanCodes?: string[] | null;
   duration?: CouponDuration;

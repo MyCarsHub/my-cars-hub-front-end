@@ -373,6 +373,9 @@
                   <p class="text-sm" data-testid="coupon-price-note">{{ priceNote() }}</p>
                 </div>
               }
+              @if (uncovered(); as note) {
+                <p class="text-sm" data-testid="coupon-uncovered">{{ note }}</p>
+              }
               @if (invoiceDates().length > 0) {
                 <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
                   <dt>Com desconto</dt>

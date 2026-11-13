@@ -28,7 +28,7 @@ export interface PlanPriceRow {
   yearly: PriceCell | null;
 }
 
-const brl = (cents: number): string => formatBRL(Math.round(cents)).replace(/ /g, ' ');
+const brl = (cents: number): string => formatBRL(Math.round(cents)).replace(/\u00A0/g, ' ');
 
 /** "Pro", a partir do nome ou do código do plano. */
 function tierName(planName: string, planCode: string): string {

@@ -257,7 +257,9 @@ describe('Detalhe — todos os planos', () => {
 
   it('plano novo que o cupom não cobre aparece, pedindo outro cupom', () => {
     const { el } = mountDetail({ ...BEMVINDO20, uncoveredPlanCodes: ['PRO_YEARLY_STRIPE'] });
-    expect(q(el, 'detail-uncovered')?.textContent).toContain('Este cupom não cobre: Pro anual');
+    expect(q(el, 'detail-uncovered')?.textContent?.trim()).toBe(
+      'O plano Pro anual fica de fora deste cupom. Para cobri-lo, crie outro cupom.',
+    );
   });
 
   it('um plano só não ganha a tabela de planos', () => {

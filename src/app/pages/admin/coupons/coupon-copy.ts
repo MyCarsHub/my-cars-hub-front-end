@@ -159,6 +159,27 @@ export function isAllPlans(coupon: Partial<Pick<AdminCoupon, 'planCode' | 'allPl
   return coupon.allPlans === true || coupon.planCode === ALL_PLANS_CODE;
 }
 
+/**
+ * Nota neutra dos planos que ficam de fora de um cupom de todos os planos.
+ * `notOnSale` = na prévia, onde o motivo é sempre esse; no detalhe o plano pode ter
+ * saído de venda ou mudado de produto na Stripe, então a nota não diz o porquê.
+ */
+export function uncoveredNote(codes: readonly string[] | null | undefined, notOnSale: boolean): string | null {
+  if (!codes?.length) return null;
+  const names = codes.map((code) => couponPlanLabel(code));
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+  const one = names.length === 1;
+  const subject = one ? `O plano ${list}` : `Os planos ${list}`;
+  if (notOnSale) {
+    return one
+      ? `${subject} não está à venda e fica de fora deste cupom.`
+      : `${subject} não estão à venda e ficam de fora deste cupom.`;
+  }
+  return one
+    ? `${subject} fica de fora deste cupom. Para cobri-lo, crie outro cupom.`
+    : `${subject} ficam de fora deste cupom. Para cobri-los, crie outro cupom.`;
+}
+
 /** "Starter, Pro e Scale" (ou "Starter, Pro ou Scale"). */
 export function allPlansNames(joiner: 'e' | 'ou' = 'e'): string {
   const names = ALL_PLANS_TIERS.map((tier) => PLAN_COPY[tier].name);
@@ -306,7 +327,7 @@ export function openCodeMessage(
   }
   const plan = `o plano ${couponPlanName(coupon.planCode)}`;
   if (discountedAmountCents !== null) {
-    const price = formatBRL(discountedAmountCents).replace(/ /g, ' ');
+    const price = formatBRL(discountedAmountCents).replace(/\u00A0/g, ' ');
     return `Use o código ${code} na hora de assinar ${plan} e pague ${price} ${durationBenefit(coupon)}.`;
   }
   return `Use o código ${code} na hora de assinar ${plan} e ganhe ${discountLabel(coupon)} de desconto ${durationBenefit(coupon)}.`;

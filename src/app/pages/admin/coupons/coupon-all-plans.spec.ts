@@ -15,6 +15,7 @@ import {
   offerHeadline,
   openCodeMessage,
   shareMessage,
+  uncoveredNote,
 } from './coupon-copy';
 import { redemptionView } from './coupon-detail-copy';
 import { couponPriceRows, monthlySavingsLine, planPriceRows } from './coupon-plan-prices';
@@ -104,6 +105,29 @@ describe('cupom de todos os planos', () => {
     );
     expect(view.plan).toBeNull();
     expect(view.pending).toBe(true);
+  });
+});
+
+describe('planos que ficam de fora', () => {
+  it('na prévia, diz que não está à venda; singular e plural', () => {
+    expect(uncoveredNote(['PRO_MONTHLY_STRIPE'], true)).toBe(
+      'O plano Pro mensal não está à venda e fica de fora deste cupom.',
+    );
+    expect(uncoveredNote(['PRO_MONTHLY_STRIPE', 'PRO_YEARLY_STRIPE'], true)).toBe(
+      'Os planos Pro mensal e Pro anual não estão à venda e ficam de fora deste cupom.',
+    );
+  });
+
+  it('no detalhe, não supõe o motivo e pede outro cupom', () => {
+    expect(uncoveredNote(['SCALE_YEARLY_STRIPE'], false)).toBe(
+      'O plano Scale anual fica de fora deste cupom. Para cobri-lo, crie outro cupom.',
+    );
+  });
+
+  it('lista vazia ou nula: sem nota', () => {
+    expect(uncoveredNote([], true)).toBeNull();
+    expect(uncoveredNote(null, false)).toBeNull();
+    expect(uncoveredNote(undefined, true)).toBeNull();
   });
 });
 
