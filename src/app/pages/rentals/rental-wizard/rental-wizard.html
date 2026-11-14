@@ -15,7 +15,7 @@
         <div class="wz-sh">
           <b [class.pend]="!sec.filled">{{ sec.title }}</b>
           @if (sec.canEdit) {
-            <button type="button" class="wz-link u-my-1-5 u-mr-2" (click)="edit(sec.step)"
+            <button type="button" class="wz-link u-my-1-5 -mr-2" (click)="edit(sec.step)"
               [attr.aria-label]="'Mudar ' + sec.title.toLowerCase()">Mudar</button>
           }
         </div>
@@ -24,55 +24,55 @@
             <div class="wz-r"><span>{{ row.k }}</span><b>{{ row.v }}</b></div>
           }
           @if (sec.step === 3 && planLink(); as label) {
-            <button type="button" class="wz-link u-self-end u-mr-2" (click)="edit(6)" data-testid="summary-plan-link">{{ label }}</button>
+            <button type="button" class="wz-link u-self-end -mr-2" (click)="edit(6)" data-testid="summary-plan-link">{{ label }}</button>
           }
         } @else {
-          <span class="u-text-sm u-text-fg-faint">Falta preencher</span>
+          <span class="text-sm text-fg-faint">Falta preencher</span>
         }
       </section>
     }
     @if (showMoney) {
-      <app-painted-card tone="green" class="wz-money u-i-gap-1-5 u-i-p-4" data-testid="summary-money">
+      <app-painted-card tone="green" class="wz-money u-i-gap-1-5 !p-4" data-testid="summary-money">
         <div class="wz-r"><span>{{ money().alugLabel }}</span><b>{{ money().alug }}</b></div>
         <div class="wz-r"><span>Caução, devolvida no fim</span><b>{{ money().cau }}</b></div>
         <div class="tt"><span>Total a receber</span><b>{{ money().total }}</b></div>
-        <span class="u-text-sm">{{ money().count }}</span>
+        <span class="text-sm">{{ money().count }}</span>
       </app-painted-card>
     }
   </div>
 </ng-template>
 
-<div data-wizard-top class="u-scroll-mt-4 u-mx-auto u-max-w-1040px u-pb-44 u-lg-pb-12" [formGroup]="form">
+<div data-wizard-top class="scroll-mt-4 mx-auto max-w-[1040px] u-pb-44 u-lg-pb-12" [formGroup]="form">
   <!-- Computador: voltar para a lista, título e Sair -->
-  <div class="u-hidden u-lg-flex u-items-center u-gap-4 u-mb-3">
-    <a routerLink="/alugueis" class="wz-tbtn u-i-text-15px u-i-font-medium u-i-text-fg-muted u-ml-2">
+  <div class="hidden lg:flex items-center gap-4 mb-3">
+    <a routerLink="/alugueis" class="wz-tbtn u-i-text-15px u-i-font-medium u-i-text-fg-muted -ml-2">
       <ng-container [ngTemplateOutlet]="back18" /> Aluguéis
     </a>
     @if (step() <= 8) {
-      <h1 class="u-m-0 u-text-22px u-leading-7 u-font-bold u-tracking-tight">Novo aluguel</h1>
-      <button type="button" class="wz-tbtn u-ml-auto u-i-text-fg-muted" (click)="exit()">Sair</button>
+      <h1 class="m-0 u-text-22px u-leading-7 font-bold tracking-tight">Novo aluguel</h1>
+      <button type="button" class="wz-tbtn ml-auto u-i-text-fg-muted" (click)="exit()">Sair</button>
     }
   </div>
 
   <!-- Celular: seta, passo, Sair, traços e "Total a receber" -->
   @if (step() <= 8) {
-    <div class="u-lg-hidden u-flex u-flex-col u-gap-3 u-mb-7">
-      <div class="u-flex u-items-center u-justify-between u-h-52px u-mx-2">
-        <button type="button" class="u-size-11 u-grid u-place-items-center u-rounded-xl" aria-label="Voltar" (click)="back()">
+    <div class="lg:hidden flex flex-col gap-3 mb-7">
+      <div class="flex items-center justify-between u-h-52px -mx-2">
+        <button type="button" class="size-11 grid place-items-center rounded-xl" aria-label="Voltar" (click)="back()">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6l6 6"></path></svg>
         </button>
-        <span class="u-text-sm u-text-fg-subtle u-font-medium">{{ stepCount() }}</span>
+        <span class="text-sm text-fg-subtle font-medium">{{ stepCount() }}</span>
         <button type="button" class="wz-tbtn u-i-text-fg-muted" (click)="exit()">Sair</button>
       </div>
       <div class="wz-dash" aria-hidden="true">
         @for (i of dashes; track i) { <i [class]="dashClass(i)"></i> }
       </div>
-      <button type="button" class="u-flex u-items-center u-justify-between u-gap-3 u-min-h-12 u-px-4 u-rounded-14px u-bg-surface u-w-full"
+      <button type="button" class="flex items-center justify-between gap-3 min-h-12 px-4 rounded-[14px] bg-surface w-full"
         (click)="sheetOpen.set(true)" data-testid="mobile-summary-button">
-        <span class="u-text-sm u-text-fg-subtle">Total a receber</span>
-        <b class="u-text-17px u-font-bold">{{ money().total }}</b>
-        <span class="u-flex u-items-center u-gap-1 u-text-15px u-font-semibold u-text-fg-muted">Resumo
+        <span class="text-sm text-fg-subtle">Total a receber</span>
+        <b class="text-[17px] font-bold">{{ money().total }}</b>
+        <span class="flex items-center gap-1 text-[15px] font-semibold text-fg-muted">Resumo
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6l6 6"></path></svg>
         </span>
@@ -80,23 +80,34 @@
     </div>
   }
 
+  @if (draftRestored() && step() <= 8) {
+    <div role="status" data-testid="draft-restored"
+      class="mb-6 rounded-[20px] bg-surface p-4 flex flex-col gap-1">
+      <p class="m-0 text-base">Continuamos de onde você parou.</p>
+      <button type="button" class="wz-link self-start u-i-px-0" (click)="discardDraft()">Começar do zero</button>
+    </div>
+  }
+
   <!-- O que impede criar fica no TOPO, em qualquer passo (parcelas a refazer, recusa do servidor). -->
   @if (step() <= 8 && (topIssues().length > 0 || topError())) {
     <div role="alert" data-testid="wizard-top-issues" tabindex="-1"
-      class="u-mb-6 u-rounded-20px u-bg-rose-50 u-dark-bg-rose-500-10 u-text-rose-900 u-dark-text-rose-200 u-p-4 u-flex u-flex-col u-gap-2">
-      <p class="u-m-0 u-font-semibold u-text-17px">Antes de criar, ajuste:</p>
-      @if (topError(); as e) { <p class="u-m-0 u-text-base">{{ e }}</p> }
+      class="mb-6 rounded-[20px] bg-rose-50 dark:bg-rose-500/10 text-rose-900 dark:text-rose-200 p-4 flex flex-col gap-2">
+      <p class="m-0 font-semibold text-[17px]">Antes de criar, ajuste:</p>
+      @if (topError(); as e) { <p class="m-0 text-base">{{ e }}</p> }
       @for (issue of topIssues(); track issue.key) {
-        <div class="u-flex u-flex-col u-gap-1">
-          <p class="u-m-0 u-text-base" [attr.data-testid]="'top-issue-' + issue.key">{{ issue.text }}</p>
-          <div class="u-flex u-flex-wrap u-gap-x-2">
+        <div class="flex flex-col gap-1">
+          <p class="m-0 text-base" [attr.data-testid]="'top-issue-' + issue.key">{{ issue.text }}</p>
+          <div class="flex flex-wrap gap-x-2">
             @if (issue.step !== null && issue.step !== step()) {
               <button type="button" class="wz-link u-i-text-current u-i-px-0" (click)="issue.key === 'stale' ? goToStaleStep() : edit(issue.step)">
                 {{ issue.key === 'stale' ? 'Refazer' : 'Mudar' }}
               </button>
             }
+            @if (issue.retry) {
+              <button type="button" class="wz-link u-i-text-current u-i-px-0" (click)="retryCheck()" data-testid="retry-check">Tentar de novo</button>
+            }
             @if (issue.link; as link) {
-              <a class="wz-link u-i-text-current u-i-px-0 u-inline-flex u-items-center" [routerLink]="link.commands">{{ link.label }}</a>
+              <a class="wz-link u-i-text-current u-i-px-0 inline-flex items-center" [routerLink]="link.commands">{{ link.label }}</a>
             }
           </div>
         </div>
@@ -105,13 +116,13 @@
   }
 
   @if (step() !== 9) {
-    <div class="u-lg-grid u-lg-grid-cols-380px-minmax-0-580px u-lg-gap-12 u-lg-justify-center u-lg-items-start">
-      <aside class="u-hidden u-lg-block u-lg-sticky u-lg-top-4" aria-label="Resumo do aluguel">
-        <div class="u-flex u-flex-col u-gap-4">
-          <div class="u-flex u-flex-col u-gap-2-5">
-            <div class="u-flex u-justify-between u-items-baseline u-gap-3">
-              <b class="u-text-17px u-leading-6 u-font-semibold">{{ stepName() }}</b>
-              <span class="u-text-sm u-text-fg-subtle">{{ stepCount() }}</span>
+    <div class="lg:grid u-lg-grid-cols-380px-minmax-0-580px lg:gap-12 u-lg-justify-center lg:items-start">
+      <aside class="hidden lg:block lg:sticky u-lg-top-4" aria-label="Resumo do aluguel">
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-2.5">
+            <div class="flex justify-between items-baseline gap-3">
+              <b class="text-[17px] leading-6 font-semibold">{{ stepName() }}</b>
+              <span class="text-sm text-fg-subtle">{{ stepCount() }}</span>
             </div>
             <div class="wz-dash" aria-hidden="true">
               @for (i of dashes; track i) { <i [class]="dashClass(i)"></i> }
@@ -121,14 +132,20 @@
         </div>
       </aside>
 
-      <div class="u-flex u-flex-col u-gap-7 u-min-w-0 u-lg-pt-1">
+      <div class="flex flex-col gap-7 min-w-0 u-lg-pt-1">
         @switch (step()) {
           @case (1) {
-            <div class="wz-enter u-flex u-flex-col u-gap-7">
+            <div class="wz-enter flex flex-col gap-7">
               <div><h2 class="wz-q" tabindex="-1" data-step-heading>Quem vai levar qual carro?</h2>
                 <p class="wz-qs">O contrato e as cobranças saem no nome do motorista.</p></div>
               <section class="wz-card">
-                <div class="u-flex u-flex-col u-gap-2">
+                @if (pickersFailed()) {
+                  <div class="flex flex-col gap-1" data-testid="pickers-failed">
+                    <p class="wz-err" role="alert">Não deu para carregar os motoristas e os carros.</p>
+                    <button type="button" class="wz-link self-start u-i-px-0" (click)="retryPickers()">Tentar de novo</button>
+                  </div>
+                }
+                <div class="flex flex-col gap-2">
                   <span class="wz-label" id="wz-lbm">Motorista</span>
                   @if (drivers().length > 8) {
                     <div class="wz-in">
@@ -136,7 +153,7 @@
                         [value]="pickerQuery()" (input)="onQuery($event)" autocomplete="off" />
                     </div>
                   }
-                  <div class="u-flex u-flex-col u-gap-1 u-max-h-420px u-overflow-y-auto" role="radiogroup" aria-labelledby="wz-lbm"
+                  <div class="flex flex-col gap-1 u-max-h-420px overflow-y-auto" role="radiogroup" aria-labelledby="wz-lbm"
                     [attr.aria-invalid]="err('driverId') ? 'true' : null" [attr.aria-describedby]="err('driverId') ? 'wz-e-driver' : null">
                     @for (d of driverOptions(); track d.id) {
                       <button type="button" class="wz-opt" [class.on]="v().driverId === d.id" role="radio"
@@ -150,9 +167,9 @@
                   @if (driverLost()) { <p class="wz-err" role="alert">O motorista escolhido não está livre nessas datas. Escolha outro.</p> }
                   @if (err('driverId'); as m) { <p class="wz-err" role="alert" id="wz-e-driver" data-step-error tabindex="-1">{{ m }}</p> }
                 </div>
-                <div class="u-flex u-flex-col u-gap-2">
+                <div class="flex flex-col gap-2">
                   <span class="wz-label" id="wz-lbc">Carro</span>
-                  <div class="u-flex u-flex-col u-gap-1 u-max-h-420px u-overflow-y-auto" role="radiogroup" aria-labelledby="wz-lbc"
+                  <div class="flex flex-col gap-1 u-max-h-420px overflow-y-auto" role="radiogroup" aria-labelledby="wz-lbc"
                     [attr.aria-invalid]="err('vehicleId') ? 'true' : null" [attr.aria-describedby]="err('vehicleId') ? 'wz-e-car' : null">
                     @for (c of vehicleOptions(); track c.id) {
                       <button type="button" class="wz-opt" [class.on]="v().vehicleId === c.id" role="radio"
@@ -171,7 +188,7 @@
             </div>
           }
           @case (2) {
-            <div class="wz-enter u-flex u-flex-col u-gap-7">
+            <div class="wz-enter flex flex-col gap-7">
               <div><h2 class="wz-q" tabindex="-1" data-step-heading>Quando ele pega e até quando fica?</h2></div>
               <section class="wz-card">
                 <div class="wz-two">
@@ -205,13 +222,13 @@
             </div>
           }
           @case (3) {
-            <div class="wz-enter u-flex u-flex-col u-gap-7">
+            <div class="wz-enter flex flex-col gap-7">
               <div><h2 class="wz-q" tabindex="-1" data-step-heading>Quanto ele paga {{ words().per.toLowerCase() }}?</h2>
                 <p class="wz-qs">Só o aluguel. A caução vem no passo 5.</p></div>
               <section class="wz-card">
-                <div class="u-flex u-flex-col u-gap-2">
+                <div class="flex flex-col gap-2">
                   <span class="wz-label" id="wz-lbf">Cobrança</span>
-                  <app-segmented-toggle class="u-self-start" [options]="freqOptions" [value]="v().billingFrequency"
+                  <app-segmented-toggle class="self-start" [options]="freqOptions" [value]="v().billingFrequency"
                     ariaLabelledby="wz-lbf" [containerClass]="segContainer" [activeClass]="segActive"
                     [inactiveClass]="segInactive" textClass="text-[15px]" (selectionChange)="setFrequency($event)" />
                 </div>
@@ -229,10 +246,10 @@
             </div>
           }
           @case (4) {
-            <div class="wz-enter u-flex u-flex-col u-gap-7">
+            <div class="wz-enter flex flex-col gap-7">
               <div><h2 class="wz-q" tabindex="-1" data-step-heading>Como o {{ firstName() }} vai pagar?</h2></div>
               <section class="wz-card tight">
-                <div class="u-flex u-flex-col u-gap-1" role="radiogroup" aria-label="Forma de pagamento"
+                <div class="flex flex-col gap-1" role="radiogroup" aria-label="Forma de pagamento"
                   [attr.aria-describedby]="err('automaticCharge') ? 'wz-e-pay' : null">
                   <button type="button" class="wz-opt" [class.on]="v().automaticCharge" role="radio"
                     [attr.aria-checked]="v().automaticCharge" (click)="setPay(true)" data-testid="pay-pix">
@@ -247,14 +264,14 @@
                 </div>
                 @if (err('automaticCharge'); as m) {
                   <p class="wz-err" role="alert" id="wz-e-pay" data-step-error tabindex="-1">{{ m }}</p>
-                  @if (isOwner) { <a routerLink="/configuracoes/integracoes/asaas" class="wz-link u-self-start u-i-px-0 u-inline-flex u-items-center">Abrir Configurações</a> }
+                  @if (isOwner) { <a routerLink="/configuracoes/integracoes/asaas" class="wz-link self-start u-i-px-0 inline-flex items-center">Abrir Configurações</a> }
                 }
               </section>
               <p class="wz-help">Dá para mudar uma cobrança depois, no aluguel.</p>
             </div>
           }
           @case (5) {
-            <div class="wz-enter u-flex u-flex-col u-gap-7">
+            <div class="wz-enter flex flex-col gap-7">
               <div><h2 class="wz-q" tabindex="-1" data-step-heading>Vai cobrar caução?</h2>
                 <p class="wz-qs">Fica guardada e volta para ele no fim, se estiver tudo certo.</p></div>
               <section class="wz-card">
@@ -280,7 +297,7 @@
               @if (caucaoSplitOn()) {
                 <section class="wz-card" data-testid="caucao-parts">
                   @for (part of caucaoParts.controls; track part; let i = $index; let last = $last) {
-                    <div class="u-flex u-flex-col u-gap-2">
+                    <div class="flex flex-col gap-2">
                       <div class="wz-two">
                         @if (!last) {
                           <app-form-field [label]="'Parte ' + (i + 1)" [controlId]="'wz-part-' + i" [control]="part.controls.amount">
@@ -289,7 +306,7 @@
                                 (input)="onPartMoney($event, i)" /></div>
                           </app-form-field>
                         } @else {
-                          <div class="u-flex u-flex-col u-gap-2">
+                          <div class="flex flex-col gap-2">
                             <span class="wz-label">Parte {{ i + 1 }}</span>
                             <div class="wz-in" [class.bad]="err('part' + i)"><span class="pre">R$</span>
                               <span data-testid="caucao-rest">{{ restLabel(i) }}</span></div>
@@ -303,12 +320,12 @@
                         </app-form-field>
                       </div>
                       @if (caucaoParts.length > 2) {
-                        <button type="button" class="wz-link u-self-start u-i-px-0" (click)="removePart(i)">Tirar a parte {{ i + 1 }}</button>
+                        <button type="button" class="wz-link self-start u-i-px-0" (click)="removePart(i)">Tirar a parte {{ i + 1 }}</button>
                       }
                     </div>
                   }
                   @if (canAddPart()) {
-                    <button type="button" class="wz-tbtn u-self-start u-i-px-0" (click)="addPart()" data-testid="caucao-add-part">+ Mais uma parte</button>
+                    <button type="button" class="wz-tbtn self-start u-i-px-0" (click)="addPart()" data-testid="caucao-add-part">+ Mais uma parte</button>
                   }
                 </section>
               }
@@ -316,11 +333,11 @@
             </div>
           }
           @case (6) {
-            <div class="wz-enter u-flex u-flex-col u-gap-7">
+            <div class="wz-enter flex flex-col gap-7">
               <div><h2 class="wz-q" tabindex="-1" data-step-heading>Como ele paga {{ words().fem ? 'as' : 'os' }} {{ words().lowerMany }}?</h2>
                 <p class="wz-qs">Escolha valor cheio, ou marque desconto, parcelar ou os dois.</p></div>
               <section class="wz-card tight">
-                <div class="u-flex u-flex-col u-gap-1" role="group" aria-label="Como ele paga">
+                <div class="flex flex-col gap-1" role="group" aria-label="Como ele paga">
                   <button type="button" class="wz-opt" [class.on]="!v().descOn && !v().parcOn" role="checkbox"
                     [attr.aria-checked]="!v().descOn && !v().parcOn" (click)="pickFull()" data-testid="plan-full">
                     <span class="wz-mk bx"><ng-container [ngTemplateOutlet]="check14" /></span>
@@ -337,8 +354,8 @@
                         <div class="wz-in" [class.bad]="err('discountN')"><input appFieldControl inputmode="numeric" autocomplete="off" formControlName="discountN" />
                           <span class="suf">{{ v().discountN === '1' ? 'cobrança' : 'cobranças' }}</span></div>
                       </app-form-field>
-                      <div class="u-flex u-flex-col u-gap-2">
-                        <div class="u-flex u-flex-col u-sm-flex-row u-sm-items-center u-sm-justify-between u-gap-2">
+                      <div class="flex flex-col gap-2">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                           <label class="wz-label" for="wz-dv">Quanto de desconto em cada uma?</label>
                           <app-segmented-toggle [options]="moneyUnitOptions" [value]="v().discountType" ariaLabel="Desconto, unidade"
                             [containerClass]="segContainer" [activeClass]="segActive" [inactiveClass]="segInactive" textClass="text-[15px]"
@@ -362,19 +379,19 @@
                   </button>
                   @if (v().parcOn) {
                     <div class="wz-cfg">
-                      <div class="u-flex u-flex-col u-gap-2">
+                      <div class="flex flex-col gap-2">
                         <span class="wz-label" id="wz-lbs">Quais {{ words().lowerMany }}?</span>
-                        <app-segmented-toggle class="u-self-start" [options]="scopeOptions" [value]="v().splitScope" ariaLabelledby="wz-lbs"
+                        <app-segmented-toggle class="self-start" [options]="scopeOptions" [value]="v().splitScope" ariaLabelledby="wz-lbs"
                           [containerClass]="segContainer" [activeClass]="segActive" [inactiveClass]="segInactive" textClass="text-[15px]"
                           (selectionChange)="setScope($event)" />
                       </div>
                       @if (v().splitScope === 'SOME') {
-                        <div class="u-flex u-flex-col u-gap-2">
+                        <div class="flex flex-col gap-2">
                           <span class="wz-label">Toque {{ words().fem ? 'nas' : 'nos' }} {{ words().lowerMany }} que vão ser parcelad{{ words().fem ? 'as' : 'os' }}</span>
                           @if (staleSplits().length) {
-                            <div class="u-flex u-flex-col u-gap-1" data-testid="split-stale">
+                            <div class="flex flex-col gap-1" data-testid="split-stale">
                               <p class="wz-err" role="alert">{{ staleMessage() }}</p>
-                              <button type="button" class="wz-link u-self-start u-i-px-0" (click)="dropStale()">Tirar da escolha e escolher de novo</button>
+                              <button type="button" class="wz-link self-start u-i-px-0" (click)="dropStale()">Tirar da escolha e escolher de novo</button>
                             </div>
                           }
                           <div class="wz-wk">
@@ -392,8 +409,8 @@
                         <div class="wz-in" [class.bad]="err('splitCount')"><input appFieldControl inputmode="numeric" autocomplete="off" formControlName="splitCount" />
                           <span class="suf">parcelas</span></div>
                       </app-form-field>
-                      <div class="u-flex u-flex-col u-gap-2">
-                        <div class="u-flex u-flex-col u-sm-flex-row u-sm-items-center u-sm-justify-between u-gap-2">
+                      <div class="flex flex-col gap-2">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                           <label class="wz-label" for="wz-pe">Com quanto tempo entre elas?</label>
                           <app-segmented-toggle [options]="unitOptions" [value]="v().splitUnit" ariaLabel="Intervalo, unidade"
                             [containerClass]="segContainer" [activeClass]="segActive" [inactiveClass]="segInactive" textClass="text-[15px]"
@@ -416,7 +433,7 @@
             </div>
           }
           @case (7) {
-            <div class="wz-enter u-flex u-flex-col u-gap-7">
+            <div class="wz-enter flex flex-col gap-7">
               <div><h2 class="wz-q" tabindex="-1" data-step-heading>Últimos detalhes do contrato</h2>
                 <p class="wz-qs">Vão escritos no contrato.</p></div>
               <section class="wz-card">
@@ -424,9 +441,9 @@
                   <div class="wz-in" [class.bad]="err('initialKm')"><input appFieldControl inputmode="numeric" autocomplete="off" formControlName="initialKm" />
                     <span class="suf">km</span></div>
                 </app-form-field>
-                <div class="u-flex u-flex-col u-gap-2">
+                <div class="flex flex-col gap-2">
                   <span class="wz-label" id="wz-lbfuel">Combustível na devolução</span>
-                  <div class="u-flex u-flex-col u-gap-1" role="radiogroup" aria-labelledby="wz-lbfuel">
+                  <div class="flex flex-col gap-1" role="radiogroup" aria-labelledby="wz-lbfuel">
                     @for (opt of fuelOptions; track opt) {
                       <button type="button" class="wz-opt u-i-py-2-5" [class.on]="v().fuel === opt" role="radio" [attr.aria-checked]="v().fuel === opt" (click)="setFuel(opt)">
                         <span class="wz-mk rd"></span><span class="wz-ot"><b>{{ opt }}</b></span>
@@ -442,9 +459,9 @@
                     </app-form-field>
                   }
                 </div>
-                <div class="u-flex u-flex-col u-gap-2">
+                <div class="flex flex-col gap-2">
                   <span class="wz-label" id="wz-lblim">Limite de km</span>
-                  <app-segmented-toggle class="u-self-start" [options]="limitOptions" [value]="v().hasKmLimit" ariaLabelledby="wz-lblim"
+                  <app-segmented-toggle class="self-start" [options]="limitOptions" [value]="v().hasKmLimit" ariaLabelledby="wz-lblim"
                     [containerClass]="segContainer" [activeClass]="segActive" [inactiveClass]="segInactive" textClass="text-[15px]"
                     (selectionChange)="setLimit($event)" />
                 </div>
@@ -463,8 +480,8 @@
               </section>
               <section class="wz-card">
                 <div class="wz-sh"><b>Se atrasar</b></div>
-                <div class="u-flex u-flex-col u-gap-2">
-                  <div class="u-flex u-flex-col u-sm-flex-row u-sm-items-center u-sm-justify-between u-gap-2">
+                <div class="flex flex-col gap-2">
+                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <label class="wz-label" for="wz-multa">Multa</label>
                     <app-segmented-toggle [options]="fineUnitOptions" [value]="v().lateFineType" ariaLabel="Multa, unidade"
                       [containerClass]="segContainer" [activeClass]="segActive" [inactiveClass]="segInactive" textClass="text-[15px]"
@@ -492,7 +509,7 @@
                   </button>
                 } @else {
                   <p class="wz-help">Você envia o PDF do contrato depois, no aluguel.
-                    @if (isOwner) { <a routerLink="/configuracoes/contratos" class="u-underline">Criar um modelo de contrato</a> }</p>
+                    @if (isOwner) { <a routerLink="/configuracoes/contratos" class="underline">Criar um modelo de contrato</a> }</p>
                 }
                 <app-form-field label="Observações" controlId="wz-notes" [control]="form.controls.notes" hint="Só para você e sua equipe.">
                   <div class="wz-in"><textarea appFieldControl rows="3" formControlName="notes" placeholder="Opcional"></textarea></div>
@@ -502,10 +519,10 @@
             </div>
           }
           @case (8) {
-            <div class="wz-enter u-flex u-flex-col u-gap-7" data-testid="wizard-confira">
+            <div class="wz-enter flex flex-col gap-7" data-testid="wizard-confira">
               <div><h2 class="wz-q" tabindex="-1" data-step-heading>Confira antes de criar</h2>
                 <p class="wz-qs">Confira os dados. Toque em Mudar para corrigir.</p></div>
-              <div class="u-lg-hidden"><ng-container [ngTemplateOutlet]="summaryTpl" [ngTemplateOutletContext]="{ showMoney: false }" /></div>
+              <div class="lg:hidden"><ng-container [ngTemplateOutlet]="summaryTpl" [ngTemplateOutletContext]="{ showMoney: false }" /></div>
               @if (checking()) {
                 <p class="wz-help" role="status">Conferindo as cobranças…</p>
               } @else if (checkFailed()) {
@@ -515,16 +532,16 @@
                 <div class="wz-r"><span>{{ money().alugLabel }}</span><b data-testid="confira-rent">{{ money().alug }}</b></div>
                 <div class="wz-r"><span>Caução, devolvida no fim</span><b data-testid="confira-caucao">{{ money().cau }}</b></div>
                 <div class="tt"><span>Total a receber</span><b data-testid="confira-total">{{ money().total }}</b></div>
-                <span class="u-text-sm" data-testid="confira-count">{{ money().count }}</span>
+                <span class="text-sm" data-testid="confira-count">{{ money().count }}</span>
               </app-painted-card>
               @if (serverPreview()) {
                 <section class="wz-card tight">
-                  <button type="button" class="wz-tbtn u-self-start u-i-px-0" [attr.aria-expanded]="listOpen()" (click)="listOpen.set(!listOpen())"
+                  <button type="button" class="wz-tbtn self-start u-i-px-0" [attr.aria-expanded]="listOpen()" (click)="listOpen.set(!listOpen())"
                     data-testid="charges-toggle">
                     {{ listOpen() ? 'Esconder as cobranças' : 'Ver as ' + money().n + ' cobranças' }} <span aria-hidden="true">{{ listOpen() ? '▴' : '▾' }}</span>
                   </button>
                   @if (listOpen()) {
-                    <div class="u-flex u-flex-col u-gap-0-5" data-testid="charges-list">
+                    <div class="flex flex-col gap-0.5" data-testid="charges-list">
                       @for (c of chargeLines(); track c.key) {
                         <div class="wz-cr"><div class="cm"><b>{{ c.title }}</b><span>{{ c.date }}</span></div><span class="v">{{ c.value }}</span></div>
                       }
@@ -537,32 +554,32 @@
         }
 
         <!-- Computador: Voltar e Continuar no fim da coluna -->
-        <div class="u-hidden u-lg-flex u-flex-col u-gap-1">
-          <div class="u-flex u-justify-between u-items-center u-gap-4">
+        <div class="hidden lg:flex flex-col gap-1">
+          <div class="flex justify-between items-center gap-4">
             @if (step() > 1 || returning()) {
               <button type="button" class="wz-tbtn" (click)="back()"><ng-container [ngTemplateOutlet]="back18" />
                 {{ returning() ? 'Voltar ao resumo' : 'Voltar' }}</button>
             } @else { <span></span> }
-            <button type="button" class="wz-btn u-i-w-auto u-min-w-60" (click)="next()" [disabled]="step() === 8 && (saving() || checking() || blocked())"
+            <button type="button" class="wz-btn u-i-w-auto min-w-60" (click)="next()" [disabled]="step() === 8 && (saving() || checking() || blocked())"
               data-testid="wizard-next">{{ primaryLabel() }}</button>
           </div>
-          @if (step() === 8) { <p class="wz-help u-text-right">{{ genText() }}</p> }
+          @if (step() === 8) { <p class="wz-help text-right">{{ genText() }}</p> }
         </div>
       </div>
     </div>
 
     <!-- Celular: um botão laranja fixo embaixo -->
-    <div class="u-lg-hidden u-fixed u-inset-x-0 u-bottom-0 u-z-30 u-bg-canvas u-px-5 u-pt-3 u-pb-7 u-flex u-flex-col u-gap-1">
+    <div class="lg:hidden fixed inset-x-0 bottom-0 z-30 bg-canvas px-5 pt-3 pb-7 flex flex-col gap-1">
       <button type="button" class="wz-btn" (click)="next()" [disabled]="step() === 8 && (saving() || checking() || blocked())"
         data-testid="wizard-next-mobile">{{ primaryLabel() }}</button>
-      @if (step() === 8) { <p class="wz-help u-text-center">{{ genText() }}</p> }
+      @if (step() === 8) { <p class="wz-help text-center">{{ genText() }}</p> }
     </div>
   } @else {
     <!-- Aluguel criado -->
-    <div class="u-mx-auto u-max-w-580px u-flex u-flex-col u-gap-7 wz-enter" data-testid="wizard-done">
+    <div class="mx-auto u-max-w-580px flex flex-col gap-7 wz-enter" data-testid="wizard-done">
       <div><h2 class="wz-q" tabindex="-1" data-step-heading>Aluguel criado</h2>
         <p class="wz-qs">{{ sections()[0].rows[0].v }} · {{ sections()[0].rows[1].v }}</p></div>
-      <app-painted-card tone="green"><p class="u-m-0 u-text-lg u-font-bold">{{ doneText() }}</p></app-painted-card>
+      <app-painted-card tone="green"><p class="m-0 text-lg font-bold">{{ doneText() }}</p></app-painted-card>
       @if (created()?.sync; as sync) {
         @if (sync.failed > 0) {
           <p class="wz-err" role="alert">{{ sync.failed }} cobrança(s) não saíram agora. Abra o aluguel para ver e tentar de novo.</p>
@@ -570,16 +587,16 @@
       }
       <section class="wz-card tight">
         <div class="wz-sh"><b>Antes de entregar o carro</b></div>
-        <button type="button" class="wz-cr u-text-left" (click)="openRental()">
+        <button type="button" class="wz-cr text-left" (click)="openRental()">
           <span class="cm"><b>Mandar o contrato para assinar</b><span>Ele assina pelo celular.</span></span>
-          <span class="u-text-fg-subtle" aria-hidden="true">›</span>
+          <span class="text-fg-subtle" aria-hidden="true">›</span>
         </button>
-        <button type="button" class="wz-cr u-text-left" (click)="openRental()">
+        <button type="button" class="wz-cr text-left" (click)="openRental()">
           <span class="cm"><b>Fazer a vistoria de retirada</b><span>Fotos do carro antes de sair.</span></span>
-          <span class="u-text-fg-subtle" aria-hidden="true">›</span>
+          <span class="text-fg-subtle" aria-hidden="true">›</span>
         </button>
       </section>
-      <div class="u-flex u-flex-col-reverse u-lg-flex-row u-lg-justify-between u-gap-2">
+      <div class="flex flex-col-reverse lg:flex-row lg:justify-between gap-2">
         <button type="button" class="wz-tbtn" (click)="restart()">Criar outro aluguel</button>
         <button type="button" class="wz-btn u-lg-i-w-auto u-lg-min-w-60" (click)="openRental()" data-testid="open-rental">Ver o aluguel</button>
       </div>
@@ -589,9 +606,9 @@
 
 <ng-template #sayTpl>
   @if (say()) {
-    <section class="u-flex u-flex-col u-gap-2" aria-live="polite">
+    <section class="flex flex-col gap-2" aria-live="polite">
       <span class="wz-label">Em palavras</span>
-      <app-painted-card tone="green" class="u-i-p-5"><p class="u-m-0 u-text-lg u-leading-26px u-font-bold" data-testid="wizard-say">{{ say() }}</p></app-painted-card>
+      <app-painted-card tone="green" class="u-i-p-5"><p class="m-0 text-lg u-leading-26px font-bold" data-testid="wizard-say">{{ say() }}</p></app-painted-card>
     </section>
   }
 </ng-template>

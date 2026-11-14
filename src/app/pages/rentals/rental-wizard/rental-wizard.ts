@@ -14,7 +14,7 @@ import {
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
 import { catchError, map, of, switchMap } from 'rxjs';
 
@@ -45,6 +45,7 @@ import { formatPersonName, formatPlate, formatVehicleLabel } from '../../../util
 import {
   RENTAL_CHARGE_SYNC_STATE_KEY,
   RentalBillingFrequency,
+  CreateRentalRequest,
   RentalChargePreviewDto,
   RentalChargeSyncDto,
   RentalLateFineType,
@@ -53,7 +54,7 @@ import {
 import { VehicleListItem } from '../../../types/vehicle.types';
 import { DriverListItem } from '../../../types/driver.types';
 import { IntervalUnit, addDaysIso, percentTextToBps } from '../charges-flex/charges-flex';
-import { PLAN_ERROR_MESSAGES, apiErrorCode, planBlockerMessage } from '../charges-flex/flex-errors';
+import { PLAN_ERROR_MESSAGES, apiErrorCode, companySafe, planBlockerMessage } from '../charges-flex/flex-errors';
 import { messageWithAccepted, readPreflightError } from '../rental-preflight';
 import {
   CAUCAO_PARTS_MAX,
@@ -193,12 +194,46 @@ interface TopIssue {
   text: string;
   step: Step | null;
   link: { label: string; commands: string[] } | null;
+  /** "Tentar de novo" (prévia que falhou). */
+  retry?: boolean;
+}
+
+interface WizardDraft {
+  v: 1;
+  form: Record<string, unknown>;
+  parts: Array<{ amount: string; due: string }>;
+  selected: number[];
+  selectedFreq: RentalBillingFrequency;
+  step: Step;
+  maxStep: Step;
+}
+
+const WIZARD_DRAFT_PREFIX = 'rentalWizardDraft';
+const CREATE_FALLBACK = 'Não foi possível criar o aluguel. Tente de novo.';
+
+/**
+ * Copy própria para os códigos de integração (o texto do servidor cita o provedor). O resto
+ * passa pelo texto do servidor, que já é pt-BR, e nunca com o nome do provedor.
+ */
+const INTEGRATION_COPY: Readonly<Record<string, string>> = {
+  AUTOMATIC_CHARGE_NO_INTEGRATION:
+    'A cobrança por Pix ainda não está ligada na sua conta. Ligue em Configurações > Integrações ou escolha "Eu recebo por fora".',
+  ASAAS_KEY_REVOKED: 'A ligação da cobrança por Pix foi recusada. Refaça a ligação em Configurações > Integrações.',
+  ASAAS_WEBHOOK_NOT_REGISTERED:
+    'A cobrança por Pix não está recebendo os avisos de pagamento. Refaça a ligação em Configurações > Integrações.',
+  ASAAS_DAILY_QUOTA_INSUFFICIENT: 'O limite diário de cobranças por Pix acabou. Tente amanhã ou escolha "Eu recebo por fora".',
+  ASAAS_LIMITS_UNAVAILABLE: 'Não deu para conferir os limites da cobrança por Pix agora. Tente de novo em instantes.',
+};
+const SERVER_FALLBACK = 'O sistema recusou um dos dados. Confira os passos e tente de novo.';
+
+export function serverIssueText(item: RentalPreflightItem): string {
+  return INTEGRATION_COPY[item.code] ?? companySafe(messageWithAccepted(item), SERVER_FALLBACK);
 }
 type CaucaoPart = FormGroup<{ amount: FormControl<string>; due: FormControl<string> }>;
 
 /**
  * Novo aluguel, passo a passo (direção B do protótipo final, v380). Só para quem tem a chave
- * `CHARGES_FLEX`: a rota `/alugueis/novo` cai aqui por `canMatch`; sem a chave, o formulário
+ * `CHARGES_FLEX`: `/alugueis/novo` abre `RentalNew`, que mostra este passo a passo; sem a chave, o formulário
  * de hoje, intocado.
  *
  * O corpo do create sai de `buildCreateBody`, que repete campo a campo o do formulário de hoje.
@@ -230,11 +265,13 @@ export class RentalWizard implements OnInit {
   private readonly contactGate = inject(CompanyContactGate);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly session = inject(SessionService);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly fb = inject(FormBuilder);
 
-  protected readonly isOwner = inject(SessionService).getCompanyRoleFromToken() === 'OWNER';
+  protected readonly isOwner = this.session.getCompanyRoleFromToken() === 'OWNER';
   protected readonly today = todayInBusinessTz();
   protected readonly stepNames = STEP_NAMES;
   protected readonly fuelOptions = FUEL_OPTIONS;
@@ -290,7 +327,7 @@ export class RentalWizard implements OnInit {
     splitUnit: 'DAYS' as IntervalUnit,
     splitOffset: '0',
     initialKm: '',
-    fuel: FUEL_OPTIONS[0] as string,
+    fuel: '',
     customFuel: '',
     hasKmLimit: false,
     franchiseKm: '',
@@ -352,17 +389,24 @@ export class RentalWizard implements OnInit {
   }
 
   ngOnInit(): void {
+    const restored = this.restoreDraft();
+    // O "Novo aluguel" da página do carro chega com `?vehicleId=`: o carro já vem escolhido.
+    const vehicleId = this.route.snapshot?.queryParamMap?.get('vehicleId');
+    if (!restored && vehicleId) this.form.controls.vehicleId.setValue(vehicleId);
+    this.draftReady = true;
     this.loadPickers();
     this.asaasService.load().subscribe({
       next: () => {
-        if (!this.automaticTouched) this.form.controls.automaticCharge.setValue(this.asaasConnected());
+        if (!this.automaticTouched && !this.draftRestored()) {
+          this.form.controls.automaticCharge.setValue(this.asaasConnected());
+        }
       },
       error: (err: HttpErrorResponse) => this.apiErrors.claim(err),
     });
     this.contractTemplateService.get().subscribe({
       next: () => {
         this.hasContractTemplate.set(true);
-        this.form.controls.useContractTemplate.setValue(true);
+        if (!this.draftRestored()) this.form.controls.useContractTemplate.setValue(true);
       },
       error: () => this.hasContractTemplate.set(false),
     });
@@ -507,10 +551,11 @@ export class RentalWizard implements OnInit {
         e['lateFineValue'] = `A multa precisa ser menor que ${brl(minWeek)}, o menor valor de ${w.lower}.`;
       }
     } else {
-      const f = decimalOf(v.lateFineValue);
+      const f = (v.lateFineValue ?? '').trim() === '' ? 0 : decimalOf(v.lateFineValue);
       if (f === null || f >= 100) e['lateFineValue'] = 'Digite um percentual de 0 a 99, por exemplo 2.';
     }
-    const j = ptBrMoneyCents(v.lateInterestPercent);
+    // Juros é opcional, como hoje: vazio = a chave nem vai no corpo.
+    const j = (v.lateInterestPercent ?? '').trim() === '' ? 0 : ptBrMoneyCents(v.lateInterestPercent);
     if (j === null || j > INTEREST_MAX_PERCENT * 100) {
       e['lateInterestPercent'] = `Os juros vão de 0% a ${INTEREST_MAX_PERCENT}% ao mês.`;
     }
@@ -929,6 +974,14 @@ export class RentalWizard implements OnInit {
     this.vehicles().map((c) => ({ id: c.id, name: formatVehicleLabel(c.brand, c.model), plate: formatPlate(c.plate) })),
   );
 
+  /** Falhou a busca de motoristas ou carros: aviso com "Tentar de novo", nunca a lista vazia calada. */
+  protected readonly pickersFailed = signal(false);
+
+  protected retryPickers(): void {
+    this.pickersFailed.set(false);
+    this.loadPickers();
+  }
+
   private loadPickers(): void {
     const id = ++this.pickerRequest;
     const key = this.periodKey();
@@ -944,8 +997,13 @@ export class RentalWizard implements OnInit {
         const lost = !!sel && !list.some((x) => x.id === sel);
         if (lost) this.form.controls.vehicleId.setValue('');
         this.vehicleLost.set(lost);
+        this.pickersFailed.set(false);
       },
-      error: () => {},
+      error: (err: unknown) => {
+        if (id !== this.pickerRequest) return;
+        this.apiErrors.claim(err);
+        this.pickersFailed.set(true);
+      },
     });
     this.driverService.list({ size: 500, sort: 'name_asc', ...params }).subscribe({
       next: (res) => {
@@ -957,7 +1015,11 @@ export class RentalWizard implements OnInit {
         if (lost) this.form.controls.driverId.setValue('');
         this.driverLost.set(lost);
       },
-      error: () => {},
+      error: (err: unknown) => {
+        if (id !== this.pickerRequest) return;
+        this.apiErrors.claim(err);
+        this.pickersFailed.set(true);
+      },
     });
   }
 
@@ -1189,7 +1251,74 @@ export class RentalWizard implements OnInit {
   }
 
   protected exit(): void {
+    this.dropDraft();
     this.router.navigate(['/alugueis']);
+  }
+
+  // ================================================================== rascunho (M5)
+  // Os atalhos "Abrir o cadastro do motorista" e "Abrir Configurações" navegam na MESMA aba
+  // (uma aba nova não tem a sessão). O rascunho, por usuário e empresa no sessionStorage,
+  // devolve os 7 passos na volta. Some ao criar e ao sair.
+  protected readonly draftRestored = signal(false);
+  private draftOff = false;
+  /** Só grava depois de restaurar: senão o formulário vazio apagaria o rascunho. */
+  private draftReady = false;
+
+  private draftKey(): string | null {
+    const userId = this.session.getItem('id');
+    const companyId = this.session.getItem('selectedCompanyId');
+    return userId && companyId ? `${WIZARD_DRAFT_PREFIX}:${userId}:${companyId}` : null;
+  }
+
+  private readonly draftAutosave = effect(() => {
+    const data: WizardDraft = {
+      v: 1,
+      form: this.v(),
+      parts: this.partsValue() as Array<{ amount: string; due: string }>,
+      selected: [...this.selected()],
+      selectedFreq: this.selectedFreq(),
+      step: this.step() === 9 ? 8 : this.step(),
+      maxStep: this.maxStep(),
+    };
+    untracked(() => {
+      const key = this.draftKey();
+      if (!key || !this.draftReady || this.draftOff || this.step() === 9) return;
+      this.session.setItem(key, JSON.stringify(data));
+    });
+  });
+
+  private restoreDraft(): boolean {
+    const key = this.draftKey();
+    const raw = key ? this.session.getItem(key) : null;
+    if (!raw) return false;
+    try {
+      const d = JSON.parse(raw) as WizardDraft;
+      if (d?.v !== 1 || !d.form) return false;
+      this.form.patchValue(d.form);
+      (d.parts ?? []).forEach((p) => this.caucaoParts.push(this.newPart(null, p.due ?? '')));
+      (d.parts ?? []).forEach((p, i) => this.caucaoParts.at(i).controls.amount.setValue(p.amount ?? ''));
+      this.selected.set(d.selected ?? []);
+      this.selectedFreq.set(d.selectedFreq ?? 'WEEKLY');
+      this.automaticTouched = true;
+      this.maxStep.set(d.maxStep ?? 1);
+      this.step.set(d.step ?? 1);
+      this.draftRestored.set(true);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private dropDraft(): void {
+    this.draftOff = true;
+    const key = this.draftKey();
+    if (key) this.session.removeItem(key);
+  }
+
+  /** "Começar do zero": apaga o rascunho e recomeça a tela. */
+  protected discardDraft(): void {
+    this.dropDraft();
+    this.restart();
   }
 
   protected goToStaleStep(): void {
@@ -1202,7 +1331,6 @@ export class RentalWizard implements OnInit {
     this.listOpen.set(false);
     this.step.set(s);
     if (s <= 8 && s > this.maxStep()) this.maxStep.set(s);
-    if (s === 8) this.check();
     afterNextRender(
       () => {
         this.host.nativeElement.querySelector('[data-wizard-top]')?.scrollIntoView?.({ block: 'start' });
@@ -1255,14 +1383,47 @@ export class RentalWizard implements OnInit {
     return buildCreateBody(this.raw(), buildWizardPlan(this.mathInput()));
   }
 
-  /** Algo impede criar: erro de algum passo, parcelas a refazer, recusa do servidor. */
+  /** O corpo do create como texto: muda quando qualquer coisa que vai no POST muda. */
+  private readonly bodyKey = computed(() => {
+    this.v();
+    this.mathInput();
+    this.hasContractTemplate();
+    return JSON.stringify(this.body());
+  });
+  /** O corpo da prévia que está na tela: é ESTE que o Criar envia. */
+  private previewedBody: CreateRentalRequest | null = null;
+  private readonly previewedKey = signal<string | null>(null);
+  private requestedKey: string | null = null;
+  private checkSeq = 0;
+
+  /** No Confira, toda mudança do corpo pede uma prévia nova (a anterior é descartada). */
+  private readonly autoCheck = effect(() => {
+    const key = this.bodyKey();
+    if (this.step() !== 8) return;
+    untracked(() => {
+      if (key !== this.requestedKey) this.check();
+    });
+  });
+
+  /** A prévia do servidor está na tela e é do corpo de agora. Sem ela, nada de criar. */
+  protected readonly previewCurrent = computed(
+    () => !!this.serverPreview() && this.previewedKey() === this.bodyKey() && !this.checking(),
+  );
+
+  /** Algo impede criar: erro de algum passo, parcelas a refazer, recusa, prévia ausente ou velha. */
   protected readonly blocked = computed(
     () =>
       Object.keys(this.errs()).length > 0 ||
       this.serverSummary().length > 0 ||
       Object.keys(this.serverFieldErrors()).length > 0 ||
-      !!this.serverPreview()?.blocker,
+      !!this.serverPreview()?.blocker ||
+      !this.previewCurrent(),
   );
+
+  protected retryCheck(): void {
+    this.requestedKey = null;
+    this.check();
+  }
 
   /** Problemas mostrados no topo (passo dono + "Mudar"). */
   protected readonly topIssues = computed<TopIssue[]>(() => {
@@ -1273,6 +1434,9 @@ export class RentalWizard implements OnInit {
       for (const s of [1, 2, 3, 4, 5, 6, 7] as const) {
         const keys = Object.keys(errs).filter((k) => k !== 'splitStale' && (FIELD_STEP[k] ?? (k.startsWith('part') ? 5 : 0)) === s);
         if (keys.length) out.push({ key: `step${s}`, text: `${STEP_NAMES[s - 1]}: ${errs[keys[0]]}`, step: s, link: null });
+      }
+      if (this.checkFailed()) {
+        out.push({ key: 'preview-failed', text: 'Não foi possível conferir as cobranças. Nada foi criado.', step: null, link: null, retry: true });
       }
       const blocker = this.serverPreview()?.blocker;
       if (blocker) out.push({ key: 'blocker', text: planBlockerMessage(blocker), step: 6, link: null });
@@ -1286,8 +1450,14 @@ export class RentalWizard implements OnInit {
 
   /** Preflight (sem plano) e prévia (com plano) — os números do Confira são os do servidor. */
   private check(): void {
+    const seq = ++this.checkSeq;
+    const key = this.bodyKey();
+    this.requestedKey = key;
+    this.serverPreview.set(null);
+    this.previewedBody = null;
+    this.previewedKey.set(null);
     if (Object.keys(this.errs()).length) {
-      this.serverPreview.set(null);
+      this.checking.set(false);
       return;
     }
     const raw = this.raw();
@@ -1299,19 +1469,24 @@ export class RentalWizard implements OnInit {
       .preflight(buildPreflightBody(raw))
       .pipe(
         switchMap((res) => {
+          if (seq !== this.checkSeq) return of(null);
           this.applyServerIssues(res.issues ?? []);
           if ((res.issues ?? []).some((i) => i.severity !== 'WARNING')) return of(null);
           return this.rentalService.chargePreview(body);
         }),
         catchError((err: unknown) => {
           this.apiErrors.claim(err);
-          this.checkFailed.set(true);
+          if (seq === this.checkSeq) this.checkFailed.set(true);
           return of(null);
         }),
       )
       .subscribe((preview) => {
+        // Resposta de uma prévia antiga (o corpo mudou no meio): descartada.
+        if (seq !== this.checkSeq) return;
         this.checking.set(false);
         this.serverPreview.set(preview);
+        this.previewedBody = preview ? body : null;
+        this.previewedKey.set(preview ? key : null);
       });
   }
 
@@ -1321,7 +1496,7 @@ export class RentalWizard implements OnInit {
     for (const item of items) {
       if (item.severity === 'WARNING') continue;
       const control = item.field ? CONTROL_BY_SERVER_FIELD[item.field] : undefined;
-      const text = messageWithAccepted(item);
+      const text = serverIssueText(item);
       if (control && !fields[control]) {
         fields[control] = text;
         continue;
@@ -1353,11 +1528,17 @@ export class RentalWizard implements OnInit {
   }
 
   private send(): void {
-    const body = this.body();
+    // O corpo cuja prévia está na tela, nunca uma releitura que o Confira não mostrou.
+    const body = this.previewedBody;
+    if (!body) {
+      this.saving.set(false);
+      return;
+    }
     this.saving.set(true);
     this.rentalService.create(body).subscribe({
       next: (r) => {
         this.saving.set(false);
+        this.dropDraft();
         this.created.set({ id: r.id, sync: r.chargeSync ?? null });
         this.go(9);
       },
@@ -1399,7 +1580,7 @@ export class RentalWizard implements OnInit {
     this.topError.set(
       isDriverRegistrationIncomplete(err)
         ? DRIVER_REGISTRATION_INCOMPLETE_COPY
-        : this.apiErrors.messageFor(err, 'Não foi possível criar o aluguel.'),
+        : companySafe(this.apiErrors.messageFor(err, CREATE_FALLBACK), CREATE_FALLBACK),
     );
   }
 

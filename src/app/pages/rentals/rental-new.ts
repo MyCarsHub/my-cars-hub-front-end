@@ -20,6 +20,10 @@ import { RentalWizard } from './rental-wizard/rental-wizard';
     @if (wizard) {
       @defer (on immediate) {
         <app-rental-wizard />
+      } @error {
+        <p role="alert" style="padding: 16px; font-size: 16px">
+          Não deu para abrir o Novo aluguel. Recarregue a página.
+        </p>
       }
     } @else {
       <app-rental-form />

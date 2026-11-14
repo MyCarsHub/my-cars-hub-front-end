@@ -20,7 +20,9 @@ import type {
   RentalChargePreviewDto,
   RentalChargePreviewItemDto,
 } from '../../../types/rental.types';
-import { buildWizardPlan, localCharges, periodCount } from './wizard-math';
+import { buildWizardPlan } from './wizard-math';
+import { buildChargePlan } from '../charges-flex/charges-flex';
+import { Subject, throwError } from 'rxjs';
 
 /**
  * Novo aluguel passo a passo (CHARGES_FLEX). Prova:
@@ -46,57 +48,80 @@ let chargePreview: Mock;
 let createSpy: Mock;
 let asaasConnected = true;
 
-/** A prévia que o servidor devolveria: a conta local, no formato do contrato. */
-function serverPreviewFor(body: CreateRentalRequest, override?: Partial<RentalChargePreviewDto>): RentalChargePreviewDto {
-  const periods = periodCount(body.startDate, body.endDate, body.billingFrequency);
-  const plan = body.chargePlan ?? null;
-  const split = plan?.defaultSplit
-    ? { count: plan.defaultSplit.count, intervalN: plan.defaultSplit.intervalDays, unit: plan.defaultSplit.intervalUnit ?? 'DAYS', offsetDays: 0, scope: 'ALL' as const, selected: [] }
-    : null;
-  const charges = localCharges({
-    frequency: body.billingFrequency,
-    startDate: body.startDate,
-    periods,
-    firstDue: body.firstPaymentDate ?? body.startDate,
-    rateCents: body.periodRate,
-    today: '2026-11-13',
-    discount: plan?.discount ?? null,
-    split,
-    caucaoCents: body.caucaoAmount ?? 0,
-    caucaoPaid: body.caucaoPaid ?? false,
-    caucaoParts: plan?.overrides?.find((o) => o.target === 'CAUCAO')?.instalments ?? null,
-  });
-  const items: RentalChargePreviewItemDto[] = charges.map((c) => ({
-    kind: c.kind,
-    index: c.index,
-    dueDate: c.dueDate,
-    amountCents: c.amountCents,
-    destination: 'ASAAS',
-    instalmentIndex: c.instalmentIndex,
-    instalmentCount: c.instalmentCount,
-  }));
+function addDays(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function item(kind: 'RENTAL_PERIOD' | 'CAUCAO', index: number, dueDate: string, amountCents: number, k = 1, n = 1): RentalChargePreviewItemDto {
+  return { kind, index, dueDate, amountCents, destination: 'ASAAS', instalmentIndex: k, instalmentCount: n };
+}
+
+function preview(charges: RentalChargePreviewItemDto[], override?: Partial<RentalChargePreviewDto>): RentalChargePreviewDto {
   return {
-    automaticCharge: body.automaticCharge ?? false,
-    willCreateInGateway: body.automaticCharge ?? false,
-    charges: items,
-    totalCents: items.reduce((a, c) => a + c.amountCents, 0),
-    gatewayCount: items.length,
+    automaticCharge: true,
+    willCreateInGateway: true,
+    charges,
+    totalCents: charges.reduce((a, c) => a + c.amountCents, 0),
+    gatewayCount: charges.length,
     localCount: 0,
-    firstDueDate: items[0]?.dueDate ?? null,
+    firstDueDate: charges[0]?.dueDate ?? null,
     blocker: null,
     ...override,
   };
 }
 
+/**
+ * Respostas FIXAS do `charge-preview`, conferidas à mão contra o backend de `origin/develop`
+ * (não geradas pela conta do front):
+ * - `RentalPeriodPlanner.compute`: 16/11/2026 → 07/02/2027, fim exclusivo = 83 dias, passo 7
+ *   → ceil(83/7) = 12 períodos de R$ 750; `dueDateOf` = 1ª cobrança + 7k.
+ * - Caução: vence em max(início, 1ª cobrança) = 16/11.
+ * - Conta 1: 12 × 75.000 + 150.000 = 1.050.000 em 13 linhas.
+ * - Conta 2 (`ChargePlanExpander.expand`): desconto AMOUNT 10.000 nos índices 0–2 → 65.000;
+ *   `defaultSplit` 2 a cada 3 dias → `splitEvenly` 32.500 + 32.500 (e 37.500 + 37.500),
+ *   vencimentos `dueDate + i·3`; CAUCAO 75.000 em 16/11 e 75.000 em 23/11.
+ *   3 × 65.000 + 9 × 75.000 = 870.000; + 150.000 = 1.020.000 em 24 + 2 = 26 linhas.
+ */
+const WEEKS = Array.from({ length: 12 }, (_, i) => addDays('2026-11-16', 7 * i));
+const PREVIEW_CASE_1: RentalChargePreviewDto = preview([
+  item('CAUCAO', 0, '2026-11-16', 150_000),
+  ...WEEKS.map((d, i) => item('RENTAL_PERIOD', i, d, 75_000)),
+]);
+const PREVIEW_CASE_2: RentalChargePreviewDto = preview([
+  item('CAUCAO', 0, '2026-11-16', 75_000, 1, 2),
+  item('CAUCAO', 0, '2026-11-23', 75_000, 2, 2),
+  ...WEEKS.flatMap((d, i) => {
+    const half = i < 3 ? 32_500 : 37_500;
+    return [item('RENTAL_PERIOD', i, d, half, 1, 2), item('RENTAL_PERIOD', i, addDays(d, 3), half, 2, 2)];
+  }),
+]);
+
+/** Opções de montagem trocadas por teste (repostas no `beforeEach`). */
+let vehiclesList: () => Observable<unknown> = () => of({ content: VEHICLES, page: 0, size: 500, total: 1 });
+let queryVehicleId: string | null = null;
+let templateGet: () => Observable<unknown> = () => EMPTY;
+
 function providers(): unknown[] {
   preflight = vi.fn(() => of({ ok: true, issues: [], warnings: [], limits: null }));
-  chargePreview = vi.fn((body: CreateRentalRequest): Observable<unknown> => of(serverPreviewFor(body)));
+  chargePreview = vi.fn((body: CreateRentalRequest): Observable<unknown> =>
+    of(body.chargePlan?.defaultSplit ? PREVIEW_CASE_2 : PREVIEW_CASE_1),
+  );
   createSpy = vi.fn().mockReturnValue(of({ id: 'novo', chargeSync: null }));
   return [
     provideRouter([{ path: '**', children: [] }]),
     provideNoopAnimations(),
-    { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => null } } } },
-    { provide: VehiclesService, useValue: { list: () => of({ content: VEHICLES, page: 0, size: 500, total: 1 }) } },
+    {
+      provide: ActivatedRoute,
+      useValue: {
+        snapshot: {
+          paramMap: { get: () => null },
+          queryParamMap: { get: (k: string) => (k === 'vehicleId' ? queryVehicleId : null) },
+        },
+      },
+    },
+    { provide: VehiclesService, useValue: { list: () => vehiclesList() } },
     { provide: DriverService, useValue: { list: () => of({ content: DRIVERS, page: 0, size: 500, total: 1 }) } },
     { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true), promptAfterServerRefusal: () => of(false) } },
     {
@@ -107,7 +132,7 @@ function providers(): unknown[] {
       provide: AsaasIntegrationService,
       useValue: { status: signal(asaasConnected ? { connected: true } : null), load: () => of(null) },
     },
-    { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
+    { provide: ContractTemplateService, useValue: { get: () => templateGet() } },
   ];
 }
 
@@ -116,6 +141,9 @@ beforeEach(() => {
   vi.setSystemTime(TODAY);
   sessionStorage.clear();
   asaasConnected = true;
+  vehiclesList = () => of({ content: VEHICLES, page: 0, size: 500, total: 1 });
+  queryVehicleId = null;
+  templateGet = () => EMPTY;
 });
 
 afterEach(() => {
@@ -270,7 +298,7 @@ describe('RentalWizard — Novo aluguel passo a passo', () => {
   it('o Confira mostra a prévia do SERVIDOR, mesmo quando ela difere da conta local', async () => {
     await mount();
     patch(CASE);
-    chargePreview.mockImplementation((body: CreateRentalRequest) => of(serverPreviewFor(body, { totalCents: 1_049_999 })));
+    chargePreview.mockImplementation(() => of({ ...PREVIEW_CASE_1, totalCents: 1_049_999 }));
     await toConfira();
     expect(byId('confira-total')?.textContent).toContain('R$ 10.499,99');
     expect(chargePreview).toHaveBeenCalledTimes(1);
@@ -288,6 +316,123 @@ describe('RentalWizard — Novo aluguel passo a passo', () => {
     await render();
     const plan = buildWizardPlan(cmp()['mathInput']());
     expect(plan?.overrides?.[0].instalments.map((i) => i.amountCents)).toEqual([50_000, 50_000, 50_000]);
+  });
+
+  it('H1: prévia do servidor falhou → Criar bloqueado com "Tentar de novo"; nada sai da conta local', async () => {
+    await mount();
+    patch(CASE);
+    chargePreview.mockImplementationOnce(() => throwError(() => new Error('timeout')));
+    await toConfira();
+    expect(byId('top-issue-preview-failed')?.textContent).toContain('Não foi possível conferir as cobranças');
+    expect(byId<HTMLButtonElement>('wizard-next')?.disabled).toBe(true);
+    cmp()['create']();
+    expect(createSpy).not.toHaveBeenCalled();
+    byId<HTMLButtonElement>('retry-check')!.click();
+    await render();
+    expect(byId<HTMLButtonElement>('wizard-next')?.disabled).toBe(false);
+    await next();
+    expect(createSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('M1: prévia velha que chega por último é descartada; Criar envia o corpo da prévia na tela', async () => {
+    await mount();
+    patch(CASE);
+    const calls: Array<Subject<RentalChargePreviewDto>> = [];
+    chargePreview.mockImplementation(() => {
+      const s = new Subject<RentalChargePreviewDto>();
+      calls.push(s);
+      return s;
+    });
+    await toConfira();
+    expect(calls).toHaveLength(1);
+    // Mudou o valor antes de a 1ª prévia voltar: sai uma 2ª, e o Criar espera por ela.
+    patch({ periodRateReais: '800,00' });
+    await render();
+    expect(calls).toHaveLength(2);
+    expect(byId<HTMLButtonElement>('wizard-next')?.disabled).toBe(true);
+    calls[1].next({ ...PREVIEW_CASE_1, totalCents: 1_110_000 });
+    calls[1].complete();
+    calls[0].next(PREVIEW_CASE_1); // a velha chega depois
+    calls[0].complete();
+    await render();
+    expect(byId('confira-total')?.textContent).toContain('R$ 11.100,00');
+    await next();
+    expect(lastBody().periodRate).toBe(80_000);
+    expect(chargePreview.mock.calls[1][0]).toEqual(lastBody());
+  });
+
+  it('M2: padrões — semana, Pix com a integração ligada; combustível, juros e multa como hoje', async () => {
+    await mount();
+    patch({ driverId: 'drv-1', vehicleId: 'veh-1', startDate: '2026-11-16', endDate: '2027-02-07', periodRateReais: '750,00', initialKm: '100' });
+    await toConfira();
+    await next();
+    const body = lastBody();
+    expect(body.billingFrequency).toBe('WEEKLY');
+    expect(body.automaticCharge).toBe(true);
+    expect(body.returnFuelPolicy).toBeNull();
+    expect('lateInterestPercentPerMonth' in body).toBe(false);
+    expect(body).toMatchObject({ lateFineType: 'PERCENT', lateFineValue: 0 });
+  });
+
+  it('M2: sem a integração ligada, o padrão é "Eu recebo por fora"', async () => {
+    asaasConnected = false;
+    await mount();
+    expect(cmp()['form'].controls.automaticCharge.value).toBe(false);
+  });
+
+  it('M6: falha ao carregar motoristas ou carros mostra o erro e "Tentar de novo"', async () => {
+    let fail = true;
+    vehiclesList = () => (fail ? throwError(() => new Error('500')) : of({ content: VEHICLES, page: 0, size: 500, total: 1 }));
+    await mount();
+    expect(byId('pickers-failed')?.textContent).toContain('Não deu para carregar');
+    fail = false;
+    (byId('pickers-failed')!.querySelector('button') as HTMLButtonElement).click();
+    await render();
+    expect(byId('pickers-failed')).toBeNull();
+    expect(text()).toContain('HB20');
+  });
+
+  it('M6: recusa de integração vira copy pt-BR sem o nome do provedor', async () => {
+    await mount();
+    patch(CASE);
+    preflight.mockReturnValue(of({
+      ok: false,
+      issues: [{ field: null, code: 'ASAAS_KEY_REVOKED', message: 'O Asaas recusou a chave de API.', acceptedValue: null, severity: 'ERROR' }],
+      warnings: [],
+      limits: null,
+    }));
+    await toConfira();
+    const top = byId('wizard-top-issues')!.textContent ?? '';
+    expect(top).not.toMatch(/asaas/i);
+    expect(top).toContain('Refaça a ligação');
+    expect(byId<HTMLButtonElement>('wizard-next')?.disabled).toBe(true);
+  });
+
+  it('o "Novo aluguel" da página do carro chega com ?vehicleId= e o carro já vem escolhido', async () => {
+    queryVehicleId = 'veh-1';
+    await mount();
+    expect(cmp()['form'].controls.vehicleId.value).toBe('veh-1');
+  });
+
+  it('M5: rascunho por usuário e empresa — sair pelos atalhos e voltar devolve os passos; criar apaga', async () => {
+    sessionStorage.setItem('id', 'user-1');
+    sessionStorage.setItem('selectedCompanyId', 'co-1');
+    await mount();
+    patch(CASE);
+    await next();
+    await next();
+    expect(cmp()['step']()).toBe(3);
+    fixture.destroy();
+    TestBed.resetTestingModule();
+    await mount();
+    expect(cmp()['step']()).toBe(3);
+    expect(cmp()['form'].controls.periodRateReais.value).toBe('750,00');
+    expect(byId('draft-restored')).not.toBeNull();
+    for (let i = 0; i < 5; i++) await next();
+    expect(cmp()['step']()).toBe(8);
+    await next();
+    expect(createSpy).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem('rentalWizardDraft:user-1:co-1')).toBeNull();
   });
 
   describe('defeito de produção: parcelas de semana perdidas', () => {
@@ -440,12 +585,12 @@ describe('RentalWizard — paridade do corpo com o formulário de hoje', () => {
     notes: '  Observação interna  ',
   };
 
-  async function oldBody(automatic: boolean): Promise<CreateRentalRequest> {
+  async function oldBody(automatic: boolean, extra: Record<string, unknown> = {}): Promise<CreateRentalRequest> {
     TestBed.configureTestingModule({ imports: [RentalForm], providers: providers() });
     const f = TestBed.createComponent(RentalForm);
     f.detectChanges();
     const c = f.componentInstance as unknown as Any;
-    c['form'].patchValue({ ...OLD, automaticCharge: automatic });
+    c['form'].patchValue({ ...OLD, automaticCharge: automatic, ...extra });
     f.detectChanges();
     c['submit']();
     if (automatic) c['confirmCharges']();
@@ -456,13 +601,13 @@ describe('RentalWizard — paridade do corpo com o formulário de hoje', () => {
     return body;
   }
 
-  async function newBody(automatic: boolean): Promise<CreateRentalRequest> {
+  async function newBody(automatic: boolean, extra: Record<string, unknown> = {}): Promise<CreateRentalRequest> {
     TestBed.configureTestingModule({ imports: [RentalWizard], providers: providers() });
     const f = TestBed.createComponent(RentalWizard);
     f.detectChanges();
     await f.whenStable();
     const c = f.componentInstance as unknown as Any;
-    c['form'].patchValue({ ...NEW, automaticCharge: automatic });
+    c['form'].patchValue({ ...NEW, automaticCharge: automatic, ...extra });
     for (let i = 0; i < 8; i++) {
       c['next']();
       f.detectChanges();
@@ -471,6 +616,51 @@ describe('RentalWizard — paridade do corpo com o formulário de hoje', () => {
     expect(createSpy).toHaveBeenCalledTimes(1);
     return createSpy.mock.calls[0][0] as CreateRentalRequest;
   }
+
+  it.each([
+    ['multa FIXED, diário', { lateFineType: 'FIXED', lateFineValueInput: '50,00', billingFrequency: 'DAILY', endDate: '2026-12-16' },
+      { lateFineType: 'FIXED', lateFineValue: '50,00', billingFrequency: 'DAILY', endDate: '2026-12-16' }],
+    ['mensal, caução já recebida', { billingFrequency: 'MONTHLY', caucaoPaid: true },
+      { billingFrequency: 'MONTHLY', caucaoPaid: true }],
+  ])('%s: corpos idênticos', async (_label, oldExtra, newExtra) => {
+    const before = await oldBody(true, oldExtra);
+    const after = await newBody(true, newExtra);
+    expect(after).toEqual(before);
+  });
+
+  it('contrato pelo modelo (modelo configurado): contractSource AUTO nos dois', async () => {
+    templateGet = () => of({});
+    const before = await oldBody(false);
+    const after = await newBody(false);
+    expect(before.contractSource).toBe('AUTO');
+    expect(after).toEqual(before);
+  });
+
+  it('o chargePlan é o MESMO que o editor de hoje monta (desconto + todas + caução em partes)', async () => {
+    TestBed.configureTestingModule({ imports: [RentalWizard], providers: providers() });
+    const f = TestBed.createComponent(RentalWizard);
+    f.detectChanges();
+    await f.whenStable();
+    const c = f.componentInstance as unknown as Any;
+    c['form'].patchValue({ ...NEW, automaticCharge: true });
+    c['toggleCaucaoSplit']();
+    c['caucaoParts'].at(0).patchValue({ amount: '750,00', due: '2026-11-16' });
+    c['caucaoParts'].at(1).patchValue({ due: '2026-11-23' });
+    c['form'].patchValue({ descOn: true, discountN: '3', discountType: 'PERCENT', discountValue: '10' });
+    c['form'].patchValue({ parcOn: true, splitScope: 'ALL', splitCount: '2', splitIntervalN: '1', splitUnit: 'WEEKS', splitOffset: '0' });
+    f.detectChanges();
+    const wizardPlan = buildWizardPlan(c['mathInput']());
+    const editorPlan = buildChargePlan({
+      discount: { type: 'PERCENT', value: 1_000, firstPeriods: 3 },
+      splitAll: { count: 2, intervalN: 1, intervalUnit: 'WEEKS' },
+      periodOverrides: [],
+      caucaoParts: [
+        { dueDate: '2026-11-16', amountCents: 75_000 },
+        { dueDate: '2026-11-23', amountCents: 75_000 },
+      ],
+    });
+    expect(wizardPlan).toEqual(editorPlan);
+  });
 
   it.each([false, true])('automaticCharge=%s: corpos idênticos', async (automatic) => {
     const before = await oldBody(automatic);
