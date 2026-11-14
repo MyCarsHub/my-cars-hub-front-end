@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ViewEncapsulation,
   ElementRef,
   Injector,
   OnInit,
@@ -255,6 +256,8 @@ type CaucaoPart = FormGroup<{ amount: FormControl<string>; due: FormControl<stri
   ],
   templateUrl: './rental-wizard.html',
   styleUrl: './rental-wizard.css',
+  // Sem encapsulamento: o atributo por seletor dobrava a folha (orçamento de 8 kB).
+  encapsulation: ViewEncapsulation.None,
 })
 export class RentalWizard implements OnInit {
   private readonly rentalService = inject(RentalService);
