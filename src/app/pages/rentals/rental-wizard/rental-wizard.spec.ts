@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { EMPTY, Observable, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
@@ -93,6 +94,7 @@ function providers(): unknown[] {
   createSpy = vi.fn().mockReturnValue(of({ id: 'novo', chargeSync: null }));
   return [
     provideRouter([{ path: '**', children: [] }]),
+    provideNoopAnimations(),
     { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => null } } } },
     { provide: VehiclesService, useValue: { list: () => of({ content: VEHICLES, page: 0, size: 500, total: 1 }) } },
     { provide: DriverService, useValue: { list: () => of({ content: DRIVERS, page: 0, size: 500, total: 1 }) } },
@@ -201,13 +203,13 @@ describe('RentalWizard — Novo aluguel passo a passo', () => {
 
   it('juros acima de 11% e multa fixa maior que a semana são recusados no passo 7', async () => {
     await mount();
-    patch({ ...CASE, lateInterestPercent: '12', lateFineValue: '700,00' });
+    patch({ ...CASE, lateInterestPercent: '12', lateFineValue: '800,00' });
     for (let i = 0; i < 6; i++) await next();
     expect(cmp()['step']()).toBe(7);
     await next();
     expect(cmp()['step']()).toBe(7);
     expect(text()).toContain('Os juros vão de 0% a 11% ao mês.');
-    expect(text()).toContain('A multa precisa ser menor que R$ 700,00');
+    expect(text()).toContain('A multa precisa ser menor que R$ 750,00, o menor valor de semana.');
     expect(q('#wz-juros')?.getAttribute('aria-invalid')).toBe('true');
   });
 
@@ -492,6 +494,7 @@ describe('RentalNew — portão CHARGES_FLEX', () => {
   async function mountGate(features: string[] | null): Promise<HTMLElement> {
     if (features) sessionStorage.setItem('features', JSON.stringify(features));
     TestBed.configureTestingModule({ imports: [RentalNew], providers: providers() });
+    await TestBed.compileComponents();
     const f = TestBed.createComponent(RentalNew);
     f.detectChanges();
     await f.whenStable();
