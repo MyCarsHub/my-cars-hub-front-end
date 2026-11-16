@@ -99,7 +99,7 @@ const PREVIEW_CASE_2: RentalChargePreviewDto = preview([
 ]);
 
 /** Opções de montagem trocadas por teste (repostas no `beforeEach`). */
-let vehiclesList: () => Observable<unknown> = () => of({ content: VEHICLES, page: 0, size: 500, total: 1 });
+let vehiclesList: (params?: Record<string, unknown>) => Observable<unknown> = () => of({ content: VEHICLES, page: 0, size: 500, total: 1 });
 let queryVehicleId: string | null = null;
 let templateGet: () => Observable<unknown> = () => EMPTY;
 
@@ -121,7 +121,7 @@ function providers(): unknown[] {
         },
       },
     },
-    { provide: VehiclesService, useValue: { list: () => vehiclesList() } },
+    { provide: VehiclesService, useValue: { list: (params: Record<string, unknown>) => vehiclesList(params) } },
     { provide: DriverService, useValue: { list: () => of({ content: DRIVERS, page: 0, size: 500, total: 1 }) } },
     { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true), promptAfterServerRefusal: () => of(false) } },
     {
@@ -210,11 +210,9 @@ describe('RentalWizard — Novo aluguel passo a passo', () => {
     return (plan?.overrides ?? []).filter((o) => o.target === 'PERIOD').map((o) => ({ i: o.periodIndex, n: o.instalments.length }));
   }
 
-  it('não oferece "Tempo mínimo, depois renova": o passo 2 só tem a data de devolução', async () => {
+  it('não oferece "Tempo mínimo, depois renova": o passo 1 (Quando) só tem a data de devolução', async () => {
     await mount();
-    patch({ driverId: 'drv-1', vehicleId: 'veh-1' });
-    await next();
-    expect(cmp()['step']()).toBe(2);
+    expect(cmp()['step']()).toBe(1);
     expect(text()).not.toContain('Tempo mínimo');
     expect(text()).not.toContain('renova');
     expect(text()).toContain('Devolve em');
@@ -222,8 +220,11 @@ describe('RentalWizard — Novo aluguel passo a passo', () => {
 
   it('valida cada passo: sem motorista, o erro aparece com role=alert e o passo não anda', async () => {
     await mount();
+    patch({ startDate: '2026-11-16', endDate: '2027-02-07' });
     await next();
-    expect(cmp()['step']()).toBe(1);
+    expect(cmp()['step']()).toBe(2);
+    await next();
+    expect(cmp()['step']()).toBe(2);
     const alert = q('[role="alert"]#wz-e-driver');
     expect(alert?.textContent).toContain('Escolha quem vai levar o carro.');
     expect(q('[aria-labelledby="wz-lbm"]')?.getAttribute('aria-invalid')).toBe('true');
@@ -384,6 +385,8 @@ describe('RentalWizard — Novo aluguel passo a passo', () => {
     let fail = true;
     vehiclesList = () => (fail ? throwError(() => new Error('500')) : of({ content: VEHICLES, page: 0, size: 500, total: 1 }));
     await mount();
+    patch({ startDate: '2026-11-16', endDate: '2027-02-07' });
+    await next();
     expect(byId('pickers-failed')?.textContent).toContain('Não deu para carregar');
     fail = false;
     (byId('pickers-failed')!.querySelector('button') as HTMLButtonElement).click();
@@ -433,6 +436,92 @@ describe('RentalWizard — Novo aluguel passo a passo', () => {
     await next();
     expect(createSpy).toHaveBeenCalledTimes(1);
     expect(sessionStorage.getItem('rentalWizardDraft:user-1:co-1')).toBeNull();
+  });
+
+  it('D1: o período vem primeiro; um carro com reserva FUTURA fora do período aparece livre, e dentro dele, apagado com o motivo', async () => {
+    // O "servidor" de carros: veh-2 tem uma reserva de 01/03 a 01/04/2027. Só sai como livre
+    // quando o período pedido não cruza essa reserva (o corte do `availableForRental`).
+    const ALL = [...VEHICLES, { id: 'veh-2', plate: 'TES2T02', brand: 'Chevrolet', model: 'Onix' }];
+    const calls: Array<Record<string, unknown>> = [];
+    vehiclesList = (params = {}) => {
+      calls.push(params);
+      if (!params['availableForRental']) return of({ content: ALL, page: 0, size: 500, total: 2 });
+      const start = String(params['periodStart']);
+      const end = String(params['periodEnd']);
+      const overlaps = start <= '2027-04-01' && end >= '2027-03-01';
+      return of({ content: overlaps ? VEHICLES : ALL, page: 0, size: 500, total: 0 });
+    };
+    await mount();
+    expect(cmp()['stepName']()).toBe('Quando');
+    expect(calls).toHaveLength(0); // sem período, nada a buscar
+    patch({ startDate: '2026-11-16', endDate: '2027-02-07' });
+    await next();
+    expect(cmp()['step']()).toBe(2);
+    expect(calls).toContainEqual(expect.objectContaining({ availableForRental: true, periodStart: '2026-11-16', periodEnd: '2027-02-07' }));
+    const onix = byId<HTMLButtonElement>('vehicle-veh-2')!;
+    expect(onix.disabled).toBe(false);
+    onix.click();
+    await render();
+    expect(cmp()['form'].controls.vehicleId.value).toBe('veh-2');
+
+    // Período que cruza a reserva: o Onix fica apagado, com o motivo, e a escolha cai com aviso.
+    cmp()['edit'](1);
+    patch({ startDate: '2027-02-15', endDate: '2027-03-15' });
+    await render();
+    await next();
+    const blocked = byId<HTMLButtonElement>('vehicle-veh-2')!;
+    expect(blocked.disabled).toBe(true);
+    expect(blocked.textContent).toContain('Já está alugado nessas datas');
+    expect(cmp()['form'].controls.vehicleId.value).toBe('');
+    expect(text()).toContain('O carro escolhido não está livre nessas datas');
+    expect(byId<HTMLButtonElement>('vehicle-veh-1')!.disabled).toBe(false);
+  });
+
+  it('D4: "Mudar" na primeira passada vai ao passo e segue em ordem; só depois do Confira volta direto a ele', async () => {
+    await mount();
+    patch(CASE);
+    await next();
+    await next();
+    expect(cmp()['step']()).toBe(3);
+    cmp()['edit'](1);
+    await render();
+    expect(cmp()['step']()).toBe(1);
+    expect(cmp()['returning']()).toBe(false);
+    await next();
+    expect(cmp()['step']()).toBe(2);
+    for (let i = 0; i < 6; i++) await next();
+    expect(cmp()['step']()).toBe(8);
+    cmp()['edit'](2);
+    await render();
+    expect(cmp()['returning']()).toBe(true);
+    await next();
+    expect(cmp()['step']()).toBe(8);
+  });
+
+  it('D2: multa FIXA com parcelas no Pix diz a divisão (centavos na última), e usa as fatias da prévia', async () => {
+    await mount();
+    patch({ ...CASE, lateFineType: 'FIXED', lateFineValue: '50,00' });
+    patch({ parcOn: true, splitScope: 'ALL', splitCount: '2', splitIntervalN: '3', splitUnit: 'DAYS', splitOffset: '0' });
+    await render();
+    const multa = (): string => cmp()['sections']().find((x: { title: string }) => x.title === 'Se atrasar').rows[0].v;
+    expect(multa()).toBe('R$ 50,00 por semana, dividida entre as parcelas (R$ 25,00 em cada)');
+    patch({ splitCount: '3' });
+    await render();
+    expect(multa()).toBe('R$ 50,00 por semana, dividida entre as parcelas (R$ 16,66, R$ 16,66 e R$ 16,68)');
+    patch({ splitCount: '2' });
+    // A prévia traz as fatias: elas mandam no Confira.
+    chargePreview.mockImplementation(() =>
+      of({
+        ...PREVIEW_CASE_2,
+        charges: PREVIEW_CASE_2.charges.map((c) => (c.kind === 'RENTAL_PERIOD' ? { ...c, fineFixedCents: c.instalmentIndex === 1 ? 2_400 : 2_600 } : c)),
+      }),
+    );
+    await toConfira();
+    expect(multa()).toBe('R$ 50,00 por semana, dividida entre as parcelas (R$ 24,00 e R$ 26,00)');
+    // Sem parcelas, ou recebendo por fora, a multa é a mesma por cobrança.
+    patch({ automaticCharge: false });
+    await render();
+    expect(multa()).toBe('R$ 50,00 por cobrança');
   });
 
   describe('defeito de produção: parcelas de semana perdidas', () => {
