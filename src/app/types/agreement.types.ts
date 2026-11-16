@@ -164,7 +164,8 @@ export const RECEIVED_OUTSIDE_ERROR_MESSAGES: Readonly<Record<string, string>> =
   RECEIVED_OUTSIDE_NOT_OPEN:
     'Só cobrança pendente, atrasada ou falhada pode ser registrada como recebida por fora.',
   RECEIVED_OUTSIDE_KIND: 'Este tipo de cobrança não pode ser registrado como recebido por fora.',
-  RECEIVED_OUTSIDE_DATE: 'A data não pode ser futura nem anterior ao início do aluguel.',
+  RECEIVED_OUTSIDE_DATE:
+    'Essa data de recebimento não foi aceita para este aluguel. Escolha o dia em que o dinheiro chegou, até hoje.',
   RECEIVED_OUTSIDE_ALREADY_PAID: 'Esta cobrança já tinha sido paga pelo Pix; atualizamos a lista.',
   RECEIVED_OUTSIDE_INCONCLUSIVE:
     'Não conseguimos confirmar o cancelamento do Pix. Nada foi alterado; tente de novo.',

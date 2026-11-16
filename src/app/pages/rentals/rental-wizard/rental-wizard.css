@@ -236,3 +236,4 @@ app-rental-wizard :is(button, input, textarea, a):focus-visible {
 
 @media (min-width:640px){}
 @media (min-width:1024px){.u-lg-i-w-auto{width:auto!important}.u-lg-grid-cols-380px-minmax-0-580px{grid-template-columns:380px minmax(0,580px)}.u-lg-justify-center{justify-content:center}.u-lg-min-w-60{min-width:240px}.u-lg-pb-12{padding-bottom:48px}.u-lg-pt-1{padding-top:4px}.u-lg-top-4{top:16px}}
+.wz-opt:disabled { opacity: 0.5; cursor: not-allowed; }

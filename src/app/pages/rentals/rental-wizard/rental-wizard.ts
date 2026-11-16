@@ -17,7 +17,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
-import { catchError, map, of, switchMap } from 'rxjs';
+import { catchError, forkJoin, map, of, switchMap } from 'rxjs';
 
 import { FieldControl, FormField } from '../../../components/form-field/form-field';
 import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
@@ -54,7 +54,7 @@ import {
 } from '../../../types/rental.types';
 import { VehicleListItem } from '../../../types/vehicle.types';
 import { DriverListItem } from '../../../types/driver.types';
-import { IntervalUnit, addDaysIso, percentTextToBps } from '../charges-flex/charges-flex';
+import { IntervalUnit, addDaysIso, percentTextToBps, splitEvenly } from '../charges-flex/charges-flex';
 import { PLAN_ERROR_MESSAGES, apiErrorCode, companySafe, planBlockerMessage } from '../charges-flex/flex-errors';
 import { messageWithAccepted, readPreflightError } from '../rental-preflight';
 import {
@@ -93,8 +93,8 @@ import {
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 export const STEP_NAMES = [
+  'Quando',
   'Motorista e carro',
-  'Período',
   'Valor',
   'Pagamento',
   'Caução',
@@ -107,12 +107,12 @@ const FUEL_OTHER = 'OTHER';
 
 /** Em que passo mora cada campo (erros do servidor e "Mudar"). */
 const FIELD_STEP: Readonly<Record<string, Step>> = {
-  driverId: 1,
-  vehicleId: 1,
-  startDate: 2,
-  pickupTime: 2,
-  pickupDay: 2,
-  endDate: 2,
+  startDate: 1,
+  pickupTime: 1,
+  pickupDay: 1,
+  endDate: 1,
+  driverId: 2,
+  vehicleId: 2,
   billingFrequency: 3,
   periodRateReais: 3,
   firstPaymentDate: 3,
@@ -200,7 +200,7 @@ interface TopIssue {
 }
 
 interface WizardDraft {
-  v: 1;
+  v: 2;
   form: Record<string, unknown>;
   parts: Array<{ amount: string; due: string }>;
   selected: number[];
@@ -767,20 +767,20 @@ export class RentalWizard implements OnInit {
       canEdit: editable(step),
     });
     return [
-      sec(1, 'Motorista e carro', [
-        { k: 'Motorista', v: this.driverName() || '—' },
-        { k: 'Carro', v: this.carLabel() || '—' },
-      ]),
-      sec(2, 'Período', [
+      sec(1, 'Período', [
         { k: 'Retirada', v: pickupDay ? `${dLong(pickupDay)}, ${v.pickupTime}` : '—' },
         { k: 'Devolução', v: dLong(v.endDate) },
         { k: 'Duração', v: this.periods() ? plural(this.periods(), w.lower, w.lowerMany) : '—' },
+      ]),
+      sec(2, 'Motorista e carro', [
+        { k: 'Motorista', v: this.driverName() || '—' },
+        { k: 'Carro', v: this.carLabel() || '—' },
       ]),
       sec(3, 'Valor', rows3),
       sec(4, 'Pagamento', [{ k: 'Como paga', v: v.automaticCharge ? 'Pix pelo MyCarsHub' : 'Você recebe por fora' }]),
       sec(5, 'Caução', cauRows),
       sec(7, 'Se atrasar', [
-        { k: 'Multa', v: fine === null || fine === 0 ? 'Não cobra' : v.lateFineType === 'FIXED' ? `${brl(fine)} por cobrança` : `${fine.toLocaleString('pt-BR')}% da cobrança` },
+        { k: 'Multa', v: fine === null || fine === 0 ? 'Não cobra' : v.lateFineType === 'FIXED' ? this.fixedFineText(fine) : `${fine.toLocaleString('pt-BR')}% da cobrança` },
         { k: 'Juros', v: juros === null || juros === 0 ? 'Não cobra' : `${(juros / 100).toLocaleString('pt-BR')}% ao mês` },
       ]),
       { ...sec(7, 'Contrato e entrega', delivery) },
@@ -867,8 +867,8 @@ export class RentalWizard implements OnInit {
     const v = this.v();
     const w = this.words();
     const n = this.periods();
-    if (s === 2 && n) {
-      return `O ${this.firstName()} pega o carro em ${dLong(v.pickupOtherDay && v.pickupDay ? v.pickupDay : v.startDate)}, ${v.pickupTime}, e devolve em ${dLong(v.endDate)}. São ${plural(n, w.lower, w.lowerMany)}.`;
+    if (s === 1 && n) {
+      return `Ele pega o carro em ${dLong(v.pickupOtherDay && v.pickupDay ? v.pickupDay : v.startDate)}, ${v.pickupTime}, e devolve em ${dLong(v.endDate)}. São ${plural(n, w.lower, w.lowerMany)}.`;
     }
     if (s === 3 && this.rateCents() && n) {
       const rent = this.localTotals().rentCents;
@@ -967,15 +967,27 @@ export class RentalWizard implements OnInit {
   });
 
   // ================================================================== pickers
+  /** Livres no período escolhido (a mesma busca do formulário de hoje). Os outros aparecem apagados. */
+  private readonly freeDriverIds = signal<ReadonlySet<string>>(new Set());
+  private readonly freeVehicleIds = signal<ReadonlySet<string>>(new Set());
+
   protected readonly driverOptions = computed(() => {
     const q = this.pickerQuery().trim().toLowerCase();
+    const free = this.freeDriverIds();
     return this.drivers()
-      .map((d) => ({ id: d.id, name: formatPersonName(d.name) }))
-      .filter((d) => !q || d.name.toLowerCase().includes(q));
+      .map((d) => ({ id: d.id, name: formatPersonName(d.name), free: free.has(d.id) }))
+      .filter((d) => !q || d.name.toLowerCase().includes(q))
+      .sort((a, b) => Number(b.free) - Number(a.free));
   });
-  protected readonly vehicleOptions = computed(() =>
-    this.vehicles().map((c) => ({ id: c.id, name: formatVehicleLabel(c.brand, c.model), plate: formatPlate(c.plate) })),
-  );
+  protected readonly vehicleOptions = computed(() => {
+    const free = this.freeVehicleIds();
+    return this.vehicles()
+      .filter((c) => !c.sold)
+      .map((c) => ({ id: c.id, name: formatVehicleLabel(c.brand, c.model), plate: formatPlate(c.plate), free: free.has(c.id) }))
+      .sort((a, b) => Number(b.free) - Number(a.free));
+  });
+  protected readonly anyFreeDriver = computed(() => this.driverOptions().some((d) => d.free));
+  protected readonly anyFreeVehicle = computed(() => this.vehicleOptions().some((c) => c.free));
 
   /** Falhou a busca de motoristas ou carros: aviso com "Tentar de novo", nunca a lista vazia calada. */
   protected readonly pickersFailed = signal(false);
@@ -985,45 +997,90 @@ export class RentalWizard implements OnInit {
     this.loadPickers();
   }
 
+  /**
+   * Motoristas e carros do período escolhido no passo 1. Duas buscas por lista: a de "livres"
+   * é a mesma do formulário de hoje (`availableForRental` + `periodStart`/`periodEnd`, corte por
+   * colisão real de intervalo, então uma reserva fora do período não esconde nada); a outra traz
+   * todos, e quem não está livre aparece apagado com o motivo, em vez de sumir.
+   * Sem período ainda não há o que buscar.
+   */
   private loadPickers(): void {
     const id = ++this.pickerRequest;
     const key = this.periodKey();
     this.loadedPeriod = key;
-    const [periodStart, periodEnd] = key ? key.split('|') : [];
-    const params = { availableForRental: true, ...(key ? { periodStart, periodEnd } : {}) };
-    this.vehiclesService.list({ size: 500, sort: 'plate_asc', ...params }).subscribe({
-      next: (res) => {
+    if (!key) return;
+    const [periodStart, periodEnd] = key.split('|');
+    const free = { availableForRental: true, periodStart, periodEnd };
+    const fail = (err: unknown): void => {
+      if (id !== this.pickerRequest) return;
+      this.apiErrors.claim(err);
+      this.pickersFailed.set(true);
+    };
+    forkJoin([
+      this.vehiclesService.list({ size: 500, sort: 'plate_asc', ...free }),
+      this.vehiclesService.list({ size: 500, sort: 'plate_asc' }),
+    ]).subscribe({
+      next: ([freeRes, allRes]) => {
         if (id !== this.pickerRequest) return;
-        const list = res.content ?? [];
-        this.vehicles.set(list);
+        const freeIds = new Set((freeRes.content ?? []).map((c) => c.id));
+        this.freeVehicleIds.set(freeIds);
+        this.vehicles.set(allRes.content ?? []);
         const sel = this.form.controls.vehicleId.value;
-        const lost = !!sel && !list.some((x) => x.id === sel);
+        const lost = !!sel && !freeIds.has(sel);
         if (lost) this.form.controls.vehicleId.setValue('');
         this.vehicleLost.set(lost);
         this.pickersFailed.set(false);
       },
-      error: (err: unknown) => {
-        if (id !== this.pickerRequest) return;
-        this.apiErrors.claim(err);
-        this.pickersFailed.set(true);
-      },
+      error: fail,
     });
-    this.driverService.list({ size: 500, sort: 'name_asc', ...params }).subscribe({
-      next: (res) => {
+    forkJoin([
+      this.driverService.list({ size: 500, sort: 'name_asc', ...free }),
+      this.driverService.list({ size: 500, sort: 'name_asc' }),
+    ]).subscribe({
+      next: ([freeRes, allRes]) => {
         if (id !== this.pickerRequest) return;
-        const list = (res.content ?? []).filter((d) => d.status !== 'SUSPENDED');
-        this.drivers.set(list);
+        const freeIds = new Set((freeRes.content ?? []).filter((x) => x.status !== 'SUSPENDED').map((x) => x.id));
+        this.freeDriverIds.set(freeIds);
+        this.drivers.set((allRes.content ?? []).filter((x) => x.status !== 'SUSPENDED'));
         const sel = this.form.controls.driverId.value;
-        const lost = !!sel && !list.some((x) => x.id === sel);
+        const lost = !!sel && !freeIds.has(sel);
         if (lost) this.form.controls.driverId.setValue('');
         this.driverLost.set(lost);
       },
-      error: (err: unknown) => {
-        if (id !== this.pickerRequest) return;
-        this.apiErrors.claim(err);
-        this.pickersFailed.set(true);
-      },
+      error: fail,
     });
+  }
+
+  /**
+   * Multa FIXA com parcelas no Pix: o servidor divide a multa entre as parcelas
+   * (`ChargePlanExpander.fineShares`, centavos na última). As fatias vêm da prévia quando ela
+   * as traz; senão, a mesma regra aqui.
+   */
+  protected readonly fineShares = computed<number[] | null>(() => {
+    const v = this.v();
+    const s = this.splitState();
+    const fine = ptBrMoneyCents(v.lateFineValue) ?? 0;
+    if (v.lateFineType !== 'FIXED' || fine <= 0 || !v.automaticCharge || !s || s.count < 2) return null;
+    const p = this.step() === 8 ? this.serverPreview() : null;
+    const first = p?.charges.find((c) => c.kind === 'RENTAL_PERIOD' && (c.instalmentCount ?? 1) > 1 && c.fineFixedCents != null);
+    if (first) {
+      return p!.charges
+        .filter((c) => c.kind === 'RENTAL_PERIOD' && c.index === first.index && c.fineFixedCents != null)
+        .sort((a, b) => (a.instalmentIndex ?? 1) - (b.instalmentIndex ?? 1))
+        .map((c) => c.fineFixedCents as number);
+    }
+    return splitEvenly(fine, s.count);
+  });
+
+  private fixedFineText(fine: number): string {
+    const shares = this.fineShares();
+    if (!shares) return `${brl(fine)} por cobrança`;
+    const w = this.words();
+    const each = shares.every((x) => x === shares[0])
+      ? `${brl(shares[0])} em cada`
+      : `${shares.slice(0, -1).map(brl).join(', ')} e ${brl(shares[shares.length - 1])}`;
+    const scope = this.v().splitScope === 'SOME' ? `; ${w.fem ? 'nas' : 'nos'} ${w.lowerMany} parcelad${w.fem ? 'as' : 'os'}, ` : ', ';
+    return `${brl(fine)} por ${w.lower}${scope}dividida entre as parcelas (${each})`;
   }
 
   protected pickDriver(id: string): void {
@@ -1250,7 +1307,9 @@ export class RentalWizard implements OnInit {
   }
 
   protected edit(step: number): void {
-    this.go(step as Step, true);
+    // Na primeira passada (Confira ainda não visto) o "Mudar" leva ao passo e segue em ordem;
+    // só depois de todos os passos é que ele volta direto ao Confira.
+    this.go(step as Step, this.maxStep() >= 8);
   }
 
   protected exit(): void {
@@ -1275,7 +1334,7 @@ export class RentalWizard implements OnInit {
 
   private readonly draftAutosave = effect(() => {
     const data: WizardDraft = {
-      v: 1,
+      v: 2,
       form: this.v(),
       parts: this.partsValue() as Array<{ amount: string; due: string }>,
       selected: [...this.selected()],
@@ -1296,7 +1355,8 @@ export class RentalWizard implements OnInit {
     if (!raw) return false;
     try {
       const d = JSON.parse(raw) as WizardDraft;
-      if (d?.v !== 1 || !d.form) return false;
+      // v2: o período virou o passo 1. Rascunho da ordem antiga não vale.
+      if (d?.v !== 2 || !d.form) return false;
       this.form.patchValue(d.form);
       (d.parts ?? []).forEach((p) => this.caucaoParts.push(this.newPart(null, p.due ?? '')));
       (d.parts ?? []).forEach((p, i) => this.caucaoParts.at(i).controls.amount.setValue(p.amount ?? ''));
@@ -1511,7 +1571,7 @@ export class RentalWizard implements OnInit {
         : isDriver && item.code !== 'DRIVER_NOT_FOUND' && driverId
           ? { label: 'Abrir o cadastro do motorista', commands: ['/motoristas', driverId, 'editar'] }
           : null;
-      summary.push({ key: `${item.code}-${item.field}`, text, step: INTEGRATION_CODES.has(item.code) ? 4 : isDriver ? 1 : null, link });
+      summary.push({ key: `${item.code}-${item.field}`, text, step: INTEGRATION_CODES.has(item.code) ? 4 : isDriver ? 2 : null, link });
     }
     this.lastValues = { ...(this.form.getRawValue() as unknown as Record<string, unknown>) };
     this.serverFieldErrors.set(fields);
