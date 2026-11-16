@@ -448,10 +448,11 @@ export const routes: Routes = [
                                 // alcançaria um formulário que não tem como salvar.
                                 path: 'novo',
                                 canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                // Com `CHARGES_FLEX`, o passo a passo; sem, o formulário de hoje.
                                 loadComponent: () =>
                                     import(
-                                        './pages/rentals/rental-form'
-                                    ).then((m) => m.RentalForm),
+                                        './pages/rentals/rental-new'
+                                    ).then((m) => m.RentalNew),
                                 data: { pageTitle: 'Novo aluguel' },
                             },
                             {

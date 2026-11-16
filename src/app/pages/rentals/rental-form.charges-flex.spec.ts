@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, ActivatedRoute } from '@angular/router';
 import { signal } from '@angular/core';
 import { EMPTY, Observable, of } from 'rxjs';
-import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { RentalForm } from './rental-form';
 import { RentalService } from './rental.service';
@@ -104,22 +104,23 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
   const el = <T extends Element>(sel: string): T | null => fixture.nativeElement.querySelector(sel) as T | null;
   const byId = <T extends Element = HTMLElement>(id: string): T | null => el<T>(`[data-testid="${id}"]`);
 
+  /**
+   * Relógio FALSO: o debounce da conferência (`PREFLIGHT_DEBOUNCE_MS`) e os dos pickers
+   * andam aqui, por decreto, e não com o tempo real — a máquina carregada não muda o resultado.
+   */
   async function settle(ms = 550): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, ms));
+    await vi.advanceTimersByTimeAsync(ms);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
   }
 
   /**
-   * Espera uma CONDIÇÃO, não um tempo. A prévia sai depois do debounce da conferência
-   * (`PREFLIGHT_DEBOUNCE_MS`, 400 ms) e de duas chamadas encadeadas; os 550 ms fixos de
-   * `settle()` sobravam pouco e, com a suíte inteira rodando, a prévia ainda não tinha
-   * chegado. O prazo só existe para um teste que nunca chegaria lá.
+   * Espera uma CONDIÇÃO, não um tempo: anda o relógio falso em passos até ela valer. O
+   * limite de passos só existe para um teste que nunca chegaria lá.
    */
-  async function until(condition: () => boolean, deadlineMs = 10_000): Promise<void> {
-    const deadline = Date.now() + deadlineMs;
-    while (!condition() && Date.now() < deadline) await settle(25);
+  async function until(condition: () => boolean, maxSteps = 400): Promise<void> {
+    for (let i = 0; i < maxSteps && !condition(); i++) await settle(25);
   }
 
   async function fill(): Promise<void> {
@@ -137,7 +138,12 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
     input.dispatchEvent(new Event('input'));
   }
 
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
   afterEach(() => {
+    vi.useRealTimers();
     sessionStorage.clear();
     localStorage.clear();
   });
