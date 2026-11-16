@@ -470,8 +470,9 @@ describe('RentalDetail — Cobranças flexíveis (FEAT-0573)', () => {
 
       const message = byTestId(fixture, 'received-outside-date-error');
       expect(message?.getAttribute('role')).toBe('alert');
+      expect(byTestId(fixture, 'received-outside-sheet')?.textContent).not.toContain('Asaas');
+      expect(el(fixture).textContent).not.toContain('Data fora do aluguel');
       expect(message?.textContent).toContain('Essa data de recebimento não foi aceita para este aluguel');
-      expect(el(fixture).textContent).not.toContain('Asaas');
       expect(byTestId<HTMLButtonElement>(fixture, 'received-outside-submit')!.disabled).toBe(true);
       expect(el(fixture).querySelectorAll('[role="alert"] app-alert-banner, app-alert-banner[variant="error"]').length).toBe(0);
     });
