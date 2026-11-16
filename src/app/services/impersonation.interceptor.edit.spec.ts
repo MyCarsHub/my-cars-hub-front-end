@@ -85,6 +85,12 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['POST', '/rentals/r-1/complete'],
     ['POST', '/rentals/r-1/inspections/CHECKIN/generate-pdf'],
     ['POST', '/rentals/r-1/inspections/CHECKOUT/upload-pdf'],
+    // Contratos e Membros (ordem do dono).
+    ['POST', '/settings/contract-template'],
+    ['DELETE', '/settings/contract-template'],
+    ['POST', '/invites'],
+    ['POST', '/invites/resend/i-1'],
+    ['DELETE', '/invites/i-1'],
   ])('deixa passar %s %s', (method, path) => {
     run(new HttpRequest(method as 'PUT', `${API}${path}`, {})).subscribe();
 
@@ -128,6 +134,20 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['POST', '/rentals/r-1/contract/extra'],
     ['DELETE', '/rentals/r-1/documents'],
     ['POST', '/inspections/i-1/photos'],
+    // Vizinhos de Contratos e Membros que continuam fora.
+    ['DELETE', '/companies/c-1/members/u-1'],
+    ['PATCH', '/companies/c-1/members/u-1'],
+    ['POST', '/invites/i-1/revoke'],
+    ['POST', '/invites/accept/t-1'],
+    ['DELETE', '/invites'],
+    ['PUT', '/settings/contract-template'],
+    ['POST', '/settings/contract-template/drafts'],
+    ['POST', '/settings/contract-template/drafts/d-1/consent'],
+    ['PUT', '/settings/contract-template/drafts/d-1/decisions'],
+    ['POST', '/settings/contract-template/drafts/d-1/save'],
+    ['DELETE', '/settings/contract-template/drafts/d-1'],
+    ['POST', '/settings/contract-template/base/save'],
+    ['POST', '/billing/checkout'],
   ])('recusa %s %s sem chamar a API e avisa', async (method, path) => {
     const error = await runAndCatch(new HttpRequest(method as 'PUT', `${API}${path}`, {}));
 
@@ -169,6 +189,11 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['POST', '/rentals/r-1/complete'],
     ['POST', '/rentals/r-1/inspections/CHECKIN/generate-pdf'],
     ['POST', '/rentals/r-1/inspections/CHECKOUT/upload-pdf'],
+    ['POST', '/settings/contract-template'],
+    ['DELETE', '/settings/contract-template'],
+    ['POST', '/invites'],
+    ['POST', '/invites/resend/i-1'],
+    ['DELETE', '/invites/i-1'],
   ])('barra %s %s na sessão de LEITURA', async (method, path) => {
     editMode = false;
 
