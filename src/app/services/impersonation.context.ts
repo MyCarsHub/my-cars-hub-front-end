@@ -103,11 +103,11 @@ export const SUPPORT_EDIT_WRITE_ROUTES: ReadonlyArray<{ method: string; path: Re
   { method: 'POST', path: /^\/inspections$/ },
   { method: 'POST', path: /^\/inspections\/[^/]+\/photos\/[^/]+$/ },
   { method: 'POST', path: /^\/inspections\/[^/]+\/(submit|approve|reject|recapture)$/ },
-  // Ordem do dono: subir/trocar e apagar o contrato da empresa (caminho manual, sem IA) e convidar
-  // pela página de Membros. De propósito FORA: o rascunho por IA (`/drafts/**`, exige consentimento
-  // da empresa), o «montar do zero» (`/base/save`), `POST /invites/{id}/revoke` e remover membro.
+  // Ordem do dono: subir/trocar o contrato da empresa (caminho manual, sem IA) e convidar pela página
+  // de Membros. De propósito FORA: APAGAR o contrato (auditoria 16/11, M3), o rascunho por IA
+  // (`/drafts/**`, exige consentimento da empresa), o «montar do zero» (`/base/save`),
+  // `POST /invites/{id}/revoke` e remover membro.
   { method: 'POST', path: /^\/settings\/contract-template$/ },
-  { method: 'DELETE', path: /^\/settings\/contract-template$/ },
   { method: 'POST', path: /^\/invites$/ },
   { method: 'POST', path: /^\/invites\/resend\/[^/]+$/ },
   { method: 'DELETE', path: /^\/invites\/[^/]+$/ },

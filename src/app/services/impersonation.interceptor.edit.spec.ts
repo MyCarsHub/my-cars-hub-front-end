@@ -87,7 +87,6 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['POST', '/rentals/r-1/inspections/CHECKOUT/upload-pdf'],
     // Contratos e Membros (ordem do dono).
     ['POST', '/settings/contract-template'],
-    ['DELETE', '/settings/contract-template'],
     ['POST', '/invites'],
     ['POST', '/invites/resend/i-1'],
     ['DELETE', '/invites/i-1'],
@@ -141,6 +140,8 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['POST', '/invites/accept/t-1'],
     ['DELETE', '/invites'],
     ['PUT', '/settings/contract-template'],
+    // Apagar o contrato da empresa: fora (M3).
+    ['DELETE', '/settings/contract-template'],
     ['POST', '/settings/contract-template/drafts'],
     ['POST', '/settings/contract-template/drafts/d-1/consent'],
     ['PUT', '/settings/contract-template/drafts/d-1/decisions'],

@@ -9,6 +9,7 @@ import { ContractTemplate } from './contract-template';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
 import { NotificationService } from '../../../services/notification.service';
 import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
+import { ImpersonationService } from '../../../services/impersonation.service';
 
 /**
  * Cartão «Contrato atual» e os estados da página. A esteira tem o próprio spec; aqui ela
@@ -75,6 +76,32 @@ describe('ContractTemplate', () => {
     expect(findButton(host, 'Abrir contrato')).toBeTruthy();
     expect(findButton(host, 'Remover')).toBeTruthy();
     expect(host.textContent).not.toMatch(/template|placeholder/i);
+  });
+
+  describe('sessão de suporte', () => {
+    function withSession(active: boolean, editMode: boolean) {
+      TestBed.overrideProvider(ImpersonationService, {
+        useValue: { active: () => active, editMode: () => editMode, readOnly: () => active && !editMode },
+      });
+      return makeFixture();
+    }
+
+    it('modo edição: baixar e abrir seguem, «Remover» some', () => {
+      const host: HTMLElement = withSession(true, true).nativeElement;
+      expect(findButton(host, 'Baixar contrato')).toBeTruthy();
+      expect(findButton(host, 'Abrir contrato')).toBeTruthy();
+      expect(findButton(host, 'Remover')).toBeUndefined();
+    });
+
+    it('sessão de leitura: «Remover» some', () => {
+      const host: HTMLElement = withSession(true, false).nativeElement;
+      expect(findButton(host, 'Remover')).toBeUndefined();
+    });
+
+    it('fora de sessão de suporte: «Remover» continua', () => {
+      const host: HTMLElement = withSession(false, false).nativeElement;
+      expect(findButton(host, 'Remover')).toBeTruthy();
+    });
   });
 
   it('salvar pela esteira: cartão «Contrato salvo!» com o arquivo novo, sem toast repetido', () => {
