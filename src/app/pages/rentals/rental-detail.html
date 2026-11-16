@@ -1335,9 +1335,9 @@
       [subtitle]="receivedOutsideSubtitle()"
       [amountCents]="target.amount"
       [hasPix]="target.status !== 'FAILED' && !!(target.externalId || target.checkoutUrl)"
-      [minDate]="r.startDate"
       [today]="flexToday()"
       [draft]="receivedOutsideDraft()"
+      [serverDateError]="receivedOutsideDateError()"
       (submitted)="onReceivedOutsideSubmitted($event)"
       (closed)="onReceivedOutsideSheetClosed()"
     />

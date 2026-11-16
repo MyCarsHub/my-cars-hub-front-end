@@ -134,7 +134,7 @@
 
       <div class="flex flex-col gap-7 min-w-0 u-lg-pt-1">
         @switch (step()) {
-          @case (1) {
+          @case (2) {
             <div class="wz-enter flex flex-col gap-7">
               <div><h2 class="wz-q" tabindex="-1" data-step-heading>Quem vai levar qual carro?</h2>
                 <p class="wz-qs">O contrato e as cobranças saem no nome do motorista.</p></div>
@@ -157,11 +157,16 @@
                     [attr.aria-invalid]="err('driverId') ? 'true' : null" [attr.aria-describedby]="err('driverId') ? 'wz-e-driver' : null">
                     @for (d of driverOptions(); track d.id) {
                       <button type="button" class="wz-opt" [class.on]="v().driverId === d.id" role="radio"
-                        [attr.aria-checked]="v().driverId === d.id" (click)="pickDriver(d.id)">
-                        <span class="wz-mk rd"></span><span class="wz-ot"><b>{{ d.name }}</b></span>
+                        [attr.aria-checked]="v().driverId === d.id" [disabled]="!d.free" (click)="pickDriver(d.id)"
+                        [attr.data-testid]="'driver-' + d.id">
+                        <span class="wz-mk rd"></span><span class="wz-ot"><b>{{ d.name }}</b>
+                          @if (!d.free) { <span>Com outro aluguel nessas datas</span> }</span>
                       </button>
                     } @empty {
-                      <p class="wz-help">{{ periods() ? 'Nenhum motorista livre nessas datas.' : 'Nenhum motorista livre agora.' }}</p>
+                      <p class="wz-help">Nenhum motorista cadastrado.</p>
+                    }
+                    @if (driverOptions().length > 0 && !anyFreeDriver()) {
+                      <p class="wz-help">Nenhum motorista livre nessas datas. Volte ao passo 1 e tente outras datas.</p>
                     }
                   </div>
                   @if (driverLost()) { <p class="wz-err" role="alert">O motorista escolhido não está livre nessas datas. Escolha outro.</p> }
@@ -173,21 +178,26 @@
                     [attr.aria-invalid]="err('vehicleId') ? 'true' : null" [attr.aria-describedby]="err('vehicleId') ? 'wz-e-car' : null">
                     @for (c of vehicleOptions(); track c.id) {
                       <button type="button" class="wz-opt" [class.on]="v().vehicleId === c.id" role="radio"
-                        [attr.aria-checked]="v().vehicleId === c.id" (click)="pickVehicle(c.id)">
-                        <span class="wz-mk rd"></span><span class="wz-ot"><b>{{ c.name }} · {{ c.plate }}</b></span>
+                        [attr.aria-checked]="v().vehicleId === c.id" [disabled]="!c.free" (click)="pickVehicle(c.id)"
+                        [attr.data-testid]="'vehicle-' + c.id">
+                        <span class="wz-mk rd"></span><span class="wz-ot"><b>{{ c.name }} · {{ c.plate }}</b>
+                          @if (!c.free) { <span>Já está alugado nessas datas</span> }</span>
                       </button>
                     } @empty {
-                      <p class="wz-help">{{ periods() ? 'Nenhum carro livre nessas datas.' : 'Nenhum carro livre agora.' }}</p>
+                      <p class="wz-help">Nenhum carro cadastrado.</p>
+                    }
+                    @if (vehicleOptions().length > 0 && !anyFreeVehicle()) {
+                      <p class="wz-help">Nenhum carro livre nessas datas. Volte ao passo 1 e tente outras datas.</p>
                     }
                   </div>
                   @if (vehicleLost()) { <p class="wz-err" role="alert">O carro escolhido não está livre nessas datas. Escolha outro.</p> }
                   @if (err('vehicleId'); as m) { <p class="wz-err" role="alert" id="wz-e-car" data-step-error tabindex="-1">{{ m }}</p> }
-                  <p class="wz-help">Só aparecem os carros livres.</p>
+                  <p class="wz-help">Os que já estão alugados nessas datas aparecem apagados.</p>
                 </div>
               </section>
             </div>
           }
-          @case (2) {
+          @case (1) {
             <div class="wz-enter flex flex-col gap-7">
               <div><h2 class="wz-q" tabindex="-1" data-step-heading>Quando ele pega e até quando fica?</h2></div>
               <section class="wz-card">
@@ -578,7 +588,7 @@
     <!-- Aluguel criado -->
     <div class="mx-auto u-max-w-580px flex flex-col gap-7 wz-enter" data-testid="wizard-done">
       <div><h2 class="wz-q" tabindex="-1" data-step-heading>Aluguel criado</h2>
-        <p class="wz-qs">{{ sections()[0].rows[0].v }} · {{ sections()[0].rows[1].v }}</p></div>
+        <p class="wz-qs">{{ sections()[1].rows[0].v }} · {{ sections()[1].rows[1].v }}</p></div>
       <app-painted-card tone="green"><p class="m-0 text-lg font-bold">{{ doneText() }}</p></app-painted-card>
       @if (created()?.sync; as sync) {
         @if (sync.failed > 0) {
