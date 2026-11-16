@@ -1,0 +1,641 @@
+<ng-template #back18>
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6l6 6"></path></svg>
+</ng-template>
+<ng-template #check14>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5l9-11"></path></svg>
+</ng-template>
+
+<!-- Resumo em seções: à esquerda no computador, na folha "Resumo" e no Confira do celular. -->
+<ng-template #summaryTpl let-showMoney="showMoney">
+  <div class="wz-sum" data-testid="wizard-summary">
+    @for (sec of sections(); track sec.title) {
+      <section class="wz-sec">
+        <div class="wz-sh">
+          <b [class.pend]="!sec.filled">{{ sec.title }}</b>
+          @if (sec.canEdit) {
+            <button type="button" class="wz-link u-my-1-5 -mr-2" (click)="edit(sec.step)"
+              [attr.aria-label]="'Mudar ' + sec.title.toLowerCase()">Mudar</button>
+          }
+        </div>
+        @if (sec.filled) {
+          @for (row of sec.rows; track row.k) {
+            <div class="wz-r"><span>{{ row.k }}</span><b>{{ row.v }}</b></div>
+          }
+          @if (sec.step === 3 && planLink(); as label) {
+            <button type="button" class="wz-link u-self-end -mr-2" (click)="edit(6)" data-testid="summary-plan-link">{{ label }}</button>
+          }
+        } @else {
+          <span class="text-sm text-fg-faint">Falta preencher</span>
+        }
+      </section>
+    }
+    @if (showMoney) {
+      <app-painted-card tone="green" class="wz-money u-i-gap-1-5 !p-4" data-testid="summary-money">
+        <div class="wz-r"><span>{{ money().alugLabel }}</span><b>{{ money().alug }}</b></div>
+        <div class="wz-r"><span>Caução, devolvida no fim</span><b>{{ money().cau }}</b></div>
+        <div class="tt"><span>Total a receber</span><b>{{ money().total }}</b></div>
+        <span class="text-sm">{{ money().count }}</span>
+      </app-painted-card>
+    }
+  </div>
+</ng-template>
+
+<div data-wizard-top class="scroll-mt-4 mx-auto max-w-[1040px] u-pb-44 u-lg-pb-12" [formGroup]="form">
+  <!-- Computador: voltar para a lista, título e Sair -->
+  <div class="hidden lg:flex items-center gap-4 mb-3">
+    <a routerLink="/alugueis" class="wz-tbtn u-i-text-15px u-i-font-medium u-i-text-fg-muted -ml-2">
+      <ng-container [ngTemplateOutlet]="back18" /> Aluguéis
+    </a>
+    @if (step() <= 8) {
+      <h1 class="m-0 u-text-22px u-leading-7 font-bold tracking-tight">Novo aluguel</h1>
+      <button type="button" class="wz-tbtn ml-auto u-i-text-fg-muted" (click)="exit()">Sair</button>
+    }
+  </div>
+
+  <!-- Celular: seta, passo, Sair, traços e "Total a receber" -->
+  @if (step() <= 8) {
+    <div class="lg:hidden flex flex-col gap-3 mb-7">
+      <div class="flex items-center justify-between u-h-52px -mx-2">
+        <button type="button" class="size-11 grid place-items-center rounded-xl" aria-label="Voltar" (click)="back()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6l6 6"></path></svg>
+        </button>
+        <span class="text-sm text-fg-subtle font-medium">{{ stepCount() }}</span>
+        <button type="button" class="wz-tbtn u-i-text-fg-muted" (click)="exit()">Sair</button>
+      </div>
+      <div class="wz-dash" aria-hidden="true">
+        @for (i of dashes; track i) { <i [class]="dashClass(i)"></i> }
+      </div>
+      <button type="button" class="flex items-center justify-between gap-3 min-h-12 px-4 rounded-[14px] bg-surface w-full"
+        (click)="sheetOpen.set(true)" data-testid="mobile-summary-button">
+        <span class="text-sm text-fg-subtle">Total a receber</span>
+        <b class="text-[17px] font-bold">{{ money().total }}</b>
+        <span class="flex items-center gap-1 text-[15px] font-semibold text-fg-muted">Resumo
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6l6 6"></path></svg>
+        </span>
+      </button>
+    </div>
+  }
+
+  @if (draftRestored() && step() <= 8) {
+    <div role="status" data-testid="draft-restored"
+      class="mb-6 rounded-[20px] bg-surface p-4 flex flex-col gap-1">
+      <p class="m-0 text-base">Continuamos de onde você parou.</p>
+      <button type="button" class="wz-link self-start u-i-px-0" (click)="discardDraft()">Começar do zero</button>
+    </div>
+  }
+
+  <!-- O que impede criar fica no TOPO, em qualquer passo (parcelas a refazer, recusa do servidor). -->
+  @if (step() <= 8 && (topIssues().length > 0 || topError())) {
+    <div role="alert" data-testid="wizard-top-issues" tabindex="-1"
+      class="mb-6 rounded-[20px] bg-rose-50 dark:bg-rose-500/10 text-rose-900 dark:text-rose-200 p-4 flex flex-col gap-2">
+      <p class="m-0 font-semibold text-[17px]">Antes de criar, ajuste:</p>
+      @if (topError(); as e) { <p class="m-0 text-base">{{ e }}</p> }
+      @for (issue of topIssues(); track issue.key) {
+        <div class="flex flex-col gap-1">
+          <p class="m-0 text-base" [attr.data-testid]="'top-issue-' + issue.key">{{ issue.text }}</p>
+          <div class="flex flex-wrap gap-x-2">
+            @if (issue.step !== null && issue.step !== step()) {
+              <button type="button" class="wz-link u-i-text-current u-i-px-0" (click)="issue.key === 'stale' ? goToStaleStep() : edit(issue.step)">
+                {{ issue.key === 'stale' ? 'Refazer' : 'Mudar' }}
+              </button>
+            }
+            @if (issue.retry) {
+              <button type="button" class="wz-link u-i-text-current u-i-px-0" (click)="retryCheck()" data-testid="retry-check">Tentar de novo</button>
+            }
+            @if (issue.link; as link) {
+              <a class="wz-link u-i-text-current u-i-px-0 inline-flex items-center" [routerLink]="link.commands">{{ link.label }}</a>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (step() !== 9) {
+    <div class="lg:grid u-lg-grid-cols-380px-minmax-0-580px lg:gap-12 u-lg-justify-center lg:items-start">
+      <aside class="hidden lg:block lg:sticky u-lg-top-4" aria-label="Resumo do aluguel">
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-2.5">
+            <div class="flex justify-between items-baseline gap-3">
+              <b class="text-[17px] leading-6 font-semibold">{{ stepName() }}</b>
+              <span class="text-sm text-fg-subtle">{{ stepCount() }}</span>
+            </div>
+            <div class="wz-dash" aria-hidden="true">
+              @for (i of dashes; track i) { <i [class]="dashClass(i)"></i> }
+            </div>
+          </div>
+          <ng-container [ngTemplateOutlet]="summaryTpl" [ngTemplateOutletContext]="{ showMoney: step() !== 8 }" />
+        </div>
+      </aside>
+
+      <div class="flex flex-col gap-7 min-w-0 u-lg-pt-1">
+        @switch (step()) {
+          @case (2) {
+            <div class="wz-enter flex flex-col gap-7">
+              <div><h2 class="wz-q" tabindex="-1" data-step-heading>Quem vai levar qual carro?</h2>
+                <p class="wz-qs">O contrato e as cobranças saem no nome do motorista.</p></div>
+              <section class="wz-card">
+                @if (pickersFailed()) {
+                  <div class="flex flex-col gap-1" data-testid="pickers-failed">
+                    <p class="wz-err" role="alert">Não deu para carregar os motoristas e os carros.</p>
+                    <button type="button" class="wz-link self-start u-i-px-0" (click)="retryPickers()">Tentar de novo</button>
+                  </div>
+                }
+                <div class="flex flex-col gap-2">
+                  <span class="wz-label" id="wz-lbm">Motorista</span>
+                  @if (drivers().length > 8) {
+                    <div class="wz-in">
+                      <input type="search" aria-label="Buscar motorista" placeholder="Buscar pelo nome"
+                        [value]="pickerQuery()" (input)="onQuery($event)" autocomplete="off" />
+                    </div>
+                  }
+                  <div class="flex flex-col gap-1 u-max-h-420px overflow-y-auto" role="radiogroup" aria-labelledby="wz-lbm"
+                    [attr.aria-invalid]="err('driverId') ? 'true' : null" [attr.aria-describedby]="err('driverId') ? 'wz-e-driver' : null">
+                    @for (d of driverOptions(); track d.id) {
+                      <button type="button" class="wz-opt" [class.on]="v().driverId === d.id" role="radio"
+                        [attr.aria-checked]="v().driverId === d.id" [disabled]="!d.free" (click)="pickDriver(d.id)"
+                        [attr.data-testid]="'driver-' + d.id">
+                        <span class="wz-mk rd"></span><span class="wz-ot"><b>{{ d.name }}</b>
+                          @if (!d.free) { <span>Com outro aluguel nessas datas</span> }</span>
+                      </button>
+                    } @empty {
+                      <p class="wz-help">Nenhum motorista cadastrado.</p>
+                    }
+                    @if (driverOptions().length > 0 && !anyFreeDriver()) {
+                      <p class="wz-help">Nenhum motorista livre nessas datas. Volte ao passo 1 e tente outras datas.</p>
+                    }
+                  </div>
+                  @if (driverLost()) { <p class="wz-err" role="alert">O motorista escolhido não está livre nessas datas. Escolha outro.</p> }
+                  @if (err('driverId'); as m) { <p class="wz-err" role="alert" id="wz-e-driver" data-step-error tabindex="-1">{{ m }}</p> }
+                </div>
+                <div class="flex flex-col gap-2">
+                  <span class="wz-label" id="wz-lbc">Carro</span>
+                  <div class="flex flex-col gap-1 u-max-h-420px overflow-y-auto" role="radiogroup" aria-labelledby="wz-lbc"
+                    [attr.aria-invalid]="err('vehicleId') ? 'true' : null" [attr.aria-describedby]="err('vehicleId') ? 'wz-e-car' : null">
+                    @for (c of vehicleOptions(); track c.id) {
+                      <button type="button" class="wz-opt" [class.on]="v().vehicleId === c.id" role="radio"
+                        [attr.aria-checked]="v().vehicleId === c.id" [disabled]="!c.free" (click)="pickVehicle(c.id)"
+                        [attr.data-testid]="'vehicle-' + c.id">
+                        <span class="wz-mk rd"></span><span class="wz-ot"><b>{{ c.name }} · {{ c.plate }}</b>
+                          @if (!c.free) { <span>Já está alugado nessas datas</span> }</span>
+                      </button>
+                    } @empty {
+                      <p class="wz-help">Nenhum carro cadastrado.</p>
+                    }
+                    @if (vehicleOptions().length > 0 && !anyFreeVehicle()) {
+                      <p class="wz-help">Nenhum carro livre nessas datas. Volte ao passo 1 e tente outras datas.</p>
+                    }
+                  </div>
+                  @if (vehicleLost()) { <p class="wz-err" role="alert">O carro escolhido não está livre nessas datas. Escolha outro.</p> }
+                  @if (err('vehicleId'); as m) { <p class="wz-err" role="alert" id="wz-e-car" data-step-error tabindex="-1">{{ m }}</p> }
+                  <p class="wz-help">Os que já estão alugados nessas datas aparecem apagados.</p>
+                </div>
+              </section>
+            </div>
+          }
+          @case (1) {
+            <div class="wz-enter flex flex-col gap-7">
+              <div><h2 class="wz-q" tabindex="-1" data-step-heading>Quando ele pega e até quando fica?</h2></div>
+              <section class="wz-card">
+                <div class="wz-two">
+                  <app-form-field label="Pega o carro em" controlId="wz-start" [control]="form.controls.startDate">
+                    <div class="wz-in" [class.bad]="err('startDate')"><input appFieldControl type="date" formControlName="startDate" /></div>
+                  </app-form-field>
+                  <app-form-field label="Às" controlId="wz-hora" [control]="form.controls.pickupTime">
+                    <div class="wz-in" [class.bad]="err('pickupTime')"><input appFieldControl type="time" formControlName="pickupTime" /></div>
+                  </app-form-field>
+                </div>
+                <button type="button" class="wz-tg" role="switch" [attr.aria-checked]="v().pickupOtherDay"
+                  (click)="form.controls.pickupOtherDay.setValue(!v().pickupOtherDay)">
+                  <span class="wz-ot"><b>Ele pega o carro em outro dia</b><span>Quando a retirada não é no primeiro dia do aluguel.</span></span>
+                  <span class="wz-sw" [class.on]="v().pickupOtherDay"></span>
+                </button>
+                @if (v().pickupOtherDay) {
+                  <app-form-field label="Dia da retirada" controlId="wz-pickup-day" [control]="form.controls.pickupDay"
+                    hint="Precisa estar dentro do período do aluguel.">
+                    <div class="wz-in" [class.bad]="err('pickupDay')"><input appFieldControl type="date" formControlName="pickupDay"
+                      [attr.min]="v().startDate || null" [attr.max]="v().endDate || null" /></div>
+                  </app-form-field>
+                }
+              </section>
+              <section class="wz-card">
+                <app-form-field label="Devolve em" controlId="wz-end" [control]="form.controls.endDate" [hint]="endHelp()">
+                  <div class="wz-in" [class.bad]="err('endDate')"><input appFieldControl type="date" formControlName="endDate"
+                    [attr.min]="v().startDate || null" /></div>
+                </app-form-field>
+              </section>
+              @if (say()) { <ng-container [ngTemplateOutlet]="sayTpl" /> }
+            </div>
+          }
+          @case (3) {
+            <div class="wz-enter flex flex-col gap-7">
+              <div><h2 class="wz-q" tabindex="-1" data-step-heading>Quanto ele paga {{ words().per.toLowerCase() }}?</h2>
+                <p class="wz-qs">Só o aluguel. A caução vem no passo 5.</p></div>
+              <section class="wz-card">
+                <div class="flex flex-col gap-2">
+                  <span class="wz-label" id="wz-lbf">Cobrança</span>
+                  <app-segmented-toggle class="self-start" [options]="freqOptions" [value]="v().billingFrequency"
+                    ariaLabelledby="wz-lbf" [containerClass]="segContainer" [activeClass]="segActive"
+                    [inactiveClass]="segInactive" textClass="text-[15px]" (selectionChange)="setFrequency($event)" />
+                </div>
+                <app-form-field [label]="'Valor de cada ' + words().lower" controlId="wz-rate" [control]="form.controls.periodRateReais" [hint]="rateHelp()">
+                  <div class="wz-in big" [class.bad]="err('periodRateReais')"><span class="pre">R$</span>
+                    <input appFieldControl inputmode="decimal" autocomplete="off" formControlName="periodRateReais"
+                      (input)="onMoney($event, 'periodRateReais')" /></div>
+                </app-form-field>
+                <app-form-field label="Primeira cobrança vence em" controlId="wz-first" [control]="form.controls.firstPaymentDate" [hint]="firstDueHelp()">
+                  <div class="wz-in" [class.bad]="err('firstPaymentDate')"><input appFieldControl type="date" formControlName="firstPaymentDate"
+                    [attr.max]="v().endDate || null" /></div>
+                </app-form-field>
+              </section>
+              @if (say()) { <ng-container [ngTemplateOutlet]="sayTpl" /> }
+            </div>
+          }
+          @case (4) {
+            <div class="wz-enter flex flex-col gap-7">
+              <div><h2 class="wz-q" tabindex="-1" data-step-heading>Como o {{ firstName() }} vai pagar?</h2></div>
+              <section class="wz-card tight">
+                <div class="flex flex-col gap-1" role="radiogroup" aria-label="Forma de pagamento"
+                  [attr.aria-describedby]="err('automaticCharge') ? 'wz-e-pay' : null">
+                  <button type="button" class="wz-opt" [class.on]="v().automaticCharge" role="radio"
+                    [attr.aria-checked]="v().automaticCharge" (click)="setPay(true)" data-testid="pay-pix">
+                    <span class="wz-mk rd"></span><span class="wz-ot"><b>Pix pelo MyCarsHub</b>
+                      <span>A gente manda cada cobrança por Pix e marca sozinho quando ele pagar.</span></span>
+                  </button>
+                  <button type="button" class="wz-opt" [class.on]="!v().automaticCharge" role="radio"
+                    [attr.aria-checked]="!v().automaticCharge" (click)="setPay(false)" data-testid="pay-outside">
+                    <span class="wz-mk rd"></span><span class="wz-ot"><b>Eu recebo por fora</b>
+                      <span>As cobranças ficam só anotadas. Você marca cada uma quando receber.</span></span>
+                  </button>
+                </div>
+                @if (err('automaticCharge'); as m) {
+                  <p class="wz-err" role="alert" id="wz-e-pay" data-step-error tabindex="-1">{{ m }}</p>
+                  @if (isOwner) { <a routerLink="/configuracoes/integracoes/asaas" class="wz-link self-start u-i-px-0 inline-flex items-center">Abrir Configurações</a> }
+                }
+              </section>
+              <p class="wz-help">Dá para mudar uma cobrança depois, no aluguel.</p>
+            </div>
+          }
+          @case (5) {
+            <div class="wz-enter flex flex-col gap-7">
+              <div><h2 class="wz-q" tabindex="-1" data-step-heading>Vai cobrar caução?</h2>
+                <p class="wz-qs">Fica guardada e volta para ele no fim, se estiver tudo certo.</p></div>
+              <section class="wz-card">
+                <app-form-field label="Caução" controlId="wz-cau" [control]="form.controls.caucaoReais" hint="Deixe 0 se você não cobra caução.">
+                  <div class="wz-in big" [class.bad]="err('caucaoReais')"><span class="pre">R$</span>
+                    <input appFieldControl inputmode="decimal" autocomplete="off" formControlName="caucaoReais" placeholder="0,00"
+                      (input)="onMoney($event, 'caucaoReais')" /></div>
+                </app-form-field>
+                @if (caucaoCents() > 0) {
+                  <button type="button" class="wz-tg" role="switch" [attr.aria-checked]="v().caucaoPaid" (click)="toggleCaucaoPaid()">
+                    <span class="wz-ot"><b>Recebi a caução por fora</b><span>Ele já te pagou em mãos. Nenhuma cobrança de caução é enviada.</span></span>
+                    <span class="wz-sw" [class.on]="v().caucaoPaid"></span>
+                  </button>
+                }
+                @if (canSplitCaucao()) {
+                  <button type="button" class="wz-tg" role="switch" [attr.aria-checked]="v().caucaoSplit" (click)="toggleCaucaoSplit()"
+                    data-testid="caucao-split">
+                    <span class="wz-ot"><b>Dividir a caução em partes</b><span>Cada parte vira uma cobrança, com a sua data.</span></span>
+                    <span class="wz-sw" [class.on]="v().caucaoSplit"></span>
+                  </button>
+                }
+              </section>
+              @if (caucaoSplitOn()) {
+                <section class="wz-card" data-testid="caucao-parts">
+                  @for (part of caucaoParts.controls; track part; let i = $index; let last = $last) {
+                    <div class="flex flex-col gap-2">
+                      <div class="wz-two">
+                        @if (!last) {
+                          <app-form-field [label]="'Parte ' + (i + 1)" [controlId]="'wz-part-' + i" [control]="part.controls.amount">
+                            <div class="wz-in" [class.bad]="err('part' + i)"><span class="pre">R$</span>
+                              <input appFieldControl inputmode="decimal" autocomplete="off" [formControl]="part.controls.amount"
+                                (input)="onPartMoney($event, i)" /></div>
+                          </app-form-field>
+                        } @else {
+                          <div class="flex flex-col gap-2">
+                            <span class="wz-label">Parte {{ i + 1 }}</span>
+                            <div class="wz-in" [class.bad]="err('part' + i)"><span class="pre">R$</span>
+                              <span data-testid="caucao-rest">{{ restLabel(i) }}</span></div>
+                            @if (err('part' + i); as m) { <p class="wz-err" role="alert">{{ m }}</p> }
+                            @else { <p class="wz-help">O que falta para {{ caucaoTotalLabel() }}.</p> }
+                          </div>
+                        }
+                        <app-form-field label="Vence em" [controlId]="'wz-part-due-' + i" [control]="part.controls.due">
+                          <div class="wz-in" [class.bad]="err('partDue' + i)"><input appFieldControl type="date" [formControl]="part.controls.due"
+                            [attr.min]="today" /></div>
+                        </app-form-field>
+                      </div>
+                      @if (caucaoParts.length > 2) {
+                        <button type="button" class="wz-link self-start u-i-px-0" (click)="removePart(i)">Tirar a parte {{ i + 1 }}</button>
+                      }
+                    </div>
+                  }
+                  @if (canAddPart()) {
+                    <button type="button" class="wz-tbtn self-start u-i-px-0" (click)="addPart()" data-testid="caucao-add-part">+ Mais uma parte</button>
+                  }
+                </section>
+              }
+              @if (say()) { <ng-container [ngTemplateOutlet]="sayTpl" /> }
+            </div>
+          }
+          @case (6) {
+            <div class="wz-enter flex flex-col gap-7">
+              <div><h2 class="wz-q" tabindex="-1" data-step-heading>Como ele paga {{ words().fem ? 'as' : 'os' }} {{ words().lowerMany }}?</h2>
+                <p class="wz-qs">Escolha valor cheio, ou marque desconto, parcelar ou os dois.</p></div>
+              <section class="wz-card tight">
+                <div class="flex flex-col gap-1" role="group" aria-label="Como ele paga">
+                  <button type="button" class="wz-opt" [class.on]="!v().descOn && !v().parcOn" role="checkbox"
+                    [attr.aria-checked]="!v().descOn && !v().parcOn" (click)="pickFull()" data-testid="plan-full">
+                    <span class="wz-mk bx"><ng-container [ngTemplateOutlet]="check14" /></span>
+                    <span class="wz-ot"><b>Cobrar valor cheio</b><span>{{ fullSub() }}</span></span>
+                  </button>
+                  <button type="button" class="wz-opt" [class.on]="v().descOn" role="checkbox" [attr.aria-checked]="v().descOn"
+                    (click)="toggleDesc()" data-testid="plan-desc">
+                    <span class="wz-mk bx"><ng-container [ngTemplateOutlet]="check14" /></span>
+                    <span class="wz-ot"><b>Dar desconto</b><span>Nas primeiras cobranças.</span></span>
+                  </button>
+                  @if (v().descOn) {
+                    <div class="wz-cfg">
+                      <app-form-field label="Em quantas cobranças?" controlId="wz-dn" [control]="form.controls.discountN" hint="Contando da primeira.">
+                        <div class="wz-in" [class.bad]="err('discountN')"><input appFieldControl inputmode="numeric" autocomplete="off" formControlName="discountN" />
+                          <span class="suf">{{ v().discountN === '1' ? 'cobrança' : 'cobranças' }}</span></div>
+                      </app-form-field>
+                      <div class="flex flex-col gap-2">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <label class="wz-label" for="wz-dv">Quanto de desconto em cada uma?</label>
+                          <app-segmented-toggle [options]="moneyUnitOptions" [value]="v().discountType" ariaLabel="Desconto, unidade"
+                            [containerClass]="segContainer" [activeClass]="segActive" [inactiveClass]="segInactive" textClass="text-[15px]"
+                            (selectionChange)="setDiscountType($event)" />
+                        </div>
+                        <app-form-field controlId="wz-dv" [control]="form.controls.discountValue" [hint]="discountHelp()">
+                          <div class="wz-in big" [class.bad]="err('discountValue')">
+                            @if (v().discountType === 'AMOUNT') { <span class="pre">R$</span> }
+                            <input appFieldControl inputmode="decimal" autocomplete="off" formControlName="discountValue"
+                              (input)="onMoney($event, 'discountValue')" />
+                            @if (v().discountType === 'PERCENT') { <span class="suf">%</span> }
+                          </div>
+                        </app-form-field>
+                      </div>
+                    </div>
+                  }
+                  <button type="button" class="wz-opt" [class.on]="v().parcOn" role="checkbox" [attr.aria-checked]="v().parcOn"
+                    (click)="toggleParc()" data-testid="plan-parc">
+                    <span class="wz-mk bx"><ng-container [ngTemplateOutlet]="check14" /></span>
+                    <span class="wz-ot"><b>Parcelar</b><span>Dividir {{ words().fem ? 'a' : 'o' }} {{ words().lower }} em cobranças menores.</span></span>
+                  </button>
+                  @if (v().parcOn) {
+                    <div class="wz-cfg">
+                      <div class="flex flex-col gap-2">
+                        <span class="wz-label" id="wz-lbs">Quais {{ words().lowerMany }}?</span>
+                        <app-segmented-toggle class="self-start" [options]="scopeOptions" [value]="v().splitScope" ariaLabelledby="wz-lbs"
+                          [containerClass]="segContainer" [activeClass]="segActive" [inactiveClass]="segInactive" textClass="text-[15px]"
+                          (selectionChange)="setScope($event)" />
+                      </div>
+                      @if (v().splitScope === 'SOME') {
+                        <div class="flex flex-col gap-2">
+                          <span class="wz-label">Toque {{ words().fem ? 'nas' : 'nos' }} {{ words().lowerMany }} que vão ser parcelad{{ words().fem ? 'as' : 'os' }}</span>
+                          @if (staleSplits().length) {
+                            <div class="flex flex-col gap-1" data-testid="split-stale">
+                              <p class="wz-err" role="alert">{{ staleMessage() }}</p>
+                              <button type="button" class="wz-link self-start u-i-px-0" (click)="dropStale()">Tirar da escolha e escolher de novo</button>
+                            </div>
+                          }
+                          <div class="wz-wk">
+                            @for (w of weekItems(); track w.i) {
+                              <button type="button" [attr.aria-pressed]="w.on" [disabled]="w.past && !w.on" (click)="toggleWeek(w.i)"
+                                [attr.aria-label]="words().one + ' ' + (w.i + 1) + ', vence ' + w.date + (w.past ? ', já venceu' : '')"
+                                [attr.data-testid]="'week-' + w.i">{{ w.label }}<i>{{ w.date }}</i></button>
+                            }
+                          </div>
+                          @if (err('splitSel'); as m) { <p class="wz-err" role="alert" data-step-error tabindex="-1">{{ m }}</p> }
+                        </div>
+                      }
+                      <app-form-field label="Em quantas parcelas?" controlId="wz-pn" [control]="form.controls.splitCount"
+                        [hint]="'Cada ' + words().lower + ' vira esse número de cobranças.'">
+                        <div class="wz-in" [class.bad]="err('splitCount')"><input appFieldControl inputmode="numeric" autocomplete="off" formControlName="splitCount" />
+                          <span class="suf">parcelas</span></div>
+                      </app-form-field>
+                      <div class="flex flex-col gap-2">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <label class="wz-label" for="wz-pe">Com quanto tempo entre elas?</label>
+                          <app-segmented-toggle [options]="unitOptions" [value]="v().splitUnit" ariaLabel="Intervalo, unidade"
+                            [containerClass]="segContainer" [activeClass]="segActive" [inactiveClass]="segInactive" textClass="text-[15px]"
+                            (selectionChange)="setUnit($event)" />
+                        </div>
+                        <app-form-field controlId="wz-pe" [control]="form.controls.splitIntervalN">
+                          <div class="wz-in" [class.bad]="err('splitIntervalN')"><input appFieldControl inputmode="numeric" autocomplete="off" formControlName="splitIntervalN" />
+                            <span class="suf">{{ unitSuffix() }}</span></div>
+                        </app-form-field>
+                      </div>
+                      <app-form-field label="Primeira parcela em" controlId="wz-poff" [control]="form.controls.splitOffset" [hint]="offsetHelp()">
+                        <div class="wz-in" [class.bad]="err('splitOffset')"><input appFieldControl inputmode="numeric" autocomplete="off" formControlName="splitOffset" />
+                          <span class="suf">{{ v().splitOffset === '1' ? 'dia depois' : 'dias depois' }}</span></div>
+                      </app-form-field>
+                    </div>
+                  }
+                </div>
+              </section>
+              <ng-container [ngTemplateOutlet]="sayTpl" />
+            </div>
+          }
+          @case (7) {
+            <div class="wz-enter flex flex-col gap-7">
+              <div><h2 class="wz-q" tabindex="-1" data-step-heading>Últimos detalhes do contrato</h2>
+                <p class="wz-qs">Vão escritos no contrato.</p></div>
+              <section class="wz-card">
+                <app-form-field label="Km do carro na retirada" controlId="wz-km" [control]="form.controls.initialKm" hint="Olhe no painel na hora da entrega.">
+                  <div class="wz-in" [class.bad]="err('initialKm')"><input appFieldControl inputmode="numeric" autocomplete="off" formControlName="initialKm" />
+                    <span class="suf">km</span></div>
+                </app-form-field>
+                <div class="flex flex-col gap-2">
+                  <span class="wz-label" id="wz-lbfuel">Combustível na devolução</span>
+                  <div class="flex flex-col gap-1" role="radiogroup" aria-labelledby="wz-lbfuel">
+                    @for (opt of fuelOptions; track opt) {
+                      <button type="button" class="wz-opt u-i-py-2-5" [class.on]="v().fuel === opt" role="radio" [attr.aria-checked]="v().fuel === opt" (click)="setFuel(opt)">
+                        <span class="wz-mk rd"></span><span class="wz-ot"><b>{{ opt }}</b></span>
+                      </button>
+                    }
+                    <button type="button" class="wz-opt u-i-py-2-5" [class.on]="v().fuel === fuelOther" role="radio" [attr.aria-checked]="v().fuel === fuelOther" (click)="setFuel(fuelOther)">
+                      <span class="wz-mk rd"></span><span class="wz-ot"><b>Outra regra</b></span>
+                    </button>
+                  </div>
+                  @if (v().fuel === fuelOther) {
+                    <app-form-field label="Qual regra?" controlId="wz-fuel" [control]="form.controls.customFuel">
+                      <div class="wz-in" [class.bad]="err('customFuel')"><input appFieldControl maxlength="60" autocomplete="off" formControlName="customFuel" /></div>
+                    </app-form-field>
+                  }
+                </div>
+                <div class="flex flex-col gap-2">
+                  <span class="wz-label" id="wz-lblim">Limite de km</span>
+                  <app-segmented-toggle class="self-start" [options]="limitOptions" [value]="v().hasKmLimit" ariaLabelledby="wz-lblim"
+                    [containerClass]="segContainer" [activeClass]="segActive" [inactiveClass]="segInactive" textClass="text-[15px]"
+                    (selectionChange)="setLimit($event)" />
+                </div>
+                @if (v().hasKmLimit) {
+                  <div class="wz-two">
+                    <app-form-field label="Km por dia" controlId="wz-fkm" [control]="form.controls.franchiseKm">
+                      <div class="wz-in" [class.bad]="err('franchiseKm')"><input appFieldControl inputmode="numeric" autocomplete="off" formControlName="franchiseKm" />
+                        <span class="suf">km</span></div>
+                    </app-form-field>
+                    <app-form-field label="Cada km a mais" controlId="wz-fprice" [control]="form.controls.extraKmPriceReais" hint="Opcional. Vai na cláusula de km do contrato.">
+                      <div class="wz-in" [class.bad]="err('extraKmPriceReais')"><span class="pre">R$</span>
+                        <input appFieldControl inputmode="decimal" autocomplete="off" formControlName="extraKmPriceReais" (input)="onMoney($event, 'extraKmPriceReais')" /></div>
+                    </app-form-field>
+                  </div>
+                }
+              </section>
+              <section class="wz-card">
+                <div class="wz-sh"><b>Se atrasar</b></div>
+                <div class="flex flex-col gap-2">
+                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <label class="wz-label" for="wz-multa">Multa</label>
+                    <app-segmented-toggle [options]="fineUnitOptions" [value]="v().lateFineType" ariaLabel="Multa, unidade"
+                      [containerClass]="segContainer" [activeClass]="segActive" [inactiveClass]="segInactive" textClass="text-[15px]"
+                      (selectionChange)="setFineType($event)" />
+                  </div>
+                  <app-form-field controlId="wz-multa" [control]="form.controls.lateFineValue" [hint]="fineHelp()">
+                    <div class="wz-in big" [class.bad]="err('lateFineValue')">
+                      @if (v().lateFineType === 'FIXED') { <span class="pre">R$</span> }
+                      <input appFieldControl inputmode="decimal" autocomplete="off" formControlName="lateFineValue" (input)="onMoney($event, 'lateFineValue')" />
+                      @if (v().lateFineType !== 'FIXED') { <span class="suf">%</span> }
+                    </div>
+                  </app-form-field>
+                </div>
+                <app-form-field label="Juros ao mês" controlId="wz-juros" [control]="form.controls.lateInterestPercent" hint="De 0% a 11% ao mês. 0 para não cobrar.">
+                  <div class="wz-in" [class.bad]="err('lateInterestPercent')"><input appFieldControl inputmode="decimal" autocomplete="off" formControlName="lateInterestPercent"
+                    (input)="onMoney($event, 'lateInterestPercent')" /><span class="suf">% ao mês</span></div>
+                </app-form-field>
+              </section>
+              <section class="wz-card">
+                @if (hasContractTemplate()) {
+                  <button type="button" class="wz-tg" role="switch" [attr.aria-checked]="v().useContractTemplate"
+                    (click)="form.controls.useContractTemplate.setValue(!v().useContractTemplate)" data-testid="contract-template">
+                    <span class="wz-ot"><b>Gerar o contrato pelo modelo</b><span>Sai pronto com os dados do motorista e do carro. Desligado, você envia o PDF depois.</span></span>
+                    <span class="wz-sw" [class.on]="v().useContractTemplate"></span>
+                  </button>
+                } @else {
+                  <p class="wz-help">Você envia o PDF do contrato depois, no aluguel.
+                    @if (isOwner) { <a routerLink="/configuracoes/contratos" class="underline">Criar um modelo de contrato</a> }</p>
+                }
+                <app-form-field label="Observações" controlId="wz-notes" [control]="form.controls.notes" hint="Só para você e sua equipe.">
+                  <div class="wz-in"><textarea appFieldControl rows="3" formControlName="notes" placeholder="Opcional"></textarea></div>
+                </app-form-field>
+              </section>
+              @if (say()) { <ng-container [ngTemplateOutlet]="sayTpl" /> }
+            </div>
+          }
+          @case (8) {
+            <div class="wz-enter flex flex-col gap-7" data-testid="wizard-confira">
+              <div><h2 class="wz-q" tabindex="-1" data-step-heading>Confira antes de criar</h2>
+                <p class="wz-qs">Confira os dados. Toque em Mudar para corrigir.</p></div>
+              <div class="lg:hidden"><ng-container [ngTemplateOutlet]="summaryTpl" [ngTemplateOutletContext]="{ showMoney: false }" /></div>
+              @if (checking()) {
+                <p class="wz-help" role="status">Conferindo as cobranças…</p>
+              } @else if (checkFailed()) {
+                <p class="wz-help" role="status" data-testid="check-failed">Não deu para conferir agora; o sistema confere de novo ao criar. Os valores abaixo são a nossa conta.</p>
+              }
+              <app-painted-card tone="green" class="wz-money big" data-testid="confira-money">
+                <div class="wz-r"><span>{{ money().alugLabel }}</span><b data-testid="confira-rent">{{ money().alug }}</b></div>
+                <div class="wz-r"><span>Caução, devolvida no fim</span><b data-testid="confira-caucao">{{ money().cau }}</b></div>
+                <div class="tt"><span>Total a receber</span><b data-testid="confira-total">{{ money().total }}</b></div>
+                <span class="text-sm" data-testid="confira-count">{{ money().count }}</span>
+              </app-painted-card>
+              @if (serverPreview()) {
+                <section class="wz-card tight">
+                  <button type="button" class="wz-tbtn self-start u-i-px-0" [attr.aria-expanded]="listOpen()" (click)="listOpen.set(!listOpen())"
+                    data-testid="charges-toggle">
+                    {{ listOpen() ? 'Esconder as cobranças' : 'Ver as ' + money().n + ' cobranças' }} <span aria-hidden="true">{{ listOpen() ? '▴' : '▾' }}</span>
+                  </button>
+                  @if (listOpen()) {
+                    <div class="flex flex-col gap-0.5" data-testid="charges-list">
+                      @for (c of chargeLines(); track c.key) {
+                        <div class="wz-cr"><div class="cm"><b>{{ c.title }}</b><span>{{ c.date }}</span></div><span class="v">{{ c.value }}</span></div>
+                      }
+                    </div>
+                  }
+                </section>
+              }
+            </div>
+          }
+        }
+
+        <!-- Computador: Voltar e Continuar no fim da coluna -->
+        <div class="hidden lg:flex flex-col gap-1">
+          <div class="flex justify-between items-center gap-4">
+            @if (step() > 1 || returning()) {
+              <button type="button" class="wz-tbtn" (click)="back()"><ng-container [ngTemplateOutlet]="back18" />
+                {{ returning() ? 'Voltar ao resumo' : 'Voltar' }}</button>
+            } @else { <span></span> }
+            <button type="button" class="wz-btn u-i-w-auto min-w-60" (click)="next()" [disabled]="step() === 8 && (saving() || checking() || blocked())"
+              data-testid="wizard-next">{{ primaryLabel() }}</button>
+          </div>
+          @if (step() === 8) { <p class="wz-help text-right">{{ genText() }}</p> }
+        </div>
+      </div>
+    </div>
+
+    <!-- Celular: um botão laranja fixo embaixo -->
+    <div class="lg:hidden fixed inset-x-0 bottom-0 z-30 bg-canvas px-5 pt-3 pb-7 flex flex-col gap-1">
+      <button type="button" class="wz-btn" (click)="next()" [disabled]="step() === 8 && (saving() || checking() || blocked())"
+        data-testid="wizard-next-mobile">{{ primaryLabel() }}</button>
+      @if (step() === 8) { <p class="wz-help text-center">{{ genText() }}</p> }
+    </div>
+  } @else {
+    <!-- Aluguel criado -->
+    <div class="mx-auto u-max-w-580px flex flex-col gap-7 wz-enter" data-testid="wizard-done">
+      <div><h2 class="wz-q" tabindex="-1" data-step-heading>Aluguel criado</h2>
+        <p class="wz-qs">{{ sections()[1].rows[0].v }} · {{ sections()[1].rows[1].v }}</p></div>
+      <app-painted-card tone="green"><p class="m-0 text-lg font-bold">{{ doneText() }}</p></app-painted-card>
+      @if (created()?.sync; as sync) {
+        @if (sync.failed > 0) {
+          <p class="wz-err" role="alert">{{ sync.failed }} cobrança(s) não saíram agora. Abra o aluguel para ver e tentar de novo.</p>
+        }
+      }
+      <section class="wz-card tight">
+        <div class="wz-sh"><b>Antes de entregar o carro</b></div>
+        <button type="button" class="wz-cr text-left" (click)="openRental()">
+          <span class="cm"><b>Mandar o contrato para assinar</b><span>Ele assina pelo celular.</span></span>
+          <span class="text-fg-subtle" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="wz-cr text-left" (click)="openRental()">
+          <span class="cm"><b>Fazer a vistoria de retirada</b><span>Fotos do carro antes de sair.</span></span>
+          <span class="text-fg-subtle" aria-hidden="true">›</span>
+        </button>
+      </section>
+      <div class="flex flex-col-reverse lg:flex-row lg:justify-between gap-2">
+        <button type="button" class="wz-tbtn" (click)="restart()">Criar outro aluguel</button>
+        <button type="button" class="wz-btn u-lg-i-w-auto u-lg-min-w-60" (click)="openRental()" data-testid="open-rental">Ver o aluguel</button>
+      </div>
+    </div>
+  }
+</div>
+
+<ng-template #sayTpl>
+  @if (say()) {
+    <section class="flex flex-col gap-2" aria-live="polite">
+      <span class="wz-label">Em palavras</span>
+      <app-painted-card tone="green" class="u-i-p-5"><p class="m-0 text-lg u-leading-26px font-bold" data-testid="wizard-say">{{ say() }}</p></app-painted-card>
+    </section>
+  }
+</ng-template>
+
+@if (sheetOpen()) {
+  <app-bottom-sheet title="Resumo" (closed)="sheetOpen.set(false)">
+    <ng-container [ngTemplateOutlet]="summaryTpl" [ngTemplateOutletContext]="{ showMoney: true }" />
+  </app-bottom-sheet>
+}
+
+<app-confirm-dialog
+  [open]="discard() !== null"
+  title="Desfazer o parcelamento?"
+  [message]="discard()?.message ?? ''"
+  confirmLabel="Desfazer"
+  cancelLabel="Manter as parcelas"
+  variant="warning"
+  (confirmed)="confirmDiscard()"
+  (cancelled)="cancelDiscard()"
+/>

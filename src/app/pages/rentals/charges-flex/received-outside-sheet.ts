@@ -53,8 +53,12 @@ import { brl } from './charges-flex';
           [min]="minDate()"
           [max]="today()"
           [value]="receivedOn()"
-          (valueChange)="receivedOn.set($event)"
+          (valueChange)="onDate($event)"
         />
+        @if (dateError(); as message) {
+          <p class="-mt-2 text-sm font-medium text-rose-700 dark:text-rose-300" role="alert"
+            data-testid="received-outside-date-error">{{ message }}</p>
+        }
 
         <app-reason-picker
           [options]="reasonOptions"
@@ -98,6 +102,8 @@ export class ReceivedOutsideSheet implements OnInit {
   readonly hasPix = input(true);
   /** Rascunho de uma volta do diálogo de confirmação ("Voltar"). */
   readonly draft = input<ReceivedOutsideRequestDto | null>(null);
+  /** Recusa da data pelo servidor (código mapeado), mostrada no próprio campo até a data mudar. */
+  readonly serverDateError = input<string | null>(null);
 
   readonly submitted = output<ReceivedOutsideRequestDto>();
   readonly closed = output<void>();
@@ -109,10 +115,17 @@ export class ReceivedOutsideSheet implements OnInit {
   protected readonly receivedOn = signal('');
   protected readonly reason = signal<string | null>(null);
   protected readonly note = signal('');
+  protected readonly dateError = signal<string | null>(null);
+
+  protected onDate(day: string): void {
+    this.receivedOn.set(day);
+    this.dateError.set(null);
+  }
 
   protected readonly valid = computed(() => {
     const day = this.receivedOn();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+    if (this.dateError()) return false;
     if (day > this.today()) return false;
     const min = this.minDate();
     if (min && day < min) return false;
@@ -124,6 +137,7 @@ export class ReceivedOutsideSheet implements OnInit {
     this.receivedOn.set(d?.receivedOn ?? this.today());
     this.reason.set(d?.reason ?? null);
     this.note.set(d?.note ?? '');
+    this.dateError.set(this.serverDateError());
   }
 
   protected money(cents: number): string {

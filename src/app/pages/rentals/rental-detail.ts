@@ -97,7 +97,7 @@ import {
   periodWord,
   renegotiatedTotalCents,
 } from './charges-flex/charges-flex';
-import { flexErrorMessage } from './charges-flex/flex-errors';
+import { apiErrorCode, flexErrorMessage } from './charges-flex/flex-errors';
 import {
   AgreementDto,
   RECEIVED_OUTSIDE_ERROR_MESSAGES,
@@ -1988,6 +1988,12 @@ export class RentalDetail implements OnInit {
   protected readonly receivedOutsideDraft = signal<ReceivedOutsideRequestDto | null>(null);
   protected readonly receivedOutsideConfirmOpen = signal(false);
   protected readonly receivedOutsideBusy = signal(false);
+  /**
+   * A data foi recusada pelo servidor (`RECEIVED_OUTSIDE_DATE`): a folha reabre com o que já
+   * estava preenchido e a mensagem mapeada aparece no próprio campo. A regra de qual data vale
+   * é do servidor; a tela só barra a data futura.
+   */
+  protected readonly receivedOutsideDateError = signal<string | null>(null);
 
   protected readonly receivedOutsideSubtitle = computed(() => {
     const c = this.receivedOutsideTarget();
@@ -2008,6 +2014,7 @@ export class RentalDetail implements OnInit {
   protected askReceivedOutside(charge: RentalChargeDto): void {
     if (!this.canReceiveOutside(charge)) return;
     this.receivedOutsideDraft.set(null);
+    this.receivedOutsideDateError.set(null);
     this.receivedOutsideTarget.set(charge);
     this.receivedOutsideSheetOpen.set(true);
   }
@@ -2054,6 +2061,12 @@ export class RentalDetail implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.receivedOutsideBusy.set(false);
         this.receivedOutsideConfirmOpen.set(false);
+        if (apiErrorCode(err) === 'RECEIVED_OUTSIDE_DATE') {
+          this.apiErrors.claim(err);
+          this.receivedOutsideDateError.set(RECEIVED_OUTSIDE_ERROR_MESSAGES['RECEIVED_OUTSIDE_DATE']);
+          this.receivedOutsideSheetOpen.set(true);
+          return;
+        }
         this.receivedOutsideTarget.set(null);
         const server = this.apiErrors.messageFor(err, 'Não foi possível registrar o recebimento.');
         this.actionError.set(flexErrorMessage(err, RECEIVED_OUTSIDE_ERROR_MESSAGES, server));
