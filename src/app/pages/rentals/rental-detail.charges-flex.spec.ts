@@ -445,6 +445,37 @@ describe('RentalDetail — Cobranças flexíveis (FEAT-0573)', () => {
       expect(byTestId(fixture, 'charge-settled-by')?.textContent).toContain('Registrada por Marina Souza');
     });
 
+    it('D3 — data recusada pelo servidor: a folha reabre com a mensagem do código no campo da data', async () => {
+      const { fixture, http } = await mount({ flex: true, charges: [OVERDUE_W2] });
+
+      menuItem(fixture, 'charge-menu-received-outside')!.click();
+      await settle(fixture);
+      (el(fixture).querySelector('[data-testid="reason-CASH"] input') as HTMLInputElement).click();
+      await settle(fixture);
+      vi.useFakeTimers();
+      byTestId<HTMLButtonElement>(fixture, 'received-outside-submit')!.click();
+      vi.advanceTimersByTime(250);
+      vi.useRealTimers();
+      await settle(fixture);
+      const confirm = Array.from(el(fixture).querySelectorAll('[role="dialog"] button')).find(
+        (b) => b.textContent?.trim() === 'Registrar',
+      ) as HTMLButtonElement;
+      confirm.click();
+      await settle(fixture);
+
+      http
+        .expectOne(`${BASE}/${RENTAL_ID}/charges/w2/received-outside`)
+        .flush({ message: 'Data fora do aluguel no Asaas.', code: 'RECEIVED_OUTSIDE_DATE' }, { status: 400, statusText: 'Bad Request' });
+      await settle(fixture);
+
+      const message = byTestId(fixture, 'received-outside-date-error');
+      expect(message?.getAttribute('role')).toBe('alert');
+      expect(message?.textContent).toContain('Essa data de recebimento não foi aceita para este aluguel');
+      expect(el(fixture).textContent).not.toContain('Asaas');
+      expect(byTestId<HTMLButtonElement>(fixture, 'received-outside-submit')!.disabled).toBe(true);
+      expect(el(fixture).querySelectorAll('[role="alert"] app-alert-banner, app-alert-banner[variant="error"]').length).toBe(0);
+    });
+
     describe('Valor recebido e restante: uma regra só, igual para quem tem e para quem não tem a chave', () => {
       // Acordo que juntou caução e semana, depois renegociado de novo: o cliente não tem como
       // separar a caução sem o dado do backend, então a parcela conta inteira para todos.
