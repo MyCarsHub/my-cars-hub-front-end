@@ -267,6 +267,8 @@ describe('ContractEsteira', () => {
     });
     click('Continuar');
     http.expectOne(`${ROOT}/drafts`).flush({ draftId: DRAFT, status: 'AWAITING_CONSENT' });
+    // Backend anterior ao contrato real: a folha cai no texto mascarado, como antes.
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/document`).flush({ code: 'X' }, { status: 404, statusText: 'Not Found' });
     fixture.detectChanges();
     http
       .expectOne(`${ROOT}/drafts/${DRAFT}/masked-text`)
@@ -373,18 +375,44 @@ describe('ContractEsteira', () => {
     expect(host.textContent).not.toContain('Este arquivo não é do Word');
   });
 
-  it('ajustar o meu: recusa arquivo que não é Word, sem enviar nada', async () => {
+  it('ajustar o meu: recusa arquivo fora de Word, PDF ou Markdown, sem enviar nada', async () => {
     mount();
     click('Ajustar o meu contrato');
     const input = host.querySelector<HTMLInputElement>('input[type=file]')!;
-    const dt = { files: [new File(['%PDF'], 'contrato.pdf', { type: 'application/pdf' })] };
+    const dt = { files: [new File(['x'], 'contrato.odt', { type: 'application/vnd.oasis.opendocument.text' })] };
     Object.defineProperty(input, 'files', { value: dt.files, configurable: true });
     input.dispatchEvent(new Event('change'));
     await flush();
     fixture.detectChanges();
-    expect(host.textContent).toContain('Este arquivo não é do Word');
+    expect(host.textContent).toContain('Envie o contrato em Word (.docx), em PDF com texto (.pdf) ou em Markdown (.md).');
     expect(button('Continuar')!.disabled).toBe(true);
     http.expectNone(`${ROOT}/drafts`);
+  });
+
+  it('ajustar o meu: PDF com assinatura de PDF é aceito; o texto aparece depois do envio', async () => {
+    mount();
+    click('Ajustar o meu contrato');
+    const input = host.querySelector<HTMLInputElement>('input[type=file]')!;
+    const file = new File(['%PDF-1.7\n'], 'contrato.pdf', { type: 'application/pdf' });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(button('Continuar')!.disabled).toBe(false);
+    });
+    expect(host.textContent).toContain('O texto do PDF aparece aqui depois que você continuar.');
+
+    click('Continuar');
+    http.expectOne(`${ROOT}/drafts`).flush(
+      {
+        code: 'PDF_WITHOUT_TEXT',
+        field: 'file',
+        message: 'Este PDF é uma imagem (foi digitalizado ou fotografado) e não tem texto que possamos ler. Envie o contrato em Word (.docx), em PDF com texto ou em Markdown (.md).',
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    fixture.detectChanges();
+    expect(host.textContent).toContain('Este PDF é uma imagem (foi digitalizado ou fotografado)');
   });
 
   /** Da escolha do arquivo até a resposta da análise, com o texto mascarado dado. */
@@ -404,6 +432,8 @@ describe('ContractEsteira', () => {
     });
     click('Continuar');
     http.expectOne(`${ROOT}/drafts`).flush({ draftId: DRAFT, status: 'AWAITING_CONSENT' });
+    // Backend anterior ao contrato real: a folha cai no texto mascarado, como antes.
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/document`).flush({ code: 'X' }, { status: 404, statusText: 'Not Found' });
     fixture.detectChanges();
     http.expectOne(`${ROOT}/drafts/${DRAFT}/masked-text`).flush({
       draftId: DRAFT,
@@ -743,6 +773,8 @@ describe('ContractEsteira', () => {
     expect(button('Cancelar')!.disabled).toBe(true);
     expect((up.request.body as FormData).get('file')).toBe(file);
     up.flush({ draftId: DRAFT, status: 'AWAITING_CONSENT' });
+    // Backend anterior ao contrato real: a folha cai no texto mascarado, como antes.
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/document`).flush({ code: 'X' }, { status: 404, statusText: 'Not Found' });
     fixture.detectChanges();
 
     const masked = http.expectOne(`${ROOT}/drafts/${DRAFT}/masked-text`);

@@ -20,7 +20,14 @@ import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-d
 import { LoggerService } from '../../../services/logger.service';
 import { ContractAiCapability } from './ai/contract-ai-capability';
 import { ContractAiService } from './ai/contract-ai.service';
-import { errorCode, failureMessage, httpErrorMessage, safeText } from './ai/contract-ai.messages';
+import {
+  errorCode,
+  failureMessage,
+  httpErrorMessage,
+  safeText,
+  safeTextSameLength,
+} from './ai/contract-ai.messages';
+import { SuggestionView } from './ai/contract-ai.types';
 import { ContractBase } from './base/contract-base.types';
 import { ContractBaseService } from './base/contract-base.service';
 import { ContractIcon } from './contract-icon';
@@ -31,12 +38,20 @@ import {
   buildMarkdownDocument,
   buildMaskedDocument,
   buildPlainDocument,
+  maskedCountsText,
   readable,
+  SheetParagraph,
   shortQuote,
 } from './contract-paper.model';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
 import { readDocxParagraphs } from './docx-text';
-import { formatFileSize, hasZipSignature, isDocxFile } from './contract-dropzone';
+import {
+  ContractFileKind,
+  contractFileKind,
+  formatFileSize,
+  hasPdfSignature,
+  hasZipSignature,
+} from './contract-dropzone';
 import { ContractClausesStep } from './steps/clauses-step';
 import { ContractConsentStep } from './steps/consent-step';
 import { ContractQuestionsStep } from './steps/questions-step';
@@ -159,8 +174,15 @@ export class ContractEsteira {
   protected readonly uploadReading = signal(false);
   protected readonly agreed = signal(false);
   protected readonly qIndex = signal(0);
-  /** Texto mascarado guardado SÓ em memória: o contrato ao vivo das etapas seguintes. */
+  /**
+   * Texto mascarado guardado SÓ em memória: o «Ver como a IA recebe» das etapas seguintes (e a
+   * folha, num backend sem o contrato real).
+   */
   private readonly maskedParagraphs = signal<{ id: string; text: string }[] | null>(null);
+  /** «Ver como a IA recebe» ligado: a folha mostra a versão mascarada. */
+  protected readonly aiView = signal(false);
+  /** Formato do arquivo escolhido (PDF não tem prévia local: o texto vem do servidor). */
+  private readonly fileKind = signal<ContractFileKind | null>(null);
   private readonly fallbackLines = signal<string[] | null>(null);
   private readonly fallbackLoading = signal(false);
   private maskedRequestedFor: string | null = null;
@@ -312,22 +334,84 @@ export class ContractEsteira {
     return buildBaseDocument(base.clauses, this.selected(), focus);
   });
 
+  /** O contrato REAL do servidor, com o que a IA não recebe marcado (`null` sem ele). */
+  private readonly realParagraphs = computed<SheetParagraph[] | null>(() => {
+    const doc = this.ai.document();
+    if (!doc || doc.paragraphs.length === 0) return null;
+    return doc.paragraphs.map((p) => ({
+      id: p.id,
+      // Mesmo comprimento: as posições do que é protegido continuam valendo.
+      text: safeTextSameLength(p.text),
+      spans: p.protectedSpans ?? [],
+      heading: p.headingLevel > 0 || (p.bold && p.structural),
+    }));
+  });
+
+  /**
+   * Cada dado de bloco vira uma marca na folha: o campo da parte proposta (CONFIRM) ou nenhum
+   * (QUESTION/CONFLICT: fica fixo até a resposta). A decisão efetiva decide o resto.
+   */
+  private readonly blockMarks = computed<SuggestionView[]>(() =>
+    this.ai.blocks().flatMap((b) =>
+      b.items.map((item) => {
+        const proposed =
+          b.kind === 'CONFIRM' && b.party && b.party !== 'THIRD'
+            ? (item.fieldsByParty[b.party]?.[0] ?? null)
+            : null;
+        return {
+          id: item.id,
+          paragraphId: item.places[0]?.paragraphId ?? '',
+          field: proposed?.field ?? '',
+          fieldLabel: proposed?.label ?? '',
+          excerpt: item.excerpt,
+          context: item.context,
+          confidence: 0,
+          reason: '',
+          alternatives: null,
+          blockId: b.id,
+          places: item.places,
+        };
+      }),
+    ),
+  );
+
   private readonly maskedDoc = computed<PaperDocument | null>(() => {
-    const paragraphs = this.maskedParagraphs();
+    const paragraphs: SheetParagraph[] | null = this.realParagraphs() ?? this.maskedParagraphs();
     if (!paragraphs) return null;
     const view = this.view();
     if (view === 'consent' || view === 'reading') {
       return buildMaskedDocument(paragraphs, { stage: 'consent' });
     }
     const d = this.ai.draft();
+    const asks = this.ai.asks().filter((s) => !s.block);
+    const marks = this.blockMarks();
     return buildMaskedDocument(paragraphs, {
       stage: view === 'fields' ? 'fields' : 'review',
-      suggestions: [...(d?.certain ?? []), ...this.ai.asks()],
-      doubtIds: new Set(this.ai.asks().map((s) => s.id)),
-      decisions: this.ai.decisions(),
+      suggestions: [...(d?.certain ?? []), ...asks, ...marks],
+      doubtIds: new Set([...asks, ...marks].map((s) => s.id)),
+      decisions: this.ai.effectiveDecisions(),
       focusId: view === 'fields' ? this.focusId() : null,
     });
   });
+
+  /** A versão mascarada, como sai daqui («Ver como a IA recebe»). */
+  private readonly aiViewDoc = computed<PaperDocument | null>(() => {
+    const paragraphs = this.maskedParagraphs();
+    return paragraphs ? buildMaskedDocument(paragraphs, { stage: 'consent' }) : null;
+  });
+
+  /** O botão «Ver como a IA recebe» só existe com as duas versões em mãos. */
+  protected readonly aiViewAvailable = computed(() => {
+    const v = this.view();
+    const stage =
+      v === 'consent' || v === 'reading' || v === 'fields' || (v === 'review' && this.path() === 'mine');
+    return stage && !!this.realParagraphs() && !!this.maskedParagraphs();
+  });
+
+  /** «2 CPFs, 4 nomes e 1 endereço» (consentimento). */
+  protected readonly maskedSummary = computed(() =>
+    maskedCountsText(this.ai.masked()?.maskedCounts ?? this.ai.document()?.maskedCounts),
+  );
 
   protected readonly paper = computed(() => {
     const view = this.view();
@@ -360,6 +444,12 @@ export class ContractEsteira {
           return empty('Seu contrato', 'O seu contrato aparece aqui assim que você escolher o arquivo.');
         }
         const lines = this.uploadLines();
+        if (this.fileKind() === 'pdf') {
+          return empty(
+            'Seu contrato, como foi enviado',
+            'O texto do PDF aparece aqui depois que você continuar.',
+          );
+        }
         if (!this.uploadReading() && (!lines || lines.length === 0)) {
           return empty(
             'Seu contrato, como foi enviado',
@@ -372,8 +462,9 @@ export class ContractEsteira {
       }
       case 'consent':
       case 'reading':
+        if (this.realParagraphs()) return show('Seu contrato', this.maskedDoc());
         return show('O que a IA vai ler', this.maskedDoc(), {
-          loading: this.ai.maskedLoading() || !this.maskedDoc(),
+          loading: this.ai.maskedLoading() || this.ai.documentLoading() || !this.maskedDoc(),
         });
       case 'fields':
         if (!this.maskedDoc()) {
@@ -408,6 +499,16 @@ export class ContractEsteira {
     return lines ? buildPlainDocument(lines) : null;
   });
 
+  /** A folha de verdade: a do passo, ou a versão mascarada com «Ver como a IA recebe» ligado. */
+  protected readonly sheet = computed(() => {
+    const paper = this.paper();
+    const masked = this.aiViewDoc();
+    if (this.aiView() && this.aiViewAvailable() && masked) {
+      return { ...paper, title: 'Como a IA recebe o texto', doc: masked, loading: false, modeSwitch: false };
+    }
+    return paper;
+  });
+
   protected readonly paperMode = computed<PaperMode>(() =>
     this.paper().forceNames ? 'names' : this.mode(),
   );
@@ -423,7 +524,7 @@ export class ContractEsteira {
       return { fields: doc.fields.length, clauses: doc.clauses, driverMissing: false, driverNamed: true };
     }
     const d = this.ai.draft();
-    const decisions = this.ai.decisions();
+    const decisions = this.ai.effectiveDecisions();
     const doc = this.maskedDoc() ?? this.fallbackDoc();
     // O servidor vê o arquivo inteiro (cabeçalho e rodapé); o texto do contrato cobre o servidor
     // sem esse dado, como um rascunho de antes do campo.
@@ -438,6 +539,12 @@ export class ContractEsteira {
     for (const s of this.ai.asks()) {
       const dec = decisions[s.id];
       if (dec?.accept && dec.field) fields.add(dec.field);
+    }
+    for (const b of this.ai.blocks()) {
+      for (const item of b.items) {
+        const dec = decisions[item.id];
+        if (dec?.accept && dec.field) fields.add(dec.field);
+      }
     }
     return {
       fields: fields.size,
@@ -454,23 +561,35 @@ export class ContractEsteira {
    */
   protected readonly esignatureMissing = computed(() => {
     if (this.path() !== 'mine') return false;
-    const texts = this.maskedParagraphs()?.map((p) => p.text) ?? this.fallbackLines();
+    const texts =
+      (this.realParagraphs() ?? this.maskedParagraphs())?.map((p) => p.text) ?? this.fallbackLines();
     return !!texts && texts.length > 0 && !mentionsESignature(texts);
   });
 
   /** Documento do motorista respondido sem o nome: o nome ao lado pode ter ficado fixo. */
   protected readonly readParagraph = computed(() => {
     if (this.path() !== 'mine' || this.reviewCounts().driverNamed) return null;
-    const decisions = this.ai.decisions();
-    const q = this.ai.questions().find(
-      (o) => DOCUMENT_KINDS.has(o.kind) && decisions[o.id]?.accept && decisions[o.id]?.field?.startsWith('driver'),
-    );
+    const decisions = this.ai.effectiveDecisions();
+    const answered = (o: { id: string; kind: string }): boolean =>
+      DOCUMENT_KINDS.has(o.kind) &&
+      !!decisions[o.id]?.accept &&
+      !!decisions[o.id]?.field?.startsWith('driver');
+    const q =
+      this.ai.looseQuestions().find(answered) ??
+      this.ai.blocks().flatMap((b) => b.items).find(answered);
     return q ? shortQuote(safeText(q.context), safeText(q.excerpt)) : null;
   });
 
   /** O que vai ficar fixo porque ninguém respondeu: o «Conferir» diz em palavras. */
-  protected readonly unanswered = computed(() =>
-    this.ai.unanswered().map((q) => ({
+  protected readonly unanswered = computed(() => [
+    ...this.ai.unansweredBlocks().map((b) => ({
+      id: b.id,
+      value: b.items.map((i) => readable(safeText(i.excerpt))).join(', '),
+      where:
+        readable(safeText(b.label ?? b.sectionPath.at(-1) ?? '')) ||
+        shortQuote(safeText(b.items[0]?.context), safeText(b.items[0]?.excerpt)),
+    })),
+    ...this.ai.unanswered().map((q) => ({
       id: q.id,
       value: readable(safeText(q.excerpt)),
       // Numa tabela a célula sozinha é igual à do lado: o que a distingue é a coluna.
@@ -478,7 +597,7 @@ export class ContractEsteira {
         ? readable(safeText(q.nearby.filter((n) => n.where === 'COLUMN').at(-1)?.text))
         : shortQuote(safeText(q.context), safeText(q.excerpt)),
     })),
-  );
+  ]);
 
   // ---- navegação do rodapé
   protected readonly showNav = computed(() => {
@@ -601,6 +720,16 @@ export class ContractEsteira {
       untracked(() => this.ai.loadMaskedText());
     });
 
+    // O contrato REAL (texto e o que é protegido), uma vez por rascunho, em qualquer etapa viva.
+    effect(() => {
+      const id = this.ai.draftId();
+      const v = this.view();
+      if (!id || this.path() !== 'mine') return;
+      if (v === 'consent' || v === 'reading' || v === 'fields' || v === 'review') {
+        untracked(() => this.ai.loadDocument());
+      }
+    });
+
     // O texto mascarado some do serviço no consentimento; a esteira guarda uma cópia em memória.
     effect(() => {
       const m = this.ai.masked();
@@ -611,7 +740,7 @@ export class ContractEsteira {
     effect(() => {
       const id = this.ai.draftId();
       if (this.view() !== 'review' || this.path() !== 'mine' || !id) return;
-      if (this.maskedParagraphs() || this.fallbackRequestedFor === id) return;
+      if (this.maskedParagraphs() || this.realParagraphs() || this.fallbackRequestedFor === id) return;
       this.fallbackRequestedFor = id;
       untracked(() => this.loadFallback());
     });
@@ -713,6 +842,8 @@ export class ContractEsteira {
     this.focusId.set(null);
     this.mode.set('example');
     this.maskedParagraphs.set(null);
+    this.aiView.set(false);
+    this.fileKind.set(null);
     this.fallbackLines.set(null);
     this.maskedRequestedFor = null;
     this.fallbackRequestedFor = null;
@@ -733,19 +864,28 @@ export class ContractEsteira {
     const token = ++this.pickToken;
     this.file.set(null);
     this.uploadLines.set(null);
+    this.fileKind.set(null);
     const reject = (msg: string): void => this.fileError.set(msg);
-    if (!isDocxFile(file)) {
-      return reject('Este arquivo não é do Word. Escolha o arquivo do contrato que termina em .docx.');
+    const kind = contractFileKind(file);
+    if (!kind) {
+      return reject('Envie o contrato em Word (.docx), em PDF com texto (.pdf) ou em Markdown (.md).');
     }
     if (file.size > MAX_BYTES) return reject('O arquivo é maior que 5 MB.');
-    const zip = await hasZipSignature(file);
+    // Os bytes têm de bater com o nome (o servidor confere de novo): Word é ZIP, PDF começa com %PDF-.
+    const ok =
+      kind === 'docx' ? await hasZipSignature(file) : kind === 'pdf' ? await hasPdfSignature(file) : true;
     if (token !== this.pickToken) return; // outra escolha chegou enquanto esta era conferida
-    if (!zip) {
-      return reject('Este arquivo não parece ser um documento do Word. Escolha outro arquivo.');
+    if (!ok) {
+      return reject(
+        kind === 'docx'
+          ? 'Este arquivo não parece ser um documento do Word. Escolha outro arquivo.'
+          : 'Este arquivo não parece ser um PDF. Escolha outro arquivo.',
+      );
     }
     this.fileError.set(null);
+    this.fileKind.set(kind);
     this.file.set(file);
-    void this.readUpload(file);
+    if (kind !== 'pdf') void this.readUpload(file, kind);
   }
 
   /** Nome do arquivo sem caracteres de controle/bidi (disfarçariam a extensão). */
@@ -779,15 +919,16 @@ export class ContractEsteira {
   protected clearFile(): void {
     this.pickToken++;
     this.file.set(null);
+    this.fileKind.set(null);
     this.uploadLines.set(null);
     this.uploadReading.set(false);
   }
 
-  private async readUpload(file: File): Promise<void> {
+  private async readUpload(file: File, kind: ContractFileKind): Promise<void> {
     this.uploadReading.set(true);
     this.uploadLines.set(null);
     try {
-      const lines = await readDocxParagraphs(file);
+      const lines = kind === 'md' ? await readMarkdownLines(file) : await readDocxParagraphs(file);
       if (this.file() === file) this.uploadLines.set(lines);
     } catch (err) {
       // Só a falha; nunca o conteúdo do contrato.
@@ -972,8 +1113,8 @@ export class ContractEsteira {
         const doubts = this.doubts();
         const current = doubts[this.qIndex()];
         // «Próxima» sem tocar numa resposta aceita a mais provável. Na pergunta não há mais provável:
-        // sem resposta, o texto fica fixo.
-        if (current && !current.question && !this.ai.decisions()[current.id]) {
+        // sem resposta, o texto fica fixo. Bloco também: só o toque do dono confirma.
+        if (current && !current.question && !current.block && !this.ai.decisions()[current.id]) {
           this.ai.setDecision({ id: current.id, field: current.field, accept: true });
         }
         if (this.qIndex() < doubts.length - 1) {
@@ -1011,3 +1152,21 @@ export class ContractEsteira {
 }
 
 export { hasZipSignature } from './contract-dropzone';
+
+/** Prévia local do Markdown: uma linha de texto por parágrafo, sem as marcas de formatação. */
+async function readMarkdownLines(file: Blob): Promise<string[]> {
+  const text = await file.text();
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split(/\n{2,}/)
+    .map((block) =>
+      block
+        .split('\n')
+        .map((l) => l.replace(/^\s{0,3}(#{1,6}\s+|[-*+]\s+|>\s?)/, '').trim())
+        .join(' ')
+        .replace(/\*\*|__/g, '')
+        .trim(),
+    )
+    .filter((l) => l.length > 0 && !/^[-*_|\s:]+$/.test(l))
+    .map((l) => safeText(l));
+}

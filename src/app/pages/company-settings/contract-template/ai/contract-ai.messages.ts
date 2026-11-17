@@ -1,21 +1,24 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
 /**
- * Texto do consentimento, VERSÃO 2: nomeia o provedor e o país, porque o consentimento é a
- * base da transferência internacional (LGPD art. 33, VIII) e ela exige informação prévia.
+ * Texto do consentimento, VERSÃO 3 (17/11: nomes e endereços também vão mascarados, e a tela mostra
+ * o contrato real com a versão mascarada em «Ver como a IA recebe»). Nomeia o provedor e o país,
+ * porque o consentimento é a base da transferência internacional (LGPD art. 33, VIII) e ela exige
+ * informação prévia.
  * O servidor só aceita a versão de APP_CONTRACTS_AI_CONSENT_VERSION: mudar este texto exige
  * subir aquela variável junto, senão o aceite fica registrado com a versão do texto antigo.
  * Tem de bater com a seção 6 da Política de Privacidade.
  */
 export const AI_SEND_NOTICE = {
-  sent: 'Este é o texto exato, já mascarado, que será enviado à Anthropic (serviço de IA Claude), nos Estados Unidos, para localizar nomes, valores e datas.',
+  sent: 'O texto do seu contrato, já mascarado (toque em «Ver como a IA recebe» para ver exatamente o que sai daqui), será enviado à Anthropic (serviço de IA Claude), nos Estados Unidos, para localizar nomes, valores e datas.',
   transfer:
     'O texto sai do Brasil com base no seu consentimento (LGPD, art. 33, VIII) e nas garantias contratuais da Anthropic, que não usa o texto para treinar modelos e o apaga em até 30 dias. Pelas regras da própria Anthropic, a exceção é o conteúdo que a lei obrigue a guardar ou que os sistemas automáticos de segurança dela sinalizem como possível violação da política de uso, que pode ser guardado por até 2 anos.',
   hidden:
-    'Vão escondidos: CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números. Vão em claro: nomes de pessoas e de empresas, endereços, datas, valores e o resto do texto.',
+    'Vão escondidos: nomes de pessoas e de empresas, endereços, CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números. Vão em claro: datas, valores e o resto do texto.',
   /** As duas metades de `hidden`, para a tela que mostra cada uma numa linha. */
-  masked: 'Vão escondidos: CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números.',
-  inClear: 'Vão em claro: nomes de pessoas e de empresas, endereços, datas, valores e o resto do texto.',
+  masked:
+    'Vão escondidos: nomes de pessoas e de empresas, endereços, CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números.',
+  inClear: 'Vão em claro: datas, valores e o resto do texto.',
   policyLabel: 'Leia a seção 6 da Política de Privacidade',
   policyHref: '/politica-de-privacidade#analise-de-contrato-com-ia',
   consent:
@@ -32,8 +35,10 @@ const FAILURE_MESSAGES: Record<string, string> = {
   AI_INVALID_RESPONSE: 'Não conseguimos entender a resposta da análise. Tente de novo.',
   NO_VALID_SUGGESTIONS:
     'Não encontramos nomes, valores ou datas para virar campos neste arquivo. Tente montar do zero.',
-  SCANNED_PDF: 'Este arquivo parece ser uma imagem escaneada. Envie o contrato em Word (.docx).',
-  FILE_INVALID: 'Não foi possível ler este arquivo. Envie o contrato em Word (.docx).',
+  SCANNED_PDF:
+    'Este arquivo parece ser uma imagem escaneada. Envie o contrato em Word (.docx), em PDF com texto ou em Markdown (.md).',
+  FILE_INVALID:
+    'Não foi possível ler este arquivo. Envie o contrato em Word (.docx), em PDF com texto ou em Markdown (.md).',
   CONSENT_REQUIRED: 'A análise exige a sua autorização. Envie o arquivo de novo e autorize o envio.',
   CONSENT_PROVIDER_CHANGED:
     'O serviço de IA que vai ler o contrato mudou depois da sua autorização. Nada foi enviado. Confira quem recebe o texto e autorize de novo.',
@@ -54,7 +59,16 @@ const HTTP_MESSAGES: Record<string, string> = {
     'Você já tem análises em andamento. Termine ou aguarde uma delas expirar antes de enviar outro arquivo.',
   PDF_NOT_SUPPORTED:
     'Arquivo em PDF ainda não dá para ler. Envie o contrato em Word (.docx) ou monte do zero.',
-  INVALID_FILE_TYPE: 'Este arquivo não é do Word. Envie o contrato que termina em .docx.',
+  INVALID_FILE_TYPE:
+    'Envie o contrato em Word (.docx), em PDF com texto (.pdf) ou em Markdown (.md).',
+  PDF_WITHOUT_TEXT:
+    'Este PDF é uma imagem (foi digitalizado ou fotografado) e não tem texto que possamos ler. Envie o contrato em Word (.docx), em PDF com texto ou em Markdown (.md).',
+  PDF_PROTECTED: 'Este PDF está protegido por senha. Envie uma cópia sem senha.',
+  PDF_INVALID: 'Não foi possível ler este PDF. Envie o contrato em Word (.docx) ou em Markdown (.md).',
+  PDF_TOO_COMPLEX: 'Este PDF é grande demais para ler. Envie o contrato em Word (.docx).',
+  PDF_BUSY: 'Estamos lendo muitos PDFs agora. Tente de novo em alguns segundos.',
+  MARKDOWN_INVALID: 'Não foi possível ler este arquivo Markdown. Salve o texto em UTF-8 e envie de novo.',
+  MARKDOWN_TOO_COMPLEX: 'Este arquivo Markdown é grande demais para ler. Envie o contrato em Word (.docx).',
   FILE_REQUIRED: 'Escolha o arquivo do contrato antes de continuar.',
   FILE_TOO_LARGE: 'O arquivo é maior que 5 MB.',
   SUPPORT_SESSION_NOT_ALLOWED:
@@ -73,7 +87,8 @@ const HTTP_MESSAGES: Record<string, string> = {
   DOUBTS_PENDING: 'Ainda há dúvidas sem resposta.',
   DRAFT_ALREADY_SAVED: 'Este contrato já foi salvo.',
   DRAFT_FAILED: 'A análise deste arquivo falhou. Envie o arquivo de novo.',
-  FILE_INVALID: 'Não foi possível ler este arquivo. Envie o contrato em Word (.docx).',
+  FILE_INVALID:
+    'Não foi possível ler este arquivo. Envie o contrato em Word (.docx), em PDF com texto ou em Markdown (.md).',
   CONSENT_VERSION_MISMATCH:
     'O texto de autorização foi atualizado. Leia de novo e autorize para continuar.',
   CONSENT_TEXT_MISMATCH: 'O texto mudou desde que você o viu. Leia de novo e autorize.',
@@ -109,8 +124,38 @@ export function errorCode(err: unknown): string | null {
   return null;
 }
 
+/**
+ * Recusas do arquivo em que a frase do servidor é a que vale (ex.: PDF digitalizado): ela diz o
+ * motivo exato. A frase local acima fica de reserva para um corpo sem `message`.
+ */
+const SERVER_MESSAGE_CODES: ReadonlySet<string> = new Set([
+  'INVALID_FILE_TYPE',
+  'PDF_WITHOUT_TEXT',
+  'PDF_PROTECTED',
+  'PDF_INVALID',
+  'PDF_TOO_COMPLEX',
+  'PDF_BUSY',
+  'MARKDOWN_INVALID',
+  'MARKDOWN_TOO_COMPLEX',
+]);
+const SERVER_MESSAGE_MAX = 400;
+
+function serverMessage(err: unknown): string | null {
+  if (!(err instanceof HttpErrorResponse)) return null;
+  const body: unknown = err.error;
+  if (!body || typeof body !== 'object' || !('message' in body)) return null;
+  const msg = (body as { message?: unknown }).message;
+  if (typeof msg !== 'string') return null;
+  const clean = safeText(msg).trim();
+  return clean && clean.length <= SERVER_MESSAGE_MAX ? clean : null;
+}
+
 export function httpErrorMessage(err: unknown, fallback: string): string {
   const code = errorCode(err);
+  if (code && SERVER_MESSAGE_CODES.has(code)) {
+    const msg = serverMessage(err);
+    if (msg) return msg;
+  }
   if (code === 'AI_BUSY' && err instanceof HttpErrorResponse) {
     const secs = Number.parseInt(err.headers?.get('Retry-After') ?? '', 10);
     if (Number.isFinite(secs) && secs > 0) {
@@ -212,6 +257,19 @@ export function safeText(value: string | null | undefined): string {
   let out = '';
   for (const ch of value ?? '') {
     if (!isHiddenCode(ch.codePointAt(0) ?? 0, false)) out += ch;
+  }
+  return out;
+}
+
+/**
+ * Como `safeText`, mas troca cada caractere escondido por um espaço em vez de tirá-lo: o
+ * comprimento não muda, então as posições que a API manda (`protectedSpans`) continuam valendo.
+ * Todos os códigos escondidos são de uma unidade UTF-16.
+ */
+export function safeTextSameLength(value: string | null | undefined): string {
+  let out = '';
+  for (const ch of value ?? '') {
+    out += isHiddenCode(ch.codePointAt(0) ?? 0, false) ? ' ' : ch;
   }
   return out;
 }

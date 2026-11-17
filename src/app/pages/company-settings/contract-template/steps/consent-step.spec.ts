@@ -33,18 +33,18 @@ describe('ContractConsentStep', () => {
     );
   });
 
-  it('diz o que vai escondido e o que vai em claro, igual ao mascarador e à Política', () => {
+  it('diz o que vai escondido e o que vai em claro, igual ao mascarador (v3: nomes e endereços escondidos)', () => {
     const { text } = mount();
     expect(text).toContain(
-      'Vão escondidos: CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números.',
+      'Vão escondidos: nomes de pessoas e de empresas, endereços, CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números.',
     );
-    expect(text).toContain('Vão em claro: nomes de pessoas e de empresas, endereços');
-    // A frase antiga prometia esconder nomes e endereços, o que o mascarador não faz.
+    expect(text).toContain('Vão em claro: datas, valores e o resto do texto.');
+    // Desde a v3 do mascarador, nome e endereço não vão mais em claro.
+    expect(text).not.toContain('Vão em claro: nomes');
     expect(text).not.toContain('ficam escondidos');
-    expect(text).not.toMatch(/Nome, CPF, CNH, placa e endereços/);
   });
 
-  it('as duas metades na tela são exatamente o texto do consentimento v2', () => {
+  it('as duas metades na tela são exatamente o texto do consentimento v3', () => {
     expect(`${AI_SEND_NOTICE.masked} ${AI_SEND_NOTICE.inClear}`).toBe(AI_SEND_NOTICE.hidden);
   });
 
