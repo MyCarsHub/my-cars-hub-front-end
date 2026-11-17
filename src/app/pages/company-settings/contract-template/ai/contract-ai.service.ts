@@ -18,6 +18,7 @@ import {
   BlockView,
   DraftDecision,
   DraftDecisionsResponse,
+  DraftAiViewResponse,
   DraftDocumentResponse,
   DraftStatusResponse,
   DraftSubmittedResponse,
@@ -33,6 +34,7 @@ const BLOCKS_KEY = 'contractAiBlocks';
 /** Mesmo padrão de id de bloco que o backend aceita. */
 const BLOCK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const BLOCK_ANSWERS: ReadonlySet<string> = new Set(['DRIVER', 'COMPANY', 'THIRD', 'NONE']);
+const REFERENCE_FIELD_RE = /^driverReference[1-3]$/;
 
 /** Backoff do polling: 1,5 s crescendo 1,5x até 5 s; desiste após ~4 min. */
 export const POLL_FIRST_DELAY_MS = 1500;
@@ -86,7 +88,15 @@ export class ContractAiService {
   /** O contrato REAL do rascunho (nunca persistido): a folha das etapas depois do envio. */
   readonly document = signal<DraftDocumentResponse | null>(null);
   readonly documentLoading = signal(false);
+  /** Rascunho cujo `GET document` já respondeu (com sucesso ou não): a prévia de reserva espera isso. */
+  readonly documentTried = signal<string | null>(null);
   private documentFor: string | null = null;
+  /** «Ver como a IA recebe» calculado no servidor (qualquer estado; sobrevive a recarregar). */
+  readonly aiView = signal<DraftAiViewResponse | null>(null);
+  readonly aiViewLoading = signal(false);
+  private aiViewFor: string | null = null;
+  /** Rascunho cujas respostas gravadas já foram trazidas para a tela (uma vez por rascunho). */
+  private answersSeededFor: string | null = null;
 
   readonly step = computed<FlowStep>(() => {
     if (this.savedTemplate()) return 'saved';
@@ -235,6 +245,9 @@ export class ContractAiService {
         this.blockAnswers.set({});
         this.document.set(null);
         this.documentFor = null;
+        this.aiView.set(null);
+        this.aiViewFor = null;
+        this.answersSeededFor = null;
         this.masked.set(null);
         this.pollTimedOut.set(false);
         this.stopPolling();
@@ -325,7 +338,57 @@ export class ContractAiService {
 
   private applyDraft(d: DraftStatusResponse): void {
     this.draft.set(d);
+    this.seedSavedAnswers(d);
     if (d.status === 'EXPIRED' || d.status === 'SAVED') this.session.removeItem(STORAGE_KEY);
+  }
+
+  /**
+   * Respostas já gravadas no servidor (aba nova, sessão perdida): viram a base, e o que esta aba
+   * respondeu e ainda não gravou (sessão) fica por cima. Uma vez por rascunho, para não apagar o que
+   * a pessoa mexe depois. A decisão que o servidor expandiu de um bloco respondido NÃO volta como
+   * decisão explícita (venceria o bloco se a parte mudasse); só a escolha de referência volta.
+   */
+  private seedSavedAnswers(d: DraftStatusResponse): void {
+    const saved = d.answers;
+    if (!saved || this.answersSeededFor === d.draftId) return;
+    this.answersSeededFor = d.draftId;
+    const known = new Map((d.blocks ?? []).map((b) => [b.id, b]));
+    const blocks: Record<string, BlockAnswer> = {};
+    for (const a of saved.blocks ?? []) {
+      const b = known.get(a?.id);
+      if (!b || typeof a.party !== 'string' || !BLOCK_ANSWERS.has(a.party)) continue;
+      if (a.party !== 'NONE' && !b.options.some((o) => o.party === a.party)) continue;
+      blocks[a.id] = a.party as BlockAnswer;
+    }
+    const answeredItems = new Set(
+      (d.blocks ?? []).filter((b) => blocks[b.id]).flatMap((b) => b.items.map((i) => i.id)),
+    );
+    const decisions: Record<string, DraftDecision> = {};
+    for (const x of saved.decisions ?? []) {
+      if (!x || typeof x.id !== 'string' || !SUGGESTION_ID_RE.test(x.id) || typeof x.accept !== 'boolean') continue;
+      const field = x.field ?? null;
+      if (field !== null && (typeof field !== 'string' || !Object.hasOwn(FIELD_LABELS, field))) continue;
+      if (answeredItems.has(x.id) && !(field && REFERENCE_FIELD_RE.test(field))) continue;
+      decisions[x.id] = { id: x.id, field, accept: x.accept };
+      if (x.confirmed === true) decisions[x.id].confirmed = true;
+    }
+    this.blockAnswers.set({ ...blocks, ...this.blockAnswers() });
+    this.decisions.set({ ...decisions, ...this.decisions() });
+  }
+
+  /** GET ai-view: o texto mascarado do servidor, uma vez por rascunho. Falha: o botão some. */
+  loadAiView(): void {
+    const id = this.draftId();
+    if (!id || this.aiViewFor === id) return;
+    this.aiViewFor = id;
+    this.aiViewLoading.set(true);
+    this.http.get<DraftAiViewResponse>(`${BASE}/drafts/${id}/ai-view`).subscribe({
+      next: (v) => {
+        this.aiViewLoading.set(false);
+        if (this.draftId() === id) this.aiView.set(v);
+      },
+      error: () => this.aiViewLoading.set(false),
+    });
   }
 
   /** GET masked-text: o texto exato que seria enviado, com versão e hash do consentimento. */
@@ -368,11 +431,15 @@ export class ContractAiService {
     this.http.get<DraftDocumentResponse>(`${BASE}/drafts/${id}/document`).subscribe({
       next: (doc) => {
         this.documentLoading.set(false);
-        if (this.draftId() === id) this.document.set(doc);
+        if (this.draftId() === id) {
+          this.document.set(doc);
+          this.documentTried.set(id);
+        }
       },
       error: () => {
         // Sem mensagem nem conteúdo: a folha usa o que já tem (texto mascarado ou prévia).
         this.documentLoading.set(false);
+        if (this.draftId() === id) this.documentTried.set(id);
       },
     });
   }
@@ -623,6 +690,10 @@ export class ContractAiService {
     this.document.set(null);
     this.documentLoading.set(false);
     this.documentFor = null;
+    this.aiView.set(null);
+    this.aiViewLoading.set(false);
+    this.aiViewFor = null;
+    this.answersSeededFor = null;
     this.showFields.set(false);
     this.reviewDoubts.set(false);
     this.overwriteCode.set(null);

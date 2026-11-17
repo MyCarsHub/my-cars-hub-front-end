@@ -395,8 +395,16 @@ export class ContractEsteira {
   });
 
   /** A versão mascarada, como sai daqui («Ver como a IA recebe»). */
+  /** Versão mascarada: a da etapa Autorizar (memória) ou a do servidor (`ai-view`, após recarregar). */
+  private readonly aiViewParagraphs = computed<{ id: string; text: string }[] | null>(() => {
+    const local = this.maskedParagraphs();
+    if (local) return local;
+    const server = this.ai.aiView();
+    return server ? server.paragraphs.map((p) => ({ id: p.id, text: safeText(p.text) })) : null;
+  });
+
   private readonly aiViewDoc = computed<PaperDocument | null>(() => {
-    const paragraphs = this.maskedParagraphs();
+    const paragraphs = this.aiViewParagraphs();
     return paragraphs ? buildMaskedDocument(paragraphs, { stage: 'consent' }) : null;
   });
 
@@ -405,7 +413,7 @@ export class ContractEsteira {
     const v = this.view();
     const stage =
       v === 'consent' || v === 'reading' || v === 'fields' || (v === 'review' && this.path() === 'mine');
-    return stage && !!this.realParagraphs() && !!this.maskedParagraphs();
+    return stage && !!this.realParagraphs() && !!this.aiViewParagraphs();
   });
 
   /** «2 CPFs, 4 nomes e 1 endereço» (consentimento). */
@@ -504,7 +512,10 @@ export class ContractEsteira {
     const paper = this.paper();
     const masked = this.aiViewDoc();
     if (this.aiView() && this.aiViewAvailable() && masked) {
-      return { ...paper, title: 'Como a IA recebe o texto', doc: masked, loading: false, modeSwitch: false };
+      // O texto de agora difere do aceito (ex.: o cadastro mudou): diz isso no título da folha.
+      const changed = !this.maskedParagraphs() && this.ai.aiView()?.matchesConsent === false;
+      const title = changed ? 'Como a IA recebe o texto (mudou desde a sua autorização)' : 'Como a IA recebe o texto';
+      return { ...paper, title, doc: masked, loading: false, modeSwitch: false };
     }
     return paper;
   });
@@ -730,6 +741,14 @@ export class ContractEsteira {
       }
     });
 
+    // Sem a versão mascarada em memória (página recarregada depois do aceite): pede ao servidor.
+    effect(() => {
+      const id = this.ai.draftId();
+      const v = this.view();
+      if (!id || this.path() !== 'mine' || this.maskedParagraphs()) return;
+      if (v === 'reading' || v === 'fields' || v === 'review') untracked(() => this.ai.loadAiView());
+    });
+
     // O texto mascarado some do serviço no consentimento; a esteira guarda uma cópia em memória.
     effect(() => {
       const m = this.ai.masked();
@@ -741,6 +760,8 @@ export class ContractEsteira {
       const id = this.ai.draftId();
       if (this.view() !== 'review' || this.path() !== 'mine' || !id) return;
       if (this.maskedParagraphs() || this.realParagraphs() || this.fallbackRequestedFor === id) return;
+      // Espera a resposta do contrato real: só sem ele a prévia de exemplo é pedida.
+      if (this.ai.documentTried() !== id) return;
       this.fallbackRequestedFor = id;
       untracked(() => this.loadFallback());
     });

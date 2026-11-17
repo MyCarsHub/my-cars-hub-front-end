@@ -183,7 +183,7 @@ interface ItemRow {
           </div>
         </div>
       }
-      <p class="m-0 text-[13px] leading-snug text-fg-muted">Os outros dados desta pessoa, como CPF e telefone, ficam escritos como estão.</p>
+      <p class="m-0 text-[13px] leading-snug text-fg-muted">Com o nome como referência, o telefone desta pessoa passa a vir do cadastro do motorista. O CPF fica escrito como está.</p>
     }
 
     @if (!isConfirm()) {

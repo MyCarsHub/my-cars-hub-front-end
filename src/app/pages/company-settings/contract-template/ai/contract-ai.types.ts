@@ -75,6 +75,25 @@ export interface DraftStatusResponse {
    * escolher de quem é (QUESTION/CONFLICT). Presente: a tela pergunta por bloco, não por valor.
    */
   blocks?: BlockView[];
+  /** O que já foi respondido e gravado (blocos e decisões, inclusive as expandidas dos blocos). */
+  answers?: SavedAnswers;
+}
+
+export interface SavedAnswers {
+  blocks: { id: string; party: string; confirmed: boolean }[];
+  decisions: { id: string; field: string | null; accept: boolean; confirmed: boolean }[];
+}
+
+/** GET /drafts/{id}/ai-view: o texto como a IA recebe, em qualquer estado vivo. */
+export interface DraftAiViewResponse {
+  draftId: string;
+  status: DraftStatus;
+  paragraphs: { id: string; text: string }[];
+  maskedTextSha256: string;
+  consentedTextSha256: string | null;
+  /** Falso: o texto de agora difere do que foi aceito. */
+  matchesConsent: boolean;
+  maskedCounts: Record<string, number>;
 }
 
 /** Parte de um dado de pessoa. NONE = «deixar fixo» (só na resposta). */

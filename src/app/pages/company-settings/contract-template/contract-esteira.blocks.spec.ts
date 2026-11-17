@@ -199,4 +199,36 @@ describe('ContractEsteira: contrato real e perguntas por bloco', () => {
     const save = http.expectOne(`${ROOT}/drafts/${DRAFT}/save`);
     expect(save.request.body).toEqual({ questionsReviewed: true });
   });
+
+  it('página recarregada depois do aceite: respostas e «Ver como a IA recebe» vêm do servidor', () => {
+    sessionStorage.setItem('contractAiDraftId', DRAFT);
+    fixture = TestBed.createComponent(ContractEsteira);
+    host = fixture.nativeElement;
+    fixture.detectChanges();
+    http.expectOne(`${ROOT}/ai-capability`).flush({ enabled: true });
+    http.expectOne(`${ROOT}/base`).flush({ code: 'X' }, { status: 404, statusText: 'Not Found' });
+    http.expectOne(`${ROOT}/drafts/${DRAFT}`).flush({
+      draftId: DRAFT, status: 'READY', failureCode: null, filename: 'meu.docx', layoutSimplified: false,
+      certain: [], doubts: [], questions: [], blocks: BLOCKS,
+      answers: {
+        blocks: [{ id: 'b0001', party: 'COMPANY', confirmed: true }, { id: 'b0002', party: 'COMPANY', confirmed: true }],
+        decisions: [],
+      },
+    });
+    fixture.detectChanges();
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/document`).flush(REAL);
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/ai-view`).flush({
+      draftId: DRAFT, status: 'READY', paragraphs: MASKED.paragraphs, maskedTextSha256: 'abc',
+      consentedTextSha256: 'abc', matchesConsent: true, maskedCounts: MASKED.maskedCounts,
+    });
+    fixture.detectChanges();
+
+    expect(host.textContent).toContain('Confira e salve');
+    expect(host.textContent).not.toContain('sem resposta');
+    expect(paperText()).toContain('Endereço da locadora');
+    click('Ver como a IA recebe');
+    expect(paperText()).toContain('nome escondido');
+    expect(paperText()).not.toContain('Alfa Locações Ltda');
+    http.verify();
+  });
 });
