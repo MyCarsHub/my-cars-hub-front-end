@@ -6,7 +6,7 @@ import { ApiErrorService } from '../../../../services/api-error.service';
 import { NotificationService } from '../../../../services/notification.service';
 import { ContractTemplateDto, ContractTemplateService } from '../contract-template-service';
 import { ContractDropzone, hasZipSignature, isDocxFile } from '../contract-dropzone';
-import { fieldLabel, safeText } from '../ai/contract-ai.messages';
+import { fieldLabel, safeText, uploadBusyMessage } from '../ai/contract-ai.messages';
 import { ContractIcon } from '../contract-icon';
 import { fieldCode } from '../contract-fields';
 
@@ -152,7 +152,8 @@ export class ContractWordStep {
         this.uploading.set(false);
         this.pending.set(null);
         this.busyChange.emit(false);
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível enviar o arquivo.'));
+        const message = this.apiErrors.messageFor(err, 'Não foi possível enviar o arquivo.');
+        this.error.set(uploadBusyMessage(err) ?? message);
       },
     });
   }

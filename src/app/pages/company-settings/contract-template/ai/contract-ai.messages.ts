@@ -52,6 +52,18 @@ export function failureMessage(code: string | null): string {
   return (code && FAILURE_MESSAGES[code]) || FAILURE_FALLBACK;
 }
 
+/**
+ * Outro arquivo da mesma empresa está sendo convertido (o servidor lê um Markdown por empresa por
+ * vez). Frase nossa, calma, nos dois envios: o da adaptação e o do modelo manual.
+ */
+export const UPLOAD_BUSY_MESSAGE =
+  'Estamos processando outro arquivo da sua empresa. Tente de novo em alguns segundos.';
+
+/** Recusa de envio que tem frase própria aqui, acima da que o servidor mandar. */
+export function uploadBusyMessage(err: unknown): string | null {
+  return errorCode(err) === 'MARKDOWN_BUSY' ? UPLOAD_BUSY_MESSAGE : null;
+}
+
 /** Códigos de erro HTTP (corpo `{message, code}`) das chamadas do fluxo. */
 const HTTP_MESSAGES: Record<string, string> = {
   AI_DISABLED: 'A análise com IA está indisponível no momento. Você pode montar o contrato do zero.',
@@ -70,6 +82,7 @@ const HTTP_MESSAGES: Record<string, string> = {
   PDF_BUSY: 'Estamos lendo muitos PDFs agora. Tente de novo em alguns segundos.',
   MARKDOWN_INVALID: 'Não foi possível ler este arquivo Markdown. Salve o texto em UTF-8 e envie de novo.',
   MARKDOWN_TOO_COMPLEX: 'Este arquivo Markdown é grande demais para ler. Envie o contrato em Word (.docx).',
+  MARKDOWN_BUSY: UPLOAD_BUSY_MESSAGE,
   FILE_REQUIRED: 'Escolha o arquivo do contrato antes de continuar.',
   FILE_TOO_LARGE: 'O arquivo é maior que 5 MB.',
   SUPPORT_SESSION_NOT_ALLOWED:

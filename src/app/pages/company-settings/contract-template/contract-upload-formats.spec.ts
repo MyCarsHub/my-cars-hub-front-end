@@ -1,7 +1,9 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
-import { httpErrorMessage } from './ai/contract-ai.messages';
+import { UPLOAD_BUSY_MESSAGE, httpErrorMessage } from './ai/contract-ai.messages';
+import { ContractWordStep } from './steps/word-step';
 import { CONTRACT_ACCEPT, contractFileKind, hasPdfSignature } from './contract-dropzone';
 import { ContractUploadStep } from './steps/upload-step';
 
@@ -41,6 +43,35 @@ describe('envio do contrato: Word, PDF ou Markdown', () => {
   it('a frase do servidor só vale para as recusas do arquivo', () => {
     const err = new HttpErrorResponse({ status: 400, error: { code: 'DRAFT_LIMIT_REACHED', message: 'texto do servidor' } });
     expect(httpErrorMessage(err, 'falhou')).not.toBe('texto do servidor');
+  });
+
+  it('MARKDOWN_BUSY: frase calma nossa nos dois envios (adaptação e modelo manual)', async () => {
+    const busy = new HttpErrorResponse({
+      status: 400,
+      error: { code: 'MARKDOWN_BUSY', field: 'file', message: 'Estamos lendo outros arquivos agora.' },
+    });
+    // Adaptação.
+    expect(httpErrorMessage(busy, 'falhou')).toBe(UPLOAD_BUSY_MESSAGE);
+    expect(UPLOAD_BUSY_MESSAGE).toBe(
+      'Estamos processando outro arquivo da sua empresa. Tente de novo em alguns segundos.',
+    );
+    // Modelo manual («Fazer no Word»): o mesmo banner de erro da etapa.
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(ContractWordStep);
+    fixture.detectChanges();
+    const step = fixture.componentInstance as unknown as { onFile(f: File): Promise<void> };
+    const docx = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1])], 'modelo.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    await step.onFile(docx);
+    http
+      .expectOne((r) => r.method === 'POST' && r.url.endsWith('/settings/contract-template'))
+      .flush(busy.error, { status: 400, statusText: 'Bad Request' });
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain(UPLOAD_BUSY_MESSAGE);
+    expect(text).not.toContain('Estamos lendo outros arquivos agora.');
   });
 
   it('a área de envio diz os três formatos e o limite', () => {
