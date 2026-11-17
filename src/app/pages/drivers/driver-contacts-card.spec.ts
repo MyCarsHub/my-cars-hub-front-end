@@ -187,6 +187,44 @@ describe('DriverContactsCard', () => {
     expect(changed).toHaveBeenCalledTimes(1);
   });
 
+  it('telefone antigo com mais de 11 dígitos não é cortado: intocado volta igual', async () => {
+    const comDdi: ThirdPartyContact = {
+      id: 'c-7',
+      fullName: 'Ana Pereira',
+      phone: '+55 21 99988-7766',
+      relationship: null,
+    };
+    await setup([comDdi]);
+    openMenuItem(0, 'edit');
+
+    expect(input('driver-contact-phone').value).toBe('+55 21 99988-7766');
+    choose('AUNT');
+    submit();
+
+    expect(updateContact).toHaveBeenCalledWith(DRIVER_ID, 'c-7', {
+      fullName: 'Ana Pereira',
+      phone: '+55 21 99988-7766',
+      relationship: 'AUNT',
+    });
+  });
+
+  it('telefone antigo editado passa a valer a regra de 10–11 dígitos', async () => {
+    await setup([{ id: 'c-7', fullName: 'Ana Pereira', phone: '+55 21 99988-7766', relationship: 'AUNT' }]);
+    openMenuItem(0, 'edit');
+
+    type(input('driver-contact-phone'), '219998');
+    submit();
+    expect(updateContact).not.toHaveBeenCalled();
+
+    type(input('driver-contact-phone'), '21999887766');
+    submit();
+    expect(updateContact).toHaveBeenCalledWith(DRIVER_ID, 'c-7', {
+      fullName: 'Ana Pereira',
+      phone: '21999887766',
+      relationship: 'AUNT',
+    });
+  });
+
   it('remover pede confirmação e só então chama o servidor', async () => {
     await setup([maria, antigo]);
     openMenuItem(0, 'remove');

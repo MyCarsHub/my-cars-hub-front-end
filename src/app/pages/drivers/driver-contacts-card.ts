@@ -291,6 +291,12 @@ export class DriverContactsCard {
   protected readonly actionError = signal<string | null>(null);
   protected readonly phoneDisplay = signal('');
   private readonly editing = signal<ThirdPartyContact | null>(null);
+  /**
+   * Telefone de contato antigo que não cabe na regra de hoje (mais de 11 dígitos, ex.: com DDI).
+   * Enquanto o usuário não mexe no campo, ele volta ao servidor EXATAMENTE como estava — nada de
+   * cortar dígitos em silêncio. Mexeu no campo: vale a regra normal (10 ou 11 dígitos).
+   */
+  private readonly legacyPhone = signal<string | null>(null);
 
   protected readonly removeTarget = signal<ThirdPartyContact | null>(null);
   protected readonly removing = signal(false);
@@ -309,19 +315,23 @@ export class DriverContactsCard {
   protected openAdd(): void {
     if (this.contacts().length >= MAX_THIRD_PARTY_CONTACTS) return;
     this.form.reset({ fullName: '', phone: '', relationship: '' });
+    this.setLegacyPhone(null);
     this.phoneDisplay.set('');
     this.openSheet('add', null);
   }
 
   /** Contato antigo chega sem parentesco: o select abre vazio e obriga a escolher. */
   protected openEdit(contact: ThirdPartyContact): void {
-    const digits = (contact.phone ?? '').replace(/\D/g, '').slice(0, 11);
+    const stored = contact.phone ?? '';
+    const digits = stored.replace(/\D/g, '');
+    const legacy = digits.length > 11 ? stored : null;
     this.form.reset({
       fullName: contact.fullName ?? '',
-      phone: digits,
+      phone: legacy ? digits : digits.slice(0, 11),
       relationship: contact.relationship ?? '',
     });
-    this.phoneDisplay.set(this.maskPhone(digits));
+    this.setLegacyPhone(legacy);
+    this.phoneDisplay.set(legacy ?? this.maskPhone(digits));
     this.openSheet('edit', contact);
   }
 
@@ -341,6 +351,7 @@ export class DriverContactsCard {
 
   protected onSheetClosed(): void {
     this.sheet.set(null);
+    this.setLegacyPhone(null);
     this.editing.set(null);
     this.saving.set(false);
   }
@@ -351,7 +362,18 @@ export class DriverContactsCard {
     }
   }
 
+  /** Liga/desliga o modo "telefone antigo intocado": sem a regra de 10–11 dígitos enquanto vale. */
+  private setLegacyPhone(value: string | null): void {
+    this.legacyPhone.set(value);
+    const ctrl = this.form.controls.phone;
+    ctrl.setValidators(
+      value ? [Validators.required] : [Validators.required, Validators.pattern(/^\d{10,11}$/)],
+    );
+    ctrl.updateValueAndValidity({ emitEvent: false });
+  }
+
   protected onPhoneInput(event: Event): void {
+    if (this.legacyPhone()) this.setLegacyPhone(null);
     const raw = (event.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 11);
     const ctrl = this.form.controls.phone;
     ctrl.setValue(raw);
@@ -369,7 +391,7 @@ export class DriverContactsCard {
     if (!raw.relationship) return;
     const payload = {
       fullName: raw.fullName.trim(),
-      phone: raw.phone.trim(),
+      phone: this.legacyPhone() ?? raw.phone.trim(),
       relationship: raw.relationship,
     };
     const target = this.editing();
