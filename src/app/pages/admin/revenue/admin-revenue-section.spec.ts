@@ -52,6 +52,13 @@ const REVENUE: AdminRevenue = {
 
 const norm = (el: Element | null): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
+function pickPill(host: HTMLElement, label: string): void {
+  const pill = Array.from(host.querySelectorAll<HTMLButtonElement>('[role="radio"]')).find(
+    (b) => norm(b) === label,
+  );
+  pill!.click();
+}
+
 describe('admin-revenue.series', () => {
   it('labels months in pt-BR and adds the year only when asked', () => {
     expect(monthLabel('2026-11')).toBe('nov');
@@ -117,6 +124,7 @@ describe('AdminRevenueSection', () => {
 
     expect(norm(host.querySelector('[data-expected-card]'))).toContain('R$ 569');
     expect(norm(host.querySelector('[data-expected-card]'))).toContain('1 renovação até 30/11');
+    expect(norm(host.querySelector('[data-expected-card]'))).toContain('pelo preço de tabela, sem cupom');
     expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 489');
     expect(norm(host.querySelector('[data-received-card]'))).toContain('desde 28/09/2026');
     expect(norm(host.querySelector('[data-discount-card]'))).toContain('R$ 199');
@@ -162,9 +170,48 @@ describe('AdminRevenueSection', () => {
     });
     detect();
 
-    expect(norm(host.querySelector('[data-discount-chart]'))).toContain('Não conseguimos ler as faturas na Stripe');
+    expect(norm(host.querySelector('[data-discount-chart]'))).toContain('Indisponível agora');
     expect(norm(host.querySelector('[data-discount-card]'))).toContain('Stripe indisponível');
     expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 489');
+  });
+
+  it('cancels the pending period when another pill is picked, so its reply never shows', () => {
+    const { host, detect } = render();
+    const first = http.expectOne((r) => r.params.get('period') === '12m');
+
+    pickPill(host, 'Desde o início');
+    detect();
+
+    expect(first.cancelled).toBe(true);
+    http.expectOne((r) => r.params.get('period') === 'all').flush({
+      ...REVENUE,
+      period: 'all',
+      received: { ...REVENUE.received, totalCents: 12_300 },
+    });
+    detect();
+    expect(norm(host.querySelector('[data-cumulative-card]'))).toContain('R$ 123');
+  });
+
+  it('a failed reload says so and does not keep the previous period numbers under the new pill', () => {
+    const { host, detect } = render();
+    http.expectOne(() => true).flush(REVENUE);
+    detect();
+
+    pickPill(host, '3 meses');
+    detect();
+    http.expectOne((r) => r.params.get('period') === '3m').flush('erro', { status: 500, statusText: 'Erro' });
+    detect();
+
+    expect(norm(host.querySelector('[role="alert"]'))).toContain('Não foi possível carregar a receita');
+    expect(norm(host.querySelector('[data-received-card]'))).not.toContain('R$ 489');
+  });
+
+  it('a reply for another period than the selected one is never shown', () => {
+    const { host, detect } = render();
+    http.expectOne(() => true).flush({ ...REVENUE, period: 'all' });
+    detect();
+
+    expect(norm(host.querySelector('[data-received-card]'))).not.toContain('R$ 489');
   });
 
   it('reloads with the period picked in the pills', () => {
@@ -172,10 +219,7 @@ describe('AdminRevenueSection', () => {
     http.expectOne(() => true).flush(REVENUE);
     detect();
 
-    const all = Array.from(host.querySelectorAll<HTMLButtonElement>('[role="radio"]')).find(
-      (b) => norm(b) === 'Desde o início',
-    );
-    all!.click();
+    pickPill(host, 'Desde o início');
     detect();
 
     http.expectOne((r) => r.url === URL && r.params.get('period') === 'all').flush({ ...REVENUE, period: 'all' });

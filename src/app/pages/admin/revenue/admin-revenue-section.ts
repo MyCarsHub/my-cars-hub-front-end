@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
 import { BarChart } from '../../../components/charts/bar-chart/bar-chart';
 import { GrowthChart, type GrowthSeries } from '../../../components/charts/growth-chart/growth-chart';
@@ -7,7 +9,7 @@ import { PageCard } from '../../../components/core/page-card/page-card';
 import { KpiCard } from '../../../components/kpi-card/kpi-card';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { formatBRL } from '../../../types/dashboard.types';
-import type { AdminRevenuePeriod } from '../../../types/admin-revenue.types';
+import type { AdminRevenue, AdminRevenuePeriod } from '../../../types/admin-revenue.types';
 import { MONEY_AXIS_FLOOR_CENTS } from '../../../utils/money-axis';
 import { AdminRevenueService } from './admin-revenue.service';
 import { dateLabel, monthBars, presentSeries, receivedShare } from './admin-revenue.series';
@@ -17,7 +19,7 @@ const BRAND_ORANGE = '#F63B04';
 const BRAND_GREEN = '#0a9b62';
 
 const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
-  { value: '3m', label: '90 dias' },
+  { value: '3m', label: '3 meses' },
   { value: '12m', label: '12 meses' },
   { value: 'all', label: 'Desde o início' },
 ];
@@ -52,7 +54,7 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
         />
       </div>
 
-      @if (error() && !revenue()) {
+      @if (error()) {
         <div
           role="alert"
           class="rounded-lg bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 text-sm p-3 mb-3"
@@ -180,7 +182,7 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
         <app-page-card title="Recebido por mês">
           <div class="p-4" data-received-chart>
             <p class="text-xs text-fg-subtle mb-3">
-              Pagamentos de assinatura confirmados pela Stripe, no mês em que entraram.
+              Pagamentos de assinatura confirmados, no mês em que entraram.
             </p>
             @if (pending()) {
               <div class="h-32 rounded bg-surface-sunken animate-pulse"></div>
@@ -206,7 +208,7 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
               <div class="h-32 rounded bg-surface-sunken animate-pulse"></div>
             } @else if (!discountsAvailable()) {
               <p data-empty class="text-sm text-fg-subtle text-center py-10">
-                Não conseguimos ler as faturas na Stripe agora. Os outros números seguem valendo.
+                Indisponível agora: a Stripe não respondeu a tempo. Os outros números seguem valendo.
               </p>
             } @else {
               <app-bar-chart [data]="discountBars()" />
@@ -230,10 +232,48 @@ export class AdminRevenueSection implements OnInit {
   protected readonly axisFloor = MONEY_AXIS_FLOOR_CENTS;
   protected readonly period = signal<AdminRevenuePeriod>('12m');
 
-  protected readonly revenue = this.service.revenue;
-  protected readonly error = this.service.error;
-  /** Esqueleto só na primeira carga; trocar o período mantém os números até a resposta nova. */
-  protected readonly pending = computed(() => this.service.loading() && !this.revenue());
+  private readonly data = signal<AdminRevenue | null>(null);
+  private readonly loading = signal(true);
+  protected readonly error = signal<string | null>(null);
+
+  /**
+   * Só a resposta DO período selecionado: o número de "12 meses" nunca aparece sob "Desde o início".
+   * O estado é da seção (não de um serviço raiz), então voltar ao /admin não mostra a visita anterior.
+   */
+  protected readonly revenue = computed(() => {
+    const d = this.data();
+    return d && d.period === this.period() ? d : null;
+  });
+  protected readonly pending = computed(() => this.loading() && !this.revenue());
+
+  /** Cada troca de período cancela a carga anterior (switchMap): resposta atrasada não sobrescreve. */
+  private readonly requests = new Subject<AdminRevenuePeriod>();
+
+  constructor() {
+    this.requests
+      .pipe(
+        switchMap((period) => {
+          this.loading.set(true);
+          this.error.set(null);
+          return this.service.fetch(period).pipe(
+            map((res) => ({ res, failure: null as unknown })),
+            catchError((failure: unknown) => of({ res: null, failure })),
+          );
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe(({ res, failure }) => {
+        this.loading.set(false);
+        if (res) {
+          this.data.set(res);
+          return;
+        }
+        // A seção mostra o próprio aviso; reivindicar o erro evita o toast repetido do interceptor.
+        this.apiErrors.claim(failure);
+        this.data.set(null);
+        this.error.set('Não foi possível carregar a receita da plataforma.');
+      });
+  }
 
   private readonly months = computed(() => this.revenue()?.months ?? []);
 
@@ -274,7 +314,7 @@ export class AdminRevenueSection implements OnInit {
     const until = dateLabel(e.until)?.slice(0, 5) ?? '';
     const renewals =
       e.upcomingRenewals === 1 ? '1 renovação' : `${e.upcomingRenewals} renovações`;
-    return `${formatBRL(e.receivedCents)} recebido + ${renewals} até ${until}`;
+    return `${formatBRL(e.receivedCents)} recebido + ${renewals} até ${until}, pelo preço de tabela, sem cupom`;
   });
   protected readonly expectedProgress = computed(() => {
     const e = this.revenue()?.expected;
@@ -301,21 +341,16 @@ export class AdminRevenueSection implements OnInit {
   });
 
   ngOnInit(): void {
-    this.load();
+    this.requests.next(this.period());
   }
 
   protected pick(period: AdminRevenuePeriod): void {
     if (period === this.period()) return;
     this.period.set(period);
-    this.load();
+    this.requests.next(period);
   }
 
   protected reload(): void {
-    this.load();
-  }
-
-  /** A seção mostra o próprio aviso; reivindicar o erro evita o toast repetido do interceptor. */
-  private load(): void {
-    this.service.load(this.period()).subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
+    this.requests.next(this.period());
   }
 }
