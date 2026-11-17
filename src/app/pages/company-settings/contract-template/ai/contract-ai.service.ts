@@ -14,8 +14,12 @@ import {
   httpErrorMessage,
 } from './contract-ai.messages';
 import {
+  BlockAnswer,
+  BlockView,
   DraftDecision,
   DraftDecisionsResponse,
+  DraftAiViewResponse,
+  DraftDocumentResponse,
   DraftStatusResponse,
   DraftSubmittedResponse,
   FlowStep,
@@ -26,6 +30,11 @@ import {
 const BASE = `${environment.apiUrl}/settings/contract-template`;
 const STORAGE_KEY = 'contractAiDraftId';
 const DECISIONS_KEY = 'contractAiDecisions';
+const BLOCKS_KEY = 'contractAiBlocks';
+/** Mesmo padrão de id de bloco que o backend aceita. */
+const BLOCK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const BLOCK_ANSWERS: ReadonlySet<string> = new Set(['DRIVER', 'COMPANY', 'THIRD', 'NONE']);
+const REFERENCE_FIELD_RE = /^driverReference[1-3]$/;
 
 /** Backoff do polling: 1,5 s crescendo 1,5x até 5 s; desiste após ~4 min. */
 export const POLL_FIRST_DELAY_MS = 1500;
@@ -74,6 +83,20 @@ export class ContractAiService {
   /** Preenchido quando o save pede confirmação explícita para substituir o template ativo. */
   readonly overwriteCode = signal<string | null>(null);
   readonly savedTemplate = signal<ContractTemplateDto | null>(null);
+  /** Resposta do dono por bloco (PUT manda o conjunto inteiro, junto com as decisões). */
+  readonly blockAnswers = signal<Record<string, BlockAnswer>>({});
+  /** O contrato REAL do rascunho (nunca persistido): a folha das etapas depois do envio. */
+  readonly document = signal<DraftDocumentResponse | null>(null);
+  readonly documentLoading = signal(false);
+  /** Rascunho cujo `GET document` já respondeu (com sucesso ou não): a prévia de reserva espera isso. */
+  readonly documentTried = signal<string | null>(null);
+  private documentFor: string | null = null;
+  /** «Ver como a IA recebe» calculado no servidor (qualquer estado; sobrevive a recarregar). */
+  readonly aiView = signal<DraftAiViewResponse | null>(null);
+  readonly aiViewLoading = signal(false);
+  private aiViewFor: string | null = null;
+  /** Rascunho cujas respostas gravadas já foram trazidas para a tela (uma vez por rascunho). */
+  private answersSeededFor: string | null = null;
 
   readonly step = computed<FlowStep>(() => {
     if (this.savedTemplate()) return 'saved';
@@ -104,10 +127,54 @@ export class ContractAiService {
   readonly existingFields = computed(() => this.draft()?.existingFields ?? []);
   /** Dados de pessoa ou empresa: só viram campo com a resposta do dono. */
   readonly questions = computed(() => this.draft()?.questions ?? []);
+  /** Os mesmos dados, por bloco (backend novo). Vazio num backend anterior. */
+  readonly blocks = computed<BlockView[]>(() => this.draft()?.blocks ?? []);
+  /** Ids de dado que algum bloco já cobre: a pergunta antiga deles não aparece de novo. */
+  private readonly blockItemIds = computed(
+    () => new Set(this.blocks().flatMap((b) => b.items.map((i) => i.id))),
+  );
+  /** Perguntas por valor que nenhum bloco cobre (todas, num backend sem blocos). */
+  readonly looseQuestions = computed(() =>
+    this.questions().filter((q) => !this.blockItemIds().has(q.id)),
+  );
 
-  /** O que a etapa «Campos» pergunta, um por vez: primeiro as perguntas, depois as dúvidas. */
+  /**
+   * As decisões como o servidor vai gravá-las: cada bloco respondido vira uma decisão por dado
+   * (o mesmo que `expandBlocks` faz no backend), e a decisão explícita do dado vence a do bloco.
+   * Terceiro e «deixar fixo» deixam o dado fixo; só a referência escolhida vira campo.
+   */
+  readonly effectiveDecisions = computed<Record<string, DraftDecision>>(() => {
+    const explicit = this.decisions();
+    const out: Record<string, DraftDecision> = { ...explicit };
+    const answers = this.blockAnswers();
+    for (const b of this.blocks()) {
+      const party = answers[b.id];
+      if (!party) continue;
+      for (const item of b.items) {
+        if (explicit[item.id]) continue;
+        const field =
+          party === 'NONE' || party === 'THIRD' ? null : (item.fieldsByParty[party]?.[0]?.field ?? null);
+        out[item.id] = { id: item.id, field, accept: field !== null, confirmed: true };
+      }
+    }
+    return out;
+  });
+
+  /** O que a etapa «Campos» pergunta, um por vez: blocos, perguntas soltas e as dúvidas. */
   readonly asks = computed<SuggestionView[]>(() => [
-    ...this.questions().map((q) => ({
+    ...this.blocks().map((b) => ({
+      id: b.id,
+      paragraphId: b.items[0]?.places[0]?.paragraphId ?? '',
+      field: '',
+      fieldLabel: '',
+      excerpt: b.items[0]?.excerpt ?? '',
+      context: b.items[0]?.context ?? '',
+      confidence: 0,
+      reason: '',
+      alternatives: null,
+      block: b,
+    })),
+    ...this.looseQuestions().map((q) => ({
       id: q.id,
       paragraphId: q.places[0]?.paragraphId ?? '',
       field: q.options[0]?.field ?? '',
@@ -123,7 +190,9 @@ export class ContractAiService {
   ]);
 
   /** Perguntas que seguem sem resposta: o dado fica fixo, e o «Conferir» as lista. */
-  readonly unanswered = computed(() => this.questions().filter((q) => !this.decisions()[q.id]));
+  readonly unanswered = computed(() => this.looseQuestions().filter((q) => !this.decisions()[q.id]));
+  /** Blocos sem resposta: os dados deles ficam fixos. */
+  readonly unansweredBlocks = computed(() => this.blocks().filter((b) => !this.blockAnswers()[b.id]));
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private pollSub: Subscription | null = null;
@@ -154,6 +223,7 @@ export class ContractAiService {
     if (stored && UUID_RE.test(stored)) {
       this.draftId.set(stored);
       this.restoreDecisions();
+      this.restoreBlockAnswers();
       this.startPolling();
     } else if (stored) {
       this.session.removeItem(STORAGE_KEY);
@@ -172,6 +242,12 @@ export class ContractAiService {
         this.draftId.set(res.draftId);
         this.session.setItem(STORAGE_KEY, res.draftId);
         this.decisions.set({});
+        this.blockAnswers.set({});
+        this.document.set(null);
+        this.documentFor = null;
+        this.aiView.set(null);
+        this.aiViewFor = null;
+        this.answersSeededFor = null;
         this.masked.set(null);
         this.pollTimedOut.set(false);
         this.stopPolling();
@@ -186,6 +262,7 @@ export class ContractAiService {
           doubts: [],
         });
         if (res.status === 'ANALYZING') this.startPolling();
+        this.loadDocument();
       },
       error: (err: HttpErrorResponse) => {
         this.busy.set(false);
@@ -261,7 +338,57 @@ export class ContractAiService {
 
   private applyDraft(d: DraftStatusResponse): void {
     this.draft.set(d);
+    this.seedSavedAnswers(d);
     if (d.status === 'EXPIRED' || d.status === 'SAVED') this.session.removeItem(STORAGE_KEY);
+  }
+
+  /**
+   * Respostas já gravadas no servidor (aba nova, sessão perdida): viram a base, e o que esta aba
+   * respondeu e ainda não gravou (sessão) fica por cima. Uma vez por rascunho, para não apagar o que
+   * a pessoa mexe depois. A decisão que o servidor expandiu de um bloco respondido NÃO volta como
+   * decisão explícita (venceria o bloco se a parte mudasse); só a escolha de referência volta.
+   */
+  private seedSavedAnswers(d: DraftStatusResponse): void {
+    const saved = d.answers;
+    if (!saved || this.answersSeededFor === d.draftId) return;
+    this.answersSeededFor = d.draftId;
+    const known = new Map((d.blocks ?? []).map((b) => [b.id, b]));
+    const blocks: Record<string, BlockAnswer> = {};
+    for (const a of saved.blocks ?? []) {
+      const b = known.get(a?.id);
+      if (!b || typeof a.party !== 'string' || !BLOCK_ANSWERS.has(a.party)) continue;
+      if (a.party !== 'NONE' && !b.options.some((o) => o.party === a.party)) continue;
+      blocks[a.id] = a.party as BlockAnswer;
+    }
+    const answeredItems = new Set(
+      (d.blocks ?? []).filter((b) => blocks[b.id]).flatMap((b) => b.items.map((i) => i.id)),
+    );
+    const decisions: Record<string, DraftDecision> = {};
+    for (const x of saved.decisions ?? []) {
+      if (!x || typeof x.id !== 'string' || !SUGGESTION_ID_RE.test(x.id) || typeof x.accept !== 'boolean') continue;
+      const field = x.field ?? null;
+      if (field !== null && (typeof field !== 'string' || !Object.hasOwn(FIELD_LABELS, field))) continue;
+      if (answeredItems.has(x.id) && !(field && REFERENCE_FIELD_RE.test(field))) continue;
+      decisions[x.id] = { id: x.id, field, accept: x.accept };
+      if (x.confirmed === true) decisions[x.id].confirmed = true;
+    }
+    this.blockAnswers.set({ ...blocks, ...this.blockAnswers() });
+    this.decisions.set({ ...decisions, ...this.decisions() });
+  }
+
+  /** GET ai-view: o texto mascarado do servidor, uma vez por rascunho. Falha: o botão some. */
+  loadAiView(): void {
+    const id = this.draftId();
+    if (!id || this.aiViewFor === id) return;
+    this.aiViewFor = id;
+    this.aiViewLoading.set(true);
+    this.http.get<DraftAiViewResponse>(`${BASE}/drafts/${id}/ai-view`).subscribe({
+      next: (v) => {
+        this.aiViewLoading.set(false);
+        if (this.draftId() === id) this.aiView.set(v);
+      },
+      error: () => this.aiViewLoading.set(false),
+    });
   }
 
   /** GET masked-text: o texto exato que seria enviado, com versão e hash do consentimento. */
@@ -288,6 +415,31 @@ export class ContractAiService {
           return;
         }
         this.error.set(httpErrorMessage(err, 'Não foi possível carregar o texto a enviar.'));
+      },
+    });
+  }
+
+  /**
+   * GET document: o contrato REAL, uma vez por rascunho (vale em qualquer estado vivo). Falhar não
+   * trava nada: a folha cai no texto mascarado ou na prévia, como antes.
+   */
+  loadDocument(): void {
+    const id = this.draftId();
+    if (!id || this.documentFor === id) return;
+    this.documentFor = id;
+    this.documentLoading.set(true);
+    this.http.get<DraftDocumentResponse>(`${BASE}/drafts/${id}/document`).subscribe({
+      next: (doc) => {
+        this.documentLoading.set(false);
+        if (this.draftId() === id) {
+          this.document.set(doc);
+          this.documentTried.set(id);
+        }
+      },
+      error: () => {
+        // Sem mensagem nem conteúdo: a folha usa o que já tem (texto mascarado ou prévia).
+        this.documentLoading.set(false);
+        if (this.draftId() === id) this.documentTried.set(id);
       },
     });
   }
@@ -369,6 +521,56 @@ export class ContractAiService {
     this.session.setItem(DECISIONS_KEY, JSON.stringify(this.decisions()));
   }
 
+  /**
+   * Resposta a um bloco. Trocar a parte desfaz a escolha de referência dos dados dele (ela só
+   * vale com «Contato de terceiro»).
+   */
+  setBlockAnswer(blockId: string, party: BlockAnswer): void {
+    const block = this.blocks().find((b) => b.id === blockId);
+    if (!block) return;
+    if (party !== 'NONE' && !block.options.some((o) => o.party === party)) return;
+    if (party !== 'THIRD') {
+      const ids = new Set(block.items.map((i) => i.id));
+      const cur = this.decisions();
+      if (Object.keys(cur).some((k) => ids.has(k))) {
+        const next = Object.fromEntries(Object.entries(cur).filter(([k]) => !ids.has(k)));
+        this.decisions.set(next);
+        this.session.setItem(DECISIONS_KEY, JSON.stringify(next));
+      }
+    }
+    this.blockAnswers.update((cur) => ({ ...cur, [blockId]: party }));
+    // Só ids e a parte: nenhum texto do contrato.
+    this.session.setItem(BLOCKS_KEY, JSON.stringify(this.blockAnswers()));
+  }
+
+  /** Terceiro: qual referência do motorista o nome vira (`null` = o nome fica fixo). */
+  setItemReference(itemId: string, field: string | null): void {
+    if (field === null) {
+      this.decisions.update((cur) => Object.fromEntries(Object.entries(cur).filter(([k]) => k !== itemId)));
+      this.session.setItem(DECISIONS_KEY, JSON.stringify(this.decisions()));
+      return;
+    }
+    this.setDecision({ id: itemId, field, accept: true, confirmed: true });
+  }
+
+  private restoreBlockAnswers(): void {
+    try {
+      const raw = this.session.getItem(BLOCKS_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : {};
+      const clean: Record<string, BlockAnswer> = {};
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        for (const [key, v] of Object.entries(parsed as Record<string, unknown>)) {
+          if (BLOCK_ID_RE.test(key) && typeof v === 'string' && BLOCK_ANSWERS.has(v)) {
+            clean[key] = v as BlockAnswer;
+          }
+        }
+      }
+      this.blockAnswers.set(clean);
+    } catch {
+      this.blockAnswers.set({});
+    }
+  }
+
   private restoreDecisions(): void {
     try {
       const raw = this.session.getItem(DECISIONS_KEY);
@@ -403,8 +605,15 @@ export class ContractAiService {
     this.error.set(null);
     this.busy.set(true);
     const decisions = Object.values(this.decisions());
+    // Só os blocos que ainda existem: um id velho da sessão daria DECISION_UNKNOWN_BLOCK.
+    const known = new Set(this.blocks().map((b) => b.id));
+    const blocks = Object.entries(this.blockAnswers())
+      .filter(([blockId]) => known.has(blockId))
+      .map(([blockId, party]) => ({ id: blockId, party }));
+    // `blocks` só quando há: o backend anterior recusa chave que não conhece.
+    const body = blocks.length > 0 ? { decisions, blocks } : { decisions };
     this.http
-      .put<DraftDecisionsResponse>(`${BASE}/drafts/${id}/decisions`, { decisions })
+      .put<DraftDecisionsResponse>(`${BASE}/drafts/${id}/decisions`, body)
       .subscribe({
         next: (res) => {
           this.busy.set(false);
@@ -438,7 +647,7 @@ export class ContractAiService {
     // tela vai ao ar antes do backend novo.
     const body = {
       ...(confirmOverwrite ? { confirmOverwrite: true } : {}),
-      ...(this.questions().length > 0 ? { questionsReviewed: true } : {}),
+      ...(this.questions().length > 0 || this.blocks().length > 0 ? { questionsReviewed: true } : {}),
     };
     this.http.post<ContractTemplateDto>(`${BASE}/drafts/${id}/save`, body).subscribe({
       next: (tpl) => {
@@ -477,6 +686,14 @@ export class ContractAiService {
     this.masked.set(null);
     this.maskedLoading.set(false);
     this.decisions.set({});
+    this.blockAnswers.set({});
+    this.document.set(null);
+    this.documentLoading.set(false);
+    this.documentFor = null;
+    this.aiView.set(null);
+    this.aiViewLoading.set(false);
+    this.aiViewFor = null;
+    this.answersSeededFor = null;
     this.showFields.set(false);
     this.reviewDoubts.set(false);
     this.overwriteCode.set(null);
@@ -484,6 +701,7 @@ export class ContractAiService {
     this.error.set(null);
     this.session.removeItem(STORAGE_KEY);
     this.session.removeItem(DECISIONS_KEY);
+    this.session.removeItem(BLOCKS_KEY);
   }
 
   acknowledgeSaved(): void {

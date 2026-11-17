@@ -5,8 +5,14 @@ import { ConfirmDialog } from '../../../../components/core/confirm-dialog/confir
 import { ApiErrorService } from '../../../../services/api-error.service';
 import { NotificationService } from '../../../../services/notification.service';
 import { ContractTemplateDto, ContractTemplateService } from '../contract-template-service';
-import { ContractDropzone, hasZipSignature, isDocxFile } from '../contract-dropzone';
-import { fieldLabel, safeText } from '../ai/contract-ai.messages';
+import {
+  ContractDropzone,
+  MANUAL_ACCEPT,
+  contractFileKind,
+  hasPdfSignature,
+  hasZipSignature,
+} from '../contract-dropzone';
+import { fieldLabel, safeText, uploadBusyMessage } from '../ai/contract-ai.messages';
 import { ContractIcon } from '../contract-icon';
 import { fieldCode } from '../contract-fields';
 
@@ -37,7 +43,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
       </li>
       <li class="flex gap-3">
         <span aria-hidden="true" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-50 dark:bg-sky-500/10 text-sm font-bold text-sky-800 dark:text-sky-200 ring-1 ring-sky-100 dark:ring-sky-500/20">2</span>
-        <span class="pt-0.5">Salve como .docx e envie aqui.</span>
+        <span class="pt-0.5">Salve o arquivo e envie aqui: Word, PDF ou Markdown, até 5 MB.</span>
       </li>
       <li class="flex gap-3">
         <span aria-hidden="true" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-100 dark:ring-emerald-500/20"><app-contract-icon name="check" [size]="14" [stroke]="3" /></span>
@@ -66,7 +72,9 @@ const MAX_BYTES = 5 * 1024 * 1024;
         {{ aiBusy() ? 'Copiando…' : 'Copiar instruções para IA' }}
       </button>
       <app-contract-dropzone
-        title="Enviar .docx pronto"
+        title="Enviar o contrato pronto"
+        helper="Word, PDF ou Markdown, até 5 MB"
+        [accept]="accept"
         [busy]="uploading()"
         [compact]="true"
         (picked)="onFile($event)"
@@ -106,6 +114,7 @@ export class ContractWordStep {
   protected readonly exampleBusy = signal(false);
   protected readonly aiBusy = signal(false);
   protected readonly uploading = signal(false);
+  protected readonly accept = MANUAL_ACCEPT;
 
   protected replaceMessage(): string {
     const file = this.pending();
@@ -113,19 +122,29 @@ export class ContractWordStep {
     return `«${name}» vai substituir «${this.currentName() ?? ''}» nos próximos aluguéis. Os contratos já gerados não mudam.`;
   }
 
-  /** Mesmas checagens do «Ajustar o meu contrato»: Word, até 5 MB, assinatura ZIP. */
+  /**
+   * Mesmas checagens do «Ajustar o meu contrato» (Word, PDF ou Markdown, até 5 MB, bytes que batem
+   * com o nome), mais o Word com macro. O servidor converte PDF e Markdown e devolve o nome .docx.
+   */
   protected async onFile(file: File): Promise<void> {
     this.error.set(null);
-    if (!isDocxFile(file)) {
-      this.error.set('Este arquivo não é do Word. Escolha o arquivo do contrato que termina em .docx.');
+    const kind = contractFileKind(file, { docm: true });
+    if (!kind) {
+      this.error.set('Envie o contrato em Word (.docx), em PDF com texto (.pdf) ou em Markdown (.md).');
       return;
     }
     if (file.size > MAX_BYTES) {
       this.error.set('O arquivo é maior que 5 MB.');
       return;
     }
-    if (!(await hasZipSignature(file))) {
-      this.error.set('Este arquivo não parece ser um documento do Word. Escolha outro arquivo.');
+    const ok =
+      kind === 'docx' ? await hasZipSignature(file) : kind === 'pdf' ? await hasPdfSignature(file) : true;
+    if (!ok) {
+      this.error.set(
+        kind === 'docx'
+          ? 'Este arquivo não parece ser um documento do Word. Escolha outro arquivo.'
+          : 'Este arquivo não parece ser um PDF. Escolha outro arquivo.',
+      );
       return;
     }
     if (this.currentName()) this.pending.set(file);
@@ -152,7 +171,8 @@ export class ContractWordStep {
         this.uploading.set(false);
         this.pending.set(null);
         this.busyChange.emit(false);
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível enviar o arquivo.'));
+        const message = this.apiErrors.messageFor(err, 'Não foi possível enviar o arquivo.');
+        this.error.set(uploadBusyMessage(err) ?? message);
       },
     });
   }

@@ -270,22 +270,24 @@
           <ul>
             <li>
               O arquivo fica no MyCarsHub. Sai <strong>apenas o texto</strong>, depois que o nosso
-              servidor <strong>mascara</strong> os identificadores: CPF, CNPJ, telefone, e-mail,
-              placa, CEP, chassi, RG, Renavam e as demais sequências de números (ficam em claro
-              só datas, valores em R$, percentuais, numeração de cláusulas e quantidades como
-              "30 dias"). Cada identificador vira um marcador, como <code>[CPF_1]</code>; o valor
-              original nunca sai do nosso servidor. Esse mascaramento é uma das medidas de
+              servidor <strong>mascara</strong>, quando os identifica, os nomes de pessoas e de
+              empresas, os endereços, CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam
+              e as demais sequências de números (ficam em claro só datas, valores em R$,
+              percentuais, numeração de cláusulas e quantidades como "30 dias"). Cada dado
+              identificado vira um marcador, como <code>[CPF_1]</code> ou <code>[NOME_1]</code>; o
+              valor original nunca sai do nosso servidor. Esse mascaramento é uma das medidas de
               segurança que adotamos (art. 46 da LGPD).
             </li>
             <li>
-              <strong>Não são mascarados</strong>: nomes de pessoas, nomes de empresas, endereços
-              e qualquer outro dado pessoal escrito por extenso. A IA precisa desses trechos para
-              reconhecer os campos. Se o seu modelo tiver dados reais de um cliente, recomendamos
+              <strong>Limite do mascaramento</strong>: um nome escrito sem rótulo nem documento ao
+              lado pode não ser reconhecido e ir em claro, assim como qualquer outro dado pessoal
+              escrito por extenso. Se o seu modelo tiver dados reais de um cliente, recomendamos
               trocá-los por exemplos antes de enviar.
             </li>
             <li>
-              Antes de qualquer envio, mostramos <strong>o texto exato, já mascarado</strong>, que
-              vai sair, e a lista do que não é mascarado (art. 9º da LGPD).
+              Antes de qualquer envio, você vê o seu contrato e, em <strong>Ver como a IA
+              recebe</strong>, <strong>o texto exato, já mascarado</strong>, que vai sair, com a
+              lista do que não é mascarado (art. 9º da LGPD).
             </li>
           </ul>
 
@@ -753,22 +755,24 @@
           <ul>
             <li>
               The file stays in MyCarsHub. <strong>Only the text</strong> leaves, after our server
-              <strong>masks</strong> the identifiers: CPF, CNPJ, phone, email, license plate, ZIP
-              code, chassis, RG, Renavam and any other digit sequences (only dates, R$ amounts,
-              percentages, clause numbering and quantities such as "30 days" stay readable). Each
-              identifier becomes a placeholder, such as <code>[CPF_1]</code>; the original value
+              <strong>masks</strong>, when it identifies them, names of people and companies,
+              addresses, CPF, CNPJ, phone, email, license plate, ZIP code, chassis, RG, Renavam and
+              any other digit sequences (only dates, R$ amounts, percentages, clause numbering and
+              quantities such as "30 days" stay readable). Each identified item becomes a
+              placeholder, such as <code>[CPF_1]</code> or <code>[NOME_1]</code>; the original value
               never leaves our server. This masking is one of our security measures (LGPD
               art. 46).
             </li>
             <li>
-              <strong>Not masked</strong>: names of people, company names, addresses and any other
-              personal data written out in words. The AI needs these passages to recognize the
-              fields. If your template contains a real customer's data, we recommend replacing it
-              with examples before sending.
+              <strong>Masking limit</strong>: a name written without a label or a document next to
+              it may not be recognized and may leave unmasked, as may any other personal data
+              written out in words. If your template contains a real customer's data, we recommend
+              replacing it with examples before sending.
             </li>
             <li>
-              Before anything is sent, we show <strong>the exact masked text</strong> that will
-              leave and the list of what is not masked (LGPD art. 9).
+              Before anything is sent, you see your contract and, under <strong>Ver como a IA
+              recebe</strong>, <strong>the exact masked text</strong> that will leave, with the
+              list of what is not masked (LGPD art. 9).
             </li>
           </ul>
 

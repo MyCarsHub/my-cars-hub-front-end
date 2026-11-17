@@ -1,4 +1,4 @@
-import { DraftDecision, SuggestionView } from './ai/contract-ai.types';
+import { DraftDecision, ProtectedSpan, SuggestionView } from './ai/contract-ai.types';
 import { fieldLabel } from './ai/contract-ai.messages';
 import { MASK_TOKEN, hiddenLabel, isKnownField } from './contract-fields';
 import { ContractBaseClause } from './base/contract-base.types';
@@ -9,10 +9,16 @@ import { ContractBaseClause } from './base/contract-base.types';
  */
 export type PaperSegment =
   | { kind: 'text'; text: string; bold?: boolean }
-  /** Campo do app: aparece como exemplo ou como `{{campo}}`. `doubt` = pergunta em aberto. */
-  | { kind: 'field'; field: string; tone: 'ok' | 'doubt'; focus?: boolean }
+  /**
+   * Campo do app: aparece como exemplo ou como `{{campo}}`. `doubt` = pergunta em aberto.
+   * `original`: o texto real que o campo substitui (folha com o contrato real): o modo «Com
+   * exemplo» mostra esse texto com o nome do campo ao lado.
+   */
+  | { kind: 'field'; field: string; tone: 'ok' | 'doubt'; focus?: boolean; original?: string }
   /** Dado pessoal mascarado antes da IA («CPF escondido»). */
   | { kind: 'hidden'; label: string }
+  /** Texto real que a IA não recebe (vira marcador antes de sair): cadeado discreto. */
+  | { kind: 'protected'; text: string; label: string }
   /** Trecho que a pessoa decidiu deixar sempre igual. */
   | { kind: 'kept'; text: string; focus?: boolean };
 
@@ -291,6 +297,88 @@ export interface MaskedStage {
   focusId?: string | null;
 }
 
+/** Um parágrafo da folha: o texto e, no contrato real, o que a IA não recebe. */
+export interface SheetParagraph {
+  id: string;
+  text: string;
+  /** Contrato real: trechos que viram marcador antes da IA (`[start, end)` no `text`). */
+  spans?: readonly ProtectedSpan[];
+  /** Título no arquivo (estilo de título ou linha em negrito). */
+  heading?: boolean;
+}
+
+/** Como a folha chama cada tipo protegido (título do cadeado). */
+const PROTECTED_NOUNS: Readonly<Record<string, string>> = {
+  CPF: 'CPF',
+  CNPJ: 'CNPJ',
+  RG: 'RG',
+  PHONE: 'telefone',
+  EMAIL: 'e-mail',
+  CEP: 'CEP',
+  PLATE: 'placa',
+  CHASSI: 'chassi',
+  RENAVAM: 'Renavam',
+  NUM: 'número',
+  NAME: 'nome',
+  ADDRESS: 'endereço',
+};
+
+export const PROTECTED_TITLE = 'Protegido: a IA não recebe';
+
+/** «Protegido: a IA não recebe este CPF» (texto do cadeado). */
+export function protectedLabel(kind: string): string {
+  const noun = PROTECTED_NOUNS[kind];
+  return noun ? `${PROTECTED_TITLE} este ${noun}` : PROTECTED_TITLE;
+}
+
+/**
+ * Trecho `[from, to)` do parágrafo: o que cai num trecho protegido vira cadeado; o resto segue
+ * a leitura de sempre (`{{campo}}` vira campo).
+ */
+function withProtected(p: SheetParagraph, from: number, to: number): PaperSegment[] {
+  const spans = (p.spans ?? [])
+    .filter((s) => s.end > from && s.start < to && s.start < s.end)
+    .sort((a, b) => a.start - b.start);
+  if (spans.length === 0) return withFields(p.text.slice(from, to));
+  const out: PaperSegment[] = [];
+  let at = from;
+  for (const s of spans) {
+    const start = Math.max(s.start, at);
+    const end = Math.min(s.end, to);
+    if (end <= start) continue;
+    if (start > at) out.push(...withFields(p.text.slice(at, start)));
+    out.push({ kind: 'protected', text: p.text.slice(start, end), label: protectedLabel(s.kind) });
+    at = end;
+  }
+  if (at < to) out.push(...withFields(p.text.slice(at, to)));
+  return out;
+}
+
+/** Contagem do que a IA não recebe, em palavras: «2 CPFs, 4 nomes e 1 endereço». */
+const COUNT_WORDS: readonly [string, string, string][] = [
+  ['NAME', 'nome', 'nomes'],
+  ['ADDRESS', 'endereço', 'endereços'],
+  ['CPF', 'CPF', 'CPFs'],
+  ['CNPJ', 'CNPJ', 'CNPJs'],
+  ['RG', 'RG', 'RGs'],
+  ['PHONE', 'telefone', 'telefones'],
+  ['EMAIL', 'e-mail', 'e-mails'],
+  ['CEP', 'CEP', 'CEPs'],
+  ['PLATE', 'placa', 'placas'],
+  ['CHASSI', 'chassi', 'chassis'],
+  ['RENAVAM', 'Renavam', 'Renavams'],
+  ['NUM', 'outro número', 'outros números'],
+];
+
+export function maskedCountsText(counts: Readonly<Record<string, number>> | null | undefined): string | null {
+  const parts = COUNT_WORDS.flatMap(([kind, one, many]) => {
+    const n = counts?.[kind] ?? 0;
+    return Number.isInteger(n) && n > 0 ? [`${n} ${n === 1 ? one : many}`] : [];
+  });
+  if (parts.length === 0) return null;
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} e ${parts.at(-1)}`;
+}
+
 /**
  * «Ajustar o meu contrato»: o texto mascarado que a IA leu, com cada sugestão trocada pelo
  * campo que a pessoa aceitou. Sugestão recusada fica com o texto original; dúvida ainda sem
@@ -298,23 +386,36 @@ export interface MaskedStage {
  * inclusive: ali ele é o que vai à IA.
  */
 export function buildMaskedDocument(
-  paragraphs: readonly { id: string; text: string }[],
+  paragraphs: readonly SheetParagraph[],
   opts: MaskedStage,
 ): PaperDocument {
   const out: PaperParagraph[] = paragraphs.map((p, index) => {
-    const role: PaperParagraph['role'] = index === 0 && looksLikeTitle(p.text) ? 'title' : 'body';
-    if (opts.stage === 'consent') return { id: p.id, role, segments: withHidden(p.text) };
+    const role: PaperParagraph['role'] =
+      index === 0 && (p.heading || looksLikeTitle(p.text)) ? 'title' : 'body';
+    const real = p.spans !== undefined;
+    const finish = (segments: PaperSegment[]): PaperParagraph => ({
+      id: p.id,
+      role,
+      // Título do arquivo real em negrito, como no Word.
+      segments:
+        real && p.heading && role === 'body'
+          ? segments.map((s) => (s.kind === 'text' ? { ...s, bold: true } : s))
+          : segments,
+    });
+    if (opts.stage === 'consent') {
+      return finish(real ? withProtected(p, 0, p.text.length) : withHidden(p.text));
+    }
     // Uma sugestão por ocorrência; a pergunta diz onde o valor está. Cada uma continua de onde a
     // anterior do mesmo trecho parou.
     const resumeAt = new Map<string, number>();
     const hits = (opts.suggestions ?? [])
-      .flatMap((s) =>
-        s.question
-          ? s.question.places.filter((place) => place.paragraphId === p.id).map((place) => ({ s, excerpt: place.excerpt }))
-          : s.paragraphId === p.id
-            ? [{ s, excerpt: s.excerpt }]
-            : [],
-      )
+      .flatMap((s) => {
+        const places = s.question?.places ?? s.places;
+        if (places) {
+          return places.filter((place) => place.paragraphId === p.id).map((place) => ({ s, excerpt: place.excerpt }));
+        }
+        return s.paragraphId === p.id ? [{ s, excerpt: s.excerpt }] : [];
+      })
       .filter((h) => h.excerpt)
       .map((h) => {
         const at = excerptAt(p.text, h.excerpt, resumeAt.get(h.excerpt) ?? 0);
@@ -327,12 +428,15 @@ export function buildMaskedDocument(
     let cursor = 0;
     for (const { s, excerpt, at } of hits) {
       if (at < cursor) continue; // sobreposta a outra sugestão: a primeira vence
-      if (at > cursor) segments.push(...withFields(p.text.slice(cursor, at)));
+      if (at > cursor) segments.push(...withProtected(p, cursor, at));
       const decision = opts.decisions?.[s.id];
       const isDoubt = opts.doubtIds?.has(s.id) ?? false;
-      const focus = s.id === opts.focusId;
-      // Pergunta: sem resposta o texto fica fixo, então a folha não presume o campo.
-      if ((decision && !decision.accept) || (!decision && s.question)) {
+      const focus = s.id === opts.focusId || (!!s.blockId && s.blockId === opts.focusId);
+      // Pergunta: sem resposta o texto fica fixo, então a folha não presume o campo. Dado de bloco
+      // sem resposta: na etapa das perguntas mostra o campo proposto (em âmbar); depois, fica fixo.
+      const keptUnanswered =
+        !!s.question || (!!s.blockId && (opts.stage !== 'fields' || !s.field));
+      if ((decision && !decision.accept) || (!decision && keptUnanswered)) {
         const kept = humanizeMasked(excerpt);
         segments.push({ kind: 'kept', text: kept, focus });
       } else {
@@ -342,12 +446,13 @@ export function buildMaskedDocument(
           field: decision?.field || s.field,
           tone: open ? 'doubt' : 'ok',
           focus,
+          ...(real ? { original: excerpt } : {}),
         });
       }
       cursor = at + excerpt.length;
     }
-    if (cursor < p.text.length) segments.push(...withFields(p.text.slice(cursor)));
-    return { id: p.id, role, segments };
+    if (cursor < p.text.length) segments.push(...withProtected(p, cursor, p.text.length));
+    return finish(segments);
   });
   return {
     paragraphs: out,

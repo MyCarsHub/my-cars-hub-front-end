@@ -27,6 +27,12 @@ export interface SuggestionView {
   alternatives: FieldOption[] | null;
   /** Dado de pessoa ou empresa: pergunta ao dono, sem resposta sugerida. Sem resposta, fica fixo. */
   question?: QuestionView;
+  /** Bloco de dados de pessoa: a etapa pergunta a parte do bloco inteiro. */
+  block?: BlockView;
+  /** Dado de um bloco (só na folha): acende junto com o bloco em foco. */
+  blockId?: string;
+  /** Dado de um bloco (só na folha): todos os lugares onde o valor aparece. */
+  places?: QuestionPlace[];
 }
 
 export interface QuestionPlace {
@@ -64,6 +70,96 @@ export interface DraftStatusResponse {
   existingFields?: FieldOption[];
   /** Ausente num backend anterior às perguntas: esta tela segue funcionando com ele. */
   questions?: QuestionView[];
+  /**
+   * Os MESMOS dados de `questions`, agrupados como o dono responde: confirmar o bloco (CONFIRM) ou
+   * escolher de quem é (QUESTION/CONFLICT). Presente: a tela pergunta por bloco, não por valor.
+   */
+  blocks?: BlockView[];
+  /** O que já foi respondido e gravado (blocos e decisões, inclusive as expandidas dos blocos). */
+  answers?: SavedAnswers;
+}
+
+export interface SavedAnswers {
+  blocks: { id: string; party: string; confirmed: boolean }[];
+  decisions: { id: string; field: string | null; accept: boolean; confirmed: boolean }[];
+}
+
+/** GET /drafts/{id}/ai-view: o texto como a IA recebe, em qualquer estado vivo. */
+export interface DraftAiViewResponse {
+  draftId: string;
+  status: DraftStatus;
+  paragraphs: { id: string; text: string }[];
+  maskedTextSha256: string;
+  consentedTextSha256: string | null;
+  /** Falso: o texto de agora difere do que foi aceito. */
+  matchesConsent: boolean;
+  maskedCounts: Record<string, number>;
+}
+
+/** Parte de um dado de pessoa. NONE = «deixar fixo» (só na resposta). */
+export type Party = 'DRIVER' | 'COMPANY' | 'THIRD';
+export type BlockAnswer = Party | 'NONE';
+export type BlockKind = 'CONFIRM' | 'QUESTION' | 'CONFLICT';
+
+export interface PartyOption {
+  party: Party;
+  label: string;
+}
+
+/** Um dado do bloco, com o texto REAL. `fieldsByParty`: o campo em cada parte (ausente = fixo). */
+export interface BlockItemView {
+  id: string;
+  kind: string;
+  excerpt: string;
+  context: string;
+  places: QuestionPlace[];
+  fieldsByParty: Partial<Record<Party, FieldOption[]>>;
+}
+
+export interface BlockView {
+  id: string;
+  kind: BlockKind;
+  /** Parte que o documento deu (só em CONFIRM). */
+  party: Party | null;
+  partyLabel: string | null;
+  /** O que a IA propôs: só pré-seleciona, nunca é aplicado sem o toque do dono. */
+  aiParty: Party | null;
+  aiEvidence: string | null;
+  source: string;
+  /** Título ou rótulo que deu a parte («Informações do Locador»). */
+  label: string | null;
+  sectionPath: string[];
+  options: PartyOption[];
+  /** «Esta resposta vale para N itens». */
+  appliesTo: number;
+  items: BlockItemView[];
+}
+
+/** Trecho do texto real que vira marcador antes de ir à IA. */
+export interface ProtectedSpan {
+  start: number;
+  end: number;
+  kind: string;
+}
+
+export interface DocumentParagraph {
+  id: string;
+  text: string;
+  headingLevel: number;
+  bold: boolean;
+  structural: boolean;
+  sectionPath: string[];
+  cell: { table: number; row: number; column: number } | null;
+  protectedSpans: ProtectedSpan[];
+}
+
+/** GET /drafts/{id}/document: o contrato REAL do rascunho, para a folha. */
+export interface DraftDocumentResponse {
+  draftId: string;
+  status: DraftStatus;
+  paragraphs: DocumentParagraph[];
+  /** Valores distintos escondidos da IA, por tipo (CPF, NAME, ADDRESS…). */
+  maskedCounts: Record<string, number>;
 }
 
 export interface DraftSubmittedResponse {
@@ -91,6 +187,8 @@ export interface MaskedTextResponse {
   aiRoute: string;
   /** A mesma rota, legível: um item por provedor com os modelos. */
   aiProviders: AiProviderView[];
+  /** Valores distintos escondidos, por tipo. Ausente num backend anterior. */
+  maskedCounts?: Record<string, number>;
 }
 
 export interface AiProviderView {
