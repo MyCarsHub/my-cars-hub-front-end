@@ -3,6 +3,11 @@ import { ContractIcon } from './contract-icon';
 
 export const DOCX_ACCEPT =
   '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+/** «Ajustar o meu contrato»: Word, PDF com texto ou Markdown (o servidor converte PDF e MD). */
+export const CONTRACT_ACCEPT = `${DOCX_ACCEPT},.pdf,application/pdf,.md,text/markdown`;
+const DOCM_MIME = 'application/vnd.ms-word.document.macroEnabled.12';
+/** Modelo manual: também Word com macro (.docm); o servidor tira a macro em silêncio. */
+export const MANUAL_ACCEPT = `${CONTRACT_ACCEPT},.docm,${DOCM_MIME}`;
 
 /**
  * Área de enviar o arquivo do Word (etapa «Enviar» e caminho do Word). Vazia: ícone num
@@ -48,7 +53,7 @@ export const DOCX_ACCEPT =
           (compact() ? 'min-h-[56px] flex-row gap-3 px-4 py-3 sm:flex-col sm:min-h-[150px] sm:py-5' : 'min-h-[200px] px-4 py-7 sm:min-h-[220px]')"
         [class.opacity-60]="busy()"
       >
-        <input type="file" class="sr-only" [accept]="accept" [disabled]="busy()" (change)="onInput($event)" />
+        <input type="file" class="sr-only" [accept]="accept()" [disabled]="busy()" (change)="onInput($event)" />
         <span
           class="flex shrink-0 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-500/10 text-primary-700 dark:text-primary-400 transition-transform group-hover:scale-105"
           [class]="compact() ? 'h-10 w-10 sm:h-14 sm:w-14' : 'h-14 w-14 sm:h-16 sm:w-16'"
@@ -58,7 +63,7 @@ export const DOCX_ACCEPT =
         </span>
         <span class="flex flex-col gap-1" [class.text-left]="compact()" [class.sm:text-center]="compact()">
           <span class="text-base font-semibold text-fg-body">{{ busy() ? busyTitle() : title() }}</span>
-          <span class="text-sm text-fg-muted">Arquivo do Word, até 5 MB.</span>
+          <span class="text-sm text-fg-muted">{{ helper() }}</span>
         </span>
         @if (!compact() && !busy()) {
           <span aria-hidden="true" class="mt-1 inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-edge-strong bg-surface px-4 text-[15px] font-semibold text-fg-body shadow-sm transition-colors group-hover:border-primary-300 dark:group-hover:border-primary-500/40">
@@ -80,11 +85,14 @@ export class ContractDropzone {
   readonly busy = input(false);
   /** Bloco mais baixo, em linha no celular (o caminho do Word, que tem outros botões). */
   readonly compact = input(false);
+  /** Linha de ajuda sob o título (formatos e tamanho). */
+  readonly helper = input('Arquivo do Word, até 5 MB.');
+  /** Tipos que o seletor do sistema oferece. */
+  readonly accept = input(DOCX_ACCEPT);
 
   readonly picked = output<File>();
   readonly cleared = output<void>();
 
-  protected readonly accept = DOCX_ACCEPT;
   protected readonly drag = signal(false);
 
   protected onInput(event: Event): void {
@@ -123,6 +131,32 @@ const DOCX_LIKE_TYPES = new Set([
 /** Termina em .docx e o tipo informado não é de outra coisa (PDF, imagem…). */
 export function isDocxFile(file: File): boolean {
   return /\.docx$/i.test(file.name) && DOCX_LIKE_TYPES.has(file.type);
+}
+
+export type ContractFileKind = 'docx' | 'pdf' | 'md';
+
+const PDF_LIKE_TYPES = new Set(['', 'application/pdf', 'application/octet-stream', 'application/x-pdf']);
+const MD_LIKE_TYPES = new Set(['', 'text/markdown', 'text/x-markdown', 'text/plain', 'application/octet-stream']);
+
+/** Formato pelo nome e pelo tipo informado; `null` = fora dos três. Os bytes decidem depois. */
+export function contractFileKind(file: File, opts: { docm?: boolean } = {}): ContractFileKind | null {
+  if (isDocxFile(file)) return 'docx';
+  // .docm é um ZIP como o .docx: a assinatura confere do mesmo jeito.
+  if (opts.docm && /\.docm$/i.test(file.name) && (DOCX_LIKE_TYPES.has(file.type) || file.type.toLowerCase() === DOCM_MIME.toLowerCase())) {
+    return 'docx';
+  }
+  if (/\.pdf$/i.test(file.name) && PDF_LIKE_TYPES.has(file.type)) return 'pdf';
+  if (/\.(md|markdown)$/i.test(file.name) && MD_LIKE_TYPES.has(file.type)) return 'md';
+  return null;
+}
+
+/** PDF começa com «%PDF-». */
+export function hasPdfSignature(file: Blob): Promise<boolean> {
+  return file
+    .slice(0, 5)
+    .arrayBuffer()
+    .then((buf) => new TextDecoder().decode(new Uint8Array(buf)) === '%PDF-')
+    .catch(() => false);
 }
 
 /** DOCX é um ZIP: os 4 primeiros bytes são PK 03 04. */

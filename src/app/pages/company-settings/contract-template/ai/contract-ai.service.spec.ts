@@ -87,6 +87,8 @@ describe('ContractAiService', () => {
     post.flush({ draftId: ID, status: 'ANALYZING' }, { status: 202, statusText: 'Accepted' });
 
     expect(sessionStorage.getItem('contractAiDraftId')).toBe(ID);
+    // O contrato real é pedido uma vez, logo depois do envio (não faz parte do polling).
+    find(`/drafts/${ID}/document`, 'GET').flush({ draftId: ID, status: 'ANALYZING', paragraphs: [], maskedCounts: {} });
     find(`/drafts/${ID}`, 'GET').flush(draft());
 
     // Nada antes do atraso; depois dele, a próxima consulta.

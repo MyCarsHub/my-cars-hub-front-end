@@ -195,6 +195,8 @@
             [notMasked]="notMaskedLabels()"
             [providers]="aiProviders()"
             [reason]="consentReason()"
+            [maskedSummary]="maskedSummary()"
+            [realText]="aiViewAvailable()"
             (agreedChange)="agreed.set($event)"
           />
           @if (!ai.masked() && !ai.maskedLoading() && ai.error()) {
@@ -358,16 +360,19 @@
 
     <app-contract-paper
       [class]="split() ? 'rounded-br-2xl' : 'rounded-b-2xl'"
-      [title]="paper().title"
-      [paragraphs]="paper().doc?.paragraphs ?? []"
-      [emptyText]="paper().empty"
-      [loading]="paper().loading"
+      [title]="sheet().title"
+      [paragraphs]="sheet().doc?.paragraphs ?? []"
+      [emptyText]="sheet().empty"
+      [loading]="sheet().loading"
       [mode]="paperMode()"
-      [showCodes]="paper().forceNames"
-      [showModeSwitch]="paper().modeSwitch"
+      [showCodes]="sheet().forceNames"
+      [showModeSwitch]="sheet().modeSwitch"
       [draft]="paperDraft()"
       [split]="split()"
+      [aiViewAvailable]="aiViewAvailable()"
+      [aiView]="aiView()"
       (modeChange)="mode.set($event)"
+      (aiViewChange)="aiView.set($event)"
     />
   </div>
 

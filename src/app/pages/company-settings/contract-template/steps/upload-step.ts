@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
-import { ContractDropzone } from '../contract-dropzone';
+import { CONTRACT_ACCEPT, ContractDropzone } from '../contract-dropzone';
 import { ContractIcon } from '../contract-icon';
 
 /**
@@ -17,12 +17,14 @@ import { ContractIcon } from '../contract-icon';
         Envie o contrato que você usa hoje
       </h3>
       <p class="m-0 text-[15px] leading-relaxed text-fg-muted">
-        O mesmo arquivo do Word que você imprime para o cliente assinar.
+        O mesmo arquivo que você imprime para o cliente assinar, em Word, PDF ou Markdown.
       </p>
     </div>
 
     <app-contract-dropzone
-      [title]="touch() ? 'Toque para escolher o arquivo do Word' : 'Arraste o arquivo do Word aqui ou clique para escolher'"
+      [title]="touch() ? 'Toque para escolher o arquivo (Word, PDF ou Markdown)' : 'Arraste o arquivo aqui ou clique para escolher (Word, PDF ou Markdown)'"
+      helper="Word, PDF ou Markdown, até 5 MB"
+      [accept]="accept"
       [fileName]="fileName()"
       [fileSize]="fileSize()"
       [hint]="'Confira o texto ' + where() + '.'"
@@ -71,8 +73,8 @@ import { ContractIcon } from '../contract-icon';
           <div id="contract-upload-help" class="flex flex-col gap-3 px-3 pb-4">
             <ul class="m-0 flex list-none flex-col gap-2.5 p-0 text-[15px] leading-relaxed text-fg-soft">
               <li class="flex gap-2.5"><span class="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-400 dark:bg-neutral-500"></span><span>Procure nas pastas <strong>Documentos</strong> ou <strong>Downloads</strong> um arquivo com o nome do contrato.</span></li>
-              <li class="flex gap-2.5"><span class="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-400 dark:bg-neutral-500"></span><span>O arquivo certo é do Word. O nome termina em <strong>.docx</strong>.</span></li>
-              <li class="flex gap-2.5"><span class="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-400 dark:bg-neutral-500"></span><span>Se o seu contrato está só em PDF, impresso ou no WhatsApp, é mais fácil montar um do zero.</span></li>
+              <li class="flex gap-2.5"><span class="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-400 dark:bg-neutral-500"></span><span>Serve o arquivo do Word (o nome termina em <strong>.docx</strong>), o PDF ou o Markdown (<strong>.md</strong>).</span></li>
+              <li class="flex gap-2.5"><span class="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-400 dark:bg-neutral-500"></span><span>PDF escaneado ou foto do contrato não dá para ler. Se o seu contrato está só impresso ou no WhatsApp, é mais fácil montar um do zero.</span></li>
             </ul>
             @if (zeroAvailable()) {
               <button type="button" (click)="goZero.emit()"
@@ -106,4 +108,5 @@ export class ContractUploadStep {
   readonly goZero = output<void>();
 
   protected readonly help = signal(false);
+  protected readonly accept = CONTRACT_ACCEPT;
 }
