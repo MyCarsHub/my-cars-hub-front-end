@@ -145,8 +145,8 @@ describe('PrivacyPolicyComponent — secao de cookies (GA4)', () => {
 
 /**
  * A secao 6 descreve o envio do contrato mascarado a Anthropic. Ela nao pode prometer mais
- * do que o produto faz: o mascarador NAO cobre nomes nem enderecos, e a Anthropic guarda
- * por ate 30 dias. Estes testes prendem as frases que, se sumirem, tornam a politica falsa.
+ * do que o produto faz: desde 17/11 o mascarador cobre nomes e enderecos QUANDO os identifica,
+ * mas um nome sem rotulo nem documento ao lado pode passar; e a Anthropic guarda por ate 30 dias. Estes testes prendem as frases que, se sumirem, tornam a politica falsa.
  */
 describe('PrivacyPolicyComponent — secao de IA (Ajustar o meu contrato)', () => {
   async function visit(lang: 'pt' | 'en'): Promise<string> {
@@ -175,7 +175,11 @@ describe('PrivacyPolicyComponent — secao de IA (Ajustar o meu contrato)', () =
   it('PT: diz o que NAO e mascarado, o prazo de 30 dias e que nao treina', async () => {
     const text = await visit('pt');
 
-    expect(text).toContain('Não são mascarados: nomes de pessoas');
+    expect(text).toContain('mascara, quando os identifica, os nomes de pessoas e de empresas, os endereços');
+    expect(text).toContain(
+      'Limite do mascaramento: um nome escrito sem rótulo nem documento ao lado pode não ser reconhecido e ir em claro',
+    );
+    expect(text).not.toContain('Não são mascarados: nomes de pessoas');
     expect(text).toContain('30 dias');
     expect(text).toContain('não é usado para treinar modelos de IA');
   });
@@ -192,7 +196,11 @@ describe('PrivacyPolicyComponent — secao de IA (Ajustar o meu contrato)', () =
     const text = await visit('en');
 
     expect(text).toContain('Anthropic, PBC');
-    expect(text).toContain('Not masked: names of people');
+    expect(text).toContain('masks, when it identifies them, names of people and companies');
+    expect(text).toContain(
+      'Masking limit: a name written without a label or a document next to it may not be recognized',
+    );
+    expect(text).not.toContain('Not masked: names of people');
     expect(text).toContain('30 days');
     expect(text).toContain('is not used to train AI models');
     expect(text).toContain('LGPD art. 33');
