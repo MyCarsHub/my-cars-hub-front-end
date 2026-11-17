@@ -15,6 +15,8 @@ import { ContractExistingFields } from '../contract-existing-fields';
 import { FIELD_KEYS, plainFieldLabel, questionTitle } from '../contract-fields';
 import { PaperSegment, QuoteParts, humanizeMasked, quoteOf, readable } from '../contract-paper.model';
 import { ContractIcon } from '../contract-icon';
+import { ContractBlockAsk } from './block-ask';
+import { BlockAnswer } from '../ai/contract-ai.types';
 
 export const KEEP_TEXT = '__none__';
 const KEEP_LABEL = 'Locador, fiador, testemunha ou outra pessoa: manter como está';
@@ -43,7 +45,7 @@ const MAX_ANSWERS = 3;
   selector: 'app-contract-questions-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-4' },
-  imports: [FormField, FieldControl, ContractIcon, ContractExistingFields],
+  imports: [FormField, FieldControl, ContractIcon, ContractExistingFields, ContractBlockAsk],
   // Trecho citado com a mesma fonte de documento do contrato ao vivo.
   styles: `
     .doc-serif {
@@ -73,6 +75,7 @@ const MAX_ANSWERS = 3;
             }
           </span>
         </div>
+        @if (!d.block) {
         <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-fg break-words focus:outline-none sm:text-2xl">
           @if (d.question; as q) {
             {{ title(q.kind) }}
@@ -92,7 +95,17 @@ const MAX_ANSWERS = 3;
             }
           </p>
         }
+        }
       </div>
+      @if (d.block; as b) {
+        <app-contract-block-ask
+          [block]="b"
+          [answered]="blockAnswer(b.id)"
+          [references]="references()"
+          (answer)="answerBlock(b.id, $event)"
+          (reference)="pickReference($event.itemId, $event.field)"
+        />
+      } @else {
       @if (nearby().length > 0) {
         <ul data-question-nearby class="m-0 flex list-none flex-col gap-1.5 rounded-xl bg-surface-muted px-3.5 py-2.5 text-[13px] leading-snug">
           @for (n of nearby(); track $index) {
@@ -135,6 +148,7 @@ const MAX_ANSWERS = 3;
           </button>
         }
       </div>
+      }
     }
 
     <app-contract-existing-fields [fields]="existing()" />
@@ -187,6 +201,28 @@ export class ContractQuestionsStep {
   protected readonly certain = computed<SuggestionView[]>(() => this.svc.draft()?.certain ?? []);
   protected readonly existing = this.svc.existingFields;
   protected readonly current = computed(() => this.doubts()[this.index()] ?? null);
+
+  /** Referência escolhida por dado de bloco (só as decisões `driverReferenceN`). */
+  protected readonly references = computed(() => {
+    const out: Record<string, string | undefined> = {};
+    for (const [id, d] of Object.entries(this.svc.decisions())) {
+      if (d.accept && d.field && /^driverReference[1-3]$/.test(d.field)) out[id] = d.field;
+    }
+    return out;
+  });
+
+  protected blockAnswer(id: string): BlockAnswer | null {
+    return this.svc.blockAnswers()[id] ?? null;
+  }
+
+  protected answerBlock(id: string, party: BlockAnswer): void {
+    this.focused.emit(id);
+    this.svc.setBlockAnswer(id, party);
+  }
+
+  protected pickReference(itemId: string, field: string | null): void {
+    this.svc.setItemReference(itemId, field);
+  }
 
   protected readonly foundText = computed(() => {
     const had = this.existing().length;

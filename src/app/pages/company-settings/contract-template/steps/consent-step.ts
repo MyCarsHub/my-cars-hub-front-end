@@ -38,6 +38,20 @@ import { AiProviderView } from '../ai/contract-ai.types';
         }
       </div>
     }
+    @if (realText()) {
+      <p data-masked-summary class="m-0 flex items-start gap-3 rounded-xl bg-surface-muted px-3.5 py-3 text-[15px] leading-normal text-fg-body">
+        <span aria-hidden="true" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200">
+          <app-contract-icon name="lock" [size]="18" />
+        </span>
+        <span class="pt-1">
+          Você vê o seu contrato inteiro {{ where() }}.
+          @if (maskedSummary(); as summary) {
+            Antes de sair daqui, escondemos {{ summary }}.
+          }
+          O que tem o cadeado a IA não recebe.
+        </span>
+      </p>
+    }
     <ul class="m-0 flex list-none flex-col gap-2 p-0">
       @for (row of rows; track row.text) {
         <li class="flex items-start gap-3 rounded-xl bg-surface-muted px-3.5 py-3 text-[15px] leading-normal text-fg-body">
@@ -74,8 +88,13 @@ import { AiProviderView } from '../ai/contract-ai.types';
       />
       <span class="flex flex-col gap-0.5">
         <span class="text-base font-semibold leading-normal text-fg">
-          Li o texto {{ where() }} e as informações acima e autorizo o envio deste texto à {{ recipients() }},
-          nos Estados Unidos, para análise.
+          @if (realText()) {
+            Li as informações acima e autorizo o envio do meu contrato, sem os dados protegidos, à
+            {{ recipients() }}, nos Estados Unidos, para análise.
+          } @else {
+            Li o texto {{ where() }} e as informações acima e autorizo o envio deste texto à {{ recipients() }},
+            nos Estados Unidos, para análise.
+          }
         </span>
         @if (disabled()) {
           <span class="text-[13px] text-fg-muted">Preparando o texto que a IA vai ler…</span>
@@ -95,6 +114,10 @@ export class ContractConsentStep {
   readonly providers = input<readonly AiProviderView[]>([]);
   /** Por que a autorização foi pedida de novo (ex.: o provedor mudou); null = primeira vez. */
   readonly reason = input<string | null>(null);
+  /** «2 CPFs, 4 nomes e 1 endereço»: o que a IA não recebe (`null` sem contagem). */
+  readonly maskedSummary = input<string | null>(null);
+  /** A folha mostra o contrato real (a versão mascarada fica em «Ver como a IA recebe»). */
+  readonly realText = input(false);
   readonly agreedChange = output<boolean>();
 
   /** Nomes dos provedores na frase da autorização; sem rota ainda, o do texto v2. */

@@ -116,6 +116,8 @@ describe('ContractTemplate', () => {
     expect(status?.textContent).toContain('Contrato salvo!');
     expect(status?.textContent).toContain('Os próximos aluguéis já usam este contrato.');
     expect(host.textContent).toContain('novo.docx');
+    // O nome que o servidor devolveu (PDF/MD convertidos viram .docx) aparece no próprio cartão.
+    expect(status?.querySelector('[data-saved-name]')?.textContent?.trim()).toBe('Salvo como «novo.docx».');
     expect(notifications.success).not.toHaveBeenCalled();
 
     host.querySelector<HTMLButtonElement>('[aria-label="Fechar aviso"]')!.click();

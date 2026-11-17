@@ -8,7 +8,7 @@ import {
   input,
   output,
 } from '@angular/core';
-import { PaperParagraph, PaperSegment } from './contract-paper.model';
+import { PROTECTED_TITLE, PaperParagraph, PaperSegment } from './contract-paper.model';
 import { fieldCode, fieldExample } from './contract-fields';
 import { fieldLabel } from './ai/contract-ai.messages';
 import { ContractIcon, ContractIconName } from './contract-icon';
@@ -61,6 +61,18 @@ export type PaperMode = 'example' | 'names';
         </span>
         <span class="text-[15px] font-semibold text-fg-body">{{ title() }}</span>
       </span>
+      @if (aiViewAvailable()) {
+        <button
+          type="button"
+          data-ai-view
+          [attr.aria-pressed]="aiView()"
+          (click)="aiViewChange.emit(!aiView())"
+          class="press inline-flex min-h-[44px] items-center gap-1.5 rounded-xl px-3 text-base font-semibold text-fg-soft transition-colors hover:bg-surface hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        >
+          <app-contract-icon [name]="aiView() ? 'eye' : 'eyeOff'" [size]="18" />
+          {{ aiView() ? 'Ver o meu contrato' : 'Ver como a IA recebe' }}
+        </button>
+      }
       @if (showModeSwitch()) {
         <div
           role="radiogroup"
@@ -163,7 +175,7 @@ export type PaperMode = 'example' | 'names';
               class="m-0 rounded-md doc-serif leading-[1.75] text-fg-body break-words transition-colors duration-300"
               [class]="paragraphClass(p)"
               [attr.data-focus]="p.focus ? 'true' : null"
-            ><!-- Uma linha só: espaço entre os spans viraria espaço no texto do contrato. -->@for (s of p.segments; track $index) {<span [class]="segmentClass(s)" [attr.title]="segmentTitle(s)" [attr.data-focus]="isFocused(s) ? 'true' : null">{{ segmentText(s) }}@if (segmentCode(s); as code) {<span data-field-code class="ml-1 select-all font-mono text-[12px] font-normal text-fg-soft">{{ code }}</span>}</span>}</p>
+            ><!-- Uma linha só: espaço entre os spans viraria espaço no texto do contrato. -->@for (s of p.segments; track $index) {@if (s.kind === 'protected') {<span data-protected [class]="segmentClass(s)" [attr.title]="s.label"><app-contract-icon name="lock" [size]="12" [stroke]="2.5" class="mr-0.5 align-[-1px] text-fg-muted" />{{ s.text }}<span class="sr-only"> ({{ s.label }})</span></span>}@else {<span [class]="segmentClass(s)" [attr.title]="segmentTitle(s)" [attr.data-focus]="isFocused(s) ? 'true' : null">{{ segmentText(s) }}@if (segmentNote(s); as note) {<span data-field-note [class]="noteClass(s)">{{ note }}</span>}@if (segmentCode(s); as code) {<span data-field-code class="ml-1 select-all font-mono text-[12px] font-normal text-fg-soft">{{ code }}</span>}</span>}}</p>
           }
         </article>
       </div>
@@ -187,7 +199,11 @@ export class ContractPaper {
   readonly draft = input(false);
   /** Ao lado da etapa (rolagem até 720px) ou abaixo dela (até 60vh). */
   readonly split = input(false);
+  /** Há a versão mascarada em memória: mostra o botão «Ver como a IA recebe». */
+  readonly aiViewAvailable = input(false);
+  readonly aiView = input(false);
   readonly modeChange = output<PaperMode>();
+  readonly aiViewChange = output<boolean>();
 
   protected readonly onClass = 'bg-surface text-fg shadow-sm';
   protected readonly offClass = 'bg-transparent text-fg-soft hover:text-fg';
@@ -203,6 +219,7 @@ export class ContractPaper {
     let ok = false;
     let doubt = false;
     let hidden = false;
+    let locked = false;
     for (const p of this.paragraphs()) {
       for (const s of p.segments) {
         if (s.kind === 'field') {
@@ -210,6 +227,8 @@ export class ContractPaper {
           else ok = true;
         } else if (s.kind === 'hidden') {
           hidden = true;
+        } else if (s.kind === 'protected') {
+          locked = true;
         }
       }
     }
@@ -217,6 +236,7 @@ export class ContractPaper {
     if (ok) out.push({ key: 'ok', label: 'Preenchido sozinho', swatch: 'border-b-2 border-emerald-500 bg-emerald-100 dark:bg-emerald-500/15' });
     if (doubt) out.push({ key: 'doubt', label: 'Pergunta da IA', swatch: 'border-b-2 border-amber-500 bg-amber-100 dark:bg-amber-500/15' });
     if (hidden) out.push({ key: 'hidden', label: 'Escondido da IA', swatch: 'bg-surface-strong' });
+    if (locked) out.push({ key: 'protected', label: PROTECTED_TITLE, swatch: 'border-b-2 border-dotted border-fg-muted bg-surface-sunken' });
     return out;
   });
 
@@ -256,7 +276,8 @@ export class ContractPaper {
   protected segmentText(s: PaperSegment): string {
     switch (s.kind) {
       case 'field':
-        return this.mode() === 'names' ? fieldLabel(s.field) : fieldExample(s.field);
+        if (this.mode() === 'names') return fieldLabel(s.field);
+        return s.original ?? fieldExample(s.field);
       case 'hidden':
         return s.label;
       default:
@@ -264,7 +285,23 @@ export class ContractPaper {
     }
   }
 
+  /** Contrato real: o valor continua legível e o nome do campo vai ao lado, numa etiqueta. */
+  protected segmentNote(s: PaperSegment): string | null {
+    return s.kind === 'field' && s.original !== undefined && this.mode() === 'example'
+      ? fieldLabel(s.field)
+      : null;
+  }
+
+  protected noteClass(s: PaperSegment): string {
+    const tone =
+      s.kind === 'field' && s.tone === 'doubt'
+        ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200'
+        : 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-900 dark:text-emerald-200';
+    return `ml-1 whitespace-nowrap rounded-full px-1.5 py-px align-[1px] font-sans text-[12px] font-semibold ${tone}`;
+  }
+
   protected segmentTitle(s: PaperSegment): string | null {
+    if (s.kind === 'protected') return s.label;
     return s.kind === 'field' ? fieldLabel(s.field) : null;
   }
 
@@ -278,6 +315,9 @@ export class ContractPaper {
         return s.bold ? 'font-bold' : '';
       case 'hidden':
         return 'rounded-[4px] bg-surface-strong px-1 py-px font-sans text-[13px] font-medium text-fg-soft [box-decoration-break:clone]';
+      case 'protected':
+        // Discreto: o texto real fica legível; só o cadeado e o sublinhado pontilhado marcam.
+        return 'underline decoration-dotted decoration-fg-muted underline-offset-4 [box-decoration-break:clone]';
       case 'kept':
         return s.focus
           ? 'rounded-[3px] bg-amber-50 dark:bg-amber-500/10 outline-2 outline-offset-1 outline-amber-500 [box-decoration-break:clone]'
