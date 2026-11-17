@@ -21,6 +21,7 @@ import { DriverService } from '../../services/driver.service';
 import { InvitesService } from '../../services/invites.service';
 import { SessionService } from '../../services/session.service';
 import { DriverDocumentsCard } from './driver-documents-card';
+import { DriverContactsCard } from './driver-contacts-card';
 import { DriverResponse, DriverStatus, MARITAL_STATUS_LABELS } from '../../types/driver.types';
 import { driverStatusMeta, rentalStatusMeta } from '../../utils/status-maps';
 import { RentalService } from '../rentals/rental.service';
@@ -42,6 +43,7 @@ import { formatPersonName } from '../../utils/display-format';
     AlertBanner,
     InviteShare,
     DriverDocumentsCard,
+    DriverContactsCard,
   ],
   templateUrl: './driver-detail.html',
 })
@@ -230,6 +232,17 @@ export class DriverDetail implements OnInit {
 
   protected dismissSentInvite(): void {
     this.sentInvite.set(null);
+  }
+
+  /** Um contato mudou: recarrega o motorista sem o esqueleto de carregamento. */
+  protected reload(): void {
+    const id = this.driver()?.id;
+    if (!id) return;
+    this.driverService.getOne(id).subscribe({
+      next: (d) => this.driver.set(d),
+      error: (err: HttpErrorResponse) =>
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível atualizar os contatos.')),
+    });
   }
 
   private load(id: string): void {
