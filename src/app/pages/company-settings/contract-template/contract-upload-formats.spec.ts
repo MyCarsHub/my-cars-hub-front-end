@@ -74,6 +74,65 @@ describe('envio do contrato: Word, PDF ou Markdown', () => {
     expect(text).not.toContain('Estamos lendo outros arquivos agora.');
   });
 
+  it('modelo manual: aceita Word (também .docm), PDF e Markdown, e recusa o resto sem enviar', async () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(ContractWordStep);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const step = fixture.componentInstance as unknown as { onFile(f: File): Promise<void> };
+    // Conta os envios e responde cada um (um envio em voo seguraria o seguinte).
+    const posts = () => {
+      const reqs = http.match((r) => r.method === 'POST' && r.url.endsWith('/settings/contract-template'));
+      for (const r of reqs) {
+        r.flush({
+          id: 't1', filename: 'modelo.docx', mimeType: 'x', sizeBytes: 1, uploadedAt: '2026-11-17T10:00:00Z',
+          uploadedBy: null, detectedPlaceholders: [], supportedVariables: [],
+        });
+      }
+      return reqs;
+    };
+
+    expect(host.textContent).toContain('Word, PDF ou Markdown, até 5 MB');
+    const accept = host.querySelector('input[type=file]')?.getAttribute('accept') ?? '';
+    for (const ext of ['.docx', '.docm', '.pdf', '.md']) expect(accept).toContain(ext);
+
+    await step.onFile(new File(['%PDF-1.7\n'], 'modelo.pdf', { type: 'application/pdf' }));
+    expect(posts().length).toBe(1);
+    await step.onFile(new File(['# Contrato\n\nLOCATÁRIO: {{driverName}}'], 'modelo.md', { type: '' }));
+    expect(posts().length).toBe(1);
+    await step.onFile(
+      new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1])], 'modelo.docm', {
+        type: 'application/vnd.ms-word.document.macroEnabled.12',
+      }),
+    );
+    expect(posts().length).toBe(1);
+
+    await step.onFile(new File(['x'], 'modelo.odt', { type: '' }));
+    await step.onFile(new File(['nao e pdf'], 'falso.pdf', { type: 'application/pdf' }));
+    fixture.detectChanges();
+    expect(posts().length).toBe(0);
+    expect(host.textContent).toContain('Este arquivo não parece ser um PDF.');
+  });
+
+  it('modelo manual: PDF convertido avisa com o nome .docx que o servidor devolveu', async () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(ContractWordStep);
+    fixture.detectChanges();
+    const got: string[] = [];
+    fixture.componentInstance.uploaded.subscribe((t) => got.push(t.filename));
+    const step = fixture.componentInstance as unknown as { onFile(f: File): Promise<void> };
+    await step.onFile(new File(['%PDF-1.7\n'], 'modelo.pdf', { type: 'application/pdf' }));
+    http
+      .expectOne((r) => r.method === 'POST' && r.url.endsWith('/settings/contract-template'))
+      .flush({
+        id: 't1', filename: 'modelo.docx', mimeType: 'x', sizeBytes: 1, uploadedAt: '2026-11-17T10:00:00Z',
+        uploadedBy: null, detectedPlaceholders: [], supportedVariables: [],
+      });
+    expect(got).toEqual(['modelo.docx']);
+  });
+
   it('a área de envio diz os três formatos e o limite', () => {
     const fixture = TestBed.createComponent(ContractUploadStep);
     fixture.componentRef.setInput('touch', true);

@@ -93,6 +93,11 @@ type LoadState = 'loading' | 'ready' | 'error';
                       <p class="m-0 text-[15px] leading-snug text-emerald-900 dark:text-emerald-200">
                         Os próximos aluguéis já usam este contrato. Cada um sai preenchido sozinho.
                       </p>
+                      @if (template()?.filename; as savedName) {
+                        <p data-saved-name class="m-0 text-[15px] leading-snug text-emerald-900 dark:text-emerald-200 [overflow-wrap:anywhere]">
+                          Salvo como «{{ savedName }}».
+                        </p>
+                      }
                     </div>
                     <button type="button" (click)="savedNow.set(false)" aria-label="Fechar aviso"
                       class="-mr-1 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">

@@ -5,6 +5,9 @@ export const DOCX_ACCEPT =
   '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 /** «Ajustar o meu contrato»: Word, PDF com texto ou Markdown (o servidor converte PDF e MD). */
 export const CONTRACT_ACCEPT = `${DOCX_ACCEPT},.pdf,application/pdf,.md,text/markdown`;
+const DOCM_MIME = 'application/vnd.ms-word.document.macroEnabled.12';
+/** Modelo manual: também Word com macro (.docm); o servidor tira a macro em silêncio. */
+export const MANUAL_ACCEPT = `${CONTRACT_ACCEPT},.docm,${DOCM_MIME}`;
 
 /**
  * Área de enviar o arquivo do Word (etapa «Enviar» e caminho do Word). Vazia: ícone num
@@ -136,8 +139,12 @@ const PDF_LIKE_TYPES = new Set(['', 'application/pdf', 'application/octet-stream
 const MD_LIKE_TYPES = new Set(['', 'text/markdown', 'text/x-markdown', 'text/plain', 'application/octet-stream']);
 
 /** Formato pelo nome e pelo tipo informado; `null` = fora dos três. Os bytes decidem depois. */
-export function contractFileKind(file: File): ContractFileKind | null {
+export function contractFileKind(file: File, opts: { docm?: boolean } = {}): ContractFileKind | null {
   if (isDocxFile(file)) return 'docx';
+  // .docm é um ZIP como o .docx: a assinatura confere do mesmo jeito.
+  if (opts.docm && /\.docm$/i.test(file.name) && (DOCX_LIKE_TYPES.has(file.type) || file.type.toLowerCase() === DOCM_MIME.toLowerCase())) {
+    return 'docx';
+  }
   if (/\.pdf$/i.test(file.name) && PDF_LIKE_TYPES.has(file.type)) return 'pdf';
   if (/\.(md|markdown)$/i.test(file.name) && MD_LIKE_TYPES.has(file.type)) return 'md';
   return null;
