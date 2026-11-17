@@ -14,11 +14,12 @@ export const AI_SEND_NOTICE = {
   transfer:
     'O texto sai do Brasil com base no seu consentimento (LGPD, art. 33, VIII) e nas garantias contratuais da Anthropic, que não usa o texto para treinar modelos e o apaga em até 30 dias. Pelas regras da própria Anthropic, a exceção é o conteúdo que a lei obrigue a guardar ou que os sistemas automáticos de segurança dela sinalizem como possível violação da política de uso, que pode ser guardado por até 2 anos.',
   hidden:
-    'Vão escondidos: nomes de pessoas e de empresas, endereços, CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números. Vão em claro: datas, valores e o resto do texto.',
+    'Vão escondidos, quando identificados: nomes de pessoas e de empresas, endereços, CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números. Vão em claro: datas, valores e o resto do texto. Um nome escrito sem rótulo nem documento ao lado pode não ser identificado e ir em claro: confira em «Ver como a IA recebe».',
   /** As duas metades de `hidden`, para a tela que mostra cada uma numa linha. */
   masked:
-    'Vão escondidos: nomes de pessoas e de empresas, endereços, CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números.',
-  inClear: 'Vão em claro: datas, valores e o resto do texto.',
+    'Vão escondidos, quando identificados: nomes de pessoas e de empresas, endereços, CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números.',
+  inClear:
+    'Vão em claro: datas, valores e o resto do texto. Um nome escrito sem rótulo nem documento ao lado pode não ser identificado e ir em claro: confira em «Ver como a IA recebe».',
   policyLabel: 'Leia a seção 6 da Política de Privacidade',
   policyHref: '/politica-de-privacidade#analise-de-contrato-com-ia',
   consent:
