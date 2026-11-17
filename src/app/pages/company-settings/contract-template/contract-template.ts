@@ -5,6 +5,7 @@ import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../../services/notification.service';
+import { ImpersonationService } from '../../../services/impersonation.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
@@ -132,11 +133,13 @@ type LoadState = 'loading' | 'ready' | 'error';
                         <app-contract-icon name="eye" [size]="18" />
                         Abrir contrato
                       </button>
+                      @if (!supportSession()) {
                       <button type="button" (click)="deleteOpen.set(true)"
                         class="press inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-edge-strong bg-surface px-5 text-base font-medium text-fg-body hover:border-rose-300 dark:hover:border-rose-500/40 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-800 dark:hover:text-rose-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @md:col-span-2 @3xl:col-span-1">
                         <app-contract-icon name="trash" [size]="18" />
                         Remover
                       </button>
+                      }
                     </div>
                   </div>
                 } @else {
@@ -177,6 +180,14 @@ export class ContractTemplate implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly preview = inject(DocumentPreviewService);
+  private readonly impersonation = inject(ImpersonationService);
+
+  /**
+   * Sessão de suporte («Ver como», leitura ou edição): «Remover» some. O suporte sobe e troca o
+   * contrato, mas não o apaga (auditoria 16/11, M3); o servidor recusa de qualquer jeito.
+   * `?.` porque dublês de spec antigos não conhecem `active`.
+   */
+  protected readonly supportSession = () => this.impersonation.active?.() === true;
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly template = signal<ContractTemplateDto | null>(null);
