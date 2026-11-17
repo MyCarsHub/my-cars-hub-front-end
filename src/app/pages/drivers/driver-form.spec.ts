@@ -546,6 +546,20 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
     return input;
   }
 
+  function relationshipSelect(i: number): HTMLSelectElement {
+    const select = el().querySelector<HTMLSelectElement>(
+      `#motorista-contato-terceiro-parentesco-${i}`,
+    );
+    if (!select) throw new Error(`select de parentesco do contato ${i} não está na tela`);
+    return select;
+  }
+
+  function choose(select: HTMLSelectElement, value: string): void {
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  }
+
   function typeInto(input: HTMLInputElement, value: string): void {
     input.value = value;
     input.dispatchEvent(new Event('input'));
@@ -629,16 +643,36 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
     typeInto(phoneInput(0), '(11) 98765-4321');
     typeInto(nameInput(1), 'José Souza');
     typeInto(phoneInput(1), '1132654321');
+    choose(relationshipSelect(0), 'MOTHER');
+    choose(relationshipSelect(1), 'MALE_FRIEND');
 
     submit();
 
     expect(create).toHaveBeenCalledTimes(1);
     const payload = create.mock.calls[0][0] as CreateDriverRequest;
     expect(payload.thirdPartyContacts).toEqual([
-      { fullName: 'Maria da Silva', phone: '11987654321' },
-      { fullName: 'José Souza', phone: '1132654321' },
+      { fullName: 'Maria da Silva', phone: '11987654321', relationship: 'MOTHER' },
+      { fullName: 'José Souza', phone: '1132654321', relationship: 'MALE_FRIEND' },
     ]);
     expect(navigate).toHaveBeenCalledWith(['/motoristas', 'drv-9']);
+  });
+
+  it('o grau de parentesco é obrigatório no contato novo e lista os 15 graus do dono', () => {
+    fillValidForm();
+    addContact();
+    typeInto(nameInput(0), 'Maria da Silva');
+    typeInto(phoneInput(0), '11987654321');
+
+    submit();
+
+    expect(create).not.toHaveBeenCalled();
+    const labels = Array.from(relationshipSelect(0).options)
+      .filter((o) => o.value !== '')
+      .map((o) => o.textContent?.trim());
+    expect(labels).toEqual([
+      'Pai', 'Mãe', 'Filho', 'Filha', 'Avô', 'Avó', 'Irmão', 'Irmã',
+      'Primo', 'Prima', 'Tia', 'Tio', 'Amigo', 'Amiga', 'Outro',
+    ]);
   });
 
   it('sem contatos, o POST leva a lista vazia (nunca null)', () => {

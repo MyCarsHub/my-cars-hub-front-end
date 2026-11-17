@@ -12,6 +12,8 @@ import {
   DriverListItem,
   DriverResponse,
   DriverStatus,
+  ThirdPartyContact,
+  ThirdPartyContactPayload,
   UpdateDriverRequest,
 } from '../types/driver.types';
 import { TenantResetRegistry } from './tenant-reset.registry';
@@ -164,6 +166,28 @@ export class DriverService {
   deleteDocument(driverId: string, documentId: string): Observable<void> {
     return this.http
       .delete(`${BASE}/${driverId}/documents/${documentId}`, { responseType: 'text' })
+      .pipe(map(() => void 0));
+  }
+
+  // ------------------------------------------------- contatos de terceiros
+
+  /** Acrescenta um contato depois do cadastro (teto de 3 no servidor; o 4º é 400). */
+  addContact(driverId: string, payload: ThirdPartyContactPayload): Observable<ThirdPartyContact> {
+    return this.http.post<ThirdPartyContact>(`${BASE}/${driverId}/contacts`, payload);
+  }
+
+  updateContact(
+    driverId: string,
+    contactId: string,
+    payload: ThirdPartyContactPayload,
+  ): Observable<ThirdPartyContact> {
+    return this.http.put<ThirdPartyContact>(`${BASE}/${driverId}/contacts/${contactId}`, payload);
+  }
+
+  /** Os contatos seguintes sobem uma posição no servidor; recarregue o motorista depois. */
+  deleteContact(driverId: string, contactId: string): Observable<void> {
+    return this.http
+      .delete(`${BASE}/${driverId}/contacts/${contactId}`, { responseType: 'text' })
       .pipe(map(() => void 0));
   }
 }
