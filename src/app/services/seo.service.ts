@@ -45,8 +45,8 @@ export function brandedTitle(pageTitle?: string): string {
 
 /** Fallback description — mirrors the static one in `src/index.html`. */
 export const DEFAULT_DESCRIPTION =
-  'MyCarsHub — sistema para quem aluga carros para motoristas de aplicativo: ' +
-  'contratos, cobranças, multas, manutenções e vistorias em um só lugar.';
+  'MyCarsHub, sistema para locadora de carros de aplicativo: gestão de aluguel de ' +
+  'veículos com contratos, cobranças, multas, manutenção e vistoria.';
 
 /** Per-route SEO payload, carried in `Route.data.seo`. */
 export interface RouteSeo {

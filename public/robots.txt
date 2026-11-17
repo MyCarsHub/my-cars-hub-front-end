@@ -44,6 +44,17 @@
 # `Disallow: /invite/` below. That rule is not hiding a URL and is not about indexing —
 # do not delete it as "a path leak".
 
+# --------------------------------------------------------------------------------------
+# AI CRAWLERS ARE ALLOWED ON PURPOSE (GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot,
+# Google-Extended, Bingbot...). Being cited by ChatGPT, Gemini, Perplexity and Copilot is
+# part of how a buyer searching "sistema para locadora" finds us. The summary written for
+# them lives in /llms.txt.
+#
+# Do NOT add a per-bot `User-agent:` group to "allow" one of them: a crawler obeys ONLY
+# the most specific group that names it, so a named group silently DROPS every rule below
+# for that bot. One `*` group is the whole policy.
+# --------------------------------------------------------------------------------------
+
 User-agent: *
 
 # Backend, proxied through the SPA origin (see the rewrite in vercel.json). Not a secret —

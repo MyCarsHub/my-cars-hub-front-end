@@ -33,6 +33,8 @@ export const routes: Routes = [
         // `noindex, nofollow` and no canonical from `PageTitleStrategy` — fail-closed, so
         // the authenticated tree can never leak into Google by someone forgetting a flag.
         // Prerendered at build time; see `app.routes.server.ts`.
+        // A new public route must also be listed in `public/sitemap.xml` and
+        // `public/llms.txt` (public URLs only, pt-BR, never a private path).
         path: '',
         pathMatch: 'full',
         loadComponent: () =>
@@ -40,12 +42,15 @@ export const routes: Routes = [
                 (m) => m.LandingComponent
             ),
         data: {
-            pageTitle: 'Aluguel de carros para motoristas de aplicativo',
+            // The title names what the BUYER searches ("sistema para locadora"), not what
+            // the driver searches ("aluguel de carros", owned by 99/Uber/Localiza). Keep the
+            // full branded title within ~60 chars so Google does not truncate it.
+            pageTitle: 'Sistema para locadora de carros de aplicativo',
             seo: {
                 description:
-                    'Gerencie o aluguel dos seus carros para motoristas de aplicativo: ' +
-                    'contratos, cobranças, multas, manutenções e vistorias num sistema só — ' +
-                    'mesmo que você tenha só 1 carro. Teste 14 dias grátis, sem cartão.',
+                    'Sistema de gestão de aluguel de veículos para quem aluga carro a ' +
+                    'motorista de app: contratos, cobranças, multas, manutenção e vistoria. ' +
+                    'Teste grátis.',
                 canonicalPath: '/',
             },
         },

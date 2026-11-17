@@ -20,9 +20,9 @@ const FAQ_ID = `${SITE_ORIGIN}/#faq`;
 const PRICING_URL = `${SITE_ORIGIN}/#planos`;
 
 const SOFTWARE_DESCRIPTION =
-  'Plataforma de gestão para quem aluga carros para motoristas de aplicativo: cadastro ' +
-  'de veículos e motoristas, aluguéis e contratos, cobranças automáticas, multas, ' +
-  'manutenções e relatórios — de 1 carro a uma frota inteira.';
+  'Sistema para locadora de veículos que aluga carros para motoristas de aplicativo: ' +
+  'gestão de aluguel com cadastro de veículos e motoristas, contratos, cobranças ' +
+  'automáticas, multas, manutenções, vistorias e relatórios — de 1 carro a uma frota inteira.';
 
 export function organizationJsonLd(): unknown {
   return {
@@ -86,7 +86,7 @@ export function softwareApplicationJsonLd(): unknown {
     name: 'MyCarsHub',
     url: `${SITE_ORIGIN}/`,
     applicationCategory: 'BusinessApplication',
-    applicationSubCategory: 'Fleet & rental management',
+    applicationSubCategory: 'Sistema para locadora de veículos',
     operatingSystem: 'Web',
     inLanguage: 'pt-BR',
     description: SOFTWARE_DESCRIPTION,
