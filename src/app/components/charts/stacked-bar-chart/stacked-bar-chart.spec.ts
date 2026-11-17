@@ -55,4 +55,31 @@ describe('StackedBarChart', () => {
     expect(el.textContent).toContain('Sem dados no período.');
     expect(el.querySelector('ul')).toBeNull();
   });
+
+  describe('columns layout', () => {
+    function cols(rows: StackRow[]) {
+      const fixture = TestBed.createComponent(StackedBarChart);
+      fixture.componentRef.setInput('rows', rows);
+      fixture.componentRef.setInput('layout', 'columns');
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('draws one column per row, parts as heights on the shared scale', () => {
+      const el = cols(ROWS);
+      expect(el.querySelectorAll('[data-stack-column]')).toHaveLength(2);
+      const segs = el.querySelectorAll<HTMLElement>('[data-segment]');
+      expect(segs[0].style.height).toBe('75%');
+      expect(segs[2].style.height).toBe('50%');
+      expect(el.querySelector('[data-stack-column]')!.getAttribute('aria-label')).toBe(
+        'Janeiro: 40 (Pago 30, Em aberto 10)',
+      );
+    });
+
+    it('nothing above zero shows the empty copy, not a flat plot', () => {
+      const el = cols([{ label: 'Jan', segments: [{ key: 'a', label: 'A', value: 0, color: '#000' }] }]);
+      expect(el.querySelector('[data-stack-columns]')).toBeNull();
+      expect(el.querySelector('[data-empty]')?.textContent).toContain('Sem dados no período.');
+    });
+  });
 });
