@@ -14,6 +14,7 @@ import { AdminCapabilitiesService } from '../../services/admin-capabilities.serv
 import { AdminCapabilityCode } from '../../types/admin-roles.types';
 import { DailyCount } from '../../types/admin-overview.types';
 import { ApiErrorService } from '../../services/api-error.service';
+import { AdminRevenueSection } from './revenue/admin-revenue-section';
 
 interface AdminSection {
   route: string | null;
@@ -148,7 +149,7 @@ interface VolumeStat {
 @Component({
   selector: 'app-admin-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, PageCard, RouterLink, LineChart],
+  imports: [DefaultPageLayout, PageCard, RouterLink, LineChart, AdminRevenueSection],
   templateUrl: './admin-home.html',
 })
 export class AdminHome implements OnInit {
