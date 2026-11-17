@@ -55,6 +55,8 @@ import {
   DriverStatus,
   LicenseCategory,
   MARITAL_STATUS_OPTIONS,
+  CONTACT_RELATIONSHIP_OPTIONS,
+  ContactRelationship,
   MAX_NATIONALITY_LENGTH,
   MAX_THIRD_PARTY_CONTACTS,
   MaritalStatus,
@@ -116,6 +118,7 @@ interface PendingDriverFile {
 type ThirdPartyContactGroup = FormGroup<{
   fullName: FormControl<string>;
   phone: FormControl<string>;
+  relationship: FormControl<ContactRelationship | ''>;
 }>;
 
 @Component({
@@ -149,6 +152,7 @@ export class DriverForm implements OnInit {
   protected readonly statuses = STATUSES;
   protected readonly ufs = UFS;
   protected readonly maritalStatuses = MARITAL_STATUS_OPTIONS;
+  protected readonly relationships = CONTACT_RELATIONSHIP_OPTIONS;
 
   protected readonly editingId = signal<string | null>(null);
   protected readonly isEdit = computed(() => this.editingId() !== null);
@@ -281,6 +285,9 @@ export class DriverForm implements OnInit {
   protected readonly contactNameMessages: Readonly<Record<string, string>> = {
     required: 'Informe o nome completo do contato.',
   };
+  protected readonly relationshipMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o grau de parentesco.',
+  };
 
   // Máscaras visuais — o form control guarda só dígitos (telefone) / alfanumérico (CNH/doc).
   protected readonly phoneDisplay = signal('');
@@ -374,6 +381,9 @@ export class DriverForm implements OnInit {
       fullName: ['', [Validators.required, Validators.maxLength(180)]],
       // Validação idêntica ao telefone principal do form.
       phone: ['', [Validators.required, Validators.pattern(/^\d{10,11}$/)]],
+      // Obrigatório para contato novo (decisão do dono, 16/11); o servidor aceita ausente só
+      // por compatibilidade com cliente antigo.
+      relationship: ['' as ContactRelationship | '', [Validators.required]],
     });
   }
 
@@ -675,6 +685,7 @@ export class DriverForm implements OnInit {
         thirdPartyContacts: raw.thirdPartyContacts.map((c) => ({
           fullName: c.fullName.trim(),
           phone: c.phone.trim(),
+          relationship: c.relationship || null,
         })),
       };
       this.saveChildren(this.driverService.create(payload));

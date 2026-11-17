@@ -249,6 +249,26 @@
                              focus:outline-none focus:ring-2 focus:ring-primary-500/20
                              focus:border-primary-500 transition-colors disabled:opacity-60" />
                   </app-form-field>
+
+                  <app-form-field
+                    label="Grau de parentesco"
+                    [controlId]="'motorista-contato-terceiro-parentesco-' + i"
+                    [required]="true"
+                    [control]="group.controls.relationship"
+                    [messages]="relationshipMessages"
+                  >
+                    <select
+                      appFieldControl
+                      [formControl]="group.controls.relationship"
+                      class="w-full bg-surface border rounded-xl px-4 py-3 text-fg-body
+                             focus:ring-2 focus:ring-primary-600 focus:border-primary-600
+                             transition-colors disabled:opacity-60">
+                      <option value="">Selecione</option>
+                      @for (opt of relationships; track opt.value) {
+                        <option [value]="opt.value">{{ opt.label }}</option>
+                      }
+                    </select>
+                  </app-form-field>
                 </div>
               </div>
             }

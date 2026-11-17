@@ -49,14 +49,56 @@ export interface DocumentInputPayload {
  * Contato de terceiro do motorista (FEAT-0066/0067) — referência de emergência
  * ou aval, não é o contato do próprio motorista.
  *
- * Contrato do backend: viaja DENTRO do POST /drivers (não é chamada separada),
- * máximo 3 por motorista (o servidor devolve 400 no 4º) e a ordem de exibição
+ * Contrato do backend: no cadastro viaja DENTRO do POST /drivers; depois do cadastro,
+ * `/drivers/{driverId}/contacts` acrescenta, edita e remove. Máximo 3 por motorista (o servidor devolve 400 no 4º) e a ordem de exibição
  * É a ordem do array — o servidor preserva a ordem enviada.
  */
 export interface ThirdPartyContact {
+  /** Id da linha — só na resposta; é a chave do editar/remover no detalhe. */
+  id?: string | null;
   fullName: string;
   phone: string;
+  /**
+   * Grau de parentesco (código). Nulo nos contatos cadastrados antes do campo existir; obrigatório
+   * na tela para contato novo ou editado.
+   */
+  relationship?: ContactRelationship | null;
 }
+
+/** Corpo do POST/PUT de `/drivers/{driverId}/contacts` — parentesco obrigatório. */
+export interface ThirdPartyContactPayload {
+  fullName: string;
+  phone: string;
+  relationship: ContactRelationship;
+}
+
+export type ContactRelationship =
+  | 'FATHER' | 'MOTHER' | 'SON' | 'DAUGHTER' | 'GRANDFATHER' | 'GRANDMOTHER'
+  | 'BROTHER' | 'SISTER' | 'MALE_COUSIN' | 'FEMALE_COUSIN' | 'AUNT' | 'UNCLE'
+  | 'MALE_FRIEND' | 'FEMALE_FRIEND' | 'OTHER';
+
+/** Graus de parentesco, na ordem aprovada pelo dono (16/11); rótulos únicos para form e detalhe. */
+export const CONTACT_RELATIONSHIP_OPTIONS: ReadonlyArray<{ value: ContactRelationship; label: string }> = [
+  { value: 'FATHER', label: 'Pai' },
+  { value: 'MOTHER', label: 'Mãe' },
+  { value: 'SON', label: 'Filho' },
+  { value: 'DAUGHTER', label: 'Filha' },
+  { value: 'GRANDFATHER', label: 'Avô' },
+  { value: 'GRANDMOTHER', label: 'Avó' },
+  { value: 'BROTHER', label: 'Irmão' },
+  { value: 'SISTER', label: 'Irmã' },
+  { value: 'MALE_COUSIN', label: 'Primo' },
+  { value: 'FEMALE_COUSIN', label: 'Prima' },
+  { value: 'AUNT', label: 'Tia' },
+  { value: 'UNCLE', label: 'Tio' },
+  { value: 'MALE_FRIEND', label: 'Amigo' },
+  { value: 'FEMALE_FRIEND', label: 'Amiga' },
+  { value: 'OTHER', label: 'Outro' },
+];
+
+export const CONTACT_RELATIONSHIP_LABELS: Readonly<Record<ContactRelationship, string>> = Object.fromEntries(
+  CONTACT_RELATIONSHIP_OPTIONS.map((o) => [o.value, o.label]),
+) as Record<ContactRelationship, string>;
 
 /** Teto do servidor para `thirdPartyContacts` — o 4º é 400. */
 export const MAX_THIRD_PARTY_CONTACTS = 3;

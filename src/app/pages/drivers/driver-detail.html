@@ -198,29 +198,13 @@
         </div>
       </app-page-card>
 
-      <!-- Contatos de terceiros (FEAT-0067) — na ordem do array: o servidor
-           preserva a ordem enviada no cadastro. -->
-      <app-page-card title="Contatos de terceiros">
-        <div class="p-4 sm:p-6">
-          @if (thirdPartyContacts().length === 0) {
-            <p class="text-sm text-fg-subtle">Nenhum contato de terceiro cadastrado.</p>
-          } @else {
-            <ul class="space-y-3" data-third-party-contacts>
-              @for (contact of thirdPartyContacts(); track $index) {
-                <li>
-                  <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">
-                    Contato {{ $index + 1 }}
-                  </p>
-                  <p class="text-fg font-medium break-words">{{ contact.fullName | personName }}</p>
-                  <p class="text-sm text-fg-muted tabular-nums">
-                    {{ formatPhone(contact.phone) }}
-                  </p>
-                </li>
-              }
-            </ul>
-          }
-        </div>
-      </app-page-card>
+      <!-- Contatos de terceiros (FEAT-0067; parentesco e editar/remover, V149) — na ordem do
+           servidor. -->
+      <app-driver-contacts-card
+        [driverId]="d.id"
+        [contacts]="thirdPartyContacts()"
+        (changed)="reload()"
+      />
 
       <!-- Endereço -->
       <app-page-card title="Endereço">
