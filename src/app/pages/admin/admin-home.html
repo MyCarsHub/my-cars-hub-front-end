@@ -362,17 +362,22 @@
     <!-- A tabela de empresas tem dez colunas: largura inteira, para caber sem rolar. -->
     <app-home-companies [scope]="scope()" (rowsChange)="onCompanyRows($event)" />
 
-    <!-- Pares de altura parecida e cada cartão na altura do conteúdo (sem miolo vazio). -->
+    <!-- Duas colunas independentes, cada cartão na altura do conteúdo: sem miolo vazio nem buraco
+         entre fileiras. Os pares somam alturas parecidas (ranking + estados, vencimentos + mapa). -->
     <div class="grid gap-3 grid-cols-1 lg:grid-cols-2 items-start" data-home-usage-pairs>
-      <app-home-top-users [usage]="usage()" [loading]="usageLoading()" />
-      <app-home-upcoming
-        [scope]="scope()"
-        [reloadKey]="upcomingReloadKey()"
-        [canManage]="canManageCosts()"
-        (askBillingDay)="askBillingDay()"
-      />
-      <app-home-activity-map [usage]="usage()" [loading]="usageLoading()" />
-      <app-home-ufs [usage]="usage()" [loading]="usageLoading()" />
+      <div class="flex flex-col gap-3 min-w-0">
+        <app-home-top-users [usage]="usage()" [loading]="usageLoading()" />
+        <app-home-ufs [usage]="usage()" [loading]="usageLoading()" />
+      </div>
+      <div class="flex flex-col gap-3 min-w-0">
+        <app-home-upcoming
+          [scope]="scope()"
+          [reloadKey]="upcomingReloadKey()"
+          [canManage]="canManageCosts()"
+          (askBillingDay)="askBillingDay()"
+        />
+        <app-home-activity-map [usage]="usage()" [loading]="usageLoading()" />
+      </div>
     </div>
 
     <app-home-movements [scope]="scope()" [from]="movementsFrom()" />
