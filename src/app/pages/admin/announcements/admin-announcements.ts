@@ -1,11 +1,26 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { Observable } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
-import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { BackLink } from '../../../components/core/back-link/back-link';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
-import { PillTabOption, PillTabs } from '../../../components/core/pill-tabs/pill-tabs';
+import { PageCard } from '../../../components/core/page-card/page-card';
 import { StatusChip } from '../../../components/core/status-chip/status-chip';
+import type { FilterChipOption } from '../../../components/filter-chip-group/filter-chip-group';
+import {
+  DataList,
+  DataListActions,
+  DataListCell,
+  type DataListColumn,
+} from '../../../components/lists/data-list/data-list';
+import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
+import { ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { NotificationService } from '../../../services/notification.service';
@@ -15,6 +30,7 @@ import {
   STATUS_LABEL,
   StatusChipStyle,
   audienceLabel,
+  periodExact,
   periodLabel,
   periodSub,
   statusChip,
@@ -32,8 +48,27 @@ interface Row {
   audSub: string;
   period: string;
   periodSub: string;
+  /** "Publicada em 12/11/2026 às 10:00", no balão do período. */
+  periodExact: string | null;
   status: string;
   chip: StatusChipStyle;
+}
+
+const COLUMNS: readonly DataListColumn<Row>[] = [
+  { key: 'title', header: 'Novidade', primary: true, value: (r) => r.a.title },
+  { key: 'audience', header: 'Público', value: (r) => r.aud },
+  { key: 'period', header: 'Período', value: (r) => `${r.period} (${r.periodSub})` },
+  { key: 'status', header: 'Situação', kind: 'status', value: (r) => r.status },
+  { key: 'reads', header: 'Leituras', kind: 'integer', end: true, value: (r) => r.a.readCount ?? 0 },
+];
+
+/** Busca sem acento e sem caixa. */
+function normalize(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
 }
 
 interface SheetState {
@@ -50,6 +85,10 @@ interface ConfirmState {
  * Admin → Novidades (prancha NovidadesAdmin): lista com filtro por situação, ações da linha no
  * menu ⋮ (mudam conforme a situação), folha com prévia para criar/editar. Só o Dono
  * (`novidades.gerir`); a rota e o menu escondem, o servidor confere de novo.
+ *
+ * Padrão da plataforma (auditoria 18/11, D1): `app-page-card "Lista"` + `app-list-toolbar`
+ * (busca e pílulas de situação) + `app-data-list` (tabela a partir de 1024px, cartões abaixo,
+ * sem linhas, kebab por linha). A lista inteira vem de uma vez: filtrar aqui é exato.
  */
 @Component({
   selector: 'app-admin-announcements',
@@ -58,11 +97,15 @@ interface ConfirmState {
   imports: [
     DefaultPageLayout,
     AlertBanner,
-    ActionsMenu,
     BackLink,
     ConfirmDialog,
-    PillTabs,
+    PageCard,
     StatusChip,
+    DataList,
+    DataListActions,
+    DataListCell,
+    DataListMenuItem,
+    ListToolbar,
     AnnouncementSheet,
   ],
   templateUrl: './admin-announcements.html',
@@ -85,20 +128,43 @@ export class AdminAnnouncements implements OnInit {
 
   private readonly today = todayIso();
 
-  protected readonly tabs = computed<readonly PillTabOption<Filter>[]>(() => {
-    const list = this.items();
+  protected readonly columns = COLUMNS;
+  protected readonly rowId = (row: Row): string => row.a.id;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (row: Row): string => `Ações da novidade ${row.a.title}`;
+  protected readonly search = signal('');
+  /** Troca a cada mudança de situação: a lista é refeita e a cascata de entrada recomeça. */
+  private readonly epoch = signal(0);
+  protected readonly epochs = computed(() => [{ id: this.epoch() }]);
+
+  /** Lista já buscada pelo texto (título, texto e itens); a situação é aplicada depois. */
+  private readonly searched = computed(() => {
+    const t = normalize(this.search());
+    if (!t) return this.items();
+    return this.items().filter((a) =>
+      [a.title, a.body, ...(a.items ?? [])].some((text) => normalize(text ?? '').includes(t)),
+    );
+  });
+
+  /** Pílulas de situação; cada uma conta o que aparece ao escolhê-la (busca já aplicada). */
+  protected readonly statusOptions = computed<readonly FilterChipOption<Filter>[]>(() => {
+    const list = this.searched();
     const n = (s: AnnouncementStatus) => list.filter((a) => a.status === s).length;
     return [
-      { value: 'ALL', label: 'Todas', count: list.length, testId: 'tab-ALL' },
-      { value: 'DRAFT', label: 'Rascunhos', count: n('DRAFT'), testId: 'tab-DRAFT' },
-      { value: 'PUBLISHED', label: 'Publicadas', count: n('PUBLISHED'), testId: 'tab-PUBLISHED' },
-      { value: 'EXPIRED', label: 'Encerradas', count: n('EXPIRED'), testId: 'tab-EXPIRED' },
+      { value: 'ALL', label: 'Todas', count: list.length },
+      { value: 'DRAFT', label: 'Rascunhos', count: n('DRAFT') },
+      { value: 'PUBLISHED', label: 'Publicadas', count: n('PUBLISHED') },
+      { value: 'EXPIRED', label: 'Encerradas', count: n('EXPIRED') },
     ];
   });
 
+  protected readonly anyFilter = computed(
+    () => this.search().trim() !== '' || this.filter() !== 'ALL',
+  );
+
   protected readonly rows = computed<Row[]>(() => {
     const f = this.filter();
-    return this.items()
+    return this.searched()
       .filter((a) => f === 'ALL' || a.status === f)
       .map((a) => {
         const aud = audienceLabel(a.audiences ?? []);
@@ -109,15 +175,11 @@ export class AdminAnnouncements implements OnInit {
           audSub: aud.sub,
           period: periodLabel(a),
           periodSub: periodSub(a, this.today),
+          periodExact: periodExact(a),
           status: STATUS_LABEL[a.status],
           chip: statusChip(a.status),
         };
       });
-  });
-
-  protected readonly footer = computed(() => {
-    const n = this.rows().length;
-    return `${n} ${n === 1 ? 'novidade' : 'novidades'} · a mais recente primeiro`;
   });
 
   protected readonly confirmTitle = computed(() =>
@@ -151,7 +213,18 @@ export class AdminAnnouncements implements OnInit {
   }
 
   protected setFilter(f: Filter): void {
+    if (f === this.filter()) return;
     this.filter.set(f);
+    this.epoch.update((n) => n + 1);
+  }
+
+  protected setQuery(q: string): void {
+    this.search.set(q);
+  }
+
+  protected clearFilters(): void {
+    this.search.set('');
+    this.setFilter('ALL');
   }
 
   protected openNew(): void {
@@ -162,6 +235,11 @@ export class AdminAnnouncements implements OnInit {
   protected open(a: AdminAnnouncement): void {
     this.actionError.set(null);
     this.sheet.set({ announcement: a, duplicate: false });
+  }
+
+  /** Toque/clique na linha (fora do título e do menu) abre a mesma folha do título. */
+  protected openRow(row: Row): void {
+    this.open(row.a);
   }
 
   protected duplicate(a: AdminAnnouncement): void {

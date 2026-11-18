@@ -19,6 +19,17 @@ function render(opts: { hero?: boolean; limit?: number; items?: RankingItem[] } 
   return fixture.nativeElement as HTMLElement;
 }
 
+
+/** Tooltip as text: "title | series value | ..." (the template has no spaces between nodes). */
+function readTip(root: Element | null | undefined): string | null {
+  if (!root) return null;
+  const title = root.querySelector('[data-tip-title]')?.textContent?.trim() ?? '';
+  const rows = [...root.querySelectorAll('[data-tip-row]')].map((r) =>
+    [...r.children].map((c) => c.textContent!.trim()).filter(Boolean).join(' '),
+  );
+  return [title, ...rows].join(' | ').replace(/\s+/g, ' ');
+}
+
 describe('RankingCard', () => {
   it('numbers the rows from 1 and shows name, sub and value', () => {
     const rows = render().querySelectorAll('[data-rank-row]');
@@ -98,5 +109,44 @@ describe('RankingCard podium', () => {
     const h2 = podium().querySelector('h2')!;
     expect(h2.className).toContain('truncate');
     expect(h2.getAttribute('title')).toBe('Top 5 motoristas por receita');
+  });
+});
+
+describe('RankingCard bars: full value on hover, tap or focus', () => {
+  const BARS: RankingItem[] = [
+    { id: 'a', name: 'Onix', sub: 'ABC-1234', value: 'R$ 12.345,67', short: 'R$ 12,3k', amount: 1234567 },
+    { id: 'b', name: 'Argo', value: 'R$ 8.000,00', short: 'R$ 8k', amount: 800000 },
+  ];
+
+  function bars() {
+    const fixture = TestBed.createComponent(RankingCard);
+    fixture.componentRef.setInput('title', 'Top veículos');
+    fixture.componentRef.setInput('items', BARS);
+    fixture.componentRef.setInput('layout', 'bars');
+    fixture.detectChanges();
+    return { fixture, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('each bar is focusable and its tooltip says the full value', () => {
+    const { fixture, el } = bars();
+    const row = el.querySelector<HTMLElement>('[data-rank-row]')!;
+    expect(row.getAttribute('tabindex')).toBe('0');
+    expect(el.querySelector('[data-chart-tooltip]')).toBeNull();
+    row.dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    const tip = readTip(el.querySelector('[data-chart-tooltip]'))!;
+    expect(tip).toContain('Onix');
+    expect(tip).toContain('ABC-1234 R$ 12.345,67');
+    row.dispatchEvent(new FocusEvent('blur'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-chart-tooltip]')).toBeNull();
+  });
+
+  it('screen readers get the full value, not the short label', () => {
+    const { el } = bars();
+    const row = el.querySelector<HTMLElement>('[data-rank-row]')!;
+    const srTexts = [...row.querySelectorAll('.sr-only')].map((n) => n.textContent);
+    expect(srTexts).toContain('R$ 12.345,67');
+    expect(row.querySelector('[aria-hidden="true"]')!.textContent).toContain('R$ 12,3k');
   });
 });

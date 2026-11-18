@@ -18,6 +18,16 @@ const BASE =
   'transition-colors duration-300 motion-reduce:transition-none';
 
 /**
+ * `wrap`: rótulo longo quebra em mais de uma linha dentro da coluna em vez de ser cortado.
+ * Altura mínima no lugar da fixa; `rounded-xl` (12px) é igual a `rounded-full` numa linha só
+ * (o chip tem 22-26px) e não vira uma bolha em duas.
+ */
+const WRAP_BASE =
+  'inline-flex items-center rounded-xl font-semibold whitespace-normal break-words ' +
+  '[overflow-wrap:anywhere] max-w-full min-w-0 text-left leading-tight ' +
+  'transition-colors duration-300 motion-reduce:transition-none';
+
+/**
  * Chip de situação: só texto sobre o fundo tingido. Sem bolinha, por decisão do dono:
  * a cor já diz o estado, e o texto já diz qual.
  *
@@ -34,9 +44,16 @@ export class StatusChip {
   readonly tone = input<StatusChipTone>('neutral');
   readonly size = input<'sm' | 'md'>('md');
   readonly colorClass = input<string | null>(null);
+  /** Opt-in: o rótulo quebra linha em vez de passar da coluna (texto longo, celular). */
+  readonly wrap = input(false);
 
   protected readonly hostClass = computed(() => {
+    const color = this.colorClass() ?? TONE[this.tone()];
+    if (this.wrap()) {
+      const size = this.size() === 'sm' ? 'min-h-[22px] py-0.5 px-2 text-xs' : 'min-h-[26px] py-1 px-2.5 text-[12.5px]';
+      return `${WRAP_BASE} ${size} ${color}`;
+    }
     const size = this.size() === 'sm' ? 'h-[22px] px-2 text-xs' : 'h-[26px] px-2.5 text-[12.5px]';
-    return `${BASE} ${size} ${this.colorClass() ?? TONE[this.tone()]}`;
+    return `${BASE} ${size} ${color}`;
   });
 }

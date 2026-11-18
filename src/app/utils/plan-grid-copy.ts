@@ -1,5 +1,5 @@
 import { PLAN_CAPACITY, PlanTier, planCapacityLines } from './plan-limits';
-import { PLAN_TIER_ORDER, hasPrioritySupport } from './plan-features';
+import { PLAN_TIER_ORDER, hasPrioritySupport, planTierOf } from './plan-features';
 
 /**
  * Texto da grade de planos — a MESMA na Assinatura (app) e na landing, para as
@@ -22,6 +22,17 @@ export const PLAN_COPY: Readonly<Record<PlanTier, { name: string; pitch: string 
     pitch: `Para frotas acima de ${PLAN_CAPACITY.SCALE.vehicles} carros.`,
   },
 };
+
+/**
+ * O nome do plano como a tela escreve ("Pro", "Starter", "Teste"), a partir do `plans.name` ou,
+ * se ele não disser o tier, do prefixo do código (`PRO_MONTHLY_STRIPE` → "Pro"). Nome fora dos
+ * tiers volta como veio; o código cru nunca aparece no lugar do nome.
+ */
+export function planDisplayName(planName: string | null | undefined, planCode?: string | null): string {
+  const tier = planTierOf(planName) ?? planTierOf(planCode?.split('_')[0]);
+  if (tier) return PLAN_COPY[tier].name;
+  return planName?.trim() || '—';
+}
 
 /**
  * As seis linhas de uma coluna. Iguais em todos os planos para alinhar a grade;

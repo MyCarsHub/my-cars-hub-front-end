@@ -23,10 +23,12 @@ import { AdminContactService, withWhatsAppText } from './admin-contact.service';
 @Component({
   selector: 'app-contact-actions',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'flex items-center gap-3 min-w-0' },
+  // Wraps: on a 375px card the number + three buttons do not fit a line, and the number was cut
+  // ("(31) •••••-07…"). The number stays whole; the buttons drop to the next line.
+  host: { class: 'flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0' },
   template: `
     @if (phoneMasked(); as masked) {
-      <span class="text-sm text-fg-muted tabular-nums truncate" data-testid="phone-masked">{{ masked }}</span>
+      <span class="text-sm text-fg-muted tabular-nums whitespace-nowrap" data-testid="phone-masked">{{ masked }}</span>
       <button
         type="button"
         data-testid="contact-whatsapp"

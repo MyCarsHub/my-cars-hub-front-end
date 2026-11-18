@@ -18,7 +18,7 @@
             <input
               type="date"
               data-testid="custom-date"
-              class="min-h-[44px] rounded-lg border border-edge bg-surface px-3 text-base text-fg
+              class="min-h-[44px] rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
                      focus:outline-none focus:ring-2 focus:ring-primary-400"
               [value]="customDate()"
               [min]="minDate()"
@@ -33,8 +33,8 @@
         <app-alert-banner variant="error" [message]="err" />
         <button
           type="button"
-          class="text-sm px-4 rounded-lg border border-edge bg-surface text-fg-soft hover:bg-canvas
-                 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-400"
+          class="min-h-[44px] px-4 rounded-xl bg-surface-sunken text-sm font-semibold text-fg-body
+                 hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
           (click)="reloadDay()"
         >
           Tentar novamente
@@ -42,43 +42,40 @@
       }
 
       @if (dayLoading() && !day()) {
-        <div class="grid grid-cols-3 gap-2 sm:gap-3" aria-busy="true" aria-label="Carregando">
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3" aria-busy="true" aria-label="Carregando">
+          <div class="h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          <div class="h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          <div class="col-span-2 sm:col-span-1 h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
         </div>
       }
 
       @if (summary(); as s) {
-        <p class="text-sm text-fg-muted">
-          Vencimento em <strong class="text-fg">{{ formatIsoDate(day()?.date) }}</strong>
+        <p class="text-sm text-fg-muted" data-testid="day-range" aria-live="polite">
+          Vencimento em <strong class="text-fg tabular-nums">{{ formatIsoDate(day()?.date) }}</strong>
           @if (dayLoading()) {
             <span class="ml-1 text-fg-subtle">· atualizando…</span>
           }
         </p>
-        <dl class="grid grid-cols-3 gap-2 sm:gap-3" data-testid="day-summary">
-          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
-            <dt class="text-xs font-medium text-fg-muted">Vencendo</dt>
-            <dd class="mt-1 text-xl font-semibold text-fg tabular-nums">{{ s.due }}</dd>
-          </div>
-          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
-            <dt class="text-xs font-medium text-fg-muted">Avisados</dt>
-            <dd class="mt-1 text-xl font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
-              {{ s.notified }}
-            </dd>
-          </div>
-          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
-            <dt class="text-xs font-medium text-fg-muted">Não avisados</dt>
-            <dd
-              class="mt-1 text-xl font-semibold tabular-nums"
-              [class.text-red-700]="s.notNotified > 0"
-              [class.dark:text-red-300]="s.notNotified > 0"
-              [class.text-fg]="s.notNotified === 0"
-            >
-              {{ s.notNotified }}
-            </dd>
-          </div>
-        </dl>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3" data-testid="day-summary">
+          <div app-kpi-card label="Vencendo" numberFormat="integer" [value]="s.due" [countUp]="false"></div>
+          <div
+            app-kpi-card
+            variant="emerald"
+            label="Avisados"
+            numberFormat="integer"
+            [value]="s.notified"
+            [countUp]="false"
+          ></div>
+          <div
+            app-kpi-card
+            class="col-span-2 sm:col-span-1"
+            label="Não avisados"
+            numberFormat="integer"
+            [tone]="s.notNotified > 0 ? 'danger' : 'default'"
+            [value]="s.notNotified"
+            [countUp]="false"
+          ></div>
+        </div>
 
         @if (day()?.truncated) {
           <app-alert-banner
@@ -90,29 +87,29 @@
         @if (companies().length > 0) {
           <div>
             <h3 class="text-sm font-semibold text-fg mb-2">Por empresa</h3>
-            <ul class="space-y-2 list-none" data-testid="company-summary">
+            <ul class="space-y-2 list-none rounded-2xl bg-surface-muted p-2" data-testid="company-summary">
               @for (c of companies(); track c.companyId) {
                 <li>
                   <button
                     type="button"
-                    class="w-full min-h-[44px] rounded-lg border px-3 py-2 text-left flex items-center
-                           justify-between gap-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                    [class.border-primary-500]="companyFilter() === c.companyId"
-                    [class.border-edge]="companyFilter() !== c.companyId"
+                    class="w-full min-h-[44px] rounded-xl px-3 py-2 text-left flex items-center justify-between gap-3
+                           transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    [class]="
+                      companyFilter() === c.companyId
+                        ? 'bg-primary-500 text-white'
+                        : 'bg-surface dark:bg-surface-sunken text-fg hover:bg-surface-sunken'
+                    "
                     [attr.aria-pressed]="companyFilter() === c.companyId"
                     (click)="selectCompany(c.companyId)"
                   >
-                    <span class="min-w-0 text-sm text-fg break-words">
+                    <span class="min-w-0 text-sm break-words">
                       {{ c.companyName }}
                       @if (c.internal) {
-                        <span class="ml-1 text-[11px] text-fg-subtle">(interna)</span>
+                        <span class="ml-1 text-xs opacity-80">(interna)</span>
                       }
                     </span>
-                    <span class="shrink-0 text-xs text-fg-muted tabular-nums">
-                      {{ c.due }} · {{ c.notified }} avisados ·
-                      <span [class.text-red-700]="c.notNotified > 0" [class.dark:text-red-300]="c.notNotified > 0">
-                        {{ c.notNotified }} não
-                      </span>
+                    <span class="shrink-0 text-xs tabular-nums opacity-90">
+                      {{ c.due }} · {{ c.notified }} avisados · {{ c.notNotified }} não
                     </span>
                   </button>
                 </li>
@@ -121,269 +118,260 @@
           </div>
         }
 
-        <!-- Filtros -->
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label class="flex flex-col gap-1 text-xs font-medium text-fg-muted sm:min-w-64">
-            Empresa
-            <select
-              data-testid="company-filter"
-              class="min-h-[44px] rounded-lg border border-edge bg-surface px-3 text-base text-fg
-                     focus:outline-none focus:ring-2 focus:ring-primary-400"
-              (change)="onCompanyFilter($event)"
-            >
-              <option value="" [selected]="!companyFilter()">Todas</option>
-              @for (c of companies(); track c.companyId) {
-                <option [value]="c.companyId" [selected]="companyFilter() === c.companyId">
-                  {{ c.companyName }}
-                </option>
+        <app-list-toolbar
+          searchLabel="Buscar cobranças do dia"
+          searchPlaceholder="Buscar por motorista, empresa ou e-mail…"
+          [query]="query()"
+          [searchDebounce]="200"
+          (queryChange)="setQuery($event)"
+          [statusOptions]="notifiedOptions"
+          [status]="notifiedFilter()"
+          statusLabel="Filtrar por aviso"
+          (statusChange)="setNotifiedFilter($event)"
+          [resultCount]="items().length"
+          [resultNoun]="['cobrança', 'cobranças']"
+          [filtersActive]="hasFilters()"
+          (clearFilters)="clearFilters()"
+        >
+          <select
+            listFilterSelect
+            data-testid="company-filter"
+            aria-label="Empresa"
+            (change)="onCompanyFilter($event)"
+          >
+            <option value="" [selected]="!companyFilter()">Empresa: Todas</option>
+            @for (c of companies(); track c.companyId) {
+              <option [value]="c.companyId" [selected]="companyFilter() === c.companyId">
+                Empresa: {{ c.companyName }}
+              </option>
+            }
+          </select>
+        </app-list-toolbar>
+
+        <!-- Lista: só a página atual vai para o DOM (o dia pode ter 2000 cobranças). -->
+        <app-data-list
+          data-testid="charge-list"
+          [columns]="chargeColumns"
+          [rows]="pageItems()"
+          [rowId]="chargeRowId"
+          [emptyText]="s.due === 0 ? 'Nenhuma cobrança vencendo neste dia.' : 'Nenhuma cobrança com estes filtros.'"
+          ariaLabel="Cobranças do dia"
+          [actionsLabel]="chargeKebabLabel"
+          cardsBelow="lg"
+          [page]="page()"
+          [totalPages]="totalPages()"
+          [total]="items().length"
+          [itemNoun]="['cobrança', 'cobranças']"
+          (pageChange)="goToPage($event)"
+        >
+          <ng-template dataListCell="driver" let-item>
+            <span class="block font-semibold text-fg break-words whitespace-normal">{{ item.driverFirstName | personName }}</span>
+            <span class="block text-xs font-normal text-fg-muted break-words whitespace-normal">
+              {{ item.companyName }}
+              @if (item.driverEmailMasked) {
+                · {{ item.driverEmailMasked }}
               }
-            </select>
-          </label>
-          <label class="flex items-center gap-2 min-h-[44px] text-sm text-fg cursor-pointer">
-            <input
-              type="checkbox"
-              data-testid="only-not-notified"
-              class="h-5 w-5 rounded border-edge"
-              [checked]="onlyNotNotified()"
-              (change)="onOnlyNotNotified($event)"
-            />
-            Só não avisados
-          </label>
-          @if (hasFilters()) {
+            </span>
+          </ng-template>
+
+          <ng-template dataListCell="notified" let-item>
+            @if (item.notified) {
+              <app-status-chip size="sm" tone="green">Avisado</app-status-chip>
+            } @else {
+              <app-status-chip size="sm" tone="red">Não avisado</app-status-chip>
+              <span
+                class="block mt-1 text-xs text-fg-soft break-words whitespace-normal"
+                data-testid="not-notified-reason"
+              >{{ item.notNotifiedReason }}</span>
+            }
+          </ng-template>
+
+          <ng-template dataListCell="amount" let-item>
+            <span class="font-semibold text-fg tabular-nums whitespace-nowrap">{{ item.amountCents | brl }}</span>
+          </ng-template>
+
+          <ng-template dataListCell="due" let-item>
+            <span class="tabular-nums whitespace-nowrap">{{ formatIsoDate(item.dueDate) }}</span>
+            <span class="block text-xs text-fg-subtle">{{ chargeStatusLabel(item.chargeStatus) }}</span>
+          </ng-template>
+
+          <ng-template dataListCell="email" let-item>
+            <div class="space-y-1 text-xs whitespace-normal break-words">
+              <app-status-chip size="sm" [wrap]="true" [tone]="emailTone(item)" data-testid="email-chip">{{ item.email.label }}</app-status-chip>
+              @if (item.email.reason && item.email.state !== 'NOT_RECORDED') {
+                <span class="block text-fg-soft">{{ item.email.reason }}</span>
+              }
+              @if (item.email.finishedAt) {
+                <span class="block text-fg-subtle tabular-nums">{{ formatTime(item.email.finishedAt) }}</span>
+              }
+              @if (item.lastResend; as r) {
+                <span class="block text-fg-soft">
+                  Último reenvio {{ formatTime(r.requestedAt) }} por {{ r.requestedByName | personName }} ·
+                  {{ resendOutcomeLabel(r.outcome, r.providerConfirmed) }}
+                </span>
+              }
+              <span
+                class="block text-fg-muted"
+                data-testid="resend-note"
+                [id]="'resend-note-' + item.chargeId"
+                aria-live="polite"
+              >
+                @if (resendMessage(item.chargeId); as msg) {
+                  {{ msg }}
+                } @else if (!item.resend.allowed) {
+                  {{ item.resend.blockedReason }}
+                }
+              </span>
+            </div>
+          </ng-template>
+
+          <ng-template dataListCell="asaas" let-item>
+            <div class="space-y-1 text-xs whitespace-normal break-words">
+              <app-status-chip size="sm" [wrap]="true" [tone]="asaasTone(item.asaas)" data-testid="asaas-chip">{{ item.asaas.label }}</app-status-chip>
+              @if (asaasSchedule(item.asaas); as when) {
+                <span class="block text-fg-soft">{{ when }} · {{ channels(item.asaas) }}</span>
+              }
+              @if (item.asaas.reason) {
+                <span class="block text-fg-soft">{{ item.asaas.reason }}</span>
+              }
+            </div>
+          </ng-template>
+
+          <ng-template dataListActions let-item>
             <button
               type="button"
-              class="min-h-[44px] px-3 text-sm text-primary-700 dark:text-primary-300 underline
-                     focus:outline-none focus:ring-2 focus:ring-primary-400 rounded-lg"
-              (click)="clearFilters()"
+              dataListMenuItem
+              data-testid="resend-button"
+              [disabled]="!item.resend.allowed || isResending(item.chargeId)"
+              [attr.aria-describedby]="'resend-note-' + item.chargeId"
+              (click)="resend(item)"
             >
-              Limpar filtros
+              @if (isResending(item.chargeId)) {
+                Reenviando…
+              } @else {
+                Reenviar e-mail
+              }
             </button>
-          }
-        </div>
-
-        <!-- Lista -->
-        @if (items().length === 0) {
-          <p class="text-center text-sm text-fg-subtle py-8" data-testid="empty">
-            @if (s.due === 0) {
-              Nenhuma cobrança vencendo neste dia.
-            } @else {
-              Nenhuma cobrança com estes filtros.
-            }
-          </p>
-        } @else {
-          <ul class="grid grid-cols-1 lg:grid-cols-2 gap-3 list-none" data-testid="charge-list">
-            @for (item of items(); track item.chargeId) {
-              <li
-                class="rounded-xl border bg-surface p-4 space-y-3 min-w-0"
-                [class.border-edge]="item.notified"
-                [class.border-red-300]="!item.notified"
-                [class.dark:border-red-500/40]="!item.notified"
-                data-testid="charge-card"
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="text-sm font-semibold text-fg break-words">{{ item.driverFirstName | personName }}</p>
-                    <p class="text-xs text-fg-muted break-words">
-                      {{ item.companyName }}
-                      @if (item.driverEmailMasked) {
-                        · {{ item.driverEmailMasked }}
-                      }
-                    </p>
-                  </div>
-                  <div class="text-right shrink-0">
-                    <p class="text-sm font-semibold text-fg tabular-nums">
-                      {{ formatCents(item.amountCents) }}
-                    </p>
-                    <p class="text-[11px] text-fg-subtle">
-                      vence {{ formatIsoDate(item.dueDate) }} · {{ chargeStatusLabel(item.chargeStatus) }}
-                    </p>
-                  </div>
-                </div>
-
-                @if (!item.notified) {
-                  <p
-                    class="rounded-lg bg-red-50 dark:bg-red-500/10 px-3 py-2 text-xs text-red-800 dark:text-red-200 break-words"
-                    data-testid="not-notified-reason"
-                  >
-                    <strong>Não avisado.</strong> {{ item.notNotifiedReason }}
-                  </p>
-                }
-
-                <dl class="space-y-2 text-xs">
-                  <div>
-                    <dt class="font-medium text-fg-muted">E-mail das 05:00</dt>
-                    <dd class="mt-1 flex flex-wrap items-center gap-2">
-                      <span class="rounded-full px-2 py-0.5 font-medium" [class]="emailChip(item)">
-                        {{ item.email.label }}
-                      </span>
-                      @if (item.email.reason && item.email.state !== 'NOT_RECORDED') {
-                        <span class="text-fg-soft break-words">{{ item.email.reason }}</span>
-                      }
-                      @if (item.email.finishedAt) {
-                        <span class="text-fg-subtle">{{ formatTime(item.email.finishedAt) }}</span>
-                      }
-                    </dd>
-                  </div>
-                  <div>
-                    <dt class="font-medium text-fg-muted">Aviso do Asaas</dt>
-                    <dd class="mt-1 flex flex-wrap items-center gap-2">
-                      <span class="rounded-full px-2 py-0.5 font-medium" [class]="asaasChip(item.asaas)">
-                        {{ item.asaas.label }}
-                      </span>
-                      @if (asaasSchedule(item.asaas); as when) {
-                        <span class="text-fg-soft">{{ when }} · {{ channels(item.asaas) }}</span>
-                      }
-                      @if (item.asaas.reason) {
-                        <span class="text-fg-soft break-words">{{ item.asaas.reason }}</span>
-                      }
-                    </dd>
-                  </div>
-                  @if (item.lastResend; as r) {
-                    <div>
-                      <dt class="font-medium text-fg-muted">Último reenvio</dt>
-                      <dd class="mt-1 text-fg-soft">
-                        {{ formatTime(r.requestedAt) }} por {{ r.requestedByName | personName }} ·
-                        {{ resendOutcomeLabel(r.outcome, r.providerConfirmed) }}
-                      </dd>
-                    </div>
-                  }
-                </dl>
-
-                <div class="space-y-1">
-                  <button
-                    type="button"
-                    data-testid="resend-button"
-                    class="w-full sm:w-auto min-h-[44px] px-4 rounded-lg text-sm font-medium border
-                           focus:outline-none focus:ring-2 focus:ring-primary-400
-                           disabled:cursor-not-allowed disabled:opacity-60"
-                    [class.bg-primary-500]="item.resend.allowed"
-                    [class.text-white]="item.resend.allowed"
-                    [class.border-primary-500]="item.resend.allowed"
-                    [class.bg-surface]="!item.resend.allowed"
-                    [class.text-fg-soft]="!item.resend.allowed"
-                    [class.border-edge]="!item.resend.allowed"
-                    [disabled]="!item.resend.allowed || isResending(item.chargeId)"
-                    [attr.aria-describedby]="'resend-note-' + item.chargeId"
-                    (click)="resend(item)"
-                  >
-                    @if (isResending(item.chargeId)) {
-                      Reenviando…
-                    } @else {
-                      Reenviar e-mail
-                    }
-                  </button>
-                  <p
-                    class="text-[11px] text-fg-muted break-words"
-                    [id]="'resend-note-' + item.chargeId"
-                    aria-live="polite"
-                  >
-                    @if (resendMessage(item.chargeId); as msg) {
-                      {{ msg }}
-                    } @else if (!item.resend.allowed) {
-                      {{ item.resend.blockedReason }}
-                    } @else {
-                      Reenvia só o e-mail com o link de pagamento. A cobrança não muda.
-                    }
-                  </p>
-                </div>
-              </li>
-            }
-          </ul>
-        }
+          </ng-template>
+        </app-data-list>
+        <p class="text-xs text-fg-subtle">
+          "Reenviar e-mail" reenvia só o e-mail com o link de pagamento. A cobrança não muda.
+        </p>
       }
     </div>
   </app-page-card>
 
   <!-- ==================== ASAAS ==================== -->
-  <app-page-card title="Avisos do Asaas">
-    <div class="p-3 sm:p-4 space-y-4">
-      @if (asaasError(); as err) {
-        <app-alert-banner variant="error" [message]="err" />
-        <button
-          type="button"
-          class="text-sm px-4 rounded-lg border border-edge bg-surface text-fg-soft hover:bg-canvas
-                 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-400"
-          (click)="reloadAsaas()"
-        >
-          Tentar novamente
-        </button>
-      }
-
-      @if (asaasLoading() && !asaas()) {
-        <div class="grid grid-cols-3 gap-2 sm:gap-3" aria-busy="true" aria-label="Carregando">
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
-        </div>
-      }
-
-      @if (asaas(); as a) {
-        <p class="text-sm text-fg-muted">
-          Motoristas com aluguel ativo: <strong class="text-fg">{{ a.activeDrivers }}</strong>
-        </p>
-        <dl class="grid grid-cols-3 gap-2 sm:gap-3" data-testid="asaas-summary">
-          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
-            <dt class="text-xs font-medium text-fg-muted">Configurados</dt>
-            <dd class="mt-1 text-xl font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
-              {{ a.configured }}
-            </dd>
-          </div>
-          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
-            <dt class="text-xs font-medium text-fg-muted">Com falha</dt>
-            <dd class="mt-1 text-xl font-semibold text-fg tabular-nums">{{ a.notConfigured }}</dd>
-          </div>
-          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
-            <dt class="text-xs font-medium text-fg-muted">Sem WhatsApp</dt>
-            <dd class="mt-1 text-xl font-semibold text-fg tabular-nums">{{ a.withoutWhatsapp }}</dd>
-          </div>
-        </dl>
-
-        @if (a.activeDrivers === 0) {
-          <p class="text-center text-sm text-fg-subtle py-6">Nenhum motorista com aluguel ativo no Asaas.</p>
+  <div class="mt-6">
+    <app-page-card title="Avisos do Asaas">
+      <div class="p-3 sm:p-4 space-y-4">
+        @if (asaasError(); as err) {
+          <app-alert-banner variant="error" [message]="err" />
+          <button
+            type="button"
+            class="min-h-[44px] px-4 rounded-xl bg-surface-sunken text-sm font-semibold text-fg-body
+                   hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            (click)="reloadAsaas()"
+          >
+            Tentar novamente
+          </button>
         }
 
-        @if (a.failures.length > 0) {
-          <div>
-            <h3 class="text-sm font-semibold text-fg mb-2">Com falha ou pendentes</h3>
-            <ul class="space-y-2 list-none" data-testid="asaas-failures">
-              @for (d of a.failures; track d.companyId + d.driverFirstName + $index) {
-                <li class="rounded-lg border border-edge p-3 text-xs space-y-1">
-                  <div class="flex flex-wrap items-center justify-between gap-2">
-                    <span class="text-sm text-fg break-words">
-                      {{ d.driverFirstName }} <span class="text-fg-muted">· {{ d.companyName }}</span>
-                    </span>
-                    <span class="rounded-full px-2 py-0.5 font-medium" [class]="asaasChip(d)">{{ d.label }}</span>
-                  </div>
-                  @if (d.reason) {
-                    <p class="text-fg-soft break-words">{{ d.reason }}</p>
-                  }
-                  @if (d.lastAttemptAt) {
-                    <p class="text-fg-subtle">Última tentativa: {{ formatTime(d.lastAttemptAt) }}</p>
-                  }
-                </li>
-              }
-            </ul>
+        @if (asaasLoading() && !asaas()) {
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3" aria-busy="true" aria-label="Carregando">
+            <div class="h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="col-span-2 sm:col-span-1 h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
           </div>
         }
 
-        @if (a.withoutWhatsappDrivers.length > 0) {
-          <div>
-            <h3 class="text-sm font-semibold text-fg mb-2">Sem WhatsApp no aviso</h3>
-            <ul class="space-y-2 list-none" data-testid="asaas-without-whatsapp">
-              @for (d of a.withoutWhatsappDrivers; track d.companyId + d.driverFirstName + $index) {
-                <li class="rounded-lg border border-edge p-3 text-xs flex flex-wrap items-center justify-between gap-2">
-                  <span class="text-sm text-fg break-words">
-                    {{ d.driverFirstName }} <span class="text-fg-muted">· {{ d.companyName }}</span>
-                  </span>
-                  <span class="text-fg-soft">{{ channels(d) }}</span>
-                </li>
-              }
-            </ul>
+        @if (asaas(); as a) {
+          <p class="text-sm text-fg-muted">
+            Motoristas com aluguel ativo: <strong class="text-fg tabular-nums">{{ a.activeDrivers }}</strong>
+          </p>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3" data-testid="asaas-summary">
+            <div
+              app-kpi-card
+              variant="emerald"
+              label="Configurados"
+              numberFormat="integer"
+              [value]="a.configured"
+              [countUp]="false"
+            ></div>
+            <div
+              app-kpi-card
+              label="Com falha"
+              numberFormat="integer"
+              [tone]="a.notConfigured > 0 ? 'danger' : 'default'"
+              [value]="a.notConfigured"
+              [countUp]="false"
+            ></div>
+            <div
+              app-kpi-card
+              class="col-span-2 sm:col-span-1"
+              label="Sem WhatsApp"
+              numberFormat="integer"
+              [value]="a.withoutWhatsapp"
+              [countUp]="false"
+            ></div>
           </div>
+
+          @if (a.activeDrivers === 0) {
+            <p class="text-center text-sm text-fg-subtle py-6">Nenhum motorista com aluguel ativo no Asaas.</p>
+          }
+
+          @if (failures().length > 0) {
+            <div>
+              <h3 class="text-sm font-semibold text-fg mb-2">Com falha ou pendentes</h3>
+              <app-data-list
+                data-testid="asaas-failures"
+                [columns]="failureColumns"
+                [rows]="failuresPageItems()"
+                [rowId]="driverRowId"
+                ariaLabel="Motoristas com aviso do Asaas com falha ou pendente"
+                [page]="failuresPage()"
+                [totalPages]="failuresPages()"
+                [total]="failures().length"
+                [itemNoun]="['motorista', 'motoristas']"
+                (pageChange)="goToFailuresPage($event)"
+              >
+                <ng-template dataListCell="driver" let-d>
+                  <span class="block font-semibold text-fg break-words whitespace-normal">{{ d.driverFirstName }}</span>
+                  <span class="block text-xs font-normal text-fg-muted break-words whitespace-normal">{{ d.companyName }}</span>
+                </ng-template>
+                <ng-template dataListCell="reason" let-d>
+                  <span class="text-xs text-fg-soft break-words whitespace-normal">{{ d.reason || '—' }}</span>
+                </ng-template>
+              </app-data-list>
+            </div>
+          }
+
+          @if (withoutWhatsapp().length > 0) {
+            <div>
+              <h3 class="text-sm font-semibold text-fg mb-2">Sem WhatsApp no aviso</h3>
+              <app-data-list
+                data-testid="asaas-without-whatsapp"
+                [columns]="withoutWhatsappColumns"
+                [rows]="withoutWhatsappPageItems()"
+                [rowId]="driverRowId"
+                ariaLabel="Motoristas sem WhatsApp no aviso do Asaas"
+                [page]="withoutWhatsappPage()"
+                [totalPages]="withoutWhatsappPages()"
+                [total]="withoutWhatsapp().length"
+                [itemNoun]="['motorista', 'motoristas']"
+                (pageChange)="goToWithoutWhatsappPage($event)"
+              >
+                <ng-template dataListCell="driver" let-d>
+                  <span class="block font-semibold text-fg break-words whitespace-normal">{{ d.driverFirstName }}</span>
+                  <span class="block text-xs font-normal text-fg-muted break-words whitespace-normal">{{ d.companyName }}</span>
+                </ng-template>
+              </app-data-list>
+            </div>
+          }
         }
-      }
-    </div>
-  </app-page-card>
+      </div>
+    </app-page-card>
+  </div>
 
   <app-back-link link="/admin" label="Voltar para o painel admin" />
 </app-default-page-layout>

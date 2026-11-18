@@ -1,6 +1,17 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { formatBRL } from '../../../types/dashboard.types';
 import { formatKpiNumber, type KpiNumberFormat } from '../../kpi-card/kpi-card';
+import {
+  ChartTooltip,
+  barLabelFormat,
+  injectHostWidth,
+  labelsFit,
+  pointerFraction,
+  slotAt,
+  stepIndex,
+  tooltipText,
+  type ChartTooltipRow,
+} from '../chart-tooltip/chart-tooltip';
 
 export interface BarDatum {
     label: string;
@@ -32,12 +43,19 @@ interface RenderedColumn {
     /** Height in % of the positive (or negative) band; null = not measured. */
     readonly pct: number | null;
     readonly negative: boolean;
-    readonly title: string;
+    /** Short number printed on the column (money compact). */
+    readonly short: string;
 }
 
 interface RenderedGroup {
     readonly label: string;
     readonly columns: readonly RenderedColumn[];
+    /** Tooltip lines: every series in full ("sem dado" for a missing one). */
+    readonly rows: readonly ChartTooltipRow[];
+    /** Spoken reading of the group (slider value text). */
+    readonly aria: string;
+    /** Tallest positive column of the group, % of the positive band (tooltip anchor). */
+    readonly peak: number;
 }
 
 /**
@@ -72,12 +90,37 @@ interface RenderedBar {
  * when secondary < primary.
  *
  * Values are treated as cents and rendered as BRL by default. Pass a custom
- * {@link formatValue} to override (e.g. to render raw counts).
+ * {@link formatValue} to override (e.g. to render raw counts). Row fills are revealed left to
+ * right on entry (`draw-in`; a plain fade under reduced motion).
+ *
+ * Columns layout (`series`): the plot is one keyboard/pointer control, like the dashboard's
+ * "Recebido vs lucro". Hover, tap or the arrows pick a group; the tooltip lists every series of
+ * it in full (money with cents, `formatTooltip` overrides). From `sm` each column carries its
+ * number on top (compact money) when the labels have room; on phones the tap is the reading.
+ * Columns rise from the base in a cascade (`bar-rise`).
  */
 @Component({
     selector: 'app-bar-chart',
     changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [ChartTooltip],
     host: { class: 'block min-w-0' },
+    styles: `
+        /* The number on a column fades in once its column has risen (same cascade). */
+        .label-in {
+            animation: chart-label-in 240ms ease-out backwards;
+            animation-delay: calc(480ms + min(var(--stagger-i, 0), 8) * 45ms);
+        }
+        @keyframes chart-label-in {
+            from {
+                opacity: 0;
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .label-in {
+                animation: none;
+            }
+        }
+    `,
     template: `
         @if (series()) {
             @if (legend()) {
@@ -91,39 +134,99 @@ interface RenderedBar {
                 </ul>
             }
             @if (groups().length) {
-                <div data-bar-columns class="flex items-stretch gap-1.5 sm:gap-2 min-w-0" aria-hidden="true" [style.height.px]="heightPx()">
+                <div
+                    data-bar-control
+                    class="relative rounded-lg touch-pan-y select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                    tabindex="0"
+                    role="slider"
+                    [attr.aria-label]="ariaLabel()"
+                    aria-valuemin="1"
+                    [attr.aria-valuemax]="groups().length"
+                    [attr.aria-valuenow]="(active() ?? groups().length - 1) + 1"
+                    [attr.aria-valuetext]="groups()[active() ?? groups().length - 1].aria"
+                    (pointermove)="onPointer($event)"
+                    (pointerdown)="onPointer($event)"
+                    (pointerleave)="onPointerLeave($event)"
+                    (keydown)="onKey($event)"
+                    (focus)="onFocus()"
+                    (blur)="active.set(null)"
+                >
+                <div
+                    data-bar-columns
+                    class="flex items-stretch gap-1.5 sm:gap-2 min-w-0"
+                    aria-hidden="true"
+                    [style.height.px]="heightPx()"
+                >
                     @for (g of groups(); track g.label; let gi = $index) {
-                        <div data-bar-group class="flex-1 min-w-0 flex flex-col items-center gap-1.5">
+                        <div
+                            data-bar-group
+                            class="flex-1 min-w-0 flex flex-col items-center gap-1.5 rounded-lg transition-colors duration-150"
+                            [class.bg-surface-sunken]="gi === active()"
+                        >
                             <div class="w-full flex-1 min-h-0 flex flex-col">
-                                <div class="w-full flex items-end gap-0.5" [style.height.%]="split().up">
+                                <!-- sm:pt-4 keeps room above the tallest column for its number -->
+                                <div class="w-full flex items-end gap-0.5" [class.sm:pt-4]="showLabels()" [style.height.%]="split().up">
                                     @for (c of g.columns; track c.key) {
-                                        <span
-                                            data-bar-column
-                                            class="bar-rise flex-1 min-w-0 rounded-t-[4px]"
-                                            [style.--stagger-i]="gi"
-                                            [style.height.%]="c.negative || c.pct === null ? 0 : c.pct"
-                                            [style.background-color]="c.color"
-                                            [attr.title]="c.title"
-                                        ></span>
+                                        <div class="relative flex-1 min-w-0 h-full flex flex-col justify-end">
+                                            <span
+                                                data-bar-column
+                                                class="bar-rise w-full rounded-t-[4px]"
+                                                [style.--stagger-i]="gi"
+                                                [style.height.%]="c.negative || c.pct === null ? 0 : c.pct"
+                                                [style.background-color]="c.color"
+                                            ></span>
+                                            @if (showLabels() && !c.negative && c.pct !== null) {
+                                                <span
+                                                    data-bar-value
+                                                    class="label-in absolute left-1/2 -translate-x-1/2 mb-0.5 hidden sm:block text-[10px] leading-none text-fg-muted tabular-nums whitespace-nowrap"
+                                                    [class.text-fg]="gi === active()"
+                                                    [class.font-semibold]="gi === active()"
+                                                    [style.bottom.%]="c.pct"
+                                                    [style.--stagger-i]="gi"
+                                                    >{{ c.short }}</span
+                                                >
+                                            }
+                                        </div>
                                     }
                                 </div>
                                 @if (split().down > 0) {
-                                    <div class="w-full flex items-start gap-0.5" [style.height.%]="split().down">
+                                    <div class="w-full flex items-start gap-0.5" [class.sm:pb-4]="showLabels()" [style.height.%]="split().down">
                                         @for (c of g.columns; track c.key) {
-                                            <span
-                                                data-bar-negative
-                                                class="flex-1 min-w-0 rounded-b-[4px]"
-                                                [style.height.%]="c.negative && c.pct !== null ? c.pct : 0"
-                                                [style.background-color]="c.color"
-                                                [attr.title]="c.negative ? c.title : null"
-                                            ></span>
+                                            <div class="relative flex-1 min-w-0 h-full flex flex-col justify-start">
+                                                <span
+                                                    data-bar-negative
+                                                    class="bar-rise w-full rounded-b-[4px]"
+                                                    style="transform-origin: top center"
+                                                    [style.--stagger-i]="gi"
+                                                    [style.height.%]="c.negative && c.pct !== null ? c.pct : 0"
+                                                    [style.background-color]="c.color"
+                                                ></span>
+                                                @if (showLabels() && c.negative && c.pct !== null) {
+                                                    <span
+                                                        data-bar-value
+                                                        class="label-in absolute left-1/2 -translate-x-1/2 mt-0.5 hidden sm:block text-[10px] leading-none text-fg-muted tabular-nums whitespace-nowrap"
+                                                        [style.top.%]="c.pct"
+                                                        [style.--stagger-i]="gi"
+                                                        >{{ c.short }}</span
+                                                    >
+                                                }
+                                            </div>
                                         }
                                     </div>
                                 }
                             </div>
-                            <span class="text-[10px] sm:text-[11px] text-fg-muted whitespace-nowrap">{{ g.label }}</span>
+                            <span
+                                class="text-[10px] sm:text-[11px] text-fg-muted whitespace-nowrap"
+                                [class.text-fg]="gi === active()"
+                                [class.font-semibold]="gi === active()"
+                                >{{ g.label }}</span
+                            >
                         </div>
                     }
+                </div>
+                @if (activeTip(); as tip) {
+                    <app-chart-tooltip [title]="tip.title" [rows]="tip.rows" [x]="tip.x" [y]="tip.y" [below]="tip.below" />
+                }
                 </div>
                 <table class="sr-only">
                     <caption>{{ ariaLabel() }}</caption>
@@ -167,7 +270,7 @@ interface RenderedBar {
                         [attr.aria-label]="bar.label + ': ' + bar.primaryValue"
                     >
                         <div
-                            class="h-full rounded-full bg-primary-500 transition-all duration-500"
+                            class="draw-in h-full rounded-full bg-primary-500 transition-all duration-500"
                             [style.width.%]="bar.primaryPct"
                         ></div>
                     </div>
@@ -180,7 +283,7 @@ interface RenderedBar {
                         </div>
                         <div class="h-2 rounded-full bg-gray-100 dark:bg-surface-sunken overflow-hidden mt-1">
                             <div
-                                class="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                                class="draw-in h-full rounded-full bg-emerald-500 transition-all duration-500"
                                 [style.width.%]="bar.secondaryPct"
                             ></div>
                         </div>
@@ -212,7 +315,7 @@ export class BarChart {
     readonly series = input<readonly BarSeries[] | null>(null);
     /** One label per group (columns layout). */
     readonly labels = input<readonly string[]>([]);
-    /** How a value becomes text in the columns layout (tooltip and screen-reader table). */
+    /** Columns layout: axis/label unit. Tooltip and table show it in full (`brl-cents-whole` -> cents). */
     readonly valueFormat = input<KpiNumberFormat>('brl-cents');
     readonly heightPx = input(180);
     readonly ariaLabel = input('Gráfico de barras');
@@ -221,16 +324,23 @@ export class BarChart {
 
     protected readonly split = computed(() => zeroSplit(this.series() ?? []));
 
+    /** Text of a value in the tooltip / reading / table: full (money with cents) unless overridden. */
+    readonly formatTooltip = input<((v: number) => string) | null>(null);
+
+    /** Group being read (hover, tap, keyboard); null = none. */
+    protected readonly active = signal<number | null>(null);
+    private readonly width = injectHostWidth();
+
     protected readonly groups = computed<RenderedGroup[]>(() => {
         const series = this.series() ?? [];
         const labels = this.labels();
         const { top, bottom } = this.split();
         const fmt = this.valueFormat();
+        const short = barLabelFormat(fmt);
         const anyValue = series.some((s) => s.values.some((v) => v !== null && v !== undefined));
         if (!anyValue) return [];
-        return labels.map((label, i) => ({
-            label,
-            columns: series.map((s) => {
+        return labels.map((label, i) => {
+            const columns = series.map((s) => {
                 const v = s.values[i];
                 const missing = v === null || v === undefined;
                 const negative = !missing && v < 0;
@@ -240,14 +350,77 @@ export class BarChart {
                     color: s.color,
                     negative,
                     pct: missing ? null : band > 0 ? (Math.abs(v) / band) * 100 : 0,
-                    title: `${s.label} ${label}: ${missing ? 'sem dado' : formatKpiNumber(fmt, v)}`,
+                    short: missing ? '' : formatKpiNumber(short, v),
                 };
-            }),
-        }));
+            });
+            const rows = series.map((s) => ({
+                key: s.key,
+                label: s.label,
+                color: s.color,
+                value: this.cellText(s.values[i]),
+            }));
+            return {
+                label,
+                columns,
+                rows,
+                aria: `${label}: ${rows.map((r) => `${r.label} ${r.value}`).join(', ')}`,
+                peak: Math.max(0, ...columns.map((c) => (c.negative || c.pct === null ? 0 : c.pct))),
+            };
+        });
     });
 
+    /** Numbers on the columns (sm and up) only when every label has room. */
+    protected readonly showLabels = computed(() => {
+        const groups = this.groups();
+        const count = groups.reduce((n, g) => n + g.columns.length, 0);
+        const maxChars = Math.max(0, ...groups.flatMap((g) => g.columns.map((c) => c.short.length)));
+        return labelsFit(count, maxChars, this.width());
+    });
+
+    protected readonly activeTip = computed(() => {
+        const i = this.active();
+        const groups = this.groups();
+        if (i === null || !groups[i]) return null;
+        const g = groups[i];
+        // Anchor: top of the tallest column, in % of the plot box (the x label row is small).
+        const y = (this.split().up * (100 - g.peak)) / 100;
+        return {
+            title: g.label,
+            rows: g.rows,
+            x: ((i + 0.5) / groups.length) * 100,
+            y,
+            below: y < 35,
+        };
+    });
+
+    protected onPointer(event: PointerEvent): void {
+        const f = pointerFraction(event, event.currentTarget as Element);
+        const i = f === null ? null : slotAt(f, this.groups().length);
+        if (i !== null) this.active.set(i);
+    }
+
+    /** A mouse leaving closes the reading; a finger lifting keeps it (it was a tap). */
+    protected onPointerLeave(event: PointerEvent): void {
+        if (event.pointerType === 'mouse') this.active.set(null);
+    }
+
+    protected onFocus(): void {
+        if (this.active() === null) this.active.set(Math.max(0, this.groups().length - 1));
+    }
+
+    protected onKey(event: KeyboardEvent): void {
+        if (event.key === 'Escape') {
+            this.active.set(null);
+            return;
+        }
+        const next = stepIndex(event.key, this.active(), this.groups().length);
+        if (next === null) return;
+        event.preventDefault();
+        this.active.set(next);
+    }
+
     protected cellText(v: number | null | undefined): string {
-        return v === null || v === undefined ? 'sem dado' : formatKpiNumber(this.valueFormat(), v);
+        return tooltipText(v, this.valueFormat(), this.formatTooltip());
     }
 
     protected readonly bars = computed<RenderedBar[]>(() => {

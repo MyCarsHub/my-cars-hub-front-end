@@ -8,7 +8,21 @@
  */
 
 export type AdminHomePeriod = '30d' | '90d' | '12m' | 'all';
+/** `meta.period` of a response: a pill key, or `custom` when the request sent `from`/`to`. */
+export type AdminHomeMetaPeriod = AdminHomePeriod | 'custom';
 export type AdminHomeScope = 'clients' | 'all';
+
+/**
+ * The window the screen asks for (contract `changed:` 18/11): `YYYY-MM-DD` São Paulo days,
+ * inclusive, `to` never after today, at most `ADMIN_RANGE_MAX_DAYS` days.
+ */
+export interface AdminHomeRange {
+  from: string;
+  to: string;
+}
+
+/** `HomePeriod.MAX_SPAN_DAYS` on the server: a longer range is a 400. */
+export const ADMIN_RANGE_MAX_DAYS = 1827;
 export type AdminHomeGranularity = 'DAY' | 'WEEK' | 'MONTH';
 
 export type KpiUnit = 'CENTS' | 'COUNT' | 'RATIO';
@@ -35,13 +49,22 @@ export interface HomeKpi {
 }
 
 export interface AdminHomeMeta {
-  period: AdminHomePeriod;
+  period: AdminHomeMetaPeriod;
   scope: AdminHomeScope;
   granularity: AdminHomeGranularity;
   from: string;
   to: string;
   currentMonth: string;
   generatedAt: string;
+  /** Same as `granularity` (18/11). Optional: a server before the range change does not send it. */
+  bucket?: AdminHomeGranularity;
+  /** The window of the same length right before `from..to`. */
+  previousFrom?: string;
+  previousTo?: string;
+  /** `YYYY-MM` of `to`: the month the "do mês" cards use. */
+  referenceMonth?: string;
+  /** `to` is today. False: the window ended before today and no bucket is live. */
+  live?: boolean;
 }
 
 export interface AdminHomeChips {
@@ -202,6 +225,9 @@ export interface AdminUsage {
     generatedAt: string;
     actionsSince: string | null;
     accessSince: string | null;
+    bucket?: AdminHomeGranularity;
+    previousFrom?: string;
+    previousTo?: string;
   };
   roles: UsageRoleRow[];
   owners: { vehiclesPerOwner: number | null; activeRentals: number };
@@ -280,4 +306,13 @@ export interface PlatformMovement {
   origin: 'APP' | 'ADMIN' | 'WEBHOOK' | 'JOB' | 'UNKNOWN' | string;
   result: 'SUCCESS' | 'FAILED' | 'REFUSED' | string;
   detail: string | null;
+}
+
+/** `/audit/movements` page (18/11): the paged shape plus the window the server resolved. */
+export interface PlatformMovementsPage {
+  content: PlatformMovement[];
+  page: number;
+  size: number;
+  total: number;
+  meta?: { from: string; to: string };
 }

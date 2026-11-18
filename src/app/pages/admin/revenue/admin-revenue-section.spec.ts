@@ -5,8 +5,9 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { environment } from '../../../../environments/environment';
-import type { AdminRevenue, AdminRevenueMonth } from '../../../types/admin-revenue.types';
-import { AdminRevenueSection } from './admin-revenue-section';
+import type { AdminHomeRange } from '../../../types/admin-home.types';
+import type { AdminRevenue, AdminRevenueMonth, AdminRevenuePoint } from '../../../types/admin-revenue.types';
+import { AdminRevenueSection, rangeKey, revenuePoints } from './admin-revenue-section';
 import { dateLabel, monthBars, monthLabel, presentSeries, receivedShare } from './admin-revenue.series';
 
 const URL = `${environment.apiUrl}/admin/billing/revenue`;
@@ -21,14 +22,42 @@ const month = (m: string, p: Partial<AdminRevenueMonth> = {}): AdminRevenueMonth
   ...p,
 });
 
-/** O que produção tem em 17/11/2026: caixa desde 28/09, foto do MRR desde 05/11. */
+const point = (start: string, p: Partial<AdminRevenuePoint> = {}): AdminRevenuePoint => ({
+  start,
+  end: start,
+  mrrCents: null,
+  mrrAsOf: null,
+  receivedCents: null,
+  cumulativeReceivedCents: null,
+  couponDiscountCents: 0,
+  ...p,
+});
+
+const NOVEMBER: AdminHomeRange = { from: '2026-11-01', to: '2026-11-18' };
+const WEEK: AdminHomeRange = { from: '2026-11-12', to: '2026-11-18' };
+
+/** O que produção tem em 17/11/2026: caixa desde 28/09, foto do MRR desde 05/11. Janela de novembro, por dia. */
 const REVENUE: AdminRevenue = {
-  period: '12m',
+  period: 'custom',
   currentMonth: '2026-11',
+  meta: {
+    period: 'custom',
+    from: '2026-11-01',
+    to: '2026-11-18',
+    bucket: 'DAY',
+    previousFrom: '2026-10-14',
+    previousTo: '2026-10-31',
+  },
+  points: [
+    point('2026-11-01', { cumulativeReceivedCents: 31_960, receivedCents: 0 }),
+    point('2026-11-05', {
+      mrrCents: 46_950,
+      receivedCents: 48_920,
+      cumulativeReceivedCents: 80_880,
+      couponDiscountCents: 19_940,
+    }),
+  ],
   months: [
-    month('2026-08'),
-    month('2026-09', { receivedCents: 7_990, cumulativeReceivedCents: 7_990 }),
-    month('2026-10', { receivedCents: 23_970, cumulativeReceivedCents: 31_960 }),
     month('2026-11', {
       mrrCents: 46_950,
       mrrAsOf: '2026-11-16',
@@ -38,7 +67,14 @@ const REVENUE: AdminRevenue = {
     }),
   ],
   mrr: { since: '2026-11-05', asOf: '2026-11-16', latestCents: 46_950 },
-  received: { since: '2026-09-28', monthCents: 48_920, totalCents: 80_880, rowsWithoutAmount: 0 },
+  received: {
+    since: '2026-09-28',
+    monthCents: 48_920,
+    totalCents: 80_880,
+    rowsWithoutAmount: 0,
+    periodCents: 48_920,
+    previousPeriodCents: 23_970,
+  },
   expected: {
     month: '2026-11',
     until: '2026-11-30',
@@ -52,13 +88,6 @@ const REVENUE: AdminRevenue = {
 
 const norm = (el: Element | null): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
-function pickPill(host: HTMLElement, label: string): void {
-  const pill = Array.from(host.querySelectorAll<HTMLButtonElement>('[role="radio"]')).find(
-    (b) => norm(b) === label,
-  );
-  pill!.click();
-}
-
 describe('admin-revenue.series', () => {
   it('labels months in pt-BR and adds the year only when asked', () => {
     expect(monthLabel('2026-11')).toBe('nov');
@@ -68,12 +97,10 @@ describe('admin-revenue.series', () => {
   });
 
   it('drops months without data instead of drawing them as zero', () => {
-    const s = presentSeries(REVENUE.months, (m) => m.mrrCents);
+    const months = [month('2026-09', { receivedCents: 1 }), month('2026-10'), month('2026-11', { mrrCents: 46_950 })];
+    const s = presentSeries(months, (m) => m.mrrCents);
     expect(s.labels).toEqual(['nov']);
     expect(s.values).toEqual([46_950]);
-
-    const received = presentSeries(REVENUE.months, (m) => m.receivedCents);
-    expect(received.labels).toEqual(['set', 'out', 'nov']);
   });
 
   it('lists bars newest first, measured months only, with the year when the window crosses it', () => {
@@ -92,17 +119,31 @@ describe('admin-revenue.series', () => {
     expect(receivedShare(10, 5)).toBe(1);
     expect(receivedShare(0, 0)).toBeNull();
   });
+
+  it('uses the server points; a server from before 18/11 (months only) still draws one point per month', () => {
+    expect(revenuePoints(REVENUE)).toBe(REVENUE.points);
+    const legacy = revenuePoints({ ...REVENUE, points: undefined, months: [month('2026-10', { receivedCents: 5 })] });
+    expect(legacy).toEqual([expect.objectContaining({ start: '2026-10-01', receivedCents: 5 })]);
+    expect(revenuePoints(null)).toEqual([]);
+    expect(rangeKey(NOVEMBER)).toBe('2026-11-01|2026-11-18');
+    expect(rangeKey(null)).toBeNull();
+  });
 });
 
 describe('AdminRevenueSection', () => {
   let http: HttpTestingController;
 
-  function render(): { host: HTMLElement; detect: () => void } {
+  function render(range: AdminHomeRange | null = NOVEMBER) {
     const fixture = TestBed.createComponent(AdminRevenueSection);
+    fixture.componentRef.setInput('range', range);
     fixture.detectChanges();
     return {
       host: fixture.nativeElement as HTMLElement,
       detect: () => fixture.detectChanges(),
+      setRange: (r: AdminHomeRange) => {
+        fixture.componentRef.setInput('range', r);
+        fixture.detectChanges();
+      },
     };
   }
 
@@ -117,40 +158,67 @@ describe('AdminRevenueSection', () => {
 
   afterEach(() => http.verify());
 
-  it('asks for 12 months by default and shows the four month numbers', () => {
-    const { host, detect } = render();
-    http.expectOne((r) => r.url === URL && r.params.get('period') === '12m').flush(REVENUE);
-    detect();
-
-    expect(norm(host.querySelector('[data-expected-card]'))).toContain('R$ 569');
-    expect(norm(host.querySelector('[data-expected-card]'))).toContain('1 renovação até 30/11');
-    expect(norm(host.querySelector('[data-expected-card]'))).toContain('pelo preço de tabela, sem cupom');
-    expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 489');
-    expect(norm(host.querySelector('[data-received-card]'))).toContain('desde 28/09/2026');
-    expect(norm(host.querySelector('[data-discount-card]'))).toContain('R$ 199');
-    expect(norm(host.querySelector('[data-cumulative-card]'))).toContain('R$ 809');
+  it('has no period pills of its own and asks with the page range (from/to, never period)', () => {
+    const { host } = render();
+    expect(host.querySelector('app-pill-tabs')).toBeNull();
+    expect(host.querySelector('[role="radio"]')).toBeNull();
+    const req = http.expectOne((r) => r.url === URL);
+    expect(req.request.params.get('from')).toBe('2026-11-01');
+    expect(req.request.params.get('to')).toBe('2026-11-18');
+    expect(req.request.params.has('period')).toBe(false);
+    req.flush(REVENUE);
   });
 
-  it('says where each history begins and never prints a month before it as R$ 0', () => {
+  it('asks nothing until the page has a range', () => {
+    render(null);
+    http.expectNone(URL);
+  });
+
+  it('shows the money with cents, the period received against the previous one, and the server dates', () => {
+    const { host, detect } = render();
+    http.expectOne(() => true).flush(REVENUE);
+    detect();
+
+    const text = (sel: string) => norm(host.querySelector(sel));
+    expect(text('[data-revenue-range]')).toContain('de 01/11/2026 a 18/11/2026');
+    expect(text('[data-expected-card]')).toContain('Esperado em novembro');
+    expect(text('[data-expected-card]')).toContain('R$ 569,10');
+    expect(text('[data-expected-card]')).toContain('1 renovação até 30/11');
+    expect(text('[data-received-card]')).toContain('Recebido no período');
+    expect(text('[data-received-card]')).toContain('R$ 489,20');
+    expect(text('[data-received-card]')).toContain('↗ 104%');
+    expect(text('[data-received-card]')).toContain('período anterior (14/10/2026 a 31/10/2026): R$ 239,70');
+    expect(text('[data-discount-card]')).toContain('R$ 199,40');
+    expect(text('[data-discount-card]')).toContain('2 faturas com desconto');
+    expect(text('[data-cumulative-card]')).toContain('R$ 808,80');
+    expect(text('[data-received-chart]')).toContain('Recebido por dia');
+  });
+
+  it('draws received and discounts as columns with the bucket labels (tooltips come from the chart)', () => {
+    const { host, detect } = render();
+    http.expectOne(() => true).flush(REVENUE);
+    detect();
+    expect(host.querySelector('[data-received-chart] app-bar-chart')).not.toBeNull();
+    expect(norm(host.querySelector('[data-received-chart]'))).toContain('05/11');
+    expect(host.querySelector('[data-discount-chart] app-bar-chart')).not.toBeNull();
+  });
+
+  it('says where each history begins and never prints a bucket before it as R$ 0', () => {
     const { host, detect } = render();
     http.expectOne(() => true).flush(REVENUE);
     detect();
 
     expect(norm(host.querySelector('[data-mrr-chart]'))).toContain('O histórico começa em 05/11/2026');
     expect(norm(host.querySelector('[data-cumulative-chart]'))).toContain('registrado desde 28/09/2026');
-    const received = norm(host.querySelector('[data-received-chart]'));
-    expect(received).toContain('set');
-    expect(received).not.toContain('ago');
-    expect(received).not.toContain('R$ 0,00');
   });
 
   it('shows an honest empty state when there is no MRR snapshot and no payment yet', () => {
     const { host, detect } = render();
     http.expectOne(() => true).flush({
       ...REVENUE,
-      months: [month('2026-11')],
+      points: [point('2026-11-01', { couponDiscountCents: null })],
       mrr: { since: null, asOf: null, latestCents: null },
-      received: { since: null, monthCents: null, totalCents: null, rowsWithoutAmount: 0 },
+      received: { since: null, monthCents: null, totalCents: null, rowsWithoutAmount: 0, periodCents: null, previousPeriodCents: null },
     });
     detect();
 
@@ -165,63 +233,54 @@ describe('AdminRevenueSection', () => {
     const { host, detect } = render();
     http.expectOne(() => true).flush({
       ...REVENUE,
-      months: REVENUE.months.map((m) => ({ ...m, couponDiscountCents: null })),
+      points: REVENUE.points!.map((p) => ({ ...p, couponDiscountCents: null })),
       discounts: { available: false, truncated: false, monthCents: null, periodCents: null, discountedInvoices: 0 },
     });
     detect();
 
     expect(norm(host.querySelector('[data-discount-chart]'))).toContain('Indisponível agora');
     expect(norm(host.querySelector('[data-discount-card]'))).toContain('Stripe indisponível');
-    expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 489');
+    expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 489,20');
   });
 
-  it('cancels the pending period when another pill is picked, so its reply never shows', () => {
-    const { host, detect } = render();
-    const first = http.expectOne((r) => r.params.get('period') === '12m');
+  it('cancels the pending range when the page range changes, so its reply never shows', () => {
+    const { host, detect, setRange } = render();
+    const first = http.expectOne((r) => r.params.get('from') === '2026-11-01');
 
-    pickPill(host, 'Desde o início');
-    detect();
+    setRange(WEEK);
 
     expect(first.cancelled).toBe(true);
-    http.expectOne((r) => r.params.get('period') === 'all').flush({
+    http.expectOne((r) => r.params.get('from') === '2026-11-12').flush({
       ...REVENUE,
-      period: 'all',
       received: { ...REVENUE.received, totalCents: 12_300 },
     });
     detect();
-    expect(norm(host.querySelector('[data-cumulative-card]'))).toContain('R$ 123');
+    expect(norm(host.querySelector('[data-cumulative-card]'))).toContain('R$ 123,00');
   });
 
-  it('a failed reload says so and does not keep the previous period numbers under the new pill', () => {
-    const { host, detect } = render();
+  it('a failed reload says so and does not keep the previous range numbers under the new dates', () => {
+    const { host, detect, setRange } = render();
     http.expectOne(() => true).flush(REVENUE);
     detect();
 
-    pickPill(host, '3 meses');
-    detect();
-    http.expectOne((r) => r.params.get('period') === '3m').flush('erro', { status: 500, statusText: 'Erro' });
+    setRange(WEEK);
+    http.expectOne((r) => r.params.get('from') === '2026-11-12').flush('erro', { status: 500, statusText: 'Erro' });
     detect();
 
     expect(norm(host.querySelector('[role="alert"]'))).toContain('Não foi possível carregar a receita');
     expect(norm(host.querySelector('[data-received-card]'))).not.toContain('R$ 489');
   });
 
-  it('a reply for another period than the selected one is never shown', () => {
+  it('a server from before 18/11 (no periodCents) shows the month received and says it is the month', () => {
     const { host, detect } = render();
-    http.expectOne(() => true).flush({ ...REVENUE, period: 'all' });
+    http.expectOne(() => true).flush({
+      ...REVENUE,
+      meta: undefined,
+      points: undefined,
+      received: { since: '2026-09-28', monthCents: 48_920, totalCents: 80_880, rowsWithoutAmount: 0 },
+    });
     detect();
-
-    expect(norm(host.querySelector('[data-received-card]'))).not.toContain('R$ 489');
-  });
-
-  it('reloads with the period picked in the pills', () => {
-    const { host, detect } = render();
-    http.expectOne(() => true).flush(REVENUE);
-    detect();
-
-    pickPill(host, 'Desde o início');
-    detect();
-
-    http.expectOne((r) => r.url === URL && r.params.get('period') === 'all').flush({ ...REVENUE, period: 'all' });
+    expect(norm(host.querySelector('[data-received-card]'))).toContain('Recebido no mês');
+    expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 489,20');
   });
 });

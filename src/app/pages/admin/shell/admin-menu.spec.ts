@@ -119,7 +119,7 @@ describe('Menu da administração — modelo da sidebar (FIX-0864)', () => {
       'Auditoria',
     ]);
     const dinheiro = items.find((i) => i.label === 'Dinheiro')!;
-    expect(dinheiro.children!.map((c) => c.label)).toEqual(['Cobranças', 'Billing', 'Cupons']);
+    expect(dinheiro.children!.map((c) => c.label)).toEqual(['Cobranças', 'Assinaturas', 'Cupons']);
     expect(dinheiro.route).toBeUndefined();
     const operacao = items.find((i) => i.label === 'Operação')!;
     expect(operacao.children!.map((c) => c.label)).toEqual([

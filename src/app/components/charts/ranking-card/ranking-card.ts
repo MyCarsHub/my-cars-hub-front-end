@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { PageCard } from '../../core/page-card/page-card';
+import { ChartTooltip, type ChartTooltipRow } from '../chart-tooltip/chart-tooltip';
 
 export interface RankingItem {
   readonly id: string;
@@ -40,12 +41,14 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
 /**
  * Top-N ranking. With `hero` the first row is a painted brand row (solid orange, white text);
  * the rest are quiet rows with a rank badge. Value is text from the caller, so money, counts
- * and percentages all fit. Shell is `app-page-card`.
+ * and percentages all fit. Shell is `app-page-card`. In the `bars` layout the label on a bar may
+ * be the caller's short text ("R$ 1,5k"); hover, tap or focus on the bar opens a tooltip with
+ * the full `value`, which screen readers also get.
  */
 @Component({
   selector: 'app-ranking-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageCard],
+  imports: [PageCard, ChartTooltip],
   host: { class: 'block min-w-0 h-full' },
   template: `
     <app-page-card [title]="title()" [fill]="true" [truncateTitle]="!reserveTitle()" [reserveTitleLines]="reserveTitle()">
@@ -57,8 +60,30 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
           @if (rows().length) {
             <ol data-rank-bars class="flex items-end gap-2 h-44 min-w-0">
               @for (row of rows(); track row.id; let i = $index) {
-                <li data-rank-row class="flex-1 min-w-0 h-full flex flex-col justify-end items-center gap-1.5">
-                  <span class="text-[11px] font-semibold text-fg tabular-nums whitespace-nowrap">{{ row.short ?? row.value }}</span>
+                <li
+                  data-rank-row
+                  class="relative flex-1 min-w-0 h-full flex flex-col justify-end items-center gap-1.5 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                  tabindex="0"
+                  (pointerenter)="active.set(i)"
+                  (pointerdown)="active.set(i)"
+                  (pointerleave)="onPointerLeave($event)"
+                  (focus)="active.set(i)"
+                  (blur)="active.set(null)"
+                  (keydown.escape)="active.set(null)"
+                >
+                  @if (active() === i) {
+                    <app-chart-tooltip
+                      [title]="row.name"
+                      [rows]="tipRows(row)"
+                      [x]="50"
+                      [y]="100 - row.heightPct < 35 ? 30 : 100 - row.heightPct"
+                      [below]="100 - row.heightPct < 35"
+                    />
+                  }
+                  <span class="text-[11px] font-semibold text-fg tabular-nums whitespace-nowrap" [attr.aria-hidden]="row.short ? 'true' : null">{{ row.short ?? row.value }}</span>
+                  @if (row.short) {
+                    <span class="sr-only">{{ row.value }}</span>
+                  }
                   <span
                     class="bar-rise w-full rounded-t-xl rounded-b-md grid place-items-start justify-items-center pt-1.5 text-xs font-bold text-white min-h-8"
                     [style.--stagger-i]="i"
@@ -160,6 +185,18 @@ export class RankingCard {
   readonly hero = input(false);
   /** `list` (default), `bars` (vertical bars with rank) or `podium` (painted first place + small chips). */
   readonly layout = input<'list' | 'bars' | 'podium'>('list');
+
+  /** Bars layout: the bar being read (hover, tap, focus); its tooltip says the full value. */
+  protected readonly active = signal<number | null>(null);
+
+  protected tipRows(row: RankedRow): ChartTooltipRow[] {
+    return [{ key: row.id, label: row.sub ?? `${row.rank}º lugar`, value: row.value }];
+  }
+
+  /** A mouse leaving closes the reading; a finger lifting keeps it (it was a tap). */
+  protected onPointerLeave(event: PointerEvent): void {
+    if (event.pointerType === 'mouse') this.active.set(null);
+  }
 
   protected readonly rows = computed<RankedRow[]>(() =>
     this.items()

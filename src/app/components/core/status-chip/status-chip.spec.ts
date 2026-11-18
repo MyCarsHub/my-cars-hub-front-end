@@ -14,6 +14,12 @@ class Host {
   readonly color = signal<string | null>(null);
 }
 
+@Component({
+  imports: [StatusChip],
+  template: `<app-status-chip tone="red" size="sm" [wrap]="true">Enviado, entrega não confirmada</app-status-chip>`,
+})
+class WrapHost {}
+
 describe('StatusChip', () => {
   function render() {
     const fixture = TestBed.createComponent(Host);
@@ -54,6 +60,25 @@ describe('StatusChip', () => {
     fixture.detectChanges();
     expect(chip.className).toContain('bg-blue-100');
     expect(chip.className).not.toContain('bg-surface-sunken');
+  });
+
+  it('sem wrap (padrão) continua numa linha só, altura fixa', () => {
+    const { chip } = render();
+    expect(chip.className).toContain('whitespace-nowrap');
+    expect(chip.className).toContain('h-[26px]');
+  });
+
+  it('wrap: quebra linha dentro da coluna, sem altura fixa, ainda só texto', () => {
+    const fixture = TestBed.createComponent(WrapHost);
+    fixture.detectChanges();
+    const chip = (fixture.nativeElement as HTMLElement).querySelector('app-status-chip')!;
+    expect(chip.className).toContain('whitespace-normal');
+    expect(chip.className).toContain('max-w-full');
+    expect(chip.className).toContain('min-h-[22px]');
+    expect(chip.className).not.toContain('whitespace-nowrap');
+    expect(chip.className).not.toMatch(/(^|\s)h-\[/);
+    expect(chip.className).toContain('bg-rose-100');
+    expect(chip.children).toHaveLength(0);
   });
 
   it('respeita movimento reduzido', () => {

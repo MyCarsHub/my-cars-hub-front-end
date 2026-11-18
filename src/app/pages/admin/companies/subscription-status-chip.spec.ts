@@ -9,7 +9,7 @@ describe('subscriptionChip', () => {
   it('teste com data no passado aparece como "Teste vencido", em vermelho', () => {
     const chip = subscriptionChip('TRIALING', '2026-10-15T12:00:00', NOW);
     expect(chip?.label).toBe('Teste vencido');
-    expect(chip?.chip).toContain('red');
+    expect(chip?.tone).toBe('red');
   });
 
   it('vence no instante exato do fim, como o BillingAccessService', () => {

@@ -11,15 +11,28 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { BarChart, type BarSeries } from '../../components/charts/bar-chart/bar-chart';
+import {
+  CHART_BLACK,
+  CHART_GREEN,
+  CHART_GREYS,
+  CHART_ORANGE,
+  chartSeriesColors,
+} from '../../components/charts/chart-tooltip/chart-tooltip';
 import { GrowthChart, type GrowthSeries } from '../../components/charts/growth-chart/growth-chart';
 import { RingLegendCard, type RingSlice } from '../../components/charts/ring-legend-card/ring-legend-card';
 import { StackedBarChart, type StackRow } from '../../components/charts/stacked-bar-chart/stacked-bar-chart';
 import { PageCard } from '../../components/core/page-card/page-card';
-import { PillTabs, type PillTabOption } from '../../components/core/pill-tabs/pill-tabs';
+import {
+  DateRangePicker,
+  type DateRange,
+  type DateRangePresetKey,
+} from '../../components/date-range-picker/date-range-picker';
 import { KpiCard, formatKpiNumber, type KpiCardVariant, type KpiDelta, type KpiNumberFormat } from '../../components/kpi-card/kpi-card';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { downloadCsv } from '../../components/lists/data-list/data-list-csv';
+import { formatBrl } from '../../pipes/brl.pipe';
 import { AdminCapabilitiesService } from '../../services/admin-capabilities.service';
 import { AdminMetricsService } from '../../services/admin-metrics.service';
 import { ApiErrorService } from '../../services/api-error.service';
@@ -27,7 +40,7 @@ import type { AdminCompanyListItem } from '../../types/admin-company.types';
 import type { PlatformVendor, PlatformVendorCategory } from '../../types/admin-finance.types';
 import type {
   AdminHome as AdminHomeData,
-  AdminHomePeriod,
+  AdminHomeRange,
   AdminHomeScope,
   AdminUsage,
   HomeKpi,
@@ -39,35 +52,24 @@ import { AdminHomeService } from './home/admin-home.service';
 import {
   bucketLabels,
   buildHomeCsv,
+  clampRange,
   countDelta,
   dayLabel,
   monthLabels,
   monthLong,
   monthShort,
+  movementsWindow,
   nullText,
   percentDelta,
   shortDay,
-  vendorColor,
+  valueDelta,
+  vendorColors,
 } from './home/admin-home.view';
 import { COMPANY_CSV_COLUMNS, HomeCompanies } from './home/home-companies';
 import { HomeMovements } from './home/home-movements';
 import { HomeUpcoming } from './home/home-upcoming';
 import { HomeActivityMap, HomeRoles, HomeTopUsers, HomeUfs } from './home/home-usage';
 import { AdminRevenueSection } from './revenue/admin-revenue-section';
-
-/**
- * Barra de status em tom neutro único: cor de status mora só no chip, e o token
- * se ajusta sozinho ao tema claro e escuro.
- */
-const STATUS_BAR_COLOR = 'var(--color-fg-subtle)';
-
-interface StatusBar {
-  key: string;
-  label: string;
-  count: number;
-  color: string;
-  percent: number;
-}
 
 const SUB_STATUS_ORDER: Array<{ key: string; label: string }> = [
   { key: 'ACTIVE', label: 'Ativa' },
@@ -94,34 +96,42 @@ const FB_STATUS_ORDER: Array<{ key: string; label: string }> = [
   { key: 'REJECTED', label: 'Rejeitado' },
 ];
 
-const PERIODS: readonly PillTabOption<AdminHomePeriod>[] = [
-  { value: '30d', label: '30 dias' },
-  { value: '90d', label: '90 dias' },
-  { value: '12m', label: '12 meses' },
-  { value: 'all', label: 'Desde o início', shortLabel: 'Início' },
+/**
+ * As pílulas do período, as mesmas do dashboard do dono e na mesma ordem (regra do dono 18/11). O
+ * admin lê "Mês atual" e "Este ano" até hoje (`periodEnd="today"` no template).
+ */
+export const ADMIN_PERIOD_PRESETS: readonly DateRangePresetKey[] = [
+  'today',
+  '7d',
+  'monthCurrent',
+  '30d',
+  'monthPast',
+  'year',
+  'custom',
 ];
 
-const SCOPES: readonly PillTabOption<AdminHomeScope>[] = [
-  { value: 'clients', label: 'Só clientes' },
-  { value: 'all', label: 'Com contas internas', shortLabel: 'Com internas' },
-];
-
-/** Cores de dado (o laranja só no MRR real, que é a série do cartão laranja). */
+/**
+ * Cores de dado: só as da marca (laranja, verde), preto e cinzas, todas como token (o preto e os
+ * cinzas invertem no escuro). Laranja no dado principal (o MRR real, a série do cartão laranja),
+ * verde no que é caixa ou lucro, preto no que sai ou no esperado, cinza na referência.
+ */
 const C = {
-  mrrReal: '#F63B04',
-  mrrEstimated: '#a3a3a3',
-  subs: '#10b981',
-  costs: '#fb7185',
-  profit: '#0a9b62',
-  managedExpected: '#60a5fa',
-  managedReceived: '#10b981',
-  users: '#8b5cf6',
-  companies: '#3b82f6',
-  vehicles: '#f59e0b',
+  mrrReal: CHART_ORANGE,
+  mrrEstimated: CHART_GREYS[0],
+  subs: CHART_GREEN,
+  costs: CHART_BLACK,
+  profit: CHART_GREEN,
+  managedExpected: CHART_BLACK,
+  managedReceived: CHART_GREEN,
 } as const;
 
-/** A janela máxima do feed de movimentações (o servidor recusa mais de 366 dias). */
-const MOVEMENTS_MAX_DAYS = 365;
+/** As etapas do funil: do cinza claro ao verde de quem paga (sem azul nem âmbar). */
+const FUNNEL_FILL = {
+  signups: 'bg-fg-faint',
+  companies: 'bg-fg-muted',
+  trial: 'bg-fg',
+  paying: 'bg-success-500',
+} as const;
 
 interface KpiView {
   readonly key: string;
@@ -151,18 +161,23 @@ interface FunnelStep {
   readonly fill: string;
 }
 
-/** `YYYY-MM-DD` menos `days` dias (aritmética de calendário em UTC, sem fuso). */
-function minusDays(iso: string, days: number): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d) - days * 86_400_000);
-  return t.toISOString().slice(0, 10);
+interface Query {
+  readonly range: AdminHomeRange;
+  readonly scope: AdminHomeScope;
+}
+
+/** A chave de um pedido: a resposta só aparece sob as datas e o escopo que a pediram. */
+function queryKey(range: AdminHomeRange, scope: AdminHomeScope): string {
+  return `${range.from}|${range.to}|${scope}`;
 }
 
 /**
  * Visão geral do admin v2 (`/admin`), no desenho aprovado `Admin.dc.html`: receita real e
- * estimada, custos, lucro, crescimento, saúde do negócio, uso e movimentações, com período e
- * escopo que valem para a tela inteira. Todo número vem do servidor (contrato
- * `2026-11-17_CONTRACT_admin-home.md`); `null` vira "sem dado" com o motivo, nunca zero.
+ * estimada, custos, lucro, crescimento, saúde do negócio, uso e movimentações. UM controle de
+ * período para a tela inteira (as pílulas do dashboard do dono, com as datas sempre escritas
+ * embaixo) e a caixinha "Incluir contas internas". Todo número vem do servidor (contrato
+ * `2026-11-17_CONTRACT_admin-home.md`, `from`/`to` desde 18/11); `null` vira "sem dado" com o
+ * motivo, nunca zero. O que não segue o período (saúde, chips, por plano, "Mais números") diz isso.
  *
  * Os cartões da Visão geral antiga que não estão no desenho continuam na página, refeitos no
  * padrão novo (decisão do dono, 17/11), em "Mais números da plataforma".
@@ -174,7 +189,8 @@ function minusDays(iso: string, days: number): string {
     DefaultPageLayout,
     PageCard,
     RouterLink,
-    PillTabs,
+    DateRangePicker,
+    AlertBanner,
     KpiCard,
     GrowthChart,
     BarChart,
@@ -201,35 +217,48 @@ export class AdminHome implements OnInit {
   /** Só o Dono lança custo (`custo.gerir`); o servidor confere de novo. */
   protected readonly canManageCosts = computed(() => this.caps.can('custo.gerir'));
 
-  protected readonly periods = PERIODS;
-  protected readonly scopes = SCOPES;
+  protected readonly periodPresets = ADMIN_PERIOD_PRESETS;
   protected readonly axisFloor = MONEY_AXIS_FLOOR_CENTS;
-  protected readonly colors = C;
 
-  protected readonly period = signal<AdminHomePeriod>('12m');
+  /** O período da tela, já dentro do que o servidor aceita. `null` até o seletor emitir o inicial. */
+  protected readonly range = signal<AdminHomeRange | null>(null);
   protected readonly scope = signal<AdminHomeScope>('clients');
+  protected readonly includeInternal = computed(() => this.scope() === 'all');
+  private readonly key = computed(() => {
+    const r = this.range();
+    return r ? queryKey(r, this.scope()) : null;
+  });
 
   // ---------------------------------------------------------------- dados v2
 
-  private readonly homeRaw = signal<AdminHomeData | null>(null);
+  private readonly homeRaw = signal<{ key: string; res: AdminHomeData } | null>(null);
   protected readonly homeLoading = signal(true);
   protected readonly homeError = signal<string | null>(null);
-  private readonly usageRaw = signal<AdminUsage | null>(null);
+  private readonly usageRaw = signal<{ key: string; res: AdminUsage } | null>(null);
   protected readonly usageLoading = signal(true);
   protected readonly usageError = signal<string | null>(null);
 
-  /** Só a resposta da pílula marcada: um número de "30 dias" nunca aparece sob "12 meses". */
+  /** Só a resposta do período e escopo na tela: um número de um intervalo nunca aparece sob outro. */
   protected readonly home = computed(() => {
     const h = this.homeRaw();
-    return h && h.meta.period === this.period() && h.meta.scope === this.scope() ? h : null;
+    return h && h.key === this.key() ? h.res : null;
   });
   protected readonly usage = computed(() => {
     const u = this.usageRaw();
-    return u && u.meta.period === this.period() && u.meta.scope === this.scope() ? u : null;
+    return u && u.key === this.key() ? u.res : null;
   });
   protected readonly pending = computed(() => this.homeLoading() && !this.home());
 
-  private readonly requests = new Subject<{ period: AdminHomePeriod; scope: AdminHomeScope }>();
+  /**
+   * As datas que o SERVIDOR usou, escritas embaixo das pílulas. `null` enquanto a resposta do
+   * período novo não chega: o seletor mostra as datas que ele mesmo calculou.
+   */
+  protected readonly resolvedRange = computed(() => {
+    const m = this.home()?.meta;
+    return m ? { from: m.from, to: m.to } : null;
+  });
+
+  private readonly requests = new Subject<Query>();
 
   /** Linhas do "Cruzamento por empresa", para o Exportar. */
   private readonly companyRows = signal<readonly AdminCompanyListItem[]>([]);
@@ -241,7 +270,7 @@ export class AdminHome implements OnInit {
   protected readonly upcomingReloadKey = signal(0);
 
   protected readonly vendors = computed<PlatformVendor[]>(() =>
-    (this.home()?.costs.vendors ?? this.homeRaw()?.costs.vendors ?? []).map((v) => ({
+    (this.home()?.costs.vendors ?? this.homeRaw()?.res.costs.vendors ?? []).map((v) => ({
       id: v.vendorId,
       name: v.name,
       category: v.category as PlatformVendorCategory,
@@ -263,17 +292,18 @@ export class AdminHome implements OnInit {
         switchMap((q) => {
           this.homeLoading.set(true);
           this.homeError.set(null);
-          return this.homeService.home(q.period, q.scope).pipe(
-            map((res) => ({ res, failure: null as unknown })),
-            catchError((failure: unknown) => of({ res: null, failure })),
+          const key = queryKey(q.range, q.scope);
+          return this.homeService.home(q.range, q.scope).pipe(
+            map((res) => ({ key, res, failure: null as unknown })),
+            catchError((failure: unknown) => of({ key, res: null, failure })),
           );
         }),
         takeUntilDestroyed(),
       )
-      .subscribe(({ res, failure }) => {
+      .subscribe(({ key, res, failure }) => {
         this.homeLoading.set(false);
         if (res) {
-          this.homeRaw.set(res);
+          this.homeRaw.set({ key, res });
           return;
         }
         this.apiErrors.claim(failure);
@@ -285,24 +315,29 @@ export class AdminHome implements OnInit {
         switchMap((q) => {
           this.usageLoading.set(true);
           this.usageError.set(null);
-          return this.homeService.usage(q.period, q.scope).pipe(
-            map((res) => ({ res, failure: null as unknown })),
-            catchError((failure: unknown) => of({ res: null, failure })),
+          const key = queryKey(q.range, q.scope);
+          return this.homeService.usage(q.range, q.scope).pipe(
+            map((res) => ({ key, res, failure: null as unknown })),
+            catchError((failure: unknown) => of({ key, res: null, failure })),
           );
         }),
         takeUntilDestroyed(),
       )
-      .subscribe(({ res, failure }) => {
+      .subscribe(({ key, res, failure }) => {
         this.usageLoading.set(false);
         if (res) {
-          this.usageRaw.set(res);
+          this.usageRaw.set({ key, res });
           return;
         }
         this.apiErrors.claim(failure);
         this.usageError.set('Não foi possível carregar o uso da plataforma.');
       });
 
-    effect(() => this.requests.next({ period: this.period(), scope: this.scope() }));
+    effect(() => {
+      const range = this.range();
+      const scope = this.scope();
+      if (range) this.requests.next({ range, scope });
+    });
   }
 
   ngOnInit(): void {
@@ -310,16 +345,24 @@ export class AdminHome implements OnInit {
     this.caps.ensureLoaded().subscribe();
   }
 
-  protected pickPeriod(p: AdminHomePeriod): void {
-    this.period.set(p);
+  /**
+   * O seletor já conta em São Paulo e recusa data futura (`allowFuture=false`); `clampRange` fica
+   * como guarda do contrato do servidor (fim até hoje, janela até `ADMIN_RANGE_MAX_DAYS`).
+   */
+  protected onRangeChange(range: DateRange): void {
+    const next = clampRange(range, todayInBusinessTz());
+    const current = this.range();
+    if (current && current.from === next.from && current.to === next.to) return;
+    this.range.set(next);
   }
 
-  protected pickScope(s: AdminHomeScope): void {
-    this.scope.set(s);
+  protected toggleInternal(event: Event): void {
+    this.scope.set((event.target as HTMLInputElement).checked ? 'all' : 'clients');
   }
 
   protected reloadHome(): void {
-    this.requests.next({ period: this.period(), scope: this.scope() });
+    const range = this.range();
+    if (range) this.requests.next({ range, scope: this.scope() });
   }
 
   protected reload(): void {
@@ -371,7 +414,7 @@ export class AdminHome implements OnInit {
   }
 
   protected readonly chips = computed<Chip[]>(() => {
-    const c = this.home()?.chips ?? this.homeRaw()?.chips;
+    const c = this.home()?.chips ?? this.homeRaw()?.res.chips;
     if (!c) return [];
     const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
     return [
@@ -404,7 +447,32 @@ export class AdminHome implements OnInit {
 
   // ---------------------------------------------------------------- 10 cartões
 
-  private readonly month = computed(() => this.home()?.meta.currentMonth ?? null);
+  /**
+   * O mês dos cartões "do mês": o de `to` (`meta.referenceMonth`). Período que termina hoje = mês
+   * corrente; período que terminou antes = o mês em que ele terminou, e o rótulo diz qual.
+   */
+  private readonly month = computed(() => {
+    const m = this.home()?.meta;
+    return m ? (m.referenceMonth ?? m.currentMonth) : null;
+  });
+  /** O período termina hoje (`meta.live`; servidor de antes de 18/11 não manda = ao vivo). */
+  protected readonly live = computed(() => this.home()?.meta.live !== false);
+  /**
+   * O período é o mês corrente até hoje ("Mês atual"): do dia 1 até `to`, no mesmo mês. Só aí
+   * "do mês" lê certo. Em "7 dias", "30 dias", "Este ano" ou um personalizado, o lucro e os custos
+   * continuam sendo os do MÊS de `to` (o servidor não soma o período), então o rótulo nomeia o mês
+   * para não parecer o total do período escolhido.
+   */
+  private readonly monthToDate = computed(() => {
+    const m = this.home()?.meta;
+    if (!m || !this.live()) return false;
+    return m.from.slice(8, 10) === '01' && m.from.slice(0, 7) === m.to.slice(0, 7);
+  });
+  /** "do mês" (Mês atual), "de outubro" (Mês passado) ou "de novembro" (outro período). */
+  private readonly monthWord = computed(() => {
+    const m = this.month();
+    return this.monthToDate() || !m ? 'do mês' : `de ${monthLong(m)}`;
+  });
 
   private kpiDetail(kpi: HomeKpi | undefined, fallback: string | null): string | null {
     if (!kpi) return null;
@@ -437,7 +505,7 @@ export class AdminHome implements OnInit {
         label: 'MRR real',
         variant: 'primary',
         value: k?.mrrReal.value ?? null,
-        format: 'brl-cents-whole',
+        format: 'brl-cents',
         delta: percentDelta(k?.mrrReal, startCaption(k?.mrrReal)),
         detail: mrrRealDetail(),
         action: null,
@@ -445,10 +513,10 @@ export class AdminHome implements OnInit {
       },
       {
         key: 'profit',
-        label: 'Lucro do mês',
+        label: `Lucro ${this.monthWord()}`,
         variant: 'emerald-dark',
         value: k?.profitMonth.value ?? null,
-        format: 'brl-cents-whole',
+        format: 'brl-cents',
         delta: percentDelta(k?.profitMonth, 'vs mês anterior'),
         detail: this.kpiDetail(k?.profitMonth, 'MRR real menos custos'),
         action: this.costAction(k?.profitMonth),
@@ -458,7 +526,7 @@ export class AdminHome implements OnInit {
         label: 'MRR estimado',
         variant: 'white',
         value: k?.mrrEstimated.value ?? null,
-        format: 'brl-cents-whole',
+        format: 'brl-cents',
         delta: percentDelta(k?.mrrEstimated, startCaption(k?.mrrEstimated)),
         detail: this.kpiDetail(k?.mrrEstimated, 'preço de tabela'),
         action: null,
@@ -468,17 +536,17 @@ export class AdminHome implements OnInit {
         label: 'ARR',
         variant: 'white',
         value: k?.arr.value ?? null,
-        format: 'brl-cents-whole',
+        format: 'brl-cents',
         delta: percentDelta(k?.arr, startCaption(k?.arr)),
         detail: this.kpiDetail(k?.arr, 'MRR real × 12'),
         action: null,
       },
       {
         key: 'costs',
-        label: 'Custos do mês',
+        label: `Custos ${this.monthWord()}`,
         variant: 'white',
         value: k?.costsMonth.value ?? null,
-        format: 'brl-cents-whole',
+        format: 'brl-cents',
         delta: percentDelta(k?.costsMonth, 'vs mês anterior', true),
         detail: this.kpiDetail(
           k?.costsMonth,
@@ -515,7 +583,9 @@ export class AdminHome implements OnInit {
         value: k?.users.value ?? null,
         format: 'integer',
         delta: countDelta(k?.users.parts['newInPeriod'], 'novos no período'),
-        detail: this.kpiDetail(k?.users, null),
+        // Período que já terminou: o servidor conta quem está ativo HOJE entre os cadastrados até o
+        // fim dele (não há histórico de desativação). O cartão diz, para o número não parecer foto.
+        detail: this.kpiDetail(k?.users, this.live() ? null : 'ativos hoje, cadastrados até o fim do período'),
         action: null,
       },
       {
@@ -531,36 +601,41 @@ export class AdminHome implements OnInit {
     ];
   });
 
-  /** Valor gerenciado: esperado (por vencimento) e recebido (caixa), lado a lado. */
+  /**
+   * Valor gerenciado do mês: o cartão verde pintado (`app-kpi-card` emerald) com o RECEBIDO em
+   * caixa e, embaixo, o esperado pelo vencimento e quanto dele já entrou. Os dois com centavos, sem
+   * abreviar (antes o cartão mostrava "R$ 120,4k" e escondia o valor cheio no `title`).
+   */
   protected readonly managed = computed(() => {
     const k = this.home()?.kpis;
     if (!k) return null;
     const e = k.managedExpected;
     const r = k.managedReceived;
     const share = e.value && r.value !== null ? Math.max(0, Math.min(1, r.value / e.value)) : null;
+    const month = this.month();
+    const expected =
+      e.value === null
+        ? `esperado: ${nullText(e, month)}`
+        : `de ${formatBrl(e.value)} esperados pelo vencimento` +
+          (share === null ? '' : ` (${formatKpiNumber('ratio', share)} já entrou)`);
     return {
-      // Compacto ("R$ 129,6k"): os dois valores dividem um cartão estreito e o número inteiro
-      // quebrava no meio. O valor exato fica no title e no CSV.
-      expected: e.value === null ? '—' : formatKpiNumber('brl-cents-compact', e.value),
-      expectedFull: e.value === null ? null : formatKpiNumber('brl-cents-whole', e.value),
-      expectedNote: e.value === null ? nullText(e, this.month()) : 'esperado, pelo vencimento',
-      received: r.value === null ? '—' : formatKpiNumber('brl-cents-compact', r.value),
-      receivedFull: r.value === null ? null : formatKpiNumber('brl-cents-whole', r.value),
-      receivedNote: r.value === null ? nullText(r, this.month()) : 'recebido em caixa',
-      delta: percentDelta(e, 'esperado vs mês anterior'),
+      label: this.monthToDate() || !month ? 'Gerenciado no mês' : `Gerenciado em ${monthShort(month)}`,
+      value: r.value,
+      detail: r.value === null ? nullText(r, month) : `recebido em caixa, ${expected}`,
+      delta: valueDelta(r.value, r.previous, 'vs mês anterior'),
       share,
-      shareText: share === null ? null : formatKpiNumber('ratio', share),
-      month: this.month() ? monthShort(this.month() as string) : '',
     };
   });
 
   // ---------------------------------------------------------------- gráficos
 
+  private readonly granularity = computed(() => this.home()?.meta.bucket ?? this.home()?.meta.granularity ?? 'MONTH');
+
   private readonly mrrPoints = computed(() => this.home()?.mrrSeries.points ?? []);
   protected readonly mrrLabels = computed(() =>
     bucketLabels(
       this.mrrPoints().map((p) => p.start),
-      this.home()?.meta.granularity ?? 'MONTH',
+      this.granularity(),
     ),
   );
   protected readonly mrrChart = computed<GrowthSeries[]>(() => [
@@ -576,7 +651,9 @@ export class AdminHome implements OnInit {
   protected readonly mrrNote = computed(() => {
     const s = this.home()?.mrrSeries;
     if (!s) return null;
-    const parts = ['Ponto de hoje: agora; os outros: fim de cada intervalo.'];
+    const parts = [
+      this.live() ? 'Ponto de hoje: agora; os outros: fim de cada intervalo.' : 'Cada ponto: o fim do intervalo.',
+    ];
     const real = dayLabel(s.realSince);
     const est = dayLabel(s.estimatedSince);
     if (real) parts.push(`Real desde ${real}.`);
@@ -603,22 +680,25 @@ export class AdminHome implements OnInit {
   ]);
   protected readonly anyCost = computed(() => this.profitMonths().some((m) => m.costsCents !== null));
 
-  /** Cor de cada fornecedor pela posição na lista (estável entre os blocos). */
-  private readonly vendorIndex = computed(
-    () => new Map((this.home()?.costs.vendors ?? []).map((v, i) => [v.vendorId, i])),
-  );
+  /** Cor de cada fornecedor, a mesma no anel e nas colunas (`vendorColors`). */
+  private readonly vendorColorMap = computed(() => vendorColors(this.home()));
+  private vendorColor(id: string): string {
+    return this.vendorColorMap().get(id) ?? CHART_GREYS[0];
+  }
   private vendorName(id: string): string {
     return this.home()?.costs.vendors.find((v) => v.vendorId === id)?.name ?? 'Fornecedor';
   }
 
+  /** O anel é do mês dos cartões (o de `to`). */
   protected readonly vendorSlices = computed<RingSlice[]>(() => {
     const h = this.home();
     if (!h) return [];
-    const month = h.costs.months.find((m) => m.month === h.meta.currentMonth);
+    const ref = this.month();
+    const month = h.costs.months.find((m) => m.month === ref);
     return (month?.byVendor ?? []).map((row) => ({
       label: this.vendorName(row.vendorId),
       value: row.amountCents,
-      color: vendorColor(this.vendorIndex().get(row.vendorId) ?? 0),
+      color: this.vendorColor(row.vendorId),
     }));
   });
   protected readonly currentMonthName = computed(() => (this.month() ? monthLong(this.month() as string) : 'no mês'));
@@ -632,7 +712,7 @@ export class AdminHome implements OnInit {
         key: row.vendorId,
         label: this.vendorName(row.vendorId),
         value: row.amountCents,
-        color: vendorColor(this.vendorIndex().get(row.vendorId) ?? 0),
+        color: this.vendorColor(row.vendorId),
       })),
     }));
   });
@@ -642,7 +722,7 @@ export class AdminHome implements OnInit {
   protected readonly managedLabels = computed(() =>
     bucketLabels(
       this.managedPoints().map((p) => p.start),
-      this.home()?.meta.granularity ?? 'MONTH',
+      this.granularity(),
     ),
   );
   protected readonly managedChart = computed<GrowthSeries[]>(() => [
@@ -655,14 +735,20 @@ export class AdminHome implements OnInit {
   protected readonly growthLabels = computed(() =>
     bucketLabels(
       this.growthPoints().map((p) => p.start),
-      this.home()?.meta.granularity ?? 'MONTH',
+      this.granularity(),
     ),
   );
-  protected readonly growthChart = computed<GrowthSeries[]>(() => [
-    { key: 'users', label: 'Usuários', color: C.users, values: this.growthPoints().map((p) => p.newUsers) },
-    { key: 'companies', label: 'Empresas', color: C.companies, values: this.growthPoints().map((p) => p.newCompanies) },
-    { key: 'vehicles', label: 'Veículos', color: C.vehicles, values: this.growthPoints().map((p) => p.newVehicles) },
-  ]);
+  /** Três séries: laranja, verde e preto, na ordem (`chartSeriesColors`). */
+  protected readonly growthChart = computed<GrowthSeries[]>(() => {
+    const points = this.growthPoints();
+    const series = [
+      { key: 'users', label: 'Usuários', values: points.map((p) => p.newUsers) },
+      { key: 'companies', label: 'Empresas', values: points.map((p) => p.newCompanies) },
+      { key: 'vehicles', label: 'Veículos', values: points.map((p) => p.newVehicles) },
+    ];
+    const colors = chartSeriesColors(series.map((x) => x.values.reduce((t, v) => t + v, 0)));
+    return series.map((x, i) => ({ ...x, color: colors[i] }));
+  });
 
   // ---------------------------------------------------------------- saúde e funil
 
@@ -680,21 +766,22 @@ export class AdminHome implements OnInit {
       const still = parts(h?.retention90d, 'stillPaying');
       return then === null || still === null ? null : `${still} de ${then} seguem pagando`;
     };
-    const brl = (cents: number) => formatKpiNumber('brl-cents-whole', cents);
-    /** "R$ 1.108 ÷ 9 pagantes": numerador e denominador que o backend manda em `parts`. */
+    /** "R$ 1.108,00 ÷ 9 pagantes": numerador e denominador que o backend manda em `parts`. */
     const ratioText = (kpi: HomeKpi | undefined, num: string, den: string, one: string, many: string) => {
       const n = parts(kpi, num);
       const d = parts(kpi, den);
-      return n === null || d === null ? null : `${brl(n)} ÷ ${d} ${d === 1 ? one : many}`;
+      return n === null || d === null ? null : `${formatBrl(n)} ÷ ${d} ${d === 1 ? one : many}`;
     };
     const marginText = () => {
       const mrr = parts(h?.margin, 'mrrRealCents');
       const costs = parts(h?.margin, 'costsCents');
-      return mrr === null || costs === null ? null : `custos de ${brl(costs)} sobre ${brl(mrr)}`;
+      return mrr === null || costs === null ? null : `custos de ${formatBrl(costs)} sobre ${formatBrl(mrr)}`;
     };
     /** Sem pagantes, a frase diz qual base faltou (início do mês, 90 dias atrás). */
     const noPaying = (kpi: HomeKpi | undefined, text: string) => (kpi?.nullReason === 'NO_PAYING' ? text : null);
     const neutral = (text: string | null): KpiDelta | null => (text ? { text, tone: 'neutral' } : null);
+    // Saúde é sempre de hoje (contrato `changed:` 18/11): o mês é o corrente, não o do período.
+    const currentMonth = this.home()?.meta.currentMonth ?? null;
     const tile = (
       key: string,
       label: string,
@@ -710,19 +797,19 @@ export class AdminHome implements OnInit {
       value: kpi?.value ?? null,
       format,
       delta: kpi?.value === null ? null : neutral(extra),
-      detail: kpi ? (kpi.value === null ? (nullOverride ?? nullText(kpi, this.month())) : kpi.definition) : null,
+      detail: kpi ? (kpi.value === null ? (nullOverride ?? nullText(kpi, currentMonth)) : kpi.definition) : null,
       action,
     });
     return [
       tile('churn', 'Churn mensal', h?.churnMonthly, 'ratio', churnText(), null,
         noPaying(h?.churnMonthly, 'ninguém pagava no início do mês')),
-      tile('ltv', 'LTV', h?.ltv, 'brl-cents-whole'),
-      tile('cac', 'CAC', h?.cac, 'brl-cents-whole',
+      tile('ltv', 'LTV', h?.ltv, 'brl-cents'),
+      tile('cac', 'CAC', h?.cac, 'brl-cents',
         ratioText(h?.cac, 'acquisitionCents', 'newPaying', 'cliente novo', 'clientes novos'),
         this.costAction(h?.cac, 'acquisition')),
       tile('retention', 'Retenção em 90 dias', h?.retention90d, 'ratio', retentionText(), null,
         noPaying(h?.retention90d, 'ninguém pagava 90 dias atrás')),
-      tile('arpa', 'Receita por cliente', h?.arpa, 'brl-cents-whole',
+      tile('arpa', 'Receita por cliente', h?.arpa, 'brl-cents',
         ratioText(h?.arpa, 'mrrRealCents', 'payingCompanies', 'pagante', 'pagantes')),
       tile('margin', 'Margem', h?.margin, 'ratio', marginText(), this.costAction(h?.margin)),
     ];
@@ -741,10 +828,10 @@ export class AdminHome implements OnInit {
     });
     return {
       steps: [
-        step('signups', 'Cadastros', f.signups, 'bg-neutral-400'),
-        step('companies', 'Criaram empresa', f.companiesCreated, 'bg-blue-400'),
-        step('trial', 'Em teste grátis', f.inTrial, 'bg-amber-500'),
-        step('paying', 'Assinam um plano', f.paying, 'bg-emerald-500'),
+        step('signups', 'Cadastros', f.signups, FUNNEL_FILL.signups),
+        step('companies', 'Criaram empresa', f.companiesCreated, FUNNEL_FILL.companies),
+        step('trial', 'Em teste grátis', f.inTrial, FUNNEL_FILL.trial),
+        step('paying', 'Assinam um plano', f.paying, FUNNEL_FILL.paying),
       ],
       rate: f.trialToPaidRate === null ? null : formatKpiNumber('ratio', f.trialToPaidRate),
       conversions: f.conversionsInPeriod,
@@ -753,31 +840,10 @@ export class AdminHome implements OnInit {
     };
   });
 
-  /** Início do feed de movimentações: o do período, até o teto de 365 dias do servidor. */
-  // Sai do período escolhido, não do `meta.from` da resposta: esperar a resposta fazia o feed
-  // pedir duas vezes (sem `from` enquanto carregava, depois com). Mesmas datas do servidor
-  // (contrato §Conventions); "Desde o início" fica no teto.
-  protected readonly movementsFrom = computed(() => {
-    const today = todayInBusinessTz();
-    const floor = minusDays(today, MOVEMENTS_MAX_DAYS);
-    let from: string;
-    switch (this.period()) {
-      case '30d':
-        from = minusDays(today, 29);
-        break;
-      case '90d':
-        from = minusDays(today, 89);
-        break;
-      case '12m': {
-        const [y, m] = today.split('-').map(Number);
-        const first = new Date(Date.UTC(y, m - 1 - 11, 1));
-        from = first.toISOString().slice(0, 10);
-        break;
-      }
-      default:
-        from = floor;
-    }
-    return from < floor ? floor : from;
+  /** A janela do feed de movimentações: o período da tela, até os 366 dias que o servidor aceita. */
+  protected readonly movementsRange = computed(() => {
+    const r = this.range();
+    return r ? movementsWindow(r) : null;
   });
 
   protected readonly companiesInScope = computed(() => this.home()?.kpis.companies.value ?? null);
@@ -800,25 +866,28 @@ export class AdminHome implements OnInit {
   /** SUBCONJUNTO de `contractsTotal` — nunca exibir como total de contratos. */
   protected readonly contractsSigned = computed(() => this.overview()?.contracts?.signedTotal ?? 0);
 
-  protected readonly subscriptionBars = computed<StatusBar[]>(() =>
-    bars(this.overview()?.subscriptions.byStatus ?? {}, SUB_STATUS_ORDER),
+  protected readonly subscriptionSlices = computed<RingSlice[]>(() =>
+    statusSlices(this.overview()?.subscriptions.byStatus ?? {}, SUB_STATUS_ORDER),
   );
-  protected readonly feedbackBars = computed<StatusBar[]>(() =>
-    bars(this.overview()?.feedback.byStatus ?? {}, FB_STATUS_ORDER),
+  protected readonly feedbackSlices = computed<RingSlice[]>(() =>
+    statusSlices(this.overview()?.feedback.byStatus ?? {}, FB_STATUS_ORDER),
   );
   /** `byStatus` é esparso: status sem registro some do mapa e vale zero. */
-  protected readonly rentalBars = computed<StatusBar[]>(() =>
-    bars(this.overview()?.rentals?.byStatus ?? {}, RENTAL_STATUS_ORDER),
+  protected readonly rentalSlices = computed<RingSlice[]>(() =>
+    statusSlices(this.overview()?.rentals?.byStatus ?? {}, RENTAL_STATUS_ORDER),
   );
 }
 
-function bars(
-  map: Record<string, number>,
-  order: Array<{ key: string; label: string }>,
-): StatusBar[] {
-  const total = Object.values(map).reduce((sum, n) => sum + n, 0);
-  return order.map((s) => {
-    const count = map[s.key] ?? 0;
-    return { key: s.key, label: s.label, count, color: STATUS_BAR_COLOR, percent: total > 0 ? (count / total) * 100 : 0 };
-  });
+/**
+ * Pure: uma fatia por status, na ordem fixa; status ausente do mapa esparso vale zero. Cores da
+ * marca por `chartSeriesColors` (até 4: laranja, verde, preto, cinza; mais de 4: o maior laranja,
+ * o segundo verde, o resto cinza).
+ */
+export function statusSlices(
+  counts: Record<string, number>,
+  order: ReadonlyArray<{ key: string; label: string }>,
+): RingSlice[] {
+  const values = order.map((s) => counts[s.key] ?? 0);
+  const colors = chartSeriesColors(values);
+  return order.map((s, i) => ({ label: s.label, value: values[i], color: colors[i] }));
 }

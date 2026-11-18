@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -12,6 +12,8 @@ import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { clearServerErrors } from '../../../services/api-error';
 import { BlogService } from '../../blog/blog.service';
+import { StatusChip } from '../../../components/core/status-chip/status-chip';
+import { blogStatus, editorDatesLine } from './admin-blog-view';
 import {
   BLOG_CATEGORIES,
   BlogPostCategory,
@@ -39,6 +41,7 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
     AlertBanner,
     FormField,
     FieldControl,
+    StatusChip,
   ],
   templateUrl: './admin-blog-form.html',
   styleUrl: './admin-blog-form.css',
@@ -61,6 +64,10 @@ export class AdminBlogForm implements OnInit {
   protected readonly id = signal<string | null>(null);
   protected readonly status = signal<'DRAFT' | 'PUBLISHED'>('DRAFT');
   protected readonly bodyHtmlPreview = signal<SafeHtml>('');
+  /** Chip de situação do post em edição (cor só no chip). */
+  protected readonly statusChip = computed(() => blogStatus(this.status()));
+  /** "Publicado em 18/11/2026 às 14:32 · editado em …", no fuso do negócio. */
+  protected readonly dates = signal<string | null>(null);
 
   /** Falha ao CARREGAR o post — o formulário não pode ser usado. */
   protected readonly loadError = signal<string | null>(null);
@@ -212,6 +219,7 @@ export class AdminBlogForm implements OnInit {
   private hydrate(p: BlogPostDetail): void {
     this.id.set(p.id);
     this.status.set(p.status);
+    this.dates.set(editorDatesLine(p));
     this.form.patchValue({
       slug: p.slug,
       title: p.title,

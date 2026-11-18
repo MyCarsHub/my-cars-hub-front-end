@@ -1,267 +1,195 @@
 <app-default-page-layout
   title="Auditoria"
-  description="Trilha de todas as ações administrativas: quem fez, o que fez e quando."
+  description="Quem fez o quê no painel admin, e quando. Horários de Brasília."
 >
-  <app-page-card title="Trilha de ações">
-    <div class="p-3 sm:p-4 space-y-4">
-      <!-- ================= FILTROS ================= -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label class="block">
-          <span class="block text-xs font-medium text-fg-muted mb-1">Ator</span>
+  <div class="enter-up pb-[env(safe-area-inset-bottom)]">
+    <app-page-card title="Lista">
+      <div class="p-3 sm:p-4 space-y-4">
+        <app-list-toolbar
+          data-testid="audit-toolbar"
+          [search]="false"
+          [resultCount]="total()"
+          [resultNoun]="['registro', 'registros']"
+          [filtersActive]="hasFilters()"
+          (clearFilters)="clearFilters()"
+        >
           <select
-            class="w-full text-sm border border-edge-field rounded-lg px-3 py-2.5 bg-surface
-                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
-            [value]="actorFilter()"
+            listFilterSelect
+            aria-label="Quem fez"
+            data-testid="actor-filter"
             (change)="setActorFilter($any($event.target).value)"
           >
-            <option value="">Todos os atores</option>
+            <option value="" [selected]="actorFilter() === ''">Quem fez: Todos</option>
             @for (actor of actors(); track actor.id) {
-              <option [value]="actor.id">{{ actor.name || actor.email }}</option>
+              <option [value]="actor.id" [selected]="actor.id === actorFilter()">Quem fez: {{ actor.name || actor.email }}</option>
             }
           </select>
-        </label>
-
-        <label class="block">
-          <span class="block text-xs font-medium text-fg-muted mb-1">Ação</span>
           <select
-            class="w-full text-sm border border-edge-field rounded-lg px-3 py-2.5 bg-surface
-                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
-            [value]="actionFilter()"
+            listFilterSelect
+            aria-label="Ação"
+            data-testid="action-filter"
             (change)="setActionFilter($any($event.target).value)"
           >
-            <option value="">Todas as ações</option>
+            <option value="" [selected]="actionFilter() === ''">Ação: Todas</option>
             @for (opt of actionOptions(); track opt.value) {
-              <option [value]="opt.value">{{ opt.label }}</option>
+              <option [value]="opt.value" [selected]="opt.value === actionFilter()">Ação: {{ opt.label }}</option>
             }
           </select>
-        </label>
+        </app-list-toolbar>
 
-        <label class="block">
-          <span class="block text-xs font-medium text-fg-muted mb-1">De</span>
-          <input
-            type="date"
-            class="w-full text-sm border border-edge-field rounded-lg px-3 py-2.5 bg-surface
-                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
-            [value]="fromFilter()"
-            (change)="setFromFilter($any($event.target).value)"
+        <section aria-labelledby="audit-period-title" class="space-y-2">
+          <h3 id="audit-period-title" class="text-sm font-semibold text-fg">Período</h3>
+          <app-date-range-picker
+            data-testid="audit-period"
+            [initialPreset]="null"
+            [presetKeys]="periodKeys"
+            periodEnd="today"
+            [clearable]="true"
+            [allowFuture]="false"
+            (rangeChange)="setRange($event)"
+            (rangeCleared)="clearRange()"
           />
-        </label>
+          @if (!fromFilter()) {
+            <p class="text-xs text-fg-subtle" data-testid="audit-period-all">
+              Todo o histórico. Escolha um período para recortar.
+            </p>
+          }
+        </section>
 
-        <label class="block">
-          <span class="block text-xs font-medium text-fg-muted mb-1">Até</span>
-          <input
-            type="date"
-            class="w-full text-sm border border-edge-field rounded-lg px-3 py-2.5 bg-surface
-                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
-            [value]="toFilter()"
-            (change)="setToFilter($any($event.target).value)"
-          />
-        </label>
+        @if (error(); as err) {
+          <app-alert-banner variant="error" [message]="err" />
+        }
+
+        <app-data-list
+          [columns]="columns"
+          [rows]="items()"
+          [rowId]="rowId"
+          [loading]="loading() && items().length === 0"
+          [emptyText]="emptyText()"
+          ariaLabel="Trilha de ações administrativas, das mais recentes para as mais antigas"
+          [actionsLabel]="kebabLabel"
+          exportFilename="auditoria.csv"
+          cardsBelow="lg"
+          [rowTarget]="true"
+          (rowActivate)="openDetail($event)"
+          [page]="currentPage()"
+          [totalPages]="totalPages()"
+          [total]="total()"
+          [itemNoun]="['registro', 'registros']"
+          (pageChange)="goToPage($event)"
+        >
+          <!-- Dia em cima, hora e "há quanto" embaixo; data longa com segundos no balão. -->
+          <ng-template dataListCell="when" let-item>
+            <time
+              class="block tabular-nums"
+              data-testid="audit-when"
+              [attr.datetime]="item.createdDate"
+              [attr.title]="long(item.createdDate)"
+            >
+              <span class="block text-fg-body">{{ day(item.createdDate) }}</span>
+              <span class="block text-xs text-fg-subtle">
+                {{ time(item.createdDate) }}
+                @if (ago(item.createdDate); as rel) {
+                  · {{ rel }}
+                }
+              </span>
+            </time>
+          </ng-template>
+
+          <ng-template dataListCell="actor" let-item>
+            <span class="block min-w-0" [attr.title]="item.actorEmail || null">
+              <span class="block text-fg-body break-words">{{ actorLabel(item) }}</span>
+              @if (item.actorEmail && item.actorName) {
+                <span class="block text-xs text-fg-subtle truncate">{{ item.actorEmail }}</span>
+              }
+            </span>
+          </ng-template>
+
+          <ng-template dataListCell="target" let-item>
+            <span class="block" [attr.title]="item.targetId || null">
+              <span class="block text-fg-body">{{ targetLabel(item.targetType) }}</span>
+              @if (item.targetId) {
+                <span class="block text-xs text-fg-subtle tabular-nums">{{ shortId(item.targetId) }}</span>
+              }
+            </span>
+          </ng-template>
+
+          <ng-template dataListActions let-item>
+            <button
+              type="button"
+              dataListMenuItem
+              data-testid="audit-open-detail"
+              (click)="openDetail(item)"
+            >
+              Ver detalhes
+            </button>
+          </ng-template>
+        </app-data-list>
       </div>
-
-      @if (hasFilters()) {
-        <div>
-          <button
-            type="button"
-            class="text-xs px-3 py-2 rounded-full border border-edge bg-surface text-fg-soft
-                   hover:bg-canvas min-h-[36px] focus:outline-none focus:ring-2 focus:ring-primary-400"
-            (click)="clearFilters()"
-          >
-            Limpar filtros
-          </button>
-        </div>
-      }
-
-      <!-- Falha ao carregar a trilha -->
-      @if (error(); as err) {
-        <app-alert-banner variant="error" [message]="err" />
-      }
-
-      <!-- Loading skeleton -->
-      @if (loading() && items().length === 0) {
-        <div class="space-y-2">
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse"></div>
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse"></div>
-          <div class="h-16 rounded-lg bg-surface-sunken animate-pulse"></div>
-        </div>
-      }
-
-      <!-- Empty state -->
-      @if (!loading() && items().length === 0 && !error()) {
-        <div class="text-center text-sm text-fg-subtle py-10">
-          @if (hasFilters()) {
-            Nenhuma ação registrada com esses filtros.
-          } @else {
-            Nenhuma ação administrativa registrada ainda.
-          }
-        </div>
-      }
-
-      @if (items().length > 0) {
-        <!-- ================= MOBILE: CARDS ================= -->
-        <ul class="space-y-3 lg:hidden list-none">
-          @for (item of items(); track item.id) {
-            <li class="rounded-xl border border-edge p-4 space-y-2 bg-surface">
-              <div class="flex items-start justify-between gap-2">
-                <span
-                  class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                         font-medium uppercase tracking-wide break-words"
-                  [class]="actionChip(item.action)"
-                >
-                  {{ actionLabel(item.action) }}
-                </span>
-                <time
-                  class="text-[11px] text-fg-subtle tabular-nums shrink-0"
-                  [attr.datetime]="item.createdDate"
-                >
-                  {{ formatDateTime(item.createdDate) }}
-                </time>
-              </div>
-
-              <p class="text-sm text-fg break-words">
-                {{ actorLabel(item) }}
-              </p>
-              @if (item.actorEmail) {
-                <p class="text-[11px] text-fg-subtle break-words">{{ item.actorEmail }}</p>
-              }
-
-              <p class="text-[11px] text-fg-subtle">
-                Alvo: {{ targetLabel(item.targetType) }}
-                <span class="tabular-nums">{{ shortId(item.targetId) }}</span>
-              </p>
-
-              @if (item.payload) {
-                <div>
-                  <button
-                    type="button"
-                    class="text-xs text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 underline
-                           min-h-[36px] focus:outline-none focus:ring-2 focus:ring-primary-400 rounded"
-                    [attr.aria-expanded]="isExpanded(item.id)"
-                    [attr.aria-controls]="isExpanded(item.id) ? 'payload-m-' + item.id : null"
-                    (click)="toggleExpanded(item.id)"
-                  >
-                    {{ isExpanded(item.id) ? 'Ocultar detalhes' : 'Ver detalhes' }}
-                  </button>
-                  @if (isExpanded(item.id)) {
-                    <pre
-                      [id]="'payload-m-' + item.id"
-                      class="mt-2 text-[11px] text-fg-soft bg-canvas rounded-lg p-2
-                             whitespace-pre-wrap break-words font-mono"
-                    >{{ item.payload }}</pre>
-                  }
-                </div>
-              }
-            </li>
-          }
-        </ul>
-
-        <!-- ================= DESKTOP: TABELA ================= -->
-        <div class="hidden lg:block overflow-x-auto">
-          <table class="min-w-full text-sm">
-            <caption class="sr-only">
-              Trilha de ações administrativas, das mais recentes para as mais antigas
-            </caption>
-            <thead>
-              <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
-                <th scope="col" class="py-2 pr-4 font-medium">Quando</th>
-                <th scope="col" class="py-2 pr-4 font-medium">Ator</th>
-                <th scope="col" class="py-2 pr-4 font-medium">Ação</th>
-                <th scope="col" class="py-2 pr-4 font-medium">Alvo</th>
-                <th scope="col" class="py-2 pr-4 font-medium">Detalhes</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of items(); track item.id) {
-                <tr class="border-b border-gray-50 dark:border-edge-faint align-top">
-                  <td class="py-3 pr-4 text-fg-muted tabular-nums whitespace-nowrap">
-                    <time [attr.datetime]="item.createdDate">
-                      {{ formatDateTime(item.createdDate) }}
-                    </time>
-                  </td>
-                  <td class="py-3 pr-4">
-                    <span class="block font-medium text-fg break-words">
-                      {{ actorLabel(item) }}
-                    </span>
-                    @if (item.actorEmail) {
-                      <span class="block text-xs text-fg-subtle break-words">
-                        {{ item.actorEmail }}
-                      </span>
-                    }
-                  </td>
-                  <td class="py-3 pr-4">
-                    <span
-                      class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                      [class]="actionChip(item.action)"
-                    >
-                      {{ actionLabel(item.action) }}
-                    </span>
-                  </td>
-                  <td class="py-3 pr-4 text-fg-soft">
-                    {{ targetLabel(item.targetType) }}
-                    <span class="block text-xs text-fg-faint tabular-nums">
-                      {{ shortId(item.targetId) }}
-                    </span>
-                  </td>
-                  <td class="py-3 pr-4 max-w-md">
-                    @if (item.payload) {
-                      <button
-                        type="button"
-                        class="text-xs text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 underline
-                               focus:outline-none focus:ring-2 focus:ring-primary-400 rounded"
-                        [attr.aria-expanded]="isExpanded(item.id)"
-                        [attr.aria-controls]="isExpanded(item.id) ? 'payload-d-' + item.id : null"
-                        (click)="toggleExpanded(item.id)"
-                      >
-                        {{ isExpanded(item.id) ? 'Ocultar' : 'Ver' }}
-                      </button>
-                      @if (isExpanded(item.id)) {
-                        <pre
-                          [id]="'payload-d-' + item.id"
-                          class="mt-2 text-[11px] text-fg-soft bg-canvas rounded-lg p-2
-                                 whitespace-pre-wrap break-words font-mono"
-                        >{{ item.payload }}</pre>
-                      }
-                    } @else {
-                      <span class="text-xs text-fg-faint">—</span>
-                    }
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Paginação -->
-        <div class="flex items-center justify-between pt-2 gap-3">
-          <p class="text-xs text-fg-subtle tabular-nums">
-            Página {{ currentPage() + 1 }} de {{ totalPages() }} — {{ total() }} registro(s)
-          </p>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              class="text-xs px-3 py-2 rounded-lg border border-edge min-h-[36px]
-                     hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400
-                     disabled:opacity-40 disabled:cursor-not-allowed"
-              (click)="prevPage()"
-              [disabled]="!canPrev() || loading()"
-            >
-              Anterior
-            </button>
-            <button
-              type="button"
-              class="text-xs px-3 py-2 rounded-lg border border-edge min-h-[36px]
-                     hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400
-                     disabled:opacity-40 disabled:cursor-not-allowed"
-              (click)="nextPage()"
-              [disabled]="!canNext() || loading()"
-            >
-              Próxima
-            </button>
-          </div>
-        </div>
-      }
-    </div>
-  </app-page-card>
+    </app-page-card>
+  </div>
 
   <app-back-link link="/admin" label="Voltar para o painel admin" />
 </app-default-page-layout>
+
+@if (detail(); as item) {
+  <app-bottom-sheet
+    [title]="actionLabel(item.action)"
+    [subtitle]="exact(item.createdDate)"
+    (closed)="closeDetail()"
+  >
+    <div class="space-y-4" data-testid="audit-detail">
+      <app-status-chip [tone]="actionTone(item.action)">{{ actionLabel(item.action) }}</app-status-chip>
+
+      <dl appKvList flush>
+        <div>
+          <dt>Quando</dt>
+          <dd [attr.title]="long(item.createdDate)">{{ exact(item.createdDate) }}</dd>
+        </div>
+        <div>
+          <dt>Quem fez</dt>
+          <dd>{{ actorLabel(item) }}</dd>
+        </div>
+        @if (item.actorEmail) {
+          <div>
+            <dt>E-mail</dt>
+            <dd>{{ item.actorEmail }}</dd>
+          </div>
+        }
+        <div>
+          <dt>Alvo</dt>
+          <dd>{{ targetLabel(item.targetType) }}</dd>
+        </div>
+        @if (item.targetId) {
+          <div>
+            <dt>Identificador do alvo</dt>
+            <dd class="tabular-nums text-xs">{{ item.targetId }}</dd>
+          </div>
+        }
+      </dl>
+
+      <section class="space-y-1.5">
+        <h3 class="text-sm font-semibold text-fg">O que foi gravado</h3>
+        @if (item.payload) {
+          <pre
+            data-testid="audit-payload"
+            class="text-xs text-fg-soft bg-surface-muted rounded-xl p-3 whitespace-pre-wrap break-words font-mono"
+          >{{ item.payload }}</pre>
+        } @else {
+          <p class="text-sm text-fg-subtle">Nada além do que está acima.</p>
+        }
+      </section>
+    </div>
+
+    <div sheetFooter class="flex justify-end">
+      <button
+        type="button"
+        class="press w-full sm:w-auto min-h-[44px] px-4 rounded-xl bg-surface-sunken text-fg-body text-sm font-semibold
+               hover:bg-surface-strong transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        (click)="dismissDetail()"
+      >
+        Fechar
+      </button>
+    </div>
+  </app-bottom-sheet>
+}

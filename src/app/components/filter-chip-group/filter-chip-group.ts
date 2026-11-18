@@ -13,6 +13,11 @@ import { RovingFocusTracker, resolveRovingKey } from '../roving-focus/roving-foc
 export interface FilterChipOption<T> {
   readonly value: T;
   readonly label: string;
+  /**
+   * Opcional: quantos registros a opção tem ("Ativos 12"), como as abas com contagem do
+   * `app-pill-tabs`. Ausente/`null` = só o rótulo, como sempre foi.
+   */
+  readonly count?: number | null;
 }
 
 /** Classe canônica do chip de filtro — fonte única para dashboard/relatórios/alertas. */
@@ -20,7 +25,10 @@ const CHIP_BASE =
   'min-h-[44px] px-4 py-2 rounded-full text-sm font-medium border transition-colors ' +
   'outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2';
 const CHIP_ACTIVE = 'bg-primary-500 text-white border-primary-500';
-const CHIP_INACTIVE = 'bg-surface text-gray-700 dark:text-fg-soft border-gray-200 dark:border-edge hover:bg-canvas';
+/** Tokens do tema (`fg-soft`/`edge` já trocam no escuro): nada de `gray-*` cru. */
+const CHIP_INACTIVE = 'bg-surface text-fg-soft border-edge hover:bg-canvas';
+const COUNT_ACTIVE = 'text-xs tabular-nums text-white/85';
+const COUNT_INACTIVE = 'text-xs tabular-nums text-fg-subtle';
 
 const GROUP_WRAP = 'flex flex-wrap gap-2';
 /** Mobile: carrossel com snap; ≥lg volta a quebrar linha como os demais. */
@@ -64,7 +72,11 @@ const GROUP_SCROLL =
           [class]="chipClass(option.value)"
           (click)="select(option.value)"
         >
-          {{ option.label }}
+          {{ option.label }}@if (option.count !== undefined && option.count !== null) {&ngsp;<span
+              data-chip-count
+              [class]="option.value === value() ? countActive : countInactive"
+              >{{ option.count }}</span
+            >}
         </button>
       }
     </div>
@@ -83,6 +95,8 @@ export class FilterChipGroup<T> {
   readonly selectionChange = output<T>();
 
   private readonly chips = viewChildren<ElementRef<HTMLButtonElement>>('chip');
+  protected readonly countActive = COUNT_ACTIVE;
+  protected readonly countInactive = COUNT_INACTIVE;
 
   protected readonly containerClass = computed(() =>
     this.scrollable() ? GROUP_SCROLL : GROUP_WRAP,

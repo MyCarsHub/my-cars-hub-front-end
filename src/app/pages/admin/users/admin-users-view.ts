@@ -4,23 +4,22 @@ import type {
   AdminUserCompanyLink,
   AdminUserCompanyRole,
   AdminUserListItem,
+  AdminUserStatusFilter,
 } from '../../../types/admin-user.types';
 import { companyRoleLabel } from '../../../utils/role-labels';
+import { formatFullDate, formatTime, parseServerTime } from '../../../utils/server-time';
 
 /**
  * Pura de proposito: a regra de cada coluna da lista de Usuarios (papel, situacao, ultimo
  * acesso, aba) mora aqui, sem Angular, para os specs a exercitarem sem montar a tela.
  */
 
-export type UsersTab = 'ALL' | 'OWNER' | 'MANAGER' | 'DRIVER' | 'INACTIVE';
+/** A fileira unica de pilulas de situacao (padrao da plataforma: so situacao vira pilula). */
+export type UsersStatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE' | 'PENDING' | 'ONLINE';
+/** Papel numa empresa: vai no select "Papel: X" da linha da busca, nunca numa segunda fileira. */
+export type UsersRoleFilter = 'ALL' | 'OWNER' | 'MANAGER' | 'DRIVER';
 
 const ROLE_RANK: Readonly<Record<string, number>> = { OWNER: 3, MANAGER: 2, DRIVER: 1 };
-
-const ROLE_TONE: Readonly<Record<string, StatusChipTone>> = {
-  OWNER: 'orange',
-  MANAGER: 'blue',
-  DRIVER: 'green',
-};
 
 export interface Labelled {
   label: string;
@@ -36,11 +35,14 @@ export function primaryCompanyRole(companies: readonly AdminUserCompanyRole[] | 
   return best;
 }
 
-/** Papel que a coluna "Papel" mostra: admin da plataforma vence; senao o mais alto. */
+/**
+ * Papel que a coluna "Papel" mostra: admin da plataforma vence; senao o mais alto. Chip
+ * NEUTRO sempre: cor e so para situacao, nunca para quem a pessoa e (`people-table.ts`).
+ */
 export function userRole(user: Pick<AdminUserListItem, 'systemRole' | 'companies'>): Labelled | null {
   if (user.systemRole === 'PLATFORM_ADMIN') return { label: 'Admin', tone: 'neutral' };
   const role = primaryCompanyRole(user.companies);
-  return role ? { label: companyRoleLabel(role), tone: ROLE_TONE[role] ?? 'neutral' } : null;
+  return role ? { label: companyRoleLabel(role), tone: 'neutral' } : null;
 }
 
 /** Convite ainda nao aceito: a conta so existe porque um convite a pre-cadastrou. */
@@ -66,9 +68,8 @@ export function lastAccessLabel(
   now: number,
 ): string | null {
   if (user.online) return 'Online agora';
-  if (!user.lastSeenAt) return null;
-  const seen = Date.parse(user.lastSeenAt);
-  if (Number.isNaN(seen)) return null;
+  const seen = parseServerTime(user.lastSeenAt)?.getTime();
+  if (seen === undefined) return null;
   const minutes = Math.max(1, Math.floor((now - seen) / 60_000));
   if (minutes < 60) return `Visto há ${minutes} min`;
   const hours = Math.floor(minutes / 60);
@@ -78,17 +79,65 @@ export function lastAccessLabel(
 }
 
 /**
- * Aba da lista. "Inativos" e filtro do SERVIDOR (status); os tres papeis o servidor nao
- * filtra, entao valem para as linhas ja carregadas.
+ * O que cada pilula pede ao SERVIDOR. Ele filtra situacao (ACTIVE/INACTIVE) e presenca;
+ * "Convite pendente" ele nao filtra, entao pede os ativos e a tela recorta a pagina.
  */
-export function matchesTab(user: AdminUserListItem, tab: UsersTab): boolean {
-  switch (tab) {
-    case 'ALL':
+export function serverQueryFor(status: UsersStatusFilter): {
+  status: AdminUserStatusFilter;
+  online: boolean;
+} {
+  switch (status) {
+    case 'ACTIVE':
+    case 'PENDING':
+      return { status: 'ACTIVE', online: false };
     case 'INACTIVE':
-      return true;
+      return { status: 'INACTIVE', online: false };
+    case 'ONLINE':
+      return { status: 'ALL', online: true };
     default:
-      return (user.companies ?? []).some((c) => c.role === tab);
+      return { status: 'ALL', online: false };
   }
+}
+
+/** Filtros que o servidor NAO faz (papel e convite pendente) valem so para a pagina carregada. */
+export function isLocalFilter(status: UsersStatusFilter, role: UsersRoleFilter): boolean {
+  return status === 'PENDING' || role !== 'ALL';
+}
+
+/**
+ * A linha passa nos filtros LOCAIS: convite pendente e papel em QUALQUER empresa do usuario.
+ * Situacao e presenca ja vieram filtradas do servidor.
+ */
+export function matchesLocalFilters(
+  user: AdminUserListItem,
+  status: UsersStatusFilter,
+  role: UsersRoleFilter,
+): boolean {
+  if (status === 'PENDING' && !hasPendingInvite(user)) return false;
+  if (role === 'ALL') return true;
+  return (user.companies ?? []).some((c) => c.role === role);
+}
+
+/**
+ * Data e hora exatas de um instante do servidor, no fuso do negocio: "18/11/2026 às 14:32".
+ * `LocalDateTime` da API vem em UTC sem sufixo; `parseServerTime` le assim (sem ele o
+ * navegador leria como hora local e erraria 3 h, e o dia depois das 21h).
+ */
+export function exactDateTime(value: string | null | undefined): string | null {
+  const date = parseServerTime(value);
+  return date ? `${formatFullDate(date)} às ${formatTime(date)}` : null;
+}
+
+/** So a data de um instante do servidor, no fuso do negocio: "18/11/2026"; "—" sem data. */
+export function exactDate(value: string | null | undefined): string {
+  return formatFullDate(parseServerTime(value));
+}
+
+/** Todas as empresas com o papel em cada uma, para o balao/leitor de tela da coluna Empresas. */
+export function companiesDetail(user: Pick<AdminUserListItem, 'companies'>): string {
+  return (user.companies ?? [])
+    .map((c) => `${c.companyName} (${companyRoleLabel(c.role)})`)
+    .join(', ');
 }
 
 /** "Mobi Fortaleza" / "Mobi Fortaleza +1" para a coluna Empresas. */

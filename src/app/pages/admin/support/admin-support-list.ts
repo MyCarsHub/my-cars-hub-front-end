@@ -1,5 +1,4 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -16,11 +15,17 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
+import { StatusChip, type StatusChipTone } from '../../../components/core/status-chip/status-chip';
+import type { FilterChipOption } from '../../../components/filter-chip-group/filter-chip-group';
+import { pagerLabel } from '../../../components/lists/data-list/data-list';
+import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
+import { ListFilterSelect, ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
 import { FieldControl, FormField } from '../../../components/form-field/form-field';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SupportTicketService } from '../../../services/support-ticket.service';
 import { AdminSupportThread } from './admin-support-thread';
+import { whenAgo, whenExact, whenLong } from '../audit/admin-when';
 import {
   SUPPORT_CHANNEL_LABEL,
   SUPPORT_REPLY_MAX_LENGTH,
@@ -35,6 +40,23 @@ import {
 } from '../../../types/support.types';
 
 const PAGE_SIZE = 20;
+
+type StatusFilter = SupportTicketStatus | '';
+
+/** Uma fileira de pílulas de situação (antes: select de 14px num cartão "Filtros" à parte). */
+const STATUS_FILTERS: readonly FilterChipOption<StatusFilter>[] = [
+  { value: '', label: 'Todos' },
+  { value: 'OPEN', label: SUPPORT_STATUS_META.OPEN.label },
+  { value: 'IN_PROGRESS', label: SUPPORT_STATUS_META.IN_PROGRESS.label },
+  { value: 'RESOLVED', label: SUPPORT_STATUS_META.RESOLVED.label },
+];
+
+/** Cor só no chip, e só de situação: Aberto pede ação (âmbar), Em atendimento azul, Resolvido verde. */
+const STATUS_TONE: Record<SupportTicketStatus, StatusChipTone> = {
+  OPEN: 'amber',
+  IN_PROGRESS: 'blue',
+  RESOLVED: 'green',
+};
 
 /**
  * Backoffice PLATFORM_ADMIN de tickets de suporte.
@@ -58,12 +80,15 @@ const PAGE_SIZE = 20;
   selector: 'app-admin-support-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
     ReactiveFormsModule,
     DefaultPageLayout,
     PageCard,
     AlertBanner,
     ActionsMenu,
+    StatusChip,
+    DataListMenuItem,
+    ListToolbar,
+    ListFilterSelect,
     FormField,
     FieldControl,
     AdminSupportThread,
@@ -79,6 +104,10 @@ export class AdminSupportList implements OnInit {
   protected readonly channelLabel = SUPPORT_CHANNEL_LABEL;
   protected readonly statusMeta = SUPPORT_STATUS_META;
   protected readonly replyMaxLength = SUPPORT_REPLY_MAX_LENGTH;
+  protected readonly statusFilters = STATUS_FILTERS;
+
+  /** Relógio do "há 3 h", renovado a cada carga da fila. */
+  protected readonly now = signal(Date.now());
 
   protected readonly loading = signal(false);
   /** Falha ao CARREGAR a lista — banner no topo, acima dos filtros. */
@@ -93,7 +122,7 @@ export class AdminSupportList implements OnInit {
   protected readonly items = signal<SupportTicketAdminItem[]>([]);
   protected readonly total = signal(0);
   protected readonly page = signal(0);
-  protected readonly statusFilter = signal<SupportTicketStatus | ''>('');
+  protected readonly statusFilter = signal<StatusFilter>('');
   protected readonly companyFilter = signal('');
 
   protected readonly companies = signal<SupportCompanyOption[]>([]);
@@ -177,6 +206,9 @@ export class AdminSupportList implements OnInit {
   protected readonly hasNext = computed(() => (this.page() + 1) * PAGE_SIZE < this.total());
   protected readonly hasPrev = computed(() => this.page() > 0);
   protected readonly hasFilters = computed(() => !!this.statusFilter() || !!this.companyFilter());
+  protected readonly pagerText = computed(() =>
+    pagerLabel(this.page(), this.totalPages(), this.total(), ['ticket', 'tickets']),
+  );
 
   ngOnInit(): void {
     this.load();
@@ -208,6 +240,7 @@ export class AdminSupportList implements OnInit {
         next: (res) => {
           this.items.set(res.content ?? []);
           this.total.set(res.total ?? 0);
+          this.now.set(Date.now());
           this.loading.set(false);
         },
         error: (err: HttpErrorResponse) => {
@@ -217,8 +250,8 @@ export class AdminSupportList implements OnInit {
       });
   }
 
-  protected onStatusFilterChange(status: string): void {
-    this.statusFilter.set((status as SupportTicketStatus | '') || '');
+  protected onStatusFilterChange(status: StatusFilter | null): void {
+    this.statusFilter.set(status || '');
     this.resetPageAndReload();
   }
 
@@ -271,6 +304,23 @@ export class AdminSupportList implements OnInit {
 
   protected assigneeOptionLabel(option: SupportAssigneeOption): string {
     return option.name?.trim() || option.email;
+  }
+
+  protected statusTone(status: SupportTicketStatus): StatusChipTone {
+    return STATUS_TONE[status] ?? 'neutral';
+  }
+
+  /** "18/11/2026 às 14:32" no fuso de Brasília (o servidor manda UTC sem sufixo). */
+  protected exact(value: string | null): string {
+    return whenExact(value) ?? '—';
+  }
+
+  protected ago(value: string | null): string | null {
+    return whenAgo(value, this.now());
+  }
+
+  protected long(value: string | null): string | null {
+    return whenLong(value);
   }
 
   // ------------------------------------------------------------------ thread

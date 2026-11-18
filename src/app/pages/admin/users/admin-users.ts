@@ -1,29 +1,25 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  OnDestroy,
   OnInit,
   computed,
   effect,
   inject,
   signal,
 } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { BackLink } from '../../../components/core/back-link/back-link';
-import {
-  FilterChipGroup,
-  FilterChipOption,
-} from '../../../components/filter-chip-group/filter-chip-group';
+import { FilterChipOption } from '../../../components/filter-chip-group/filter-chip-group';
 import {
   DataList,
   DataListActions,
   DataListCell,
   DataListColumn,
 } from '../../../components/lists/data-list/data-list';
-import { PillTabs, PillTabOption } from '../../../components/core/pill-tabs/pill-tabs';
+import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
+import { ListFilterSelect, ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
+import { PageCard } from '../../../components/core/page-card/page-card';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
@@ -32,19 +28,25 @@ import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminUsersService } from '../admin-users.service';
 import { ContactActions } from '../contact/contact-actions';
-import { AdminUserListItem, AdminUserPresenceFilter } from '../../../types/admin-user.types';
+import { AdminUserListItem } from '../../../types/admin-user.types';
 import {
   RESEND_FALLBACK,
-  UsersTab,
+  UsersRoleFilter,
+  UsersStatusFilter,
+  companiesDetail,
   companiesSummary,
+  exactDateTime,
   hasPendingInvite,
+  isLocalFilter,
   lastAccessLabel,
-  matchesTab,
+  matchesLocalFilters,
   resendRefusal,
+  serverQueryFor,
   userRole,
   userSituation,
 } from './admin-users-view';
 import { PersonNamePipe } from '../../../pipes/person-name.pipe';
+import { formatPersonName } from '../../../utils/display-format';
 
 interface PendingAction {
   kind: 'DEACTIVATE' | 'ACTIVATE';
@@ -54,17 +56,20 @@ interface PendingAction {
 const PAGE_SIZE = 20;
 
 /** Fora do template: `options` e um `input`, e um literal inline recriaria o array a cada ciclo. */
-const PRESENCE_OPTIONS: readonly FilterChipOption<AdminUserPresenceFilter>[] = [
+const STATUS_OPTIONS: readonly FilterChipOption<UsersStatusFilter>[] = [
   { value: 'ALL', label: 'Todos' },
+  { value: 'ACTIVE', label: 'Ativos' },
+  { value: 'INACTIVE', label: 'Inativos' },
+  { value: 'PENDING', label: 'Convite pendente' },
   { value: 'ONLINE', label: 'Online agora' },
 ];
 
-const TAB_OPTIONS: readonly PillTabOption<UsersTab>[] = [
+/** Papel vai no select da linha da busca ("Papel: Donos"), nunca numa segunda fileira de pilulas. */
+const ROLE_OPTIONS: readonly { value: UsersRoleFilter; label: string }[] = [
   { value: 'ALL', label: 'Todos' },
   { value: 'OWNER', label: 'Donos' },
-  { value: 'MANAGER', label: 'Gerentes' },
+  { value: 'MANAGER', label: 'Gerenciadores' },
   { value: 'DRIVER', label: 'Motoristas' },
-  { value: 'INACTIVE', label: 'Inativos' },
 ];
 
 @Component({
@@ -74,26 +79,27 @@ const TAB_OPTIONS: readonly PillTabOption<UsersTab>[] = [
     PersonNamePipe,
     ContactActions,
     BackLink,
-    ReactiveFormsModule,
     DefaultPageLayout,
+    PageCard,
     ConfirmDialog,
     AlertBanner,
-    FilterChipGroup,
     RouterLink,
     DataList,
     DataListCell,
     DataListActions,
-    PillTabs,
+    DataListMenuItem,
+    ListToolbar,
+    ListFilterSelect,
   ],
   templateUrl: './admin-users.html',
 })
-export class AdminUsers implements OnInit, OnDestroy {
+export class AdminUsers implements OnInit {
   private readonly usersService = inject(AdminUsersService);
   private readonly notify = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly caps = inject(AdminCapabilitiesService);
-  private readonly destroy$ = new Subject<void>();
 
   protected readonly items = this.usersService.items;
   protected readonly total = this.usersService.total;
@@ -104,15 +110,14 @@ export class AdminUsers implements OnInit, OnDestroy {
   /** Falha de uma OPERACAO (ativar/desativar/reenviar convite): banner inline, erro reivindicado. */
   protected readonly actionError = signal<string | null>(null);
 
-  protected readonly searchControl = new FormControl<string>('', { nonNullable: true });
+  protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly roleOptions = ROLE_OPTIONS;
   protected readonly search = signal<string>('');
-  protected readonly tabOptions = TAB_OPTIONS;
-  protected readonly presenceOptions = PRESENCE_OPTIONS;
-  protected readonly tab = signal<UsersTab>('ALL');
   /** Nasce de `?online=true`: o cartao "Online agora" do painel abre a lista ja filtrada. */
-  protected readonly presenceFilter = signal<AdminUserPresenceFilter>(
+  protected readonly status = signal<UsersStatusFilter>(
     this.route.snapshot.queryParamMap.get('online') === 'true' ? 'ONLINE' : 'ALL',
   );
+  protected readonly role = signal<UsersRoleFilter>('ALL');
   protected readonly currentPage = signal(0);
 
   protected readonly pendingAction = signal<PendingAction | null>(null);
@@ -121,15 +126,23 @@ export class AdminUsers implements OnInit, OnDestroy {
   /** Falha fechada: sem a capacidade (ou sem resposta do /admin/me) nenhuma acao de escrita aparece. */
   protected readonly canManage = computed(() => this.caps.can('usuario.gerir'));
 
-  /** Papel (dono/gerente/motorista) o servidor nao filtra: vale para as linhas carregadas. */
+  /** Papel e convite pendente o servidor nao filtra: valem para as linhas carregadas. */
+  protected readonly localFilter = computed(() => isLocalFilter(this.status(), this.role()));
   protected readonly rows = computed(() => {
-    const tab = this.tab();
-    return this.items().filter((u) => matchesTab(u, tab));
+    const status = this.status();
+    const role = this.role();
+    return this.items().filter((u) => matchesLocalFilters(u, status, role));
   });
-  protected readonly roleTabNote = computed(() =>
-    ['OWNER', 'MANAGER', 'DRIVER'].includes(this.tab())
-      ? 'O filtro de papel vale para os usuários desta página.'
-      : null,
+  /**
+   * Sem filtro local: o total do servidor. Com ele: as linhas que sobraram NESTA pagina, e a
+   * nota diz que o recorte e da pagina. (`null` esconderia o numero; a contagem da pagina, com a
+   * nota, diz mais.)
+   */
+  protected readonly resultCount = computed(() =>
+    this.localFilter() ? this.rows().length : this.total(),
+  );
+  protected readonly anyFilter = computed(
+    () => this.search().trim() !== '' || this.status() !== 'ALL' || this.role() !== 'ALL',
   );
 
   protected readonly columns: readonly DataListColumn<AdminUserListItem>[] = [
@@ -140,15 +153,19 @@ export class AdminUsers implements OnInit, OnDestroy {
       value: (u) => (u.name ? `${u.name} <${u.email}>` : u.email),
     },
     { key: 'phone', header: 'Telefone', value: (u) => u.phoneMasked, noExport: true },
-    {
-      key: 'role',
-      header: 'Papel',
-      kind: 'status',
-      value: (u) => userRole(u)?.label,
-      tone: (u) => userRole(u)?.tone ?? 'neutral',
-    },
+    // Papel e quem a pessoa e: chip neutro (cor so na situacao).
+    { key: 'role', header: 'Papel', kind: 'status', value: (u) => userRole(u)?.label },
     { key: 'companies', header: 'Empresas', value: (u) => companiesSummary(u) },
-    { key: 'last', header: 'Último acesso', value: (u) => lastAccessLabel(u, Date.now()) },
+    {
+      key: 'last',
+      header: 'Último acesso',
+      value: (u) => {
+        const label = lastAccessLabel(u, Date.now());
+        if (!label) return 'Nunca visto';
+        const exact = this.exactSeen(u);
+        return exact ? `${label} (${exact})` : label;
+      },
+    },
     {
       key: 'status',
       header: 'Situação',
@@ -157,14 +174,11 @@ export class AdminUsers implements OnInit, OnDestroy {
       tone: (u) => userSituation(u).tone,
     },
   ];
-  private readonly router = inject(Router);
-
-  /** A linha inteira abre o detalhe (alvo de mouse e toque); o teclado usa o link do nome. */
-  protected openUser(user: AdminUserListItem): void {
-    void this.router.navigate(['/admin/users', user.id]);
-  }
 
   protected readonly rowId = (u: AdminUserListItem): string => u.id;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (u: AdminUserListItem): string =>
+    `Ações do usuário ${formatPersonName(u.name) || u.email}`;
 
   protected readonly totalPages = computed(() => {
     const t = this.total();
@@ -172,8 +186,6 @@ export class AdminUsers implements OnInit, OnDestroy {
     if (t <= 0) return 1;
     return Math.max(1, Math.ceil(t / s));
   });
-  protected readonly canPrev = computed(() => this.currentPage() > 0);
-  protected readonly canNext = computed(() => this.currentPage() + 1 < this.totalPages());
 
   protected readonly confirmVariant = computed<'info' | 'warning' | 'danger'>(() =>
     this.pendingAction()?.kind === 'DEACTIVATE' ? 'danger' : 'warning',
@@ -200,8 +212,7 @@ export class AdminUsers implements OnInit, OnDestroy {
   constructor() {
     effect(() => {
       const search = this.search();
-      const status = this.tab() === 'INACTIVE' ? 'INACTIVE' : 'ALL';
-      const online = this.presenceFilter() === 'ONLINE';
+      const { status, online } = serverQueryFor(this.status());
       const page = this.currentPage();
       this.error.set(null);
       this.usersService.load({ search, status, online, page, size: PAGE_SIZE }).subscribe({
@@ -216,35 +227,59 @@ export class AdminUsers implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.caps.ensureLoaded().subscribe();
-    this.searchControl.valueChanges
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntil(this.destroy$))
-      .subscribe((value) => {
-        this.currentPage.set(0);
-        this.search.set(value ?? '');
-      });
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+  /** "Visto há 3 dias" da celula (o texto curto). */
+  protected lastAccess(u: AdminUserListItem): string | null {
+    return lastAccessLabel(u, Date.now());
   }
 
-  protected setTab(value: UsersTab): void {
+  /** Data e hora exatas embaixo do texto relativo; online nao precisa. */
+  protected exactSeen(u: AdminUserListItem): string | null {
+    return u.online ? null : exactDateTime(u.lastSeenAt);
+  }
+
+  protected companiesText(u: AdminUserListItem): string {
+    return companiesSummary(u);
+  }
+
+  /** Todas as empresas com o papel em cada uma (balao no mouse e texto do leitor de tela). */
+  protected companiesTitle(u: AdminUserListItem): string {
+    return companiesDetail(u);
+  }
+
+  /** A linha inteira abre o detalhe (alvo de mouse e toque); o teclado usa o link do nome. */
+  protected openUser(user: AdminUserListItem): void {
+    void this.router.navigate(['/admin/users', user.id]);
+  }
+
+  /** O toolbar ja espera 300 ms (`searchDebounce`); aqui so volta para a primeira pagina. */
+  protected setSearch(value: string): void {
+    if (value === this.search()) return;
     this.currentPage.set(0);
-    this.tab.set(value);
+    this.search.set(value);
   }
 
-  protected setPresenceFilter(value: AdminUserPresenceFilter): void {
+  protected setStatus(value: UsersStatusFilter): void {
     this.currentPage.set(0);
-    this.presenceFilter.set(value);
+    this.status.set(value);
   }
 
-  protected prevPage(): void {
-    if (this.canPrev()) this.currentPage.update((p) => p - 1);
+  /** Filtro local: nao recarrega nem muda de pagina. */
+  protected setRole(value: string): void {
+    this.role.set(value as UsersRoleFilter);
   }
 
-  protected nextPage(): void {
-    if (this.canNext()) this.currentPage.update((p) => p + 1);
+  protected clearFilters(): void {
+    this.currentPage.set(0);
+    this.search.set('');
+    this.status.set('ALL');
+    this.role.set('ALL');
+  }
+
+  protected goToPage(page: number): void {
+    if (page < 0 || page >= this.totalPages()) return;
+    this.currentPage.set(page);
   }
 
   protected canResend(user: AdminUserListItem): boolean {
