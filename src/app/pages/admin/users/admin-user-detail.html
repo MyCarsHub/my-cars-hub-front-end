@@ -34,7 +34,7 @@
     </div>
   } @else if (detail(); as user) {
     <!-- Header card -->
-    <section class="mb-4 rounded-2xl border border-edge bg-surface p-4 sm:p-6">
+    <section class="enter-up mb-4 rounded-2xl border border-edge bg-surface shadow-sm p-4 sm:p-6">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-3 flex-wrap">
@@ -49,6 +49,9 @@
             }}</app-status-chip>
           </div>
           <p class="mt-1 text-sm text-fg-subtle break-words">{{ user.email }}</p>
+          @if (lastSeenRelative(); as rel) {
+            <p class="mt-1 text-xs text-fg-subtle" data-testid="header-last-seen">{{ rel }}</p>
+          }
           <p class="mt-1 text-xs text-fg-faint tabular-nums">ID {{ user.id }}</p>
         </div>
 
@@ -110,42 +113,47 @@
     </div>
     }
 
-    <!-- Dados -->
-    <app-page-card title="Dados">
-      <div class="p-4 sm:p-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div>
-          <p class="text-xs text-fg-subtle uppercase tracking-wide">Criado em</p>
-          <p class="text-sm text-fg mt-1 tabular-nums">
-            {{ formatDate(user.createdDate) }}
-          </p>
-        </div>
-        <div>
-          <p class="text-xs text-fg-subtle uppercase tracking-wide">Último login</p>
-          @if (lastLogin(); as value) {
-            <p class="text-sm text-fg mt-1 tabular-nums">{{ value }}</p>
-          } @else {
-            <p class="text-sm text-fg-subtle mt-1">Sem registro de acesso</p>
-          }
-        </div>
-        <div data-testid="last-seen">
-          <p class="text-xs text-fg-subtle uppercase tracking-wide">Último acesso</p>
-          @if (lastSeen(); as value) {
-            <p class="text-sm text-fg mt-1 tabular-nums">{{ value }}</p>
-          } @else {
-            <p class="text-sm text-fg-subtle mt-1">Sem registro de presença</p>
-          }
-        </div>
-        <div>
-          <p class="text-xs text-fg-subtle uppercase tracking-wide">Papel de sistema</p>
-          <p class="text-sm text-fg mt-1">{{ roleLabel(user.systemRole) }}</p>
-        </div>
-      </div>
-    </app-page-card>
+    <!-- Dados: pares rótulo/valor sem linha entre eles (dl[appKvList]). Datas no fuso do negócio. -->
+    <div class="enter-up" style="--stagger-i: 1">
+      <app-page-card title="Dados">
+        <dl appKvList class="sm:!px-2" data-testid="user-data">
+          <div>
+            <dt>Criado em</dt>
+            <dd class="tabular-nums" data-testid="created-at">{{ createdAt() ?? '—' }}</dd>
+          </div>
+          <div data-testid="last-login">
+            <dt>Último login</dt>
+            @if (lastLogin(); as value) {
+              <dd class="tabular-nums" data-testid="last-login-value">{{ value }}</dd>
+            } @else {
+              <dd class="!font-normal !text-fg-subtle" data-testid="last-login-value">Sem registro de acesso</dd>
+            }
+          </div>
+          <div data-testid="last-seen">
+            <dt>Último acesso</dt>
+            @if (lastSeen(); as value) {
+              <dd class="tabular-nums">
+                @if (lastSeenRelative(); as rel) {
+                  <span class="block">{{ rel }}</span>
+                }
+                <span class="block text-xs font-normal text-fg-subtle">{{ value }}</span>
+              </dd>
+            } @else {
+              <dd class="!font-normal !text-fg-subtle">Sem registro de presença</dd>
+            }
+          </div>
+          <div>
+            <dt>Papel de sistema</dt>
+            <dd>{{ roleLabel(user.systemRole) }}</dd>
+          </div>
+        </dl>
+      </app-page-card>
+    </div>
 
     <!-- Empresas -->
-    <div class="mt-4">
+    <div class="mt-4 enter-up" style="--stagger-i: 2">
       <app-page-card title="Empresas vinculadas ({{ user.companies.length }})">
-        <div class="p-4 sm:p-6">
+        <div class="px-4 pb-4 sm:px-6 sm:pb-6">
           @if (user.companies.length === 0) {
             <p class="text-sm text-fg-subtle">Este usuário não está vinculado a nenhuma empresa.</p>
           } @else {
@@ -155,13 +163,14 @@
                   <a
                     [routerLink]="['/admin/companies', link.companyId]"
                     data-testid="company-link"
-                    class="inline-flex items-center min-h-[44px] flex-1 min-w-0 text-sm font-semibold text-primary-700
-                           dark:text-primary-300 hover:underline break-words
+                    class="inline-flex items-center min-h-[44px] flex-1 min-w-0 text-sm font-semibold text-fg
+                           hover:text-primary-700 dark:hover:text-primary-400 hover:underline break-words
                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
                   >{{ link.companyName }}</a>
-                  <app-status-chip size="sm" [tone]="roleTone(link.role)">{{ roleLabel(link.role) }}</app-status-chip>
+                  <!-- Papel é quem a pessoa é: chip neutro. Cor só na situação do vínculo. -->
+                  <app-status-chip size="sm" data-testid="link-role">{{ roleLabel(link.role) }}</app-status-chip>
                   <app-status-chip size="sm" [tone]="linkStatusTone(link.status)">{{ linkStatusLabel(link.status) }}</app-status-chip>
-                  <span class="text-xs text-fg-subtle tabular-nums">Desde {{ formatDate(link.joinedAt) }}</span>
+                  <span class="text-xs text-fg-subtle tabular-nums" [attr.title]="joinedTitle(link)">Desde {{ joinedDate(link) }}</span>
                 </li>
               }
             </ul>

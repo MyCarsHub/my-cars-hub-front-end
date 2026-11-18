@@ -2,12 +2,17 @@ import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { describe, expect, it } from 'vitest';
 import type { AdminUserCompanyLink, AdminUserListItem } from '../../../types/admin-user.types';
 import {
+  companiesDetail,
   companiesSummary,
   detailHasPendingInvite,
   enterAsTargets,
+  exactDate,
+  exactDateTime,
+  isLocalFilter,
   lastAccessLabel,
-  matchesTab,
+  matchesLocalFilters,
   resendRefusal,
+  serverQueryFor,
   userRole,
   userSituation,
 } from './admin-users-view';
@@ -36,8 +41,9 @@ const link = (id: string, role: string, status: string): AdminUserCompanyLink =>
 });
 
 describe('admin-users-view', () => {
-  it('o papel mostrado é o mais alto; admin da plataforma vence', () => {
-    expect(userRole(BASE)).toEqual({ label: 'Dono', tone: 'orange' });
+  it('o papel mostrado é o mais alto, em chip neutro; admin da plataforma vence', () => {
+    expect(userRole(BASE)).toEqual({ label: 'Dono', tone: 'neutral' });
+    expect(userRole({ systemRole: 'USER', companies: [BASE.companies![0]] })?.tone).toBe('neutral');
     expect(userRole({ ...BASE, systemRole: 'PLATFORM_ADMIN' })?.label).toBe('Admin');
     expect(userRole({ systemRole: 'USER', companies: [] })).toBeNull();
   });
@@ -65,15 +71,45 @@ describe('admin-users-view', () => {
     expect(lastAccessLabel({ online: false, lastSeenAt: null }, now)).toBeNull();
   });
 
-  it('aba de papel casa com QUALQUER empresa do usuário', () => {
-    expect(matchesTab(BASE, 'MANAGER')).toBe(true);
-    expect(matchesTab(BASE, 'DRIVER')).toBe(false);
-    expect(matchesTab(BASE, 'ALL')).toBe(true);
+  it('filtro de papel casa com QUALQUER empresa do usuário', () => {
+    expect(matchesLocalFilters(BASE, 'ALL', 'MANAGER')).toBe(true);
+    expect(matchesLocalFilters(BASE, 'ALL', 'DRIVER')).toBe(false);
+    expect(matchesLocalFilters(BASE, 'ALL', 'ALL')).toBe(true);
   });
 
-  it('resumo de empresas', () => {
+  it('convite pendente é recorte local; os outros chips já vêm do servidor', () => {
+    const pending = { ...BASE, accountStatus: 'PRE_REGISTERED' };
+    expect(matchesLocalFilters(pending, 'PENDING', 'ALL')).toBe(true);
+    expect(matchesLocalFilters({ ...BASE, accountStatus: 'ACTIVE' }, 'PENDING', 'ALL')).toBe(false);
+    expect(matchesLocalFilters({ ...BASE, active: false }, 'INACTIVE', 'ALL')).toBe(true);
+    expect(isLocalFilter('PENDING', 'ALL')).toBe(true);
+    expect(isLocalFilter('ALL', 'OWNER')).toBe(true);
+    expect(isLocalFilter('ONLINE', 'ALL')).toBe(false);
+  });
+
+  it('cada pílula pede ao servidor só o que ele filtra', () => {
+    expect(serverQueryFor('ALL')).toEqual({ status: 'ALL', online: false });
+    expect(serverQueryFor('ACTIVE')).toEqual({ status: 'ACTIVE', online: false });
+    expect(serverQueryFor('INACTIVE')).toEqual({ status: 'INACTIVE', online: false });
+    expect(serverQueryFor('PENDING')).toEqual({ status: 'ACTIVE', online: false });
+    expect(serverQueryFor('ONLINE')).toEqual({ status: 'ALL', online: true });
+  });
+
+  it('data exata no fuso do negócio: LocalDateTime da API é UTC sem sufixo', () => {
+    // 01:30 UTC do dia 19 = 22:30 do dia 18 em Brasília.
+    expect(exactDateTime('2026-11-19T01:30:00')).toBe('18/11/2026 às 22:30');
+    expect(exactDate('2026-11-19T01:30:00')).toBe('18/11/2026');
+    // Com sufixo (OffsetDateTime do lastSeenAt) a zona é respeitada.
+    expect(exactDateTime('2026-11-18T14:32:00-03:00')).toBe('18/11/2026 às 14:32');
+    expect(exactDateTime(null)).toBeNull();
+    expect(exactDate(null)).toBe('—');
+  });
+
+  it('resumo de empresas e a lista completa do balão', () => {
     expect(companiesSummary(BASE)).toBe('Alfa +1');
     expect(companiesSummary({ companyCount: 0, companies: [] })).toBe('—');
+    expect(companiesDetail(BASE)).toBe('Alfa (Gerenciador), Beta (Dono)');
+    expect(companiesDetail({ companies: [] })).toBe('');
   });
 
   it('"Entrar como" exclui motorista e vínculo não ativo', () => {

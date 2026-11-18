@@ -25,10 +25,14 @@ import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { AdminUsersService } from '../admin-users.service';
 import { AdminUserCompanyLink } from '../../../types/admin-user.types';
+import { KvList } from '../../../components/core/kv-list/kv-list';
 import {
   RESEND_FALLBACK,
   detailHasPendingInvite,
   enterAsTargets,
+  exactDate,
+  exactDateTime,
+  lastAccessLabel,
   resendRefusal,
 } from './admin-users-view';
 import { companyRoleLabel } from '../../../utils/role-labels';
@@ -61,6 +65,7 @@ const MEMBERSHIP_STATUS_LABELS: Record<string, string> = {
     ContactBar,
     BottomSheet,
     StatusChip,
+    KvList,
   ],
   templateUrl: './admin-user-detail.html',
 })
@@ -157,7 +162,8 @@ export class AdminUserDetail implements OnInit, OnDestroy {
   });
 
   /**
-   * Último acesso formatado, ou `null` quando o backend não tem registro.
+   * Último login formatado ("30/07/2026 às 11:35", fuso do negócio), ou `null` quando o
+   * backend não tem registro.
    *
    * O `last_login_date` só passou a ser gravado no login Google recentemente e
    * NÃO houve backfill — usuários antigos ficam nulos até logarem de novo,
@@ -165,7 +171,7 @@ export class AdminUserDetail implements OnInit, OnDestroy {
    * acesso" (ausência do dado) e não uma afirmação de que a pessoa nunca entrou.
    */
   protected readonly lastLogin = computed<string | null>(() =>
-    this.formatDateTime(this.detail()?.lastLoginAt ?? null),
+    exactDateTime(this.detail()?.lastLoginAt ?? null),
   );
 
   /**
@@ -174,7 +180,17 @@ export class AdminUserDetail implements OnInit, OnDestroy {
    * então o vazio não afirma que a pessoa nunca entrou.
    */
   protected readonly lastSeen = computed<string | null>(() =>
-    this.formatDateTime(this.detail()?.lastSeenAt ?? null),
+    exactDateTime(this.detail()?.lastSeenAt ?? null),
+  );
+
+  /** "Visto há 3 dias", o mesmo texto da lista, em cima da data exata. */
+  protected readonly lastSeenRelative = computed<string | null>(() => {
+    const u = this.detail();
+    return u ? lastAccessLabel({ online: false, lastSeenAt: u.lastSeenAt ?? null }, Date.now()) : null;
+  });
+
+  protected readonly createdAt = computed<string | null>(() =>
+    exactDateTime(this.detail()?.createdDate ?? null),
   );
 
   ngOnInit(): void {
@@ -296,10 +312,6 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     return companyRoleLabel(role);
   }
 
-  protected roleTone(role: string): StatusChipTone {
-    return role === 'OWNER' ? 'orange' : role === 'MANAGER' ? 'blue' : role === 'DRIVER' ? 'green' : 'neutral';
-  }
-
   protected statusTone(active: boolean): StatusChipTone {
     return active ? 'green' : 'red';
   }
@@ -316,24 +328,14 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     return status === 'ACTIVE' ? 'green' : status === 'INVITED' ? 'blue' : 'neutral';
   }
 
-  protected formatDate(iso: string | null): string {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  /** "18/11/2026" no fuso do negócio (o `joinedAt` vem em UTC sem sufixo). */
+  protected joinedDate(link: AdminUserCompanyLink): string {
+    return exactDate(link.joinedAt);
   }
 
-  private formatDateTime(iso: string | null): string | null {
-    if (!iso) return null;
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return null;
-    return d.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  /** Data e hora exatas no balão do mouse. */
+  protected joinedTitle(link: AdminUserCompanyLink): string | null {
+    return exactDateTime(link.joinedAt);
   }
 
   protected trackLink(_i: number, link: AdminUserCompanyLink): string {

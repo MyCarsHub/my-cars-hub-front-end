@@ -75,10 +75,10 @@ describe('AdminUserDetail — campo "Último login"', () => {
     });
   }
 
-  /** Valor renderizado logo abaixo do rótulo "Último login" no card "Dados". */
+  /** Valor do par "Último login" no `dl` do card "Dados". */
   function lastLoginValue(host: HTMLElement): string {
-    const labels = Array.from(host.querySelectorAll('p'));
-    const label = labels.find((p) => p.textContent?.trim() === 'Último login');
+    const labels = Array.from(host.querySelectorAll('dt'));
+    const label = labels.find((dt) => dt.textContent?.trim() === 'Último login');
     expect(label, 'rótulo "Último login" não encontrado').toBeTruthy();
     return label?.nextElementSibling?.textContent?.trim() ?? '';
   }
@@ -94,9 +94,9 @@ describe('AdminUserDetail — campo "Último login"', () => {
     const fixture = TestBed.createComponent(AdminUserDetail);
     fixture.detectChanges();
 
-    // Fuso do runner varia; valida o FORMATO pt-BR (dd/mm/aaaa hh:mm), não o instante.
+    // Fuso do NEGÓCIO (Brasília), não o do runner: 14:35 UTC = 11:35.
     const value = lastLoginValue(fixture.nativeElement);
-    expect(value).toMatch(/^\d{2}\/\d{2}\/\d{4},?\s\d{2}:\d{2}$/);
+    expect(value).toBe('30/07/2026 às 11:35');
     expect(value).not.toContain('N/A');
   });
 
@@ -111,8 +111,8 @@ describe('AdminUserDetail — campo "Último login"', () => {
     expect(lastLoginValue(host)).toBe('Sem registro de acesso');
     expect(host.textContent).not.toContain('N/A');
 
-    const labels = Array.from(host.querySelectorAll('p'));
-    const empty = labels.find((p) => p.textContent?.trim() === 'Sem registro de acesso');
+    const values = Array.from(host.querySelectorAll('dd'));
+    const empty = values.find((dd) => dd.textContent?.trim() === 'Sem registro de acesso');
     // Atenuado, mas ainda com contraste AA sobre branco (neutral-500 ≥ 4,5:1).
     expect(empty?.className).toContain('text-fg-subtle');
   });
