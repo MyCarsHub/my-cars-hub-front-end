@@ -27,7 +27,7 @@
     </div>
   } @else if (detail(); as company) {
     <!-- Header card -->
-    <section class="mb-4 rounded-2xl border border-edge bg-surface p-4 sm:p-6">
+    <section class="enter-up mb-4 rounded-2xl border border-edge bg-surface p-4 sm:p-6">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-3 flex-wrap">
@@ -35,12 +35,7 @@
               {{ company.name }}
             </h2>
             @if (companyChip(); as chip) {
-              <span
-                class="text-[10px] uppercase font-medium tracking-wide px-2 py-1 rounded-full"
-                [class]="chip.chip"
-              >
-                {{ chip.label }}
-              </span>
+              <app-status-chip [tone]="chip.tone" data-testid="company-status">{{ chip.label }}</app-status-chip>
             }
           </div>
           <p class="mt-1 text-sm text-fg-subtle" data-testid="company-place">{{ place() }}</p>
@@ -199,77 +194,63 @@
     <app-page-card title="Assinatura">
       <div class="p-4 sm:p-6">
         @if (company.subscription; as sub) {
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <p class="text-xs text-fg-subtle uppercase tracking-wide">Plano</p>
-              <p class="text-sm font-semibold text-fg mt-1">
-                {{ sub.planName ?? '—' }}
-                @if (sub.planCode) {
-                  <span class="text-xs text-fg-faint font-normal">({{ sub.planCode }})</span>
-                }
-              </p>
-            </div>
-            <div>
-              <p class="text-xs text-fg-subtle uppercase tracking-wide">Ciclo</p>
-              <p class="text-sm text-fg mt-1">{{ billingCycleLabel(sub.billingCycle) }}</p>
-            </div>
-            <div>
-              <p class="text-xs text-fg-subtle uppercase tracking-wide">Status</p>
-              @if (subscriptionChip(); as chip) {
-                <span
-                  class="mt-1 inline-block text-[10px] uppercase font-medium tracking-wide px-2 py-0.5 rounded-full"
-                  [class]="chip.chip"
-                >
-                  {{ chip.label }}
-                </span>
-              } @else {
-                <p class="text-sm text-fg-faint mt-1">—</p>
+          <!-- Pares de rótulo e valor sem linhas (dl[appKvList]); duas colunas a partir de lg. -->
+          <div class="grid lg:grid-cols-2 lg:gap-x-8">
+            <dl appKvList flush>
+              <div>
+                <dt>Plano</dt>
+                <dd>{{ sub.planName ?? '—' }}@if (sub.planCode) { <span class="text-xs text-fg-faint font-normal">({{ sub.planCode }})</span>}</dd>
+              </div>
+              <div>
+                <dt>Ciclo</dt>
+                <dd>{{ billingCycleLabel(sub.billingCycle) }}</dd>
+              </div>
+              <div>
+                <dt>Situação</dt>
+                <dd>
+                  @if (subscriptionChip(); as chip) {
+                    <app-status-chip size="sm" [tone]="chip.tone" data-testid="subscription-status">{{ chip.label }}</app-status-chip>
+                  } @else {
+                    —
+                  }
+                </dd>
+              </div>
+              <div>
+                <dt>Próximo pagamento</dt>
+                <dd class="tabular-nums">{{ formatDate(sub.nextBillingDate) }}</dd>
+              </div>
+              @if (sub.trialEndsAt) {
+                <div>
+                  <dt>Fim do teste</dt>
+                  <dd class="tabular-nums">{{ formatDate(sub.trialEndsAt) }}</dd>
+                </div>
               }
-            </div>
-            <div>
-              <p class="text-xs text-fg-subtle uppercase tracking-wide">Próximo pagamento</p>
-              <p class="text-sm text-fg mt-1 tabular-nums">
-                {{ formatDate(sub.nextBillingDate) }}
-              </p>
-            </div>
-            <div>
-              <p class="text-xs text-fg-subtle uppercase tracking-wide">Gateway</p>
-              <p class="text-sm text-fg mt-1">{{ sub.gateway ?? '—' }}</p>
-            </div>
-            <div>
-              <p class="text-xs text-fg-subtle uppercase tracking-wide">External ID</p>
-              <p class="text-sm text-fg-soft mt-1 tabular-nums">
-                {{ sub.externalIdMasked ?? '—' }}
-              </p>
-            </div>
-            @for (row of subscriptionRows(); track row.label) {
-              <div data-testid="sub-row">
-                <p class="text-xs text-fg-subtle uppercase tracking-wide">{{ row.label }}</p>
-                <p class="text-sm text-fg mt-1 tabular-nums">{{ row.value }}</p>
-              </div>
-            }
-            @if (sub.trialEndsAt) {
+              @if (sub.currentPeriodStart) {
+                <div>
+                  <dt>Período atual</dt>
+                  <dd class="tabular-nums" data-testid="current-period">{{ formatDate(sub.currentPeriodStart) }} a {{ formatDate(sub.currentPeriodEnd) }}</dd>
+                </div>
+              }
+              @if (sub.cancelAtPeriodEnd) {
+                <div>
+                  <dt>Cancelamento</dt>
+                  <dd><app-status-chip size="sm" tone="amber">Programado para o fim do período</app-status-chip></dd>
+                </div>
+              }
+            </dl>
+            <dl appKvList flush>
+              @for (row of subscriptionRows(); track row.label) {
+                <div data-testid="sub-row"><dt>{{ row.label }}</dt><dd class="tabular-nums">{{ row.value }}</dd></div>
+              }
               <div>
-                <p class="text-xs text-fg-subtle uppercase tracking-wide">Fim do trial</p>
-                <p class="text-sm text-fg mt-1 tabular-nums">
-                  {{ formatDate(sub.trialEndsAt) }}
-                </p>
+                <dt>Gateway</dt>
+                <dd>{{ sub.gateway ?? '—' }}</dd>
               </div>
-            }
-            @if (sub.currentPeriodStart) {
               <div>
-                <p class="text-xs text-fg-subtle uppercase tracking-wide">Período atual</p>
-                <p class="text-sm text-fg mt-1 tabular-nums">
-                  {{ formatDate(sub.currentPeriodStart) }} → {{ formatDate(sub.currentPeriodEnd) }}
-                </p>
+                <dt>ID externo</dt>
+                <dd class="tabular-nums font-normal! text-fg-soft!">{{ sub.externalIdMasked ?? '—' }}</dd>
               </div>
-            }
-            @if (sub.cancelAtPeriodEnd) {
-              <div>
-                <p class="text-xs text-fg-subtle uppercase tracking-wide">Cancelamento</p>
-                <p class="text-sm text-amber-700 dark:text-amber-300 mt-1">Programado para o fim do período</p>
-              </div>
-            }
+            </dl>
           </div>
         } @else {
           <p class="text-sm text-fg-subtle">Sem assinatura registrada.</p>
@@ -291,27 +272,20 @@
                 Esta empresa ainda não preencheu os dados cadastrais.
               </p>
             }
-            <!-- Mesmo padrão dos cards existentes: duas colunas que colapsam
-                 para uma no mobile. Sem tabela, sem scroll horizontal. -->
+            <!-- Blocos em fundo cinza, sem contorno nem linha entre os pares (dl[appKvList]):
+                 uma coluna no celular, duas/três a partir de sm/xl. -->
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               @for (section of registrationSections(); track section.key) {
                 <section
-                  class="rounded-xl border border-edge-soft bg-canvas p-3 sm:p-4"
+                  class="rounded-xl bg-surface-muted px-4 py-3"
                   data-testid="registration-section"
                 >
-                  <h3 class="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-                    {{ section.title }}
-                  </h3>
-                  <dl class="mt-2 divide-y divide-edge">
+                  <h3 class="text-sm font-semibold text-fg">{{ section.title }}</h3>
+                  <dl appKvList flush>
                     @for (row of section.rows; track row.label) {
-                      <div class="flex items-baseline justify-between gap-3 py-1.5">
-                        <dt class="min-w-0 text-xs text-fg-muted">{{ row.label }}</dt>
-                        <dd
-                          class="min-w-0 text-right text-sm font-medium break-words"
-                          [class]="row.empty ? 'text-fg-subtle' : 'text-fg'"
-                        >
-                          {{ row.value }}
-                        </dd>
+                      <div>
+                        <dt>{{ row.label }}</dt>
+                        <dd [class]="row.empty ? 'text-fg-subtle! font-normal!' : ''">{{ row.value }}</dd>
                       </div>
                     }
                   </dl>
@@ -331,24 +305,22 @@
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               @for (group of operationGroups(); track group.key) {
                 <section
-                  class="rounded-xl border border-edge-soft bg-canvas p-3 sm:p-4"
+                  class="rounded-xl bg-surface-muted px-4 py-3"
                   data-testid="operation-group"
                 >
-                  <h3 class="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-                    {{ group.title }}
-                  </h3>
-                  <dl class="mt-2 divide-y divide-edge">
+                  <h3 class="text-sm font-semibold text-fg">{{ group.title }}</h3>
+                  <dl appKvList flush>
                     @for (metric of group.metrics; track metric.label) {
-                      <div class="flex items-baseline justify-between gap-3 py-1.5">
-                        <dt class="min-w-0 text-xs text-fg-muted">
+                      <div>
+                        <dt>
                           {{ metric.label }}
                           @if (metric.hint) {
-                            <span class="block text-[11px] text-fg-subtle">{{ metric.hint }}</span>
+                            <span class="block text-xs text-fg-subtle">{{ metric.hint }}</span>
                           }
                         </dt>
                         <dd
-                          class="shrink-0 text-sm font-semibold tabular-nums"
-                          [class]="metric.zero ? 'text-fg-subtle' : 'text-fg'"
+                          class="shrink-0 tabular-nums whitespace-nowrap"
+                          [class]="metric.zero ? 'text-fg-subtle! font-normal!' : ''"
                         >
                           {{ metric.value }}
                         </dd>
@@ -377,23 +349,24 @@
             </p>
           } @else {
             @if (sales().length > 0) {
-              <h3 class="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-                Vendas vigentes ({{ sales().length }})
+              <h3 class="text-sm font-semibold text-fg">
+                Vendas vigentes <span class="font-normal text-fg-subtle tabular-nums">{{ sales().length }}</span>
               </h3>
               <!-- Cards empilhados, não tabela: no mobile uma tabela com
                    comprador + valor + data + autor viraria scroll horizontal. -->
               <ul class="mt-2 flex flex-col gap-2">
                 @for (sale of sales(); track sale.vehicleId) {
                   <li
-                    class="rounded-xl border border-edge-soft bg-canvas p-3"
+                    class="enter-up rounded-xl bg-surface-muted p-3"
+                    [style.--stagger-i]="$index"
                     data-testid="sale-item"
                   >
                     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                       <p class="min-w-0 text-sm font-medium text-fg break-words">
                         {{ sale.vehiclePlate | plate: false }}
                       </p>
-                      <p class="shrink-0 text-sm font-semibold tabular-nums text-primary-700 dark:text-primary-400">
-                        {{ formatMoney(sale.saleValueCents) }}
+                      <p class="shrink-0 text-sm font-semibold tabular-nums text-fg">
+                        {{ sale.saleValueCents | brl }}
                       </p>
                     </div>
                     <dl class="mt-1 grid gap-x-3 gap-y-0.5 text-xs text-fg-muted sm:grid-cols-2">
@@ -424,27 +397,25 @@
 
             @if (saleUndos().length > 0) {
               <h3
-                class="text-xs font-semibold uppercase tracking-wide text-fg-muted"
-                [class.mt-4]="sales().length > 0"
+                class="text-sm font-semibold text-fg"
+                [class.mt-5]="sales().length > 0"
               >
-                Desfazimentos ({{ saleUndos().length }})
+                Desfazimentos <span class="font-normal text-fg-subtle tabular-nums">{{ saleUndos().length }}</span>
               </h3>
               <ul class="mt-2 flex flex-col gap-2">
                 @for (undo of saleUndos(); track trackUndo($index, undo)) {
                   <li
-                    class="rounded-xl border border-edge-soft bg-canvas p-3"
+                    class="enter-up rounded-xl bg-surface-muted p-3"
+                    [style.--stagger-i]="$index"
                     data-testid="sale-undo-item"
                   >
                     <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                       <p class="min-w-0 text-sm font-medium text-fg break-words">
                         {{ undo.vehiclePlate ? (undo.vehiclePlate | plate: false) : 'Veículo excluído' }}
                       </p>
-                      <span
-                        class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                        [class]="undoStateChip(undo.state).chip"
-                      >
+                      <app-status-chip size="sm" [tone]="undoStateChip(undo.state).tone">
                         {{ undoStateChip(undo.state).label }}
-                      </span>
+                      </app-status-chip>
                     </div>
                     <dl class="mt-1 grid gap-x-3 gap-y-0.5 text-xs text-fg-muted sm:grid-cols-2">
                       <div class="flex gap-1 min-w-0 sm:col-span-2">
@@ -471,101 +442,48 @@
     <!-- Membros -->
     <div class="mt-4">
       <app-page-card title="Membros ({{ company.members.length }})">
-        <div class="p-4 sm:p-6">
-          @if (company.members.length === 0) {
-            <p class="text-sm text-fg-subtle">Nenhum membro ativo.</p>
-          } @else {
-            <!-- Mobile: cards -->
-            <ul class="flex flex-col gap-2 lg:hidden">
-              @for (member of company.members; track trackMember($index, member)) {
-                <li class="rounded-xl border border-edge-soft bg-canvas p-3">
-                  <div class="flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                      <a
-                        [routerLink]="['/admin/users', member.userId]"
-                        data-testid="member-link"
-                        class="inline-flex items-center min-h-[44px] text-sm font-medium text-primary-700 dark:text-primary-300
-                               hover:underline truncate max-w-full
-                               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                      >{{ member.name | personName }}</a>
-                      <p class="text-xs text-fg-subtle truncate">{{ member.email }}</p>
-                    </div>
-                    <span
-                      class="shrink-0 text-[10px] uppercase font-medium tracking-wide px-2 py-0.5 rounded-full"
-                      [class]="memberStatusChip(member.status)"
-                    >
-                      {{ member.status }}
-                    </span>
-                  </div>
-                  <p class="mt-2 text-xs text-fg-muted">
-                    Papel: <span class="font-medium text-fg-body">{{ roleLabel(member.role) }}</span>
-                    · Visto: <span class="font-medium text-fg-body" data-testid="last-seen">{{ lastSeenLabel(member.lastSeenAt) }}</span>
-                  </p>
-@if (caps.can('contato.ver')) {
-                  <app-contact-actions
-                    class="mt-2 pt-2 border-t border-edge-soft"
-                    subjectType="USER"
-                    [subjectId]="member.userId"
-                    [phoneMasked]="member.phoneMasked"
-                    [contextCompanyId]="company.id"
-                    [label]="member.name"
-                  />
-}
-                </li>
+        <div class="p-3 sm:p-4">
+          <app-data-list
+            ariaLabel="Membros"
+            emptyText="Nenhum membro ativo."
+            cardsBelow="lg"
+            [rowTarget]="true"
+            (rowActivate)="openMember($event)"
+            [columns]="memberColumns"
+            [rows]="company.members"
+            [rowId]="memberId"
+          >
+            <ng-template dataListCell="name" let-member>
+              <div class="min-w-0 font-normal">
+                <a
+                  [routerLink]="['/admin/users', member.userId]"
+                  data-testid="member-link"
+                  class="inline-flex items-center min-h-[44px] lg:min-h-0 font-semibold text-fg hover:text-primary-700
+                         dark:hover:text-primary-400 hover:underline break-words whitespace-normal rounded-sm
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                >{{ member.name | personName }}</a>
+                <p class="text-xs text-fg-subtle break-all whitespace-normal">{{ member.email }}</p>
+              </div>
+            </ng-template>
+
+            <ng-template dataListCell="phone" let-member>
+              @if (caps.can('contato.ver')) {
+                <app-contact-actions
+                  subjectType="USER"
+                  [subjectId]="member.userId"
+                  [phoneMasked]="member.phoneMasked"
+                  [contextCompanyId]="company.id"
+                  [label]="member.name"
+                />
+              } @else {
+                —
               }
-            </ul>
-            <!-- Desktop: table -->
-            <div class="hidden lg:block overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="text-left text-xs uppercase tracking-wide text-fg-subtle border-b border-edge">
-                    <th class="py-3 pr-4 font-medium">Nome</th>
-                    <th class="py-3 pr-4 font-medium">Email</th>
-                    <th class="py-3 pr-4 font-medium">Telefone</th>
-                    <th class="py-3 pr-4 font-medium">Papel</th>
-                    <th class="py-3 pr-4 font-medium">Status</th>
-                    <th class="py-3 pr-4 font-medium">Visto por último</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (member of company.members; track trackMember($index, member)) {
-                    <tr class="border-b border-edge-soft">
-                      <td class="py-3 pr-4">
-                        <a
-                          [routerLink]="['/admin/users', member.userId]"
-                          data-testid="member-link"
-                          class="text-primary-700 dark:text-primary-300 hover:underline
-                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                        >{{ member.name | personName }}</a>
-                      </td>
-                      <td class="py-3 pr-4 text-fg-muted">{{ member.email }}</td>
-                      <td class="py-1 pr-4">
-@if (caps.can('contato.ver')) {
-                        <app-contact-actions
-                          subjectType="USER"
-                          [subjectId]="member.userId"
-                          [phoneMasked]="member.phoneMasked"
-                          [contextCompanyId]="company.id"
-                          [label]="member.name"
-                        />
-}
-                      </td>
-                      <td class="py-3 pr-4 text-fg-soft">{{ roleLabel(member.role) }}</td>
-                      <td class="py-3 pr-4">
-                        <span
-                          class="text-[10px] uppercase font-medium tracking-wide px-2 py-0.5 rounded-full"
-                          [class]="memberStatusChip(member.status)"
-                        >
-                          {{ member.status }}
-                        </span>
-                      </td>
-                      <td class="py-3 pr-4 text-fg-soft" data-testid="last-seen">{{ lastSeenLabel(member.lastSeenAt) }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
+            </ng-template>
+
+            <ng-template dataListCell="seen" let-member>
+              <span class="whitespace-nowrap" data-testid="last-seen">{{ lastSeenLabel(member.lastSeenAt) }}</span>
+            </ng-template>
+          </app-data-list>
         </div>
       </app-page-card>
     </div>
@@ -575,36 +493,28 @@
       <app-page-card title="Integração de cobranças">
         <div class="p-4 sm:p-6">
           @if (company.chargeIntegration && company.chargeIntegration.connected) {
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <dl appKvList flush class="lg:max-w-xl" data-testid="charge-integration">
               <div>
-                <p class="text-xs text-fg-subtle uppercase tracking-wide">Provider</p>
-                <p class="text-sm font-semibold text-fg mt-1">
-                  {{ company.chargeIntegration.provider }}
-                </p>
+                <dt>Provedor</dt>
+                <dd>{{ company.chargeIntegration.provider }}</dd>
               </div>
               <div>
-                <p class="text-xs text-fg-subtle uppercase tracking-wide">Ambiente</p>
-                <p class="text-sm text-fg mt-1">{{ company.chargeIntegration.environment }}</p>
+                <dt>Ambiente</dt>
+                <dd>{{ company.chargeIntegration.environment }}</dd>
               </div>
               <div>
-                <p class="text-xs text-fg-subtle uppercase tracking-wide">Conectado em</p>
-                <p class="text-sm text-fg mt-1 tabular-nums">
-                  {{ formatDateTime(company.chargeIntegration.connectedAt) }}
-                </p>
+                <dt>Conectado em</dt>
+                <dd class="tabular-nums">{{ formatDateTime(company.chargeIntegration.connectedAt) }}</dd>
               </div>
               <div>
-                <p class="text-xs text-fg-subtle uppercase tracking-wide">Última verificação</p>
-                <p class="text-sm text-fg-soft mt-1 tabular-nums">
-                  {{ formatDateTime(company.chargeIntegration.lastVerifiedAt) }}
-                </p>
+                <dt>Última verificação</dt>
+                <dd class="tabular-nums">{{ formatDateTime(company.chargeIntegration.lastVerifiedAt) }}</dd>
               </div>
               <div>
-                <p class="text-xs text-fg-subtle uppercase tracking-wide">Webhook</p>
-                <p class="text-sm text-fg mt-1">
-                  {{ company.chargeIntegration.webhookAutoConfigured ? 'Auto-configurado' : 'Manual' }}
-                </p>
+                <dt>Webhook</dt>
+                <dd>{{ company.chargeIntegration.webhookAutoConfigured ? 'Configurado automaticamente' : 'Manual' }}</dd>
               </div>
-            </div>
+            </dl>
           } @else {
             <p class="text-sm text-fg-subtle">Sem integração ativa.</p>
           }
@@ -613,80 +523,43 @@
     </div>
   }
 
-  <!-- Confirm dialog -->
-  @if (confirmDialogOpen()) {
-    <div
-      class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-      (click)="closeStatusDialog()"
-      aria-hidden="true"
-    ></div>
-    <div
-      role="dialog"
-      aria-modal="true"
-      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 pointer-events-none"
-    >
-      <div class="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl border border-edge-soft w-full max-w-md pointer-events-auto overflow-hidden">
-        <div class="p-4 sm:p-6">
-          <h2 class="text-base font-semibold text-fg">
-            {{ targetActive() ? 'Reativar empresa' : 'Suspender empresa' }}
-          </h2>
-          <p class="mt-1 text-sm text-fg-subtle">
-            @if (targetActive()) {
-              A empresa voltará a ter acesso normal à plataforma.
-            } @else {
-              Ação de risco — para confirmar digite <strong>SUSPENDER</strong> no campo abaixo.
-            }
-          </p>
-
-          @if (!targetActive()) {
-            <label class="flex flex-col gap-1 mt-4">
-              <span class="text-xs font-medium text-fg-muted uppercase tracking-wide">Confirmação</span>
-              <input
-                type="text"
-                inputmode="text"
-                autocapitalize="characters"
-                autocomplete="off"
-                spellcheck="false"
-                placeholder="SUSPENDER"
-                [formControl]="confirmControl"
-                class="rounded-xl border border-edge-field px-3 py-2.5 min-h-11 text-sm
-                       focus:outline-none focus:ring-2 focus:ring-red-400"
-              />
-            </label>
-          }
-
-          @if (actionError(); as err) {
-            <div class="mt-3">
-              <app-alert-banner variant="error" [message]="err" />
-            </div>
-          }
-        </div>
-        <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 p-4 sm:p-6 pt-0 sm:pt-0">
-          <button
-            type="button"
-            class="w-full sm:w-auto min-h-11 px-4 py-2.5 text-sm font-medium text-fg-muted
-                   bg-surface-sunken hover:bg-surface-strong rounded-xl transition-colors"
-            (click)="closeStatusDialog()"
-            [disabled]="updating()"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            class="w-full sm:w-auto min-h-11 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors
-                   focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60"
-            [class]="targetActive()
-              ? 'bg-emerald-500 text-white hover:bg-emerald-600 focus:ring-emerald-400'
-              : 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-400'"
-            (click)="confirmStatusChange()"
-            [disabled]="updating()"
-          >
-            {{ updating() ? 'Atualizando...' : (targetActive() ? 'Reativar' : 'Suspender') }}
-          </button>
-        </div>
+  <!-- Suspender / reativar: app-confirm-dialog da plataforma. Suspender pede a palavra digitada. -->
+  <app-confirm-dialog
+    [open]="confirmDialogOpen()"
+    [title]="targetActive() ? 'Reativar empresa' : 'Suspender empresa'"
+    [message]="targetActive() ? reactivateMessage : suspendMessage"
+    [confirmLabel]="statusConfirmLabel()"
+    [variant]="targetActive() ? 'info' : 'danger'"
+    [size]="targetActive() ? 'default' : 'large'"
+    [busy]="updating()"
+    (confirmed)="confirmStatusChange()"
+    (cancelled)="closeStatusDialog()"
+  >
+    @if (!targetActive() || actionError()) {
+      <div class="px-4 sm:px-6 pb-1 space-y-3">
+        @if (!targetActive()) {
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-fg-muted">Confirmação</span>
+            <input
+              type="text"
+              inputmode="text"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="SUSPENDER"
+              data-testid="suspend-confirm-input"
+              [formControl]="confirmControl"
+              class="rounded-xl border border-edge-field bg-surface px-3 py-2.5 min-h-11 text-base text-fg
+                     focus:outline-none focus:ring-2 focus:ring-red-400"
+            />
+          </label>
+        }
+        @if (actionError(); as err) {
+          <app-alert-banner variant="error" [message]="err" />
+        }
       </div>
-    </div>
-  }
+    }
+  </app-confirm-dialog>
 
   <!-- [trilha A] Folha "Estender teste" -->
   @if (trialExtensionOpen() && detail(); as company) {

@@ -44,7 +44,7 @@ import { AdminContactService, mailtoLink, withWhatsAppText } from './admin-conta
     >
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
-          <p class="text-xs text-fg-subtle uppercase tracking-wide">{{ heading() }}</p>
+          <p class="text-sm font-semibold text-fg-soft">{{ heading() }}</p>
           @if (contact()?.display; as display) {
             <p class="mt-1 text-lg font-semibold text-fg tabular-nums" data-testid="contact-display">
               {{ display }}
@@ -81,7 +81,7 @@ import { AdminContactService, mailtoLink, withWhatsAppText } from './admin-conta
           <button
             type="button"
             data-testid="bar-whatsapp"
-            class="inline-flex flex-col sm:flex-row items-center justify-center gap-1 min-h-[48px] px-3 rounded-xl
+            class="inline-flex flex-col sm:flex-row items-center justify-center gap-1 min-h-[48px] px-3 rounded-xl press
                    bg-success-50 text-success-900 dark:bg-success-500/15 dark:text-success-100
                    hover:bg-success-100 dark:hover:bg-success-500/25 text-xs sm:text-sm font-medium
                    disabled:opacity-40
@@ -92,8 +92,8 @@ import { AdminContactService, mailtoLink, withWhatsAppText } from './admin-conta
           <button
             type="button"
             data-testid="bar-call"
-            class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl border border-edge
-                   text-fg-soft hover:bg-canvas text-xs sm:text-sm font-medium disabled:opacity-40
+            class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl bg-surface-sunken press
+                   text-fg-body hover:bg-surface-strong text-xs sm:text-sm font-medium disabled:opacity-40
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             [disabled]="!hasPhone() || busy()"
             (click)="call()"
@@ -102,19 +102,19 @@ import { AdminContactService, mailtoLink, withWhatsAppText } from './admin-conta
             <a
               [href]="mail"
               data-testid="bar-email"
-              class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl border border-edge
-                     text-fg-soft hover:bg-canvas text-xs sm:text-sm font-medium
+              class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl bg-surface-sunken press
+                     text-fg-body hover:bg-surface-strong text-xs sm:text-sm font-medium
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             >E-mail</a>
           } @else {
-            <span class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl border border-edge-soft
+            <span class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl bg-surface-muted
                          text-xs sm:text-sm text-fg-faint" aria-disabled="true">E-mail</span>
           }
           <button
             type="button"
             data-testid="bar-copy"
-            class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl border border-edge
-                   text-fg-soft hover:bg-canvas text-xs sm:text-sm font-medium disabled:opacity-40
+            class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl bg-surface-sunken press
+                   text-fg-body hover:bg-surface-strong text-xs sm:text-sm font-medium disabled:opacity-40
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             [disabled]="!hasPhone() || busy()"
             (click)="copy()"
