@@ -157,7 +157,7 @@ function rangeForPreset(preset: DateRangePresetKey, end: DateRangePeriodEnd = 'c
                         De
                         <input
                             type="date"
-                            class="min-h-[44px] rounded-lg border border-edge px-3 py-2 text-base sm:text-sm
+                            class="min-h-[44px] rounded-lg border border-edge px-3 py-2 text-base
                                    text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                             [value]="customFrom()"
                             [attr.max]="maxDate()"
@@ -168,7 +168,7 @@ function rangeForPreset(preset: DateRangePresetKey, end: DateRangePeriodEnd = 'c
                         Até
                         <input
                             type="date"
-                            class="min-h-[44px] rounded-lg border border-edge px-3 py-2 text-base sm:text-sm
+                            class="min-h-[44px] rounded-lg border border-edge px-3 py-2 text-base
                                    text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                             [value]="customTo()"
                             [attr.max]="maxDate()"
@@ -337,11 +337,15 @@ export class DateRangePicker implements OnInit {
         return rangeForPreset(key, this.periodEnd());
     });
 
-    /** The line under the chips: the server's range when given, else the one computed here. */
+    /**
+     * The line under the chips: the server's range when given, else the one computed here. Hidden
+     * while the custom fields are invalid: the old range under "Selecione as duas datas." reads as
+     * a contradiction, even though the data on screen still belongs to it.
+     */
     protected readonly rangeText = computed<string | null>(() => {
+        if (this.customError()) return null;
         const server = this.resolvedRange();
         if (server !== null) return formatDateRangePtBr(server);
-        if (this.customError()) return null;
         return formatDateRangePtBr(this.currentRange());
     });
 

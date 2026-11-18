@@ -42,10 +42,10 @@
       }
 
       @if (dayLoading() && !day()) {
-        <div class="grid grid-cols-3 gap-2 sm:gap-3" aria-busy="true" aria-label="Carregando">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3" aria-busy="true" aria-label="Carregando">
           <div class="h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
           <div class="h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-          <div class="h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          <div class="col-span-2 sm:col-span-1 h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
         </div>
       }
 
@@ -56,7 +56,7 @@
             <span class="ml-1 text-fg-subtle">· atualizando…</span>
           }
         </p>
-        <div class="grid grid-cols-3 gap-2 sm:gap-3" data-testid="day-summary">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3" data-testid="day-summary">
           <div app-kpi-card label="Vencendo" numberFormat="integer" [value]="s.due" [countUp]="false"></div>
           <div
             app-kpi-card
@@ -68,6 +68,7 @@
           ></div>
           <div
             app-kpi-card
+            class="col-span-2 sm:col-span-1"
             label="Não avisados"
             numberFormat="integer"
             [tone]="s.notNotified > 0 ? 'danger' : 'default'"
@@ -277,10 +278,10 @@
         }
 
         @if (asaasLoading() && !asaas()) {
-          <div class="grid grid-cols-3 gap-2 sm:gap-3" aria-busy="true" aria-label="Carregando">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3" aria-busy="true" aria-label="Carregando">
             <div class="h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
             <div class="h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-            <div class="h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="col-span-2 sm:col-span-1 h-20 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
           </div>
         }
 
@@ -288,7 +289,7 @@
           <p class="text-sm text-fg-muted">
             Motoristas com aluguel ativo: <strong class="text-fg tabular-nums">{{ a.activeDrivers }}</strong>
           </p>
-          <div class="grid grid-cols-3 gap-2 sm:gap-3" data-testid="asaas-summary">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3" data-testid="asaas-summary">
             <div
               app-kpi-card
               variant="emerald"
@@ -307,6 +308,7 @@
             ></div>
             <div
               app-kpi-card
+              class="col-span-2 sm:col-span-1"
               label="Sem WhatsApp"
               numberFormat="integer"
               [value]="a.withoutWhatsapp"

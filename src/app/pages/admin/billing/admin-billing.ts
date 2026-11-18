@@ -34,6 +34,10 @@ import {
   BillingIssueWindow,
 } from '../../../types/admin-billing.types';
 import { brtIsoDate, shiftIsoDate } from '../notifications/admin-notifications';
+import { whenExact } from '../audit/admin-when';
+import { formatFullDate, parseServerTime } from '../../../utils/server-time';
+import { planDisplayName } from '../../../utils/plan-grid-copy';
+import { gatewayLabel } from './gateway-label';
 
 const PAGE_SIZE = 20;
 
@@ -75,18 +79,6 @@ const PERIOD_LABELS: Record<string, string> = {
   DAILY: 'Diária',
 };
 
-const GATEWAY_LABELS: Record<string, string> = {
-  STRIPE: 'Stripe',
-  MERCADOPAGO: 'Mercado Pago',
-  MERCADO_PAGO: 'Mercado Pago',
-  PAGARME: 'Pagar.me',
-  PAGAR_ME: 'Pagar.me',
-  ASAAS: 'Asaas',
-  IUGU: 'Iugu',
-  MANUAL: 'Manual',
-  NONE: 'Sem gateway',
-};
-
 /**
  * Rótulo + o que o admin deve FAZER com o problema. `kind` é vocabulário aberto:
  * um valor novo cai no fallback humanizado em vez de sumir da lista.
@@ -115,12 +107,13 @@ const ISSUE_KINDS: Record<string, IssueKindStyle> = {
 };
 
 /**
- * Razões de `RECONCILIATION_PENDING`. Vocabulário real lido da migration V35
- * (`billing_reconciliations`) — são só estas duas hoje. Não adicione chave por
- * plausibilidade: valor novo cai no `humanize()` de `issueReason()` e continua
- * legível na tela.
+ * Razões dos problemas. `PAST_DUE` é a de `SUBSCRIPTION_PAST_DUE`, fixa na consulta do backend
+ * (`AdminBillingRepositoryImpl`); as outras duas são de `RECONCILIATION_PENDING`, vocabulário
+ * real lido da migration V35 (`billing_reconciliations`). Não adicione chave por plausibilidade:
+ * valor novo cai no `humanize()` de `issueReason()` e continua legível na tela.
  */
 const ISSUE_REASON_LABELS: Record<string, string> = {
+  PAST_DUE: 'Pagamento do ciclo em atraso',
   PLAN_MISMATCH: 'Plano da assinatura diverge do plano cobrado',
   ZERO_AMOUNT_PAID_PLAN: 'Pagamento registrado com valor zero em um plano pago',
 };
@@ -132,32 +125,21 @@ function humanize(raw: string): string {
 }
 
 /**
- * `subscriptions[].gateway` chega MAIÚSCULO (`"STRIPE"`) e `mrr.byPlan[].gateway`
- * minúsculo (`"stripe"`). É divergência de schema declarada pelo backend, sem
- * correção prevista. Normalizar aqui é o que impede a mesma marca de aparecer de
- * dois jeitos na mesma tela.
- */
-export function gatewayKey(raw: string | null | undefined): string {
-  return (raw ?? '').trim().toUpperCase();
-}
-
-export function gatewayLabel(raw: string | null | undefined): string {
-  const key = gatewayKey(raw);
-  if (!key) return '—';
-  return GATEWAY_LABELS[key] ?? humanize(key);
-}
-
-/**
  * `YYYY-MM-DD` (data pura) vira `dd/mm/aaaa` SEM passar por `Date`: `new Date('2026-08-01')` é
- * meia-noite UTC, que em Brasília ainda é 31/07. Instantes (`...T10:30:00`) seguem por `Date`.
+ * meia-noite UTC, que em Brasília ainda é 31/07. Instantes (`...T10:30:00`) são `LocalDateTime`
+ * em UTC sem sufixo: passam por `parseServerTime` e saem no dia de Brasília (02:00 UTC de 13/12
+ * ainda é 12/12 aqui).
  */
 export function formatBillingDate(value: string | null | undefined): string {
   if (!value) return '—';
   const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (day) return `${day[3]}/${day[2]}/${day[1]}`;
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return formatFullDate(parseServerTime(value));
+}
+
+/** Instante do servidor em Brasília, "12/11/2026 às 14:08", como no resto do admin; "—" sem data. */
+export function formatBillingDateTime(value: string | null | undefined): string {
+  return whenExact(value) ?? '—';
 }
 
 /**
@@ -228,13 +210,17 @@ export class AdminBilling implements OnInit {
   protected readonly windowOptions: readonly FilterChipOption<BillingIssueWindow>[] =
     ISSUE_WINDOWS.map((days) => ({ value: days, label: `${days} dias` }));
 
-  /** "19/10/2026 a 18/11/2026": a janela escrita em datas. */
-  protected readonly windowRangeText = computed(() =>
-    formatDateRangePtBr(issueWindowRange(this.issueWindow(), brtIsoDate(new Date()))),
-  );
+  /**
+   * "19/10/2026 a 18/11/2026": a janela escrita em datas. Um método, não um `computed`: `Date` não
+   * é sinal, e o valor guardado ficaria com a data de ontem numa tela aberta de um dia para o outro
+   * (mesma escolha do `maxDate()` do seletor de período).
+   */
+  protected windowRangeText(): string | null {
+    return formatDateRangePtBr(issueWindowRange(this.issueWindow(), brtIsoDate(new Date())));
+  }
 
   protected readonly planColumns: readonly DataListColumn<AdminMrrPlanBreakdown>[] = [
-    { key: 'plan', header: 'Plano', primary: true, value: (p) => p.planName },
+    { key: 'plan', header: 'Plano', primary: true, value: (p) => this.planName(p.planName, p.planCode) },
     { key: 'gateway', header: 'Gateway', value: (p) => gatewayLabel(p.gateway) },
     { key: 'price', header: 'Preço do plano', kind: 'money-cents', end: true, value: (p) => p.planPriceCents },
     { key: 'subs', header: 'Assinaturas', kind: 'integer', end: true, value: (p) => p.subscriptionsTotal },
@@ -270,14 +256,14 @@ export class AdminBilling implements OnInit {
       tone: (i) => this.issueKind(i.kind).tone,
     },
     { key: 'occurredAt', header: 'Início', value: (i) => this.formatDateTime(i.occurredAt) },
-    { key: 'plan', header: 'Plano / gateway', value: (i) => i.planName },
+    { key: 'plan', header: 'Plano / gateway', value: (i) => this.planName(i.planName, i.planCode) },
     { key: 'amount', header: 'Valor', end: true, value: (i) => this.issueAmount(i) },
     { key: 'todo', header: 'O que fazer', value: (i) => this.issueKind(i.kind).guidance },
   ];
 
   protected readonly subscriptionColumns: readonly DataListColumn<AdminSubscriptionListItem>[] = [
     { key: 'company', header: 'Empresa', primary: true, value: (s) => s.companyName },
-    { key: 'plan', header: 'Plano', value: (s) => s.planName },
+    { key: 'plan', header: 'Plano', value: (s) => this.planName(s.planName, s.planCode) },
     { key: 'gateway', header: 'Gateway', value: (s) => gatewayLabel(s.gateway) },
     { key: 'status', header: 'Situação', value: (s) => this.statusChip(s.status).label },
     {
@@ -412,6 +398,11 @@ export class AdminBilling implements OnInit {
     return PERIOD_LABELS[period] ?? humanize(period);
   }
 
+  /** "Pro", nunca "PRO" nem `PRO_MONTHLY_STRIPE`; o período vai na linha de baixo. */
+  protected planName(name: string | null, code: string | null): string {
+    return planDisplayName(name, code);
+  }
+
   protected gateway(raw: string | null): string {
     return gatewayLabel(raw);
   }
@@ -459,16 +450,7 @@ export class AdminBilling implements OnInit {
   }
 
   protected formatDateTime(value: string | null): string {
-    if (!value) return '—';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatBillingDateTime(value);
   }
 
   private loadMrr(): void {

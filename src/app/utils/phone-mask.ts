@@ -38,6 +38,20 @@ export function maskPhone(value: string | null | undefined): string {
 }
 
 /**
+ * Display (not typing) format of a stored phone: 11 digits `(31) 98765-4321`, 10 digits — a
+ * landline — `(31) 3300-0003`. `maskPhone` is progressive and would cut a landline as
+ * `(31) 33000-003`. Anything else comes back trimmed as it was; empty is `''`.
+ */
+export function formatPhoneDisplay(value: string | null | undefined): string {
+  const digits = (value ?? '').replace(/\D/g, '');
+  if (digits.length === PHONE_LENGTH) return maskPhone(digits);
+  if (digits.length === PHONE_LENGTH - 1) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return (value ?? '').trim();
+}
+
+/**
  * Index in `masked` right after its `count`-th digit.
  *
  * Counting DIGITS instead of raw characters is what makes the caret survive a re-format:

@@ -139,6 +139,21 @@ describe('AdminCompanyDetail — Estender teste', () => {
     expect(render(none).querySelector('[data-testid="extend-trial-button"]')).toBeNull();
   });
 
+  it('plano, gateway, telefone e CEP legíveis (visual 18/11): nada de código cru', () => {
+    const company = {
+      ...COMPANY,
+      subscription: { ...SUB, planCode: 'PRO_MONTHLY_STRIPE', planName: 'PRO', status: 'ACTIVE' },
+      registration: { ...COMPANY.registration, phone: '3133000003', addressCep: '30110003' },
+    } as AdminCompanyDetailDto;
+    const root = render(company);
+    expect(root.querySelector('[data-testid="subscription-plan"]')?.textContent?.trim()).toBe('Pro');
+    expect(root.querySelector('[data-testid="subscription-gateway"]')?.textContent?.trim()).toBe('Stripe');
+    const registration = root.querySelector('[data-testid="company-registration"]')?.textContent ?? '';
+    expect(registration).toContain('(31) 3300-0003');
+    expect(registration).toContain('30110-003');
+    expect(root.textContent).not.toContain('PRO_MONTHLY_STRIPE');
+  });
+
   it('abre a folha, estende, avisa e recarrega a empresa', () => {
     const fixture = mount(COMPANY);
     const host = fixture.nativeElement as HTMLElement;

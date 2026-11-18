@@ -199,7 +199,7 @@
             <dl appKvList flush>
               <div>
                 <dt>Plano</dt>
-                <dd>{{ sub.planName ?? '—' }}@if (sub.planCode) { <span class="text-xs text-fg-faint font-normal">({{ sub.planCode }})</span>}</dd>
+                <dd data-testid="subscription-plan">{{ planLabel(sub.planName, sub.planCode) }}</dd>
               </div>
               <div>
                 <dt>Ciclo</dt>
@@ -244,7 +244,7 @@
               }
               <div>
                 <dt>Gateway</dt>
-                <dd>{{ sub.gateway ?? '—' }}</dd>
+                <dd data-testid="subscription-gateway">{{ gatewayName(sub.gateway) }}</dd>
               </div>
               <div>
                 <dt>ID externo</dt>

@@ -86,6 +86,20 @@ describe('DateRangePicker — subconjunto de chips', () => {
     expect(inputs).toHaveLength(2);
     inputs.forEach((i) => expect(i.className).toContain('text-base'));
   });
+
+  it('os campos ficam em 16px em toda largura: nada de sm:text-sm (iPad em retrato dá zoom no foco)', () => {
+    render({ presetKeys: ['monthCurrent', 'custom'] });
+    (fixture.nativeElement as HTMLElement)
+      .querySelectorAll<HTMLButtonElement>('[role="radio"]')[1]
+      .click();
+    fixture.detectChanges();
+
+    const inputs = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLInputElement>('input[type="date"]'),
+    );
+    expect(inputs).toHaveLength(2);
+    inputs.forEach((i) => expect(i.className).not.toMatch(/(^|\s)\w+:text-(xs|sm)/));
+  });
 });
 
 describe('DateRangePicker — intervalo escrito (regra do dono 18/11/2026)', () => {
@@ -170,6 +184,15 @@ describe('DateRangePicker — intervalo escrito (regra do dono 18/11/2026)', () 
     fixture.detectChanges();
     expect(rangeText()).toBeNull();
     expect(root().textContent).toContain('Selecione as duas datas.');
+  });
+
+  it('personalizado incompleto esconde também o intervalo do servidor (as duas linhas se contradiziam)', () => {
+    render({ resolvedRange: { from: '2026-11-01', to: '2026-11-18' } });
+    expect(rangeText()).toBe('01/11/2026 a 18/11/2026');
+    chip('Personalizado').click();
+    fixture.detectChanges();
+    expect(root().textContent).toContain('Selecione as duas datas.');
+    expect(rangeText()).toBeNull();
   });
 
   it('showRange=false esconde a linha (só para tela que mostra as datas em outro lugar)', () => {

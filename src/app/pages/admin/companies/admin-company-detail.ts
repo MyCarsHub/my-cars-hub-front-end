@@ -48,6 +48,10 @@ import { KpiCard } from '../../../components/kpi-card/kpi-card';
 import { companyRoleLabel } from '../../../utils/role-labels';
 import { PlatePipe } from '../../../pipes/plate.pipe';
 import { PersonNamePipe } from '../../../pipes/person-name.pipe';
+import { formatPhoneDisplay } from '../../../utils/phone-mask';
+import { maskCep, normalizeCep } from '../../../utils/cep-mask';
+import { planDisplayName } from '../../../utils/plan-grid-copy';
+import { gatewayLabel } from '../billing/gateway-label';
 
 /** Texto e tom de `app-status-chip`: a cor da situação mora só no chip. */
 interface ChipStyle {
@@ -355,7 +359,10 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
       {
         key: 'contact',
         title: 'Contato',
-        rows: [registrationRow('Telefone', reg.phone), registrationRow('E-mail', reg.email)],
+        rows: [
+          registrationRow('Telefone', formatPhoneDisplay(reg.phone)),
+          registrationRow('E-mail', reg.email),
+        ],
       },
       {
         key: 'address',
@@ -365,7 +372,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
           registrationRow('Número', reg.addressNumber),
           registrationRow('Complemento', reg.addressComplement),
           registrationRow('Bairro', reg.addressDistrict),
-          registrationRow('CEP', reg.addressCep),
+          registrationRow('CEP', normalizeCep(reg.addressCep).length === 8 ? maskCep(reg.addressCep) : reg.addressCep),
           registrationRow('Cidade', reg.addressCity),
           registrationRow('UF', reg.addressUf),
         ],
@@ -699,6 +706,16 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     // `createdAt` (mesmo segundo) ou ter os dois nulos, e aí a chave colidiria
     // — `@for` com chave repetida descarta linha em silêncio.
     return `${undo.vehicleId}-${undo.createdAt ?? 'sem-data'}-${index}`;
+  }
+
+  /** "Pro", nunca "PRO (PRO_MONTHLY_STRIPE)": o ciclo já tem a linha dele. */
+  protected planLabel(name: string | null, code: string | null): string {
+    return planDisplayName(name, code);
+  }
+
+  /** "Stripe", com maiúscula de nome próprio (o backend manda "stripe"). */
+  protected gatewayName(raw: string | null): string {
+    return gatewayLabel(raw);
   }
 
   protected billingCycleLabel(value: string | null): string {

@@ -296,7 +296,12 @@ const PAGER_BUTTON =
                   @for (c of r.rest; track c.column.key) {
                     <div class="min-w-0">
                       <dt class="text-xs text-fg-subtle">{{ c.column.header }}</dt>
-                      <dd class="text-fg-body truncate" [class.tabular-nums]="c.column.end">
+                      <!-- Wraps, never cuts: a clipped "Locadoras e motori" hid the value on the
+                           phone (visual 18/11). overflow-hidden only guards a nowrap child. -->
+                      <dd
+                        class="text-fg-body overflow-hidden break-words [overflow-wrap:anywhere]"
+                        [class.tabular-nums]="c.column.end"
+                      >
                         <ng-container
                           [ngTemplateOutlet]="cellTpl"
                           [ngTemplateOutletContext]="{ $implicit: c, row: r.row }"

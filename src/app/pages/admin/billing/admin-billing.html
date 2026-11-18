@@ -72,9 +72,9 @@
           cardsBelow="lg"
         >
           <ng-template dataListCell="plan" let-plan>
-            <span class="block font-semibold text-fg break-words whitespace-normal">{{ plan.planName }}</span>
+            <span class="block font-semibold text-fg break-words whitespace-normal">{{ planName(plan.planName, plan.planCode) }}</span>
             <span class="block text-xs font-normal text-fg-subtle break-words whitespace-normal">
-              {{ plan.planCode }} · {{ periodLabel(plan.planPeriod) }}
+              {{ periodLabel(plan.planPeriod) }}
             </span>
           </ng-template>
           <ng-template dataListCell="mrr" let-plan>
@@ -167,7 +167,7 @@
             </ng-template>
 
             <ng-template dataListCell="plan" let-issue>
-              <span class="whitespace-normal break-words">{{ issue.planName || '—' }}</span>
+              <span class="whitespace-normal break-words">{{ planName(issue.planName, issue.planCode) }}</span>
               <span class="block text-xs text-fg-subtle whitespace-normal break-words">
                 {{ gateway(issue.gateway) }}
                 @if (issue.externalIdMasked) {
@@ -241,9 +241,9 @@
             </ng-template>
 
             <ng-template dataListCell="plan" let-item>
-              <span class="whitespace-normal break-words">{{ item.planName }}</span>
+              <span class="whitespace-normal break-words">{{ planName(item.planName, item.planCode) }}</span>
               <span class="block text-xs text-fg-subtle whitespace-normal break-words">
-                {{ item.planCode }} · {{ periodLabel(item.planPeriod) }}
+                {{ periodLabel(item.planPeriod) }}
               </span>
             </ng-template>
 

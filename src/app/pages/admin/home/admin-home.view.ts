@@ -524,7 +524,16 @@ export function vendorColors(home: AdminHome | null): Map<string, string> {
 interface CsvKpiRow {
   readonly name: string;
   readonly kpi: HomeKpi;
+  /** Definição da tela quando a do servidor não basta (usuários num período que já terminou). */
+  readonly definition?: string;
 }
+
+/**
+ * Num período que já terminou, "Usuários" conta quem está ativo HOJE entre os cadastrados até o
+ * fim dele: não existe histórico de desativação. A definição do servidor não diz isso.
+ */
+export const PAST_USERS_CLAUSE =
+  'Num período que já terminou, conta quem está ativo hoje entre os cadastrados até o fim do período.';
 
 function kpiCsvValue(kpi: HomeKpi, v: number | null): string | number | null {
   if (v === null) return null;
@@ -551,7 +560,11 @@ export function buildHomeCsv<T>(
     { name: 'Custos do mês', kpi: k.costsMonth },
     { name: 'Assinaturas ativas', kpi: k.activeSubscriptions },
     { name: 'Empresas', kpi: k.companies },
-    { name: 'Usuários', kpi: k.users },
+    {
+      name: 'Usuários',
+      kpi: k.users,
+      definition: home.meta.live === false ? `${k.users.definition} ${PAST_USERS_CLAUSE}` : undefined,
+    },
     { name: 'Veículos', kpi: k.vehicles },
     { name: 'Valor gerenciado esperado no mês', kpi: k.managedExpected },
     { name: 'Valor gerenciado recebido no mês', kpi: k.managedReceived },
@@ -570,7 +583,7 @@ export function buildHomeCsv<T>(
     { key: 'previousBrl', header: 'Anterior (R$)', kind: 'money-cents', value: (r) => (r.kpi.unit === 'CENTS' ? r.kpi.previous : null) },
     { key: 'asOf', header: 'Anterior em', value: (r) => dayLabel(r.kpi.previousAsOf) },
     { key: 'why', header: 'Sem dado porque', value: (r) => (r.kpi.value === null ? nullText(r.kpi, home.meta.currentMonth) : null) },
-    { key: 'definition', header: 'Definição', value: (r) => r.kpi.definition },
+    { key: 'definition', header: 'Definição', value: (r) => r.definition ?? r.kpi.definition },
   ];
 
   const months = home.profitByMonth;

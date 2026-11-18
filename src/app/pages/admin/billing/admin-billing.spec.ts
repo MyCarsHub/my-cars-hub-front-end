@@ -5,7 +5,7 @@ import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { AdminBilling, formatBillingDate, issueWindowRange } from './admin-billing';
+import { AdminBilling, formatBillingDate, formatBillingDateTime, issueWindowRange } from './admin-billing';
 import { AdminBillingService } from '../admin-billing.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -21,8 +21,8 @@ const SUBSCRIPTION: AdminSubscriptionListItem = {
   companyId: 'cmp-1',
   companyName: 'Locadora Alfa',
   companyStatus: 'ACTIVE',
-  planCode: 'PRO_MONTHLY',
-  planName: 'Pro Mensal',
+  planCode: 'PRO_MONTHLY_STRIPE',
+  planName: 'PRO',
   planPeriod: 'MONTHLY',
   status: 'PAST_DUE',
   billingCycle: 'MONTHLY',
@@ -46,8 +46,8 @@ const MRR: AdminMrrBreakdown = {
   byPlan: [
     {
       planId: 'plan-1',
-      planCode: 'PRO_MONTHLY',
-      planName: 'Pro Mensal',
+      planCode: 'PRO_MONTHLY_STRIPE',
+      planName: 'PRO',
       planPeriod: 'MONTHLY',
       gateway: 'stripe',
       planPriceCents: 19900,
@@ -69,8 +69,8 @@ const ISSUE_NO_AMOUNT: AdminBillingIssue = {
   subscriptionId: '11111111-2222-3333-4444-555566667777',
   companyId: 'cmp-2',
   companyName: 'Locadora Beta',
-  planCode: 'PRO_MONTHLY',
-  planName: 'Pro Mensal',
+  planCode: 'PRO_MONTHLY_STRIPE',
+  planName: 'PRO',
   gateway: 'stripe',
   externalIdMasked: 'sub_****1A0',
   amountCents: null,
@@ -83,8 +83,8 @@ const ISSUE_PAST_DUE: AdminBillingIssue = {
   subscriptionId: 'sub-1',
   companyId: 'cmp-1',
   companyName: 'Locadora Alfa',
-  planCode: 'PRO_MONTHLY',
-  planName: 'Pro Mensal',
+  planCode: 'PRO_MONTHLY_STRIPE',
+  planName: 'PRO',
   gateway: 'STRIPE',
   externalIdMasked: 'sub_****9F2',
   amountCents: 19900,
@@ -190,7 +190,11 @@ describe('AdminBilling', () => {
 
     const text: string = fixture.nativeElement.textContent;
     expect(text).toContain('Locadora Alfa');
-    expect(text).toContain('Pro Mensal');
+    expect(text).toContain('Pro');
+    expect(text).toContain('Mensal');
+    // Nem o nome em caixa alta do banco nem o código do plano vazam (visual 18/11).
+    expect(text).not.toContain('PRO_MONTHLY_STRIPE');
+    expect(text).not.toMatch(/PRO/);
     // Centavos viram BRL; o enum cru não vaza na UI.
     expect(text).toContain('R$');
     expect(text).toContain('199,00');
@@ -211,7 +215,9 @@ describe('AdminBilling', () => {
     expect(text).toContain('597,00');
     expect(text).toContain('398,00');
     expect(text).toContain('Composição por plano');
-    expect(text).toContain('Pro Mensal');
+    const plans = (fixture.nativeElement.querySelector('[data-testid="mrr-plans"]')?.textContent ?? '').replace(/\s+/g, ' ');
+    expect(plans).toContain('Pro Mensal');
+    expect(plans).not.toContain('PRO_MONTHLY_STRIPE');
   });
 
   it('normaliza o casing divergente de gateway entre assinaturas e byPlan', () => {
@@ -399,6 +405,34 @@ describe('AdminBilling', () => {
     expect(chip.className).toContain('bg-amber-100');
   });
 
+  it('problema de cobrança: início em Brasília e a razão em português', () => {
+    // 01:30 UTC de 19/11 = 22:30 de 18/11 em Brasília (zona do servidor sem sufixo).
+    issues.set([{ ...ISSUE_PAST_DUE, reason: 'PAST_DUE', occurredAt: '2026-11-19T01:30:00' }]);
+    issuesTotal.set(1);
+    configure();
+    const fixture = TestBed.createComponent(AdminBilling);
+    fixture.detectChanges();
+
+    const list: HTMLElement = fixture.nativeElement.querySelector('[data-testid="billing-issues"]');
+    const text = (list.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain('18/11/2026 às 22:30');
+    expect(text).not.toContain('19/11/2026');
+    expect(text).toContain('Pagamento do ciclo em atraso');
+    expect(text).not.toContain('Past due');
+  });
+
+  it('a janela de problemas recalcula "hoje": tela aberta de um dia para o outro', () => {
+    vi.setSystemTime(new Date('2026-11-18T15:00:00Z'));
+    configure();
+    const fixture = TestBed.createComponent(AdminBilling);
+    fixture.detectChanges();
+    const cmp = fixture.componentInstance as unknown as { windowRangeText: () => string | null };
+    expect(cmp.windowRangeText()).toBe('19/10/2026 a 18/11/2026');
+    // 03:30 UTC de 19/11 = 00:30 de 19/11 em Brasília.
+    vi.setSystemTime(new Date('2026-11-19T03:30:00Z'));
+    expect(cmp.windowRangeText()).toBe('20/10/2026 a 19/11/2026');
+  });
+
   it('a janela de problemas mostra o intervalo em datas', () => {
     configure();
     const fixture = TestBed.createComponent(AdminBilling);
@@ -454,6 +488,15 @@ describe('datas de Assinaturas', () => {
     expect(formatBillingDate('2026-08-01')).toBe('01/08/2026');
     expect(formatBillingDate(null)).toBe('—');
     expect(formatBillingDate('lixo')).toBe('—');
+  });
+
+  it('instante do servidor (UTC sem sufixo) sai no dia e na hora de Brasília', () => {
+    // 02:00 UTC de 13/12 ainda é 12/12 em Brasília: a próxima cobrança não pula um dia.
+    expect(formatBillingDate('2026-12-13T02:00:00')).toBe('12/12/2026');
+    expect(formatBillingDate('2026-12-13T02:00:00Z')).toBe('12/12/2026');
+    expect(formatBillingDateTime('2026-11-12T17:08:00')).toBe('12/11/2026 às 14:08');
+    expect(formatBillingDateTime(null)).toBe('—');
+    expect(formatBillingDateTime('lixo')).toBe('—');
   });
 
   it('a janela vai de hoje menos N dias até hoje, como o servidor', () => {

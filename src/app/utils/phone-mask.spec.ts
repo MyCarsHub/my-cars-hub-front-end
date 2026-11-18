@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { FormControl } from '@angular/forms';
 
-import { applyMaskedPhoneInput, caretAfterDigits, maskPhone, normalizePhone } from './phone-mask';
+import { applyMaskedPhoneInput, caretAfterDigits, formatPhoneDisplay, maskPhone, normalizePhone } from './phone-mask';
 
 describe('phone-mask — telefone brasileiro', () => {
   describe('normalizePhone', () => {
@@ -131,5 +131,19 @@ describe('phone-mask — telefone brasileiro', () => {
       applyMaskedPhoneInput({ target: null } as unknown as Event, control);
       expect(control.value).toBe('x');
     });
+  });
+});
+
+describe('formatPhoneDisplay — telefone guardado, para leitura', () => {
+  it('celular com 11 dígitos e fixo com 10, cada um no seu formato', () => {
+    expect(formatPhoneDisplay('31987654321')).toBe('(31) 98765-4321');
+    expect(formatPhoneDisplay('3133000003')).toBe('(31) 3300-0003');
+    expect(formatPhoneDisplay('(31) 3300-0003')).toBe('(31) 3300-0003');
+  });
+
+  it('outro tamanho volta como veio; vazio é vazio', () => {
+    expect(formatPhoneDisplay('+55 31 3300 0003 ramal 2')).toBe('+55 31 3300 0003 ramal 2');
+    expect(formatPhoneDisplay(null)).toBe('');
+    expect(formatPhoneDisplay('  ')).toBe('');
   });
 });

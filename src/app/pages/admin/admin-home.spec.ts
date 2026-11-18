@@ -278,6 +278,32 @@ describe('AdminHome v2 — chips, período e escopo', () => {
     expect(flat(kpiCard(host, 'costs'))).toContain('nenhum custo lançado em outubro');
     expect(flat(kpiCard(host, 'managed'))).toContain('Gerenciado em out');
   });
+
+  it('Mês atual diz "do mês"; outro período até hoje nomeia o mês (o valor é do mês, não do período)', () => {
+    const { host, fixture } = setup({
+      home: (range, scope) =>
+        of({ ...HOME, meta: { ...HOME.meta, scope, from: range.from, to: range.to, live: true, referenceMonth: '2026-11' } }),
+    });
+    expect(flat(kpiCard(host, 'profit'))).toContain('Lucro do mês');
+    expect(flat(kpiCard(host, 'costs'))).toContain('Custos do mês');
+    expect(flat(kpiCard(host, 'managed'))).toContain('Gerenciado no mês');
+    pill(host, '7 dias').click();
+    fixture.detectChanges();
+    expect(flat(kpiCard(host, 'profit'))).toContain('Lucro de novembro');
+    expect(flat(kpiCard(host, 'costs'))).toContain('Custos de novembro');
+    expect(flat(kpiCard(host, 'profit'))).not.toContain('do mês');
+    expect(flat(kpiCard(host, 'managed'))).toContain('Gerenciado em nov');
+  });
+
+  it('Usuários: período que já terminou diz que conta os ativos de hoje; ao vivo, não', () => {
+    const live = setup().host;
+    expect(flat(kpiCard(live, 'users'))).not.toContain('ativos hoje');
+    const past = setup({
+      home: (range, scope) =>
+        of({ ...HOME, meta: { ...HOME.meta, scope, from: range.from, to: range.to, live: false, referenceMonth: '2026-10' } }),
+    }).host;
+    expect(flat(kpiCard(past, 'users'))).toContain('ativos hoje, cadastrados até o fim do período');
+  });
 });
 
 describe('AdminHome v2 — cores e gráficos', () => {

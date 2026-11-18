@@ -457,10 +457,21 @@ export class AdminHome implements OnInit {
   });
   /** O período termina hoje (`meta.live`; servidor de antes de 18/11 não manda = ao vivo). */
   protected readonly live = computed(() => this.home()?.meta.live !== false);
-  /** "do mês" (período até hoje) ou "de outubro" (período que terminou antes). */
+  /**
+   * O período é o mês corrente até hoje ("Mês atual"): do dia 1 até `to`, no mesmo mês. Só aí
+   * "do mês" lê certo. Em "7 dias", "30 dias", "Este ano" ou um personalizado, o lucro e os custos
+   * continuam sendo os do MÊS de `to` (o servidor não soma o período), então o rótulo nomeia o mês
+   * para não parecer o total do período escolhido.
+   */
+  private readonly monthToDate = computed(() => {
+    const m = this.home()?.meta;
+    if (!m || !this.live()) return false;
+    return m.from.slice(8, 10) === '01' && m.from.slice(0, 7) === m.to.slice(0, 7);
+  });
+  /** "do mês" (Mês atual), "de outubro" (Mês passado) ou "de novembro" (outro período). */
   private readonly monthWord = computed(() => {
     const m = this.month();
-    return this.live() || !m ? 'do mês' : `de ${monthLong(m)}`;
+    return this.monthToDate() || !m ? 'do mês' : `de ${monthLong(m)}`;
   });
 
   private kpiDetail(kpi: HomeKpi | undefined, fallback: string | null): string | null {
@@ -572,7 +583,9 @@ export class AdminHome implements OnInit {
         value: k?.users.value ?? null,
         format: 'integer',
         delta: countDelta(k?.users.parts['newInPeriod'], 'novos no período'),
-        detail: this.kpiDetail(k?.users, null),
+        // Período que já terminou: o servidor conta quem está ativo HOJE entre os cadastrados até o
+        // fim dele (não há histórico de desativação). O cartão diz, para o número não parecer foto.
+        detail: this.kpiDetail(k?.users, this.live() ? null : 'ativos hoje, cadastrados até o fim do período'),
         action: null,
       },
       {
@@ -606,7 +619,7 @@ export class AdminHome implements OnInit {
         : `de ${formatBrl(e.value)} esperados pelo vencimento` +
           (share === null ? '' : ` (${formatKpiNumber('ratio', share)} já entrou)`);
     return {
-      label: this.live() || !month ? 'Gerenciado no mês' : `Gerenciado em ${monthShort(month)}`,
+      label: this.monthToDate() || !month ? 'Gerenciado no mês' : `Gerenciado em ${monthShort(month)}`,
       value: r.value,
       detail: r.value === null ? nullText(r, month) : `recebido em caixa, ${expected}`,
       delta: valueDelta(r.value, r.previous, 'vs mês anterior'),

@@ -9,6 +9,7 @@ import {
   actionLabel,
   bucketLabels,
   buildHomeCsv,
+  PAST_USERS_CLAUSE,
   countDelta,
   heatRows,
   nullText,
@@ -274,5 +275,12 @@ describe('admin-home.view', () => {
     expect(csv).toContain('MRR real;;569,10;;239,70;01/12/2025;;definição');
     expect(csv).toContain('Lucro do mês;;;;;;nenhum custo lançado em novembro;definição');
     expect(csv).toContain('Churn mensal;0%;');
+  });
+
+  it('buildHomeCsv: "Usuários" num período que já terminou diz que conta os ativos de hoje', () => {
+    const live = buildHomeCsv(HOME, null);
+    expect(live).not.toContain(PAST_USERS_CLAUSE);
+    const past = buildHomeCsv({ ...HOME, meta: { ...HOME.meta, live: false } }, null);
+    expect(past).toContain(`Usuários;69;;;;;;definição ${PAST_USERS_CLAUSE}`);
   });
 });
