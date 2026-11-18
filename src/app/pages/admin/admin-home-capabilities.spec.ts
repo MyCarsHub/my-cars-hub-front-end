@@ -12,8 +12,8 @@ import { AdminCapabilitiesService } from '../../services/admin-capabilities.serv
 import { NotificationService } from '../../services/notification.service';
 import type { AdminCapabilityCode } from '../../types/admin-roles.types';
 
-/** Lote 2A: os atalhos do admin seguem o papel (o servidor confere de novo). */
-describe('AdminHome — atalhos por capacidade', () => {
+/** A grade de atalhos saiu da home (o menu leva a cada área); fica a guarda do FEAT-0452. */
+describe('AdminHome — capacidades', () => {
   function render(codes: AdminCapabilityCode[]): HTMLElement {
     const granted = new Set(codes);
     TestBed.resetTestingModule();
@@ -38,23 +38,8 @@ describe('AdminHome — atalhos por capacidade', () => {
 
   beforeEach(() => TestBed.resetTestingModule());
 
-  it('Leitura vê só as áreas de leitura: sem Admins, Blog ou Feedback', () => {
-    const el = render(['ver']);
-    expect(el.textContent).toContain('Empresas');
-    expect(el.textContent).toContain('Auditoria');
-    expect(el.textContent).not.toContain('Admins e papéis');
-    expect(el.textContent).not.toContain('Moderação de Feedback');
-    expect(el.querySelector('a[href="/admin/blog"]')).toBeNull();
-  });
-
-  it('Cupons entra nas seções para quem lê e fica fora para quem não tem "ver"', () => {
-    expect(render(['ver']).querySelector('a[href="/admin/cupons"]')).not.toBeNull();
-    expect(render(['blog']).querySelector('a[href="/admin/cupons"]')).toBeNull();
-  });
-
-  it('o Dono vê o atalho "Admins e papéis"', () => {
+  it('nem o Dono vê as ferramentas de teste que saíram do admin', () => {
     const el = render(['ver', 'admins.gerir', 'blog', 'suporte.atender', 'plataforma.operar', 'cobranca.agir']);
-    expect(el.querySelector('a[href="/admin/admins"]')).not.toBeNull();
     // FEAT-0452 — as duas ferramentas de teste saíram do admin, mesmo para o Dono.
     expect(el.textContent).not.toContain('Testar templates');
     expect(el.textContent).not.toContain('Ferramentas');

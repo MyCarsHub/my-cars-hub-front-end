@@ -534,29 +534,6 @@
         </div>
       </app-page-card>
     </div>
-
-    <app-page-card title="Áreas administrativas">
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 px-4 sm:px-6 pb-5">
-        @for (section of sections(); track section.title) {
-          @if (section.route && !section.disabled) {
-            <a
-              [routerLink]="section.route"
-              class="press group flex flex-col gap-3 p-5 rounded-2xl bg-surface-muted hover:bg-surface-sunken
-                     transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-            >
-              <div class="w-10 h-10 rounded-xl bg-surface text-fg-soft flex items-center justify-center" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path [attr.d]="section.icon" />
-                </svg>
-              </div>
-              <h3 class="text-base font-semibold text-fg">{{ section.title }}</h3>
-              <p class="text-sm text-fg-subtle">{{ section.description }}</p>
-            </a>
-          }
-        }
-      </div>
-    </app-page-card>
   </div>
 
   @if (sheetIntent(); as intent) {

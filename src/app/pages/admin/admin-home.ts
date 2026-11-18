@@ -32,7 +32,6 @@ import type {
   AdminUsage,
   HomeKpi,
 } from '../../types/admin-home.types';
-import type { AdminCapabilityCode } from '../../types/admin-roles.types';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import { MONEY_AXIS_FLOOR_CENTS } from '../../utils/money-axis';
 import { CostSheet, type CostSheetIntent } from './finance/cost-sheet';
@@ -56,96 +55,11 @@ import { HomeUpcoming } from './home/home-upcoming';
 import { HomeActivityMap, HomeRoles, HomeTopUsers, HomeUfs } from './home/home-usage';
 import { AdminRevenueSection } from './revenue/admin-revenue-section';
 
-interface AdminSection {
-  route: string | null;
-  title: string;
-  description: string;
-  icon: string;
-  disabled?: boolean;
-  badge?: string;
-  /** Capacidade que o papel precisa para ver o atalho (o servidor confere de novo). */
-  capability: AdminCapabilityCode;
-}
-
-const SECTIONS: AdminSection[] = [
-  {
-    route: '/admin/admins',
-    title: 'Admins e papéis',
-    description: 'Quem administra a plataforma: Dono, Suporte ou Leitura.',
-    icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4',
-    capability: 'admins.gerir',
-  },
-  {
-    route: '/admin/feedback',
-    capability: 'suporte.atender',
-    title: 'Moderação de Feedback',
-    description: 'Triagem do roadmap: mover, rejeitar com nota, remover.',
-    icon: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4',
-  },
-  {
-    route: '/admin/users',
-    capability: 'ver',
-    title: 'Usuários',
-    description: 'Listar, buscar e ativar/desativar contas.',
-    icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
-  },
-  {
-    route: '/admin/companies',
-    capability: 'ver',
-    title: 'Empresas',
-    description: 'Listar tenants, inspecionar assinatura e suspender.',
-    icon: 'M3 21h18 M5 21V7l8-4v18 M19 21V11l-6-4',
-  },
-  {
-    route: '/admin/cobrancas',
-    capability: 'ver',
-    title: 'Cobranças',
-    description: 'Cobranças com falha e atrasadas de todas as empresas, com WhatsApp do motorista.',
-    icon: 'M2 10h20 M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M12 13v2 M12 9h.01',
-  },
-  {
-    route: '/admin/blog',
-    capability: 'blog',
-    title: 'Blog',
-    description: 'Publicar, editar e despublicar posts do blog público.',
-    icon: 'M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20',
-  },
-  {
-    route: '/admin/suporte',
-    capability: 'ver',
-    title: 'Suporte',
-    description: 'Triagem de tickets: em atendimento, resolver, reabrir.',
-    icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
-  },
-  {
-    route: '/admin/auditoria',
-    capability: 'ver',
-    title: 'Auditoria',
-    description: 'Trilha de todas as ações administrativas: quem fez, o que e quando.',
-    icon: 'M9 11l3 3 8-8 M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9',
-  },
-  {
-    route: '/admin/billing',
-    capability: 'ver',
-    title: 'Billing',
-    description: 'Assinaturas, problemas de cobrança em aberto e MRR por plano.',
-    icon: 'M2 10h20 M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M7 15h2',
-  },
-  {
-    route: '/admin/cupons',
-    capability: 'ver',
-    title: 'Cupons',
-    description: 'Descontos por empresa: direto na assinatura ou por código.',
-    icon: 'M3 9V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3a3 3 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a3 3 0 0 0 0-6z M14 5v2 M14 11v2 M14 17v2',
-  },
-  {
-    route: '/admin/notificacoes',
-    capability: 'ver',
-    title: 'Notificações',
-    description: 'Por dia: os motoristas foram avisados das cobranças? E-mail das 05:00 e aviso do Asaas.',
-    icon: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0',
-  },
-];
+/**
+ * Barra de status em tom neutro único: cor de status mora só no chip, e o token
+ * se ajusta sozinho ao tema claro e escuro.
+ */
+const STATUS_BAR_COLOR = 'var(--color-fg-subtle)';
 
 interface StatusBar {
   key: string;
@@ -155,29 +69,29 @@ interface StatusBar {
   percent: number;
 }
 
-const SUB_STATUS_ORDER: Array<{ key: string; label: string; color: string }> = [
-  { key: 'ACTIVE', label: 'Ativa', color: '#10b981' },
+const SUB_STATUS_ORDER: Array<{ key: string; label: string }> = [
+  { key: 'ACTIVE', label: 'Ativa' },
   // Status EFETIVO do backend: "Trial" só conta teste com fim no futuro; o
   // teste vencido (ainda TRIALING no banco ou já EXPIRED) cai em "Teste vencido".
-  { key: 'TRIALING', label: 'Trial', color: '#3b82f6' },
-  { key: 'PAST_DUE', label: 'Atrasada', color: '#f59e0b' },
-  { key: 'CANCELED', label: 'Cancelada', color: '#6b7280' },
-  { key: 'EXPIRED', label: 'Teste vencido', color: '#ef4444' },
+  { key: 'TRIALING', label: 'Trial' },
+  { key: 'PAST_DUE', label: 'Atrasada' },
+  { key: 'CANCELED', label: 'Cancelada' },
+  { key: 'EXPIRED', label: 'Teste vencido' },
 ];
 
-const RENTAL_STATUS_ORDER: Array<{ key: string; label: string; color: string }> = [
-  { key: 'RESERVED', label: 'Reservado', color: '#3b82f6' },
-  { key: 'ACTIVE', label: 'Em andamento', color: '#10b981' },
-  { key: 'COMPLETED', label: 'Concluído', color: '#6366f1' },
-  { key: 'CANCELED', label: 'Cancelado', color: '#6b7280' },
+const RENTAL_STATUS_ORDER: Array<{ key: string; label: string }> = [
+  { key: 'RESERVED', label: 'Reservado' },
+  { key: 'ACTIVE', label: 'Em andamento' },
+  { key: 'COMPLETED', label: 'Concluído' },
+  { key: 'CANCELED', label: 'Cancelado' },
 ];
 
-const FB_STATUS_ORDER: Array<{ key: string; label: string; color: string }> = [
-  { key: 'BACKLOG', label: 'Backlog', color: '#9ca3af' },
-  { key: 'PLANNED', label: 'Planejado', color: '#3b82f6' },
-  { key: 'IN_PROGRESS', label: 'Em Desenvolvimento', color: '#f59e0b' },
-  { key: 'DONE', label: 'Concluído', color: '#10b981' },
-  { key: 'REJECTED', label: 'Rejeitado', color: '#ef4444' },
+const FB_STATUS_ORDER: Array<{ key: string; label: string }> = [
+  { key: 'BACKLOG', label: 'Backlog' },
+  { key: 'PLANNED', label: 'Planejado' },
+  { key: 'IN_PROGRESS', label: 'Em Desenvolvimento' },
+  { key: 'DONE', label: 'Concluído' },
+  { key: 'REJECTED', label: 'Rejeitado' },
 ];
 
 const PERIODS: readonly PillTabOption<AdminHomePeriod>[] = [
@@ -284,8 +198,6 @@ export class AdminHome implements OnInit {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly caps = inject(AdminCapabilitiesService);
 
-  /** Atalhos que o papel deste admin pode usar; vazio até o papel carregar (falha fechada). */
-  protected readonly sections = computed(() => SECTIONS.filter((s) => this.caps.can(s.capability)));
   /** Só o Dono lança custo (`custo.gerir`); o servidor confere de novo. */
   protected readonly canManageCosts = computed(() => this.caps.can('custo.gerir'));
 
@@ -902,11 +814,11 @@ export class AdminHome implements OnInit {
 
 function bars(
   map: Record<string, number>,
-  order: Array<{ key: string; label: string; color: string }>,
+  order: Array<{ key: string; label: string }>,
 ): StatusBar[] {
   const total = Object.values(map).reduce((sum, n) => sum + n, 0);
   return order.map((s) => {
     const count = map[s.key] ?? 0;
-    return { key: s.key, label: s.label, count, color: s.color, percent: total > 0 ? (count / total) * 100 : 0 };
+    return { key: s.key, label: s.label, count, color: STATUS_BAR_COLOR, percent: total > 0 ? (count / total) * 100 : 0 };
   });
 }
