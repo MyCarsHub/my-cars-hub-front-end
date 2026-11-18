@@ -4,7 +4,14 @@ import { provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { AdminNotifications, brtIsoDate, shiftIsoDate } from './admin-notifications';
+import {
+  AdminNotifications,
+  NOTIFICATIONS_PAGE_SIZE,
+  brtIsoDate,
+  pageCount,
+  pageSlice,
+  shiftIsoDate,
+} from './admin-notifications';
 import { AdminChargeNotificationsService } from '../admin-charge-notifications.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -137,6 +144,21 @@ const ASAAS: AsaasNotificationsOverview = {
   ],
 };
 
+const CARDS = '[data-testid="charge-list"] [data-card]';
+
+/** Abre o kebab da linha `index` (cartão do celular) e devolve o item "Reenviar e-mail". */
+function openResend(el: HTMLElement, fixture: { detectChanges(): void }, index: number): HTMLButtonElement {
+  const card = el.querySelectorAll<HTMLElement>(CARDS)[index];
+  (card.querySelector('button[aria-haspopup="menu"]') as HTMLButtonElement).click();
+  fixture.detectChanges();
+  return card.querySelector('[data-testid="resend-button"]') as HTMLButtonElement;
+}
+
+function pill(el: HTMLElement, group: string, label: string): HTMLButtonElement {
+  const buttons = el.querySelectorAll<HTMLButtonElement>(`[aria-label="${group}"] button`);
+  return Array.from(buttons).find((b) => b.textContent?.trim() === label)!;
+}
+
 describe('AdminNotifications', () => {
   let loadDay: ReturnType<typeof vi.fn>;
   let loadAsaas: ReturnType<typeof vi.fn>;
@@ -176,22 +198,33 @@ describe('AdminNotifications', () => {
     expect(summary).toContain('Avisados1');
     expect(summary).toContain('Nãoavisados1');
     expect(el.querySelectorAll('[data-testid="company-summary"] li')).toHaveLength(2);
-    expect(el.querySelectorAll('[data-testid="charge-card"]')).toHaveLength(2);
+    expect(el.querySelectorAll(CARDS)).toHaveLength(2);
   });
 
   it('mostra o motivo em pt-BR de quem não foi avisado', () => {
     const { el } = render();
-    const reasons = el.querySelectorAll('[data-testid="not-notified-reason"]');
+    const reasons = el.querySelectorAll(`${CARDS} [data-testid="not-notified-reason"]`);
     expect(reasons).toHaveLength(1);
     expect(reasons[0].textContent).toContain('Motorista sem e-mail cadastrado');
   });
 
   it('mostra canais do Asaas e "dia + D+1" para quem está configurado', () => {
     const { el } = render();
-    const first = el.querySelectorAll('[data-testid="charge-card"]')[0].textContent!;
+    const first = el.querySelectorAll(CARDS)[0].textContent!;
     expect(first).toContain('No dia do vencimento + D+1');
     expect(first).toContain('E-mail · SMS · WhatsApp');
     expect(first).toContain('Entregue (confirmado pelo provedor)');
+  });
+
+  it('chips longos de e-mail e Asaas quebram linha no cartão em vez de serem cortados (375px)', () => {
+    const { el } = render();
+    const chips = el.querySelectorAll(`${CARDS} [data-testid="email-chip"], ${CARDS} [data-testid="asaas-chip"]`);
+    expect(chips.length).toBeGreaterThan(0);
+    chips.forEach((chip) => {
+      expect(chip.className).toContain('whitespace-normal');
+      expect(chip.className).not.toContain('whitespace-nowrap');
+      expect(chip.className).toContain('max-w-full');
+    });
   });
 
   it('nunca mostra e-mail completo: só o mascarado que veio do backend', () => {
@@ -201,21 +234,19 @@ describe('AdminNotifications', () => {
 
   it('filtra "só não avisados" e por empresa sem nova requisição', () => {
     const { fixture, el } = render();
-    const only = el.querySelector<HTMLInputElement>('[data-testid="only-not-notified"]')!;
-    only.checked = true;
-    only.dispatchEvent(new Event('change'));
+    pill(el, 'Filtrar por aviso', 'Não avisadas').click();
     fixture.detectChanges();
-    expect(el.querySelectorAll('[data-testid="charge-card"]')).toHaveLength(1);
-    expect(el.querySelector('[data-testid="charge-card"]')!.textContent).toContain('Ana');
+    expect(el.querySelectorAll(CARDS)).toHaveLength(1);
+    expect(el.querySelector(CARDS)!.textContent).toContain('Ana');
 
-    only.checked = false;
-    only.dispatchEvent(new Event('change'));
+    pill(el, 'Filtrar por aviso', 'Todas').click();
+    fixture.detectChanges();
     const select = el.querySelector<HTMLSelectElement>('[data-testid="company-filter"]')!;
     select.value = 'cmp-a';
     select.dispatchEvent(new Event('change'));
     fixture.detectChanges();
-    expect(el.querySelectorAll('[data-testid="charge-card"]')).toHaveLength(1);
-    expect(el.querySelector('[data-testid="charge-card"]')!.textContent).toContain('Rennan');
+    expect(el.querySelectorAll(CARDS)).toHaveLength(1);
+    expect(el.querySelector(CARDS)!.textContent).toContain('Rennan');
     expect(loadDay).toHaveBeenCalledTimes(1);
   });
 
@@ -226,14 +257,12 @@ describe('AdminNotifications', () => {
     expect(loadDay).toHaveBeenLastCalledWith({ date: shiftIsoDate(today, -1) });
   });
 
-  it('botão bloqueado mostra o motivo e não chama o backend', () => {
-    const { el } = render();
-    const buttons = el.querySelectorAll<HTMLButtonElement>('[data-testid="resend-button"]');
-    expect(buttons[1].disabled).toBe(true);
-    expect(el.querySelectorAll('[data-testid="charge-card"]')[1].textContent).toContain(
-      'Motorista sem e-mail cadastrado.',
-    );
-    buttons[1].click();
+  it('reenvio bloqueado: item desabilitado no kebab, motivo na linha, sem chamar o backend', () => {
+    const { fixture, el } = render();
+    expect(el.querySelectorAll(CARDS)[1].textContent).toContain('Motorista sem e-mail cadastrado.');
+    const blocked = openResend(el, fixture, 1);
+    expect(blocked.disabled).toBe(true);
+    blocked.click();
     expect(resendEmail).not.toHaveBeenCalled();
   });
 
@@ -241,14 +270,15 @@ describe('AdminNotifications', () => {
     const pending = new Subject<ChargeEmailResendResult>();
     resendEmail.mockReturnValue(pending);
     const { fixture, el } = render();
-    const button = () => el.querySelectorAll<HTMLButtonElement>('[data-testid="resend-button"]')[0];
 
-    button().click();
+    openResend(el, fixture, 0).click();
     fixture.detectChanges();
-    button().click();
+    // Reabrir o kebab no meio do envio: o item está travado.
+    const again = openResend(el, fixture, 0);
+    again.click();
     expect(resendEmail).toHaveBeenCalledTimes(1);
-    expect(button().disabled).toBe(true);
-    expect(button().textContent).toContain('Reenviando');
+    expect(again.disabled).toBe(true);
+    expect(again.textContent).toContain('Reenviando');
 
     pending.next({
       chargeId: 'ch-1',
@@ -274,9 +304,9 @@ describe('AdminNotifications', () => {
       ),
     );
     const { fixture, el } = render();
-    el.querySelectorAll<HTMLButtonElement>('[data-testid="resend-button"]')[0].click();
+    openResend(el, fixture, 0).click();
     fixture.detectChanges();
-    expect(el.querySelectorAll('[data-testid="charge-card"]')[0].textContent).toContain(
+    expect(el.querySelectorAll(CARDS)[0].textContent).toContain(
       'acabou de ser reenviado',
     );
   });
@@ -284,7 +314,9 @@ describe('AdminNotifications', () => {
   it('estado vazio quando o dia não tem cobranças', () => {
     loadDay.mockReturnValue(of({ ...day([]), companies: [], summary: { due: 0, notified: 0, notNotified: 0 } }));
     const { el } = render();
-    expect(el.querySelector('[data-testid="empty"]')!.textContent).toContain('Nenhuma cobrança vencendo');
+    expect(el.querySelector('[data-testid="charge-list"] [data-empty-text]')!.textContent).toContain(
+      'Nenhuma cobrança vencendo',
+    );
   });
 
   it('erro ao carregar o dia mostra banner e não derruba a seção do Asaas', () => {
@@ -292,6 +324,57 @@ describe('AdminNotifications', () => {
     const { el } = render();
     expect(el.textContent).toContain('Tentar novamente');
     expect(el.querySelector('[data-testid="asaas-summary"]')).not.toBeNull();
+  });
+
+  it('padrão: situação em chip sem bolinha, nada pintado em volta do registro, sem linhas', () => {
+    const { el } = render();
+    const chips = Array.from(el.querySelectorAll(`${CARDS} app-status-chip`)).map((c) => c.textContent?.trim());
+    expect(chips).toContain('Avisado');
+    expect(chips).toContain('Não avisado');
+    const list = el.querySelector('[data-testid="charge-list"]')!.innerHTML;
+    expect(list).not.toMatch(/border-red|bg-red-50|border-t|divide-/);
+    expect(el.querySelector('[data-testid="company-summary"]')!.innerHTML).not.toMatch(/\bborder\b/);
+  });
+
+  it('busca por motorista ou empresa sem nova requisição, acento e caixa não importam', () => {
+    vi.useFakeTimers();
+    const { fixture, el } = render();
+    const search = el.querySelector<HTMLInputElement>('[data-list-search]')!;
+    search.value = 'OUTRA locadora';
+    search.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+    expect(el.querySelectorAll(CARDS)).toHaveLength(1);
+    expect(el.querySelector(CARDS)!.textContent).toContain('Ana');
+    expect(loadDay).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it('dia grande: desenha só uma página de cada vez (a aba travou com o dia inteiro)', () => {
+    const many = Array.from({ length: 2000 }, (_, i) => item({ chargeId: 'ch-' + i, driverFirstName: 'M' + i }));
+    loadDay.mockReturnValue(of(day(many)));
+    const { fixture, el } = render();
+
+    expect(el.querySelectorAll(CARDS)).toHaveLength(NOTIFICATIONS_PAGE_SIZE);
+    expect(el.querySelectorAll('[data-testid="charge-list"] [data-row]')).toHaveLength(NOTIFICATIONS_PAGE_SIZE);
+    expect(el.querySelector('[data-testid="charge-list"] [data-pager-text]')!.textContent).toContain(
+      '2.000 cobranças · página 1 de 80',
+    );
+
+    (el.querySelector('[data-testid="charge-list"] [data-page-next]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector(CARDS)!.textContent).toContain('M25');
+    expect(loadDay).toHaveBeenCalledTimes(1);
+  });
+
+  it('Asaas: listas grandes também paginam', () => {
+    const drivers = Array.from({ length: 300 }, (_, i) => ({ ...ASAAS.failures[0], driverFirstName: 'D' + i }));
+    loadAsaas.mockReturnValue(of({ ...ASAAS, failures: drivers, withoutWhatsappDrivers: drivers }));
+    const { el } = render();
+    expect(el.querySelectorAll('[data-testid="asaas-failures"] [data-card]')).toHaveLength(NOTIFICATIONS_PAGE_SIZE);
+    expect(el.querySelectorAll('[data-testid="asaas-without-whatsapp"] [data-card]')).toHaveLength(
+      NOTIFICATIONS_PAGE_SIZE,
+    );
   });
 
   it('seção do Asaas: configurados × falha com motivo e quem está sem WhatsApp', () => {
@@ -312,5 +395,15 @@ describe('datas em Brasília', () => {
 
   it('brtIsoDate usa o fuso de Brasília (02:00Z ainda é o dia anterior)', () => {
     expect(brtIsoDate(new Date('2026-10-26T02:00:00Z'))).toBe('2026-10-25');
+  });
+});
+
+describe('páginas no navegador', () => {
+  it('pageSlice e pageCount', () => {
+    const rows = Array.from({ length: 60 }, (_, i) => i);
+    expect(pageSlice(rows, 0)).toHaveLength(NOTIFICATIONS_PAGE_SIZE);
+    expect(pageSlice(rows, 2)).toEqual([50, 51, 52, 53, 54, 55, 56, 57, 58, 59]);
+    expect(pageCount(60)).toBe(3);
+    expect(pageCount(0)).toBe(1);
   });
 });

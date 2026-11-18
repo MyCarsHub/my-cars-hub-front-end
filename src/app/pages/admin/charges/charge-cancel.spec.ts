@@ -314,14 +314,14 @@ describe('AdminCharges - kebab "Cancelar cobrança"', () => {
   }
 
   function open(el: HTMLElement, fixture: { detectChanges(): void }): void {
-    (el.querySelector('[data-testid="row-menu"] button[aria-haspopup="menu"]') as HTMLButtonElement).click();
+    (el.querySelector('[data-card] button[aria-haspopup="menu"]') as HTMLButtonElement).click();
     fixture.detectChanges();
   }
 
   it('o Dono vê "Cancelar cobrança" no kebab e ele abre o diálogo no modo cancelar', () => {
     const { el, fixture } = render();
     open(el, fixture);
-    const item = el.querySelector('[data-testid="row-menu"] [data-testid="menu-cancel"]') as HTMLButtonElement;
+    const item = el.querySelector('[data-card] [data-testid="menu-cancel"]') as HTMLButtonElement;
     expect(item.textContent).toContain('Cancelar cobrança');
 
     item.click();
@@ -340,7 +340,7 @@ describe('AdminCharges - kebab "Cancelar cobrança"', () => {
     caps.delete('cobranca.cancelar');
     const { el } = render();
     expect(el.querySelector('[data-testid="menu-cancel"]')).toBeNull();
-    expect(el.querySelector('[data-testid="row-menu"]')).toBeNull();
+    expect(el.querySelector('app-actions-menu')).toBeNull();
   });
 
   it('cobrança paga não oferece o item', () => {

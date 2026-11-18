@@ -89,6 +89,8 @@ describe('AdminCompanyDetail — financeiro, assinatura e equipe', () => {
 
   const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   const tile = (host: HTMLElement, key: string) => text(host.querySelector(`[data-tile="${key}"]`));
+  /** Rótulos do eixo x: o último filho de cada coluna (acima dele fica o número da coluna). */
+  const axis = (card: Element) => Array.from(card.querySelectorAll('[data-bar-group]')).map((g) => text(g.lastElementChild));
 
   it('mostra gerenciado, recebido e atraso do mês e a série de 6 meses', () => {
     const host = render(BASE);
@@ -100,6 +102,36 @@ describe('AdminCompanyDetail — financeiro, assinatura e equipe', () => {
     expect(series).toContain('jun/26');
     expect(series).toContain('nov/26');
     expect(series).toContain('vencimento');
+  });
+
+  it('valor gerenciado é coluna vertical: um mês por coluna, do mais antigo ao corrente, com centavos', () => {
+    const host = render(BASE);
+    const card = host.querySelector('[data-testid="managed-series"]')!;
+    const plot = card.querySelector('[data-bar-columns]') as HTMLElement | null;
+    expect(plot).not.toBeNull();
+    expect(plot!.style.height).toBe('180px');
+    const groups = axis(card);
+    expect(groups).toEqual(['jun/26', 'nov/26']);
+    expect(card.querySelectorAll('[data-bar-column]').length).toBe(2);
+    // A leitura (tabela acessível = o que o toque mostra) leva o valor inteiro, com centavos.
+    const table = text(card.querySelector('table'));
+    expect(table).toContain('R$ 1.000,00');
+    expect(table).toContain('R$ 86.400,00');
+    expect(card.querySelector('[data-bar-legend]')).toBeNull();
+    expect(card.querySelector('[data-bar-control]')?.getAttribute('aria-label')).toBe('Valor gerenciado por mês');
+  });
+
+  it('12 meses cabem na mesma altura e o eixo perde o ano para não encavalar no celular', () => {
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(Date.UTC(2025, 11 + i, 1));
+      return { month: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`, managedCents: (i + 1) * 10_000 };
+    });
+    const host = render({ ...BASE, finance: { ...BASE.finance!, managedSeries: months } });
+    const card = host.querySelector('[data-testid="managed-series"]')!;
+    expect((card.querySelector('[data-bar-columns]') as HTMLElement).style.height).toBe('180px');
+    const groups = axis(card);
+    expect(groups).toEqual(['dez', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov']);
+    expect(text(card.querySelector('table'))).toContain('R$ 1.200,00');
   });
 
   it('sem bloco finance mostra "—", nunca R$ 0', () => {

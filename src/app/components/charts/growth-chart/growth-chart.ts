@@ -1,5 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { formatKpiNumber, type KpiNumberFormat } from '../../kpi-card/kpi-card';
+import {
+  ChartTooltip,
+  nearestPoint,
+  pointerFraction,
+  stepIndex,
+  tooltipText,
+  type ChartTooltipRow,
+} from '../chart-tooltip/chart-tooltip';
 
 export interface GrowthSeries {
   readonly key: string;
@@ -172,10 +180,17 @@ interface DrawnSeries {
  * design prototype draws, and it ships zero extra bytes. Axis rule is the line chart's (zero
  * floor, minimum top); the same series are repeated in a sr-only table, since an SVG path
  * carries no numbers. The plot is revealed left to right (`draw-in`, a clip-path) and the end dot fades in; under reduced motion both become a plain fade.
+ *
+ * Reading a point (owner, 18/11: "passo o mouse e não vejo os dados"): the plot is one control.
+ * Mouse hover, a tap or a horizontal drag picks the nearest x; the keyboard moves with the arrows
+ * (Home/End jump, Esc closes). The tooltip says every series at that x in FULL (money with cents,
+ * even when the axis is compact); a `null` point reads "sem dado" and gets no marker. Phones get
+ * the same tooltip on tap; vertical scrolling still works (`touch-action: pan-y`).
  */
 @Component({
   selector: 'app-growth-chart',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ChartTooltip],
   host: { class: 'block min-w-0' },
   template: `
     @if (legendTop() && series().length > 1) {
@@ -211,7 +226,23 @@ interface DrawnSeries {
             {{ emptyText() }}
           </div>
         } @else {
-        <div class="relative">
+        <div
+          data-plot-control
+          class="relative rounded-lg touch-pan-y select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          [attr.tabindex]="interactive() ? 0 : null"
+          [attr.role]="interactive() ? 'slider' : null"
+          [attr.aria-label]="interactive() ? ariaLabel() : null"
+          [attr.aria-valuemin]="interactive() ? 1 : null"
+          [attr.aria-valuemax]="interactive() ? labels().length : null"
+          [attr.aria-valuenow]="interactive() ? (activeIndex() ?? lastIndex()) + 1 : null"
+          [attr.aria-valuetext]="interactive() ? valueText(activeIndex() ?? lastIndex()) : null"
+          (pointermove)="onPointer($event)"
+          (pointerdown)="onPointer($event)"
+          (pointerleave)="onPointerLeave($event)"
+          (keydown)="onKey($event)"
+          (focus)="onFocus()"
+          (blur)="activeIndex.set(null)"
+        >
         <svg
           data-plot
           class="draw-in w-full block overflow-visible"
@@ -224,8 +255,9 @@ interface DrawnSeries {
             @for (s of drawn(); track s.key) {
               @if (!s.reference && area()) {
                 <linearGradient [attr.id]="gradientId(s.key)" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0" [attr.stop-color]="s.color" stop-opacity="0.45" />
-                  <stop offset="1" [attr.stop-color]="s.color" stop-opacity="0" />
+                  <!-- style, not the attribute: a presentation attribute does not resolve var(--color-...) -->
+                  <stop offset="0" [style.stop-color]="s.color" stop-opacity="0.45" />
+                  <stop offset="1" [style.stop-color]="s.color" stop-opacity="0" />
                 </linearGradient>
               }
             }
@@ -262,21 +294,29 @@ interface DrawnSeries {
             }
           }
         }
-        @if (endTooltip() && tooltip(); as tip) {
-          <div
+        @if (activePoint(); as ap) {
+          @for (m of ap.markers; track m.key) {
+            <span
+              data-active-dot
+              class="absolute size-3 rounded-full border-2 border-white dark:border-surface -translate-x-1/2 -translate-y-1/2 pointer-events-none shadow-sm"
+              aria-hidden="true"
+              [style.left.%]="ap.x"
+              [style.top.%]="m.y"
+              [style.background-color]="m.color"
+            ></span>
+          }
+          <app-chart-tooltip [title]="ap.title" [rows]="ap.rows" [x]="ap.x" [y]="ap.y" [below]="ap.below" />
+        } @else if (endTooltip() && tooltip(); as tip) {
+          <!-- Idle reading of the newest point (sm and up); a tap shows the tooltip at every width. -->
+          <app-chart-tooltip
             data-end-tooltip
-            class="absolute hidden sm:block rounded-lg bg-surface-strong px-3 py-2 text-xs leading-snug shadow-lg pointer-events-none whitespace-nowrap"
-            style="transform: translateX(-100%)"
-            aria-hidden="true"
-            [style.left.%]="tip.x"
-            [style.top.%]="tip.y"
-          >
-            <p class="text-fg-muted">{{ tip.title }}</p>
-            <p class="font-semibold text-fg">{{ tip.value }}</p>
-            @if (tip.reference) {
-              <p class="text-fg-muted">{{ tip.reference }}</p>
-            }
-          </div>
+            class="hidden sm:block"
+            [title]="tip.title"
+            [rows]="tip.rows"
+            [x]="tip.x"
+            [y]="tip.y"
+            [below]="tip.below"
+          />
         }
         </div>
         }
@@ -376,6 +416,16 @@ export class GrowthChart {
   readonly smooth = input(true);
   /** Shown instead of the plot when every value is zero. */
   readonly emptyText = input('Ainda sem movimento neste período.');
+  /**
+   * Text of a value in the tooltip, the keyboard reading and the screen-reader table. Default:
+   * `valueFormat` in full (money with cents, "R$ 1.234,56", never the compact axis text).
+   */
+  readonly formatTooltip = input<((v: number) => string) | null>(null);
+  /** Hover / tap / keyboard reading of any point. */
+  readonly interactive = input(true);
+
+  /** The x being read (hover, tap, keyboard); null = none. */
+  protected readonly activeIndex = signal<number | null>(null);
 
   private static nextId = 0;
   private readonly uid = GrowthChart.nextId++;
@@ -387,6 +437,67 @@ export class GrowthChart {
     [...this.series()].sort((a, b) => Number(!!a.reference) - Number(!!b.reference)),
   );
 
+  /** Index of the newest measured value of the main series (where the chart "is" when idle). */
+  protected readonly lastIndex = computed(() => {
+    const main = this.series().find((x) => !x.reference) ?? this.series()[0];
+    const idx = main ? lastMeasured(main.values) : -1;
+    return idx >= 0 ? idx : Math.max(0, this.labels().length - 1);
+  });
+
+  /** x (0-100) of label `i` on the full axis. */
+  private xOf(i: number): number {
+    const span = this.labels().length;
+    return span <= 1 ? 50 : (i / (span - 1)) * 100;
+  }
+
+  private yOf(v: number): number {
+    return clampY(100 - (Math.max(0, v) / this.top()) * 100);
+  }
+
+  private fullText(v: number | null | undefined): string {
+    return tooltipText(v, this.valueFormat(), this.formatTooltip());
+  }
+
+  /** Main series first, then the reference: one tooltip row each; `null` reads "sem dado". */
+  private rowsAt(i: number): ChartTooltipRow[] {
+    return this.legendSeries().map((s) => ({
+      key: s.key,
+      label: s.label,
+      color: s.color,
+      value: this.fullText(s.values[i]),
+    }));
+  }
+
+  /** Spoken value of the slider: the x label and every series at it. */
+  protected valueText(i: number): string {
+    const label = `${this.tooltipLabelPrefix()}${this.labels()[i] ?? ''}`;
+    return `${label}: ${this.rowsAt(i)
+      .map((r) => `${r.label} ${r.value}`)
+      .join(', ')}`;
+  }
+
+  /** Box above the highest point, or under it when that point is near the top of the plot. */
+  private placement(ys: readonly number[]): { y: number; below: boolean } {
+    const highest = ys.length ? Math.min(...ys) : 100;
+    return highest < 30 ? { y: Math.min(highest, 70), below: true } : { y: highest, below: false };
+  }
+
+  protected readonly activePoint = computed(() => {
+    const i = this.activeIndex();
+    if (i === null || this.empty()) return null;
+    const markers = this.series()
+      .filter((s) => typeof s.values[i] === 'number')
+      .map((s) => ({ key: s.key, color: s.color, y: this.yOf(s.values[i] as number) }));
+    return {
+      x: this.xOf(i),
+      ...this.placement(markers.map((m) => m.y)),
+      markers,
+      title: `${this.tooltipLabelPrefix()}${this.labels()[i] ?? ''}`,
+      rows: this.rowsAt(i),
+    };
+  });
+
+  /** The idle tooltip at the newest point of the main series (`endTooltip`), values in full. */
   protected readonly tooltip = computed(() => {
     const main = this.drawn().find((d) => !d.reference && d.end);
     const series = this.series();
@@ -395,19 +506,48 @@ export class GrowthChart {
     const idx = lastMeasured(src.values);
     if (idx < 0) return null;
     const ref = series.find((x) => x.reference);
-    const refValue = ref?.values[idx] ?? undefined;
+    const rows: ChartTooltipRow[] = [
+      { key: src.key, label: src.label, color: src.color, value: this.fullText(src.values[idx]) },
+    ];
+    const refValue = ref?.values[idx];
+    if (ref && refValue !== undefined) {
+      rows.push({ key: ref.key, label: ref.label, color: ref.color, value: this.fullText(refValue) });
+    }
     return {
       x: main.end.x,
-      // below the point, like the prototype; kept inside the plot for points near the floor
-      y: Math.min(main.end.y + 6, 62),
+      ...this.placement([main.end.y]),
       title: `${this.tooltipLabelPrefix()}${this.labels()[idx] ?? ''}`,
-      value: formatKpiNumber(this.valueFormat(), src.values[idx] as number),
-      reference:
-        ref && refValue !== undefined
-          ? `${ref.label.toLowerCase()} ${formatKpiNumber(this.valueFormat(), refValue)}`
-          : null,
+      rows,
     };
   });
+
+  protected onPointer(event: PointerEvent): void {
+    if (!this.interactive()) return;
+    const f = pointerFraction(event, event.currentTarget as Element);
+    const i = f === null ? null : nearestPoint(f, this.labels().length);
+    if (i !== null) this.activeIndex.set(i);
+  }
+
+  /** A mouse leaving closes the reading; a finger lifting keeps it (it was a tap). */
+  protected onPointerLeave(event: PointerEvent): void {
+    if (event.pointerType === 'mouse') this.activeIndex.set(null);
+  }
+
+  protected onFocus(): void {
+    if (this.activeIndex() === null) this.activeIndex.set(this.lastIndex());
+  }
+
+  protected onKey(event: KeyboardEvent): void {
+    if (!this.interactive()) return;
+    if (event.key === 'Escape') {
+      this.activeIndex.set(null);
+      return;
+    }
+    const next = stepIndex(event.key, this.activeIndex(), this.labels().length);
+    if (next === null) return;
+    event.preventDefault();
+    this.activeIndex.set(next);
+  }
 
   protected readonly empty = computed(() => growthIsEmpty(this.series()));
 
@@ -472,11 +612,7 @@ export class GrowthChart {
   });
 
   protected text(v: number | null | undefined): string {
-    return v === undefined
-      ? '—'
-      : v === null
-        ? 'sem dado'
-      // The axis may be compact (R$ 10k); the text table keeps the exact value.
-      : formatKpiNumber(this.valueFormat() === 'brl-cents-compact' ? 'brl-cents' : this.valueFormat(), v);
+    // The axis may be compact (R$ 10k); the text table keeps the exact value.
+    return v === undefined ? '—' : this.fullText(v);
   }
 }

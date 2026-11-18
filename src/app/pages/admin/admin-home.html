@@ -45,20 +45,36 @@
       </nav>
     }
 
-    <!-- Período e escopo valem para a tela inteira. -->
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
-      <app-pill-tabs [options]="periods" [value]="period()" ariaLabel="Período" (selected)="pickPeriod($event)" />
-      <div class="flex items-center gap-2 min-w-0">
-        <span class="text-xs text-fg-subtle shrink-0">Escopo</span>
-        <app-pill-tabs [options]="scopes" [value]="scope()" ariaLabel="Escopo" (selected)="pickScope($event)" />
+    <!-- UM período para a tela inteira: as pílulas do dashboard do dono, com as datas que o
+         servidor usou escritas embaixo. Contas internas é uma caixinha, como em Cobranças. -->
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between min-w-0" data-home-period>
+      <div class="min-w-0">
+        <app-date-range-picker
+          [presetKeys]="periodPresets"
+          [presetListOrder]="true"
+          [wrapChips]="true"
+          periodEnd="today"
+          [allowFuture]="false"
+          [resolvedRange]="resolvedRange()"
+          (rangeChange)="onRangeChange($event)"
+        />
       </div>
+      <label class="inline-flex items-center gap-3 min-h-[44px] cursor-pointer select-none shrink-0">
+        <input
+          type="checkbox"
+          data-testid="toggle-internal"
+          class="h-5 w-5 rounded border-edge-field text-primary-500 focus:ring-primary-400"
+          [checked]="includeInternal()"
+          (change)="toggleInternal($event)"
+        />
+        <span class="text-base sm:text-sm text-fg-soft">Incluir contas internas</span>
+      </label>
     </div>
 
-    @if (homeError()) {
-      <div role="alert" class="rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-200 text-sm p-3">
-        {{ homeError() }}
+    @if (homeError(); as message) {
+      <app-alert-banner [message]="message">
         <button type="button" class="ml-1 underline min-h-[44px]" (click)="reloadHome()">Tentar novamente</button>
-      </div>
+      </app-alert-banner>
     }
 
     <!-- Os 10 cartões. -->
@@ -85,36 +101,24 @@
           (pressed)="k.action && openCostSheet(k.action)"
         ></div>
       }
-      <!-- Valor gerenciado: esperado e recebido, lado a lado (decisão do dono). -->
+      <!-- Valor gerenciado: recebido em caixa, com o esperado e quanto dele já entrou embaixo. -->
       <div
+        app-kpi-card
         data-kpi="managed"
-        class="enter-up lift col-span-2 lg:col-span-1 flex flex-col min-h-[112px] rounded-2xl bg-emerald-600 text-white p-4 min-w-0"
-        style="--stagger-i: 9"
-      >
-        <p class="text-xs text-white/70">Gerenciado{{ managed()?.month ? ' em ' + managed()?.month : '' }}</p>
-        @if (pending() || !managed()) {
-          <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
-        } @else {
-          @if (managed(); as m) {
-            <div class="mt-auto grid grid-cols-2 gap-3 min-w-0">
-              <div class="min-w-0">
-                <p class="text-lg sm:text-xl lg:text-lg xl:text-xl font-semibold tabular-nums whitespace-nowrap" [attr.title]="m.expectedFull" data-managed-expected>{{ m.expected }}</p>
-                <p class="text-[11px] text-white/70 break-words">{{ m.expectedNote }}</p>
-              </div>
-              <div class="min-w-0">
-                <p class="text-lg sm:text-xl lg:text-lg xl:text-xl font-semibold tabular-nums whitespace-nowrap" [attr.title]="m.receivedFull" data-managed-received>{{ m.received }}</p>
-                <p class="text-[11px] text-white/70 break-words">{{ m.receivedNote }}</p>
-              </div>
-            </div>
-            @if (m.share !== null) {
-              <div class="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden" aria-hidden="true">
-                <div class="h-full rounded-full bg-white" [style.width.%]="m.share * 100"></div>
-              </div>
-              <p class="text-[11px] text-white/90 mt-1">{{ m.shareText }} do esperado já entrou</p>
-            }
-          }
-        }
-      </div>
+        class="col-span-2 lg:col-span-1"
+        variant="emerald"
+        [label]="managed()?.label ?? 'Gerenciado no mês'"
+        numberFormat="brl-cents"
+        placeholder="dash"
+        [anchored]="true"
+        [valueTop]="true"
+        [stagger]="9"
+        [loading]="pending()"
+        [value]="managed()?.value ?? null"
+        [delta]="managed()?.delta ?? null"
+        [detail]="managed()?.detail ?? null"
+        [progress]="managed()?.share ?? null"
+      ></div>
     </div>
 
     <h2 class="mt-2 text-base font-semibold text-fg">Crescimento ao longo do tempo</h2>
@@ -133,7 +137,6 @@
               [axisFloor]="axisFloor"
               [legendTop]="true"
               [endDot]="true"
-              [endTooltip]="true"
               [heightPx]="200"
               emptyText="Nenhum cliente pagante neste período."
               ariaLabel="MRR real e estimado da plataforma"
@@ -155,11 +158,11 @@
               [series]="subsChart()"
               [labels]="mrrLabels()"
               [endDot]="true"
-              [endTooltip]="true"
               [heightPx]="150"
               emptyText="Nenhuma assinatura paga neste período."
               ariaLabel="Assinaturas pagas ativas"
             />
+            <p class="text-[11px] text-fg-subtle">Por plano, hoje (não segue o período):</p>
             <dl class="grid grid-cols-3 gap-1.5" data-by-plan>
               @for (p of byPlan(); track p.planName) {
                 <div class="rounded-xl bg-surface-muted px-2.5 py-2 min-w-0 flex flex-col-reverse">
@@ -185,7 +188,7 @@
             <app-bar-chart
               [series]="profitSeries()"
               [labels]="profitLabels()"
-              valueFormat="brl-cents-whole"
+              valueFormat="brl-cents"
               [heightPx]="200"
               ariaLabel="MRR real, custos e lucro por mês"
               emptyText="Nenhum cliente pagante neste período."
@@ -210,7 +213,7 @@
             title="Custos por fornecedor"
             subtitle="Guardados à mão, com um lançamento por fornecedor a cada mês"
             [slices]="vendorSlices()"
-            valueFormat="brl-cents-whole"
+            valueFormat="brl-cents"
             [totalLabel]="'custo em ' + currentMonthName()"
           />
         }
@@ -246,8 +249,9 @@
             <app-stacked-bar-chart
               [rows]="costRows()"
               layout="columns"
-              valueFormat="brl-cents-whole"
+              valueFormat="brl-cents"
               [heightPx]="200"
+              ariaLabel="Custos da plataforma por mês, empilhados por fornecedor"
               emptyText="Nenhum custo lançado neste período."
             />
           }
@@ -279,30 +283,23 @@
       </app-page-card>
     </div>
 
+    <!-- Aquisição: quem chegou no período e quanto disso virou cliente pagante. -->
     <div class="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_374px]">
-      <app-page-card title="Saúde do negócio" [fill]="true">
-        <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0" data-health>
-          <p class="-mt-3 text-xs text-fg-subtle">Retenção, valor do cliente e custo para conquistá-lo</p>
-          <div class="grid gap-2 grid-cols-2 md:grid-cols-3">
-            @for (t of health(); track t.key) {
-              <div
-                app-kpi-card
-                [attr.data-health]="t.key"
-                size="compact"
-                variant="white"
-                [label]="t.label"
-                [numberFormat]="t.format"
-                placeholder="dash"
-                [loading]="pending()"
-                [value]="t.value"
-                [delta]="t.delta"
-                [detail]="t.detail"
-                [pressable]="t.action !== null"
-                [ariaLabel]="t.action ? t.label + ': ' + (t.action === 'acquisition' ? 'informar o gasto com aquisição' : 'lançar custo') : null"
-                (pressed)="t.action && openCostSheet(t.action)"
-              ></div>
-            }
-          </div>
+      <app-page-card title="Novos cadastros" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-growth-chart>
+          <p class="-mt-3 text-xs text-fg-subtle">Usuários, empresas e veículos criados em cada intervalo do período</p>
+          @if (pending()) {
+            <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          } @else {
+            <app-growth-chart
+              [series]="growthChart()"
+              [labels]="growthLabels()"
+              [legendTop]="true"
+              [heightPx]="160"
+              emptyText="Nenhum cadastro neste período."
+              ariaLabel="Novos usuários, empresas e veículos"
+            />
+          }
         </div>
       </app-page-card>
 
@@ -348,13 +345,46 @@
       </app-page-card>
     </div>
 
+    <!-- A receita da plataforma segue o MESMO período (sem pílulas próprias). -->
+    <app-admin-revenue-section [showMrr]="false" [range]="range()" />
+
+    <!-- Saúde: uma fileira de cartões própria (sem cartão dentro de cartão). Sempre de hoje. -->
+    <section aria-labelledby="home-health-title" class="flex flex-col gap-3" data-health>
+      <div>
+        <h2 id="home-health-title" class="text-base font-semibold text-fg">Saúde do negócio</h2>
+        <p class="text-xs text-fg-subtle mt-0.5">
+          Retenção, valor do cliente e custo para conquistá-lo. Sempre de hoje: não segue o período.
+        </p>
+      </div>
+      <div class="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+        @for (t of health(); track t.key) {
+          <div
+            app-kpi-card
+            [attr.data-health]="t.key"
+            size="compact"
+            variant="white"
+            [label]="t.label"
+            [numberFormat]="t.format"
+            placeholder="dash"
+            [anchored]="true"
+            [loading]="pending()"
+            [value]="t.value"
+            [delta]="t.delta"
+            [detail]="t.detail"
+            [pressable]="t.action !== null"
+            [ariaLabel]="t.action ? t.label + ': ' + (t.action === 'acquisition' ? 'informar o gasto com aquisição' : 'lançar custo') : null"
+            (pressed)="t.action && openCostSheet(t.action)"
+          ></div>
+        }
+      </div>
+    </section>
+
     <h2 class="mt-2 text-base font-semibold text-fg">Quem usa a plataforma</h2>
 
-    @if (usageError()) {
-      <div role="alert" class="rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-200 text-sm p-3">
-        {{ usageError() }}
+    @if (usageError(); as message) {
+      <app-alert-banner [message]="message">
         <button type="button" class="ml-1 underline min-h-[44px]" (click)="reloadHome()">Tentar novamente</button>
-      </div>
+      </app-alert-banner>
     }
 
     <app-home-roles [usage]="usage()" [loading]="usageLoading()" [companies]="companiesInScope()" />
@@ -380,19 +410,20 @@
       </div>
     </div>
 
-    <app-home-movements [scope]="scope()" [from]="movementsFrom()" />
+    @if (movementsRange(); as m) {
+      <app-home-movements [scope]="scope()" [from]="m.from" [to]="m.to" />
+    }
 
     <!-- Cartões da Visão geral anterior que não estão no desenho: ficam, no padrão novo (dono, 17/11). -->
     <h2 class="mt-2 text-base font-semibold text-fg">Mais números da plataforma</h2>
     <p class="-mt-3 text-xs text-fg-subtle">
-      Totais de hoje, sem período.{{ scope() === 'all' ? ' Contas internas ficam de fora destes números.' : '' }}
+      Totais de hoje, sem período.{{ includeInternal() ? ' Contas internas ficam de fora destes números.' : '' }}
     </p>
 
-    @if (error()) {
-      <div role="alert" class="rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-200 text-sm p-3">
-        {{ error() }}
+    @if (error(); as message) {
+      <app-alert-banner [message]="message">
         <button type="button" class="ml-1 underline min-h-[44px]" (click)="reload()">Tentar novamente</button>
-      </div>
+      </app-alert-banner>
     }
 
     <div class="grid gap-3 grid-cols-2 lg:grid-cols-6" data-legacy-kpis>
@@ -431,7 +462,7 @@
         label="Aluguéis fechados"
         [loading]="loading() && !overview()"
         [value]="closedRentals().cents"
-        numberFormat="brl-cents-whole"
+        numberFormat="brl-cents"
         [detail]="closedRentals().count + ' aluguéis · exclui cancelados'"
       ></div>
       <div
@@ -442,7 +473,7 @@
         label="Aluguéis concluídos"
         [loading]="loading() && !overview()"
         [value]="completedRentals().cents"
-        numberFormat="brl-cents-whole"
+        numberFormat="brl-cents"
         [detail]="completedRentals().count + ' aluguéis finalizados'"
       ></div>
       <div
@@ -467,72 +498,25 @@
       ></div>
     </div>
 
-    <app-admin-revenue-section [showMrr]="false" />
-
-    <app-page-card title="Novos cadastros">
-      <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0" data-growth-chart>
-        <p class="-mt-3 text-xs text-fg-subtle">Usuários, empresas e veículos criados em cada intervalo do período</p>
-        @if (pending()) {
-          <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-        } @else {
-          <app-growth-chart
-            [series]="growthChart()"
-            [labels]="growthLabels()"
-            [legendTop]="true"
-            [heightPx]="160"
-            emptyText="Nenhum cadastro neste período."
-            ariaLabel="Novos usuários, empresas e veículos"
-          />
-        }
-      </div>
-    </app-page-card>
-
-    <div class="grid gap-3 grid-cols-1 lg:grid-cols-3">
-      <app-page-card title="Assinaturas por status" [fill]="true">
-        <div class="px-4 sm:px-6 pb-5 space-y-3">
-          @for (bar of subscriptionBars(); track bar.key) {
-            <div>
-              <div class="flex justify-between text-xs mb-1">
-                <span class="text-fg-muted">{{ bar.label }}</span>
-                <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
-              </div>
-              <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
-                <div class="h-full rounded-full transition-all duration-500" [style.width.%]="bar.percent" [style.background-color]="bar.color"></div>
-              </div>
-            </div>
-          }
-        </div>
-      </app-page-card>
-      <app-page-card title="Aluguéis por status" [fill]="true">
-        <div class="px-4 sm:px-6 pb-5 space-y-3">
-          @for (bar of rentalBars(); track bar.key) {
-            <div>
-              <div class="flex justify-between text-xs mb-1">
-                <span class="text-fg-muted">{{ bar.label }}</span>
-                <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
-              </div>
-              <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
-                <div class="h-full rounded-full transition-all duration-500" [style.width.%]="bar.percent" [style.background-color]="bar.color"></div>
-              </div>
-            </div>
-          }
-        </div>
-      </app-page-card>
-      <app-page-card title="Feedback por status" [fill]="true">
-        <div class="px-4 sm:px-6 pb-5 space-y-3">
-          @for (bar of feedbackBars(); track bar.key) {
-            <div>
-              <div class="flex justify-between text-xs mb-1">
-                <span class="text-fg-muted">{{ bar.label }}</span>
-                <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
-              </div>
-              <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
-                <div class="h-full rounded-full transition-all duration-500" [style.width.%]="bar.percent" [style.background-color]="bar.color"></div>
-              </div>
-            </div>
-          }
-        </div>
-      </app-page-card>
+    <div class="grid gap-3 grid-cols-1 lg:grid-cols-3" data-status-rings>
+      <app-ring-legend-card
+        data-status-ring="subscriptions"
+        title="Assinaturas por status"
+        totalLabel="assinaturas"
+        [slices]="subscriptionSlices()"
+      />
+      <app-ring-legend-card
+        data-status-ring="rentals"
+        title="Aluguéis por status"
+        totalLabel="aluguéis"
+        [slices]="rentalSlices()"
+      />
+      <app-ring-legend-card
+        data-status-ring="feedback"
+        title="Feedback por status"
+        totalLabel="feedbacks"
+        [slices]="feedbackSlices()"
+      />
     </div>
   </div>
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { HomeKpi } from '../../../types/admin-home.types';
+import { CHART_GREEN, CHART_GREYS, CHART_ORANGE } from '../../../components/charts/chart-tooltip/chart-tooltip';
+import type { AdminHome, HomeKpi } from '../../../types/admin-home.types';
 import { dueRows } from './home-upcoming';
 import { topPeople } from './home-usage';
 import {
@@ -8,12 +9,19 @@ import {
   actionLabel,
   bucketLabels,
   buildHomeCsv,
+  PAST_USERS_CLAUSE,
   countDelta,
   heatRows,
   nullText,
   percentDelta,
+  ROLE_TONE,
+  addDays,
+  clampRange,
+  movementsWindow,
   relativeTime,
-  vendorColor,
+  spanDays,
+  valueDelta,
+  vendorColors,
 } from './admin-home.view';
 import { HOME } from './admin-home.testing';
 
@@ -172,8 +180,53 @@ describe('admin-home.view', () => {
     expect(actionLabel('SUPPORT_EDIT_REQUEST', null)).toBe('Alterou dados no modo edição');
   });
 
-  it('vendorColor nunca é o laranja da marca', () => {
-    for (let i = 0; i < 20; i++) expect(vendorColor(i).toLowerCase()).not.toBe('#f63b04');
+  it('vendorColors: só cores da marca e cinzas; mais de 4 fornecedores = o maior laranja, o segundo verde', () => {
+    const vendor = (id: string) => ({ vendorId: id, name: id, category: 'X', categoryLabel: null, billingDay: null, active: true });
+    const home = (ids: string[], amounts: Record<string, number>): AdminHome => ({
+      ...HOME,
+      costs: {
+        vendors: ids.map(vendor),
+        months: [{ month: '2026-11', totalCents: null, byVendor: Object.entries(amounts).map(([vendorId, amountCents]) => ({ vendorId, amountCents })) }],
+      },
+    });
+    const five = vendorColors(home(['a', 'b', 'c', 'd', 'e'], { a: 100, b: 900, c: 500, d: 10, e: 1 }));
+    expect(five.get('b')).toBe(CHART_ORANGE);
+    expect(five.get('c')).toBe(CHART_GREEN);
+    for (const id of ['a', 'd', 'e']) expect(CHART_GREYS).toContain(five.get(id));
+    // Nenhum hex fora da marca (roxo, rosa, azul...): tudo é token.
+    for (const c of five.values()) expect(c.startsWith('var(--color-')).toBe(true);
+    const two = vendorColors(home(['a', 'b'], {}));
+    expect([two.get('a'), two.get('b')]).toEqual([CHART_ORANGE, CHART_GREEN]);
+  });
+
+  it('papel é chip neutro: só situação tem cor', () => {
+    expect(ROLE_TONE).toBe('neutral');
+  });
+
+  it('clampRange: o fim nunca passa de hoje em São Paulo e a janela cabe no limite do servidor', () => {
+    const today = '2026-11-18';
+    expect(clampRange({ from: '2026-11-01', to: '2026-11-30' }, today)).toEqual({ from: '2026-11-01', to: '2026-11-18' });
+    expect(clampRange({ from: '2026-11-19', to: '2026-11-19' }, today)).toEqual({ from: '2026-11-18', to: '2026-11-18' });
+    expect(clampRange({ from: '2026-10-01', to: '2026-10-31' }, today)).toEqual({ from: '2026-10-01', to: '2026-10-31' });
+    const long = clampRange({ from: '2000-01-01', to: today }, today);
+    expect(spanDays(long.from, long.to)).toBe(1827);
+    expect(long.to).toBe(today);
+  });
+
+  it('movementsWindow: o feed segue o período, até 366 dias contados do fim', () => {
+    expect(movementsWindow({ from: '2026-11-01', to: '2026-11-18' })).toEqual({ from: '2026-11-01', to: '2026-11-18' });
+    const year = movementsWindow({ from: '2024-01-01', to: '2026-11-18' });
+    expect(year.to).toBe('2026-11-18');
+    expect(spanDays(year.from, year.to)).toBe(366);
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
+  });
+
+  it('valueDelta: período contra o anterior; sem base não inventa porcentagem', () => {
+    expect(valueDelta(150, 100, 'vs período anterior')).toEqual({ chip: '↗ 50%', text: 'vs período anterior', tone: 'good' });
+    expect(valueDelta(50, 100, 'x')?.tone).toBe('bad');
+    expect(valueDelta(10, 0, 'x')).toBeNull();
+    expect(valueDelta(10, null, 'x')).toBeNull();
+    expect(valueDelta(null, 10, 'x')).toBeNull();
   });
 
   it('dueRows: receber e pagar pela data; sem valor diz "sem valor"; interna sai em "Só clientes"', () => {
@@ -194,7 +247,7 @@ describe('admin-home.view', () => {
     );
     expect(rows.map((r) => r.label)).toEqual(['Pagar: Render', 'Receber: Locadora A · Pro']);
     expect(rows[0].value).toBe('sem valor');
-    expect(rows[1].value.replace(/\s/g, ' ')).toBe('+ R$ 150');
+    expect(rows[1].value.replace(/\s/g, ' ')).toBe('+ R$ 149,90');
     expect(rows[1].note).toBe('preço de tabela');
   });
 
@@ -222,5 +275,12 @@ describe('admin-home.view', () => {
     expect(csv).toContain('MRR real;;569,10;;239,70;01/12/2025;;definição');
     expect(csv).toContain('Lucro do mês;;;;;;nenhum custo lançado em novembro;definição');
     expect(csv).toContain('Churn mensal;0%;');
+  });
+
+  it('buildHomeCsv: "Usuários" num período que já terminou diz que conta os ativos de hoje', () => {
+    const live = buildHomeCsv(HOME, null);
+    expect(live).not.toContain(PAST_USERS_CLAUSE);
+    const past = buildHomeCsv({ ...HOME, meta: { ...HOME.meta, live: false } }, null);
+    expect(past).toContain(`Usuários;69;;;;;;definição ${PAST_USERS_CLAUSE}`);
   });
 });

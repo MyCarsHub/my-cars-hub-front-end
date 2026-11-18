@@ -6,7 +6,7 @@ import { PageCard } from '../../../components/core/page-card/page-card';
 import { StatusChip } from '../../../components/core/status-chip/status-chip';
 import { formatKpiNumber } from '../../../components/kpi-card/kpi-card';
 import type { AdminUsage, UsageRole } from '../../../types/admin-home.types';
-import { HEAT_COLUMNS, dayLabel, heatRows, roleLabel, roleTone } from './admin-home.view';
+import { HEAT_COLUMNS, ROLE_TONE, dayLabel, heatRows, roleLabel } from './admin-home.view';
 
 /** Uma pessoa do ranking, já com o número em texto. */
 export interface TopPerson {
@@ -87,7 +87,7 @@ const num = (n: number | null | undefined, kind: 'integer' | 'decimal' = 'intege
                 </p>
                 <div class="h-2 rounded-full bg-surface-sunken overflow-hidden" aria-hidden="true">
                   <div
-                    class="h-full rounded-full bg-emerald-500 transition-[width] duration-500 motion-reduce:transition-none"
+                    class="h-full rounded-full bg-success-500 transition-[width] duration-500 motion-reduce:transition-none"
                     [style.width.%]="(card.ratio ?? 0) * 100"
                   ></div>
                 </div>
@@ -295,7 +295,7 @@ export class HomeActivityMap {
                   class="press flex items-center gap-2 min-h-11 rounded-xl bg-surface-muted px-3 py-1.5 min-w-0 hover:bg-surface-sunken
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                 >
-                  <app-status-chip size="sm" [tone]="tone(p.role)">{{ label(p.role) }}</app-status-chip>
+                  <app-status-chip size="sm" [tone]="tone">{{ label(p.role) }}</app-status-chip>
                   <span class="flex-1 min-w-0">
                     <b class="block text-sm font-semibold text-fg truncate">{{ p.name }}</b>
                     @if (p.companyName) {
@@ -322,7 +322,7 @@ export class HomeTopUsers {
   protected readonly byAccess = computed(() => this.top().byAccess);
   protected readonly people = computed(() => this.top().people.slice(0, 5));
   protected readonly label = roleLabel;
-  protected readonly tone = roleTone;
+  protected readonly tone = ROLE_TONE;
 }
 
 /** "Onde estão os clientes": empresas por UF, e a barra "Sem UF" sempre (senão 3 parece o total). */
@@ -345,7 +345,7 @@ export class HomeTopUsers {
                 <span class="flex-1 h-2 rounded-full bg-surface-sunken overflow-hidden" aria-hidden="true">
                   <span
                     class="block h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none"
-                    [class.bg-blue-500]="!row.missing"
+                    [class.bg-success-500]="!row.missing"
                     [class.bg-fg-faint]="row.missing"
                     [style.width.%]="row.pct"
                   ></span>

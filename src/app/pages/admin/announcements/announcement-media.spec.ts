@@ -155,7 +155,7 @@ describe('Folha da novidade: mídia', () => {
   }
 
   function openRow(f: ComponentFixture<unknown>, index: number, item: string): void {
-    const rowsEl = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="announcement-row"]'));
+    const rowsEl = Array.from(document.querySelectorAll<HTMLElement>('[data-row]'));
     rowsEl[index].querySelector<HTMLButtonElement>('app-actions-menu button')!.click();
     f.detectChanges();
     ($(`[data-testid="${item}"]`) as HTMLElement).click();

@@ -3,7 +3,6 @@ import { AdminCoupon } from '../../../types/admin-coupon.types';
 import {
   couponSituation,
   filterCoupons,
-  shortDate,
   situationCounts,
   usesProgress,
   usesSpaced,
@@ -116,8 +115,4 @@ describe('usos e datas', () => {
     expect(usesSpaced(BASE)).toBe('4 / 20');
   });
 
-  it('data curta corta o ano; texto estranho volta como veio', () => {
-    expect(shortDate('09/11/2026')).toBe('09/11');
-    expect(shortDate('—')).toBe('—');
-  });
 });

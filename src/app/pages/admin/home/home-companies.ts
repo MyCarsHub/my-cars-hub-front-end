@@ -3,7 +3,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { PageCard } from '../../../components/core/page-card/page-card';
+import { formatBrl } from '../../../pipes/brl.pipe';
 import { PillTabs, type PillTabOption } from '../../../components/core/pill-tabs/pill-tabs';
 import { StatusChip, type StatusChipTone } from '../../../components/core/status-chip/status-chip';
 import { DataList, DataListCell, type DataListColumn } from '../../../components/lists/data-list/data-list';
@@ -13,7 +15,6 @@ import type { AdminCompanyListItem } from '../../../types/admin-company.types';
 import type { AdminHomeScope, CompanySort } from '../../../types/admin-home.types';
 import { AdminHomeService } from './admin-home.service';
 import { HEALTH_LABEL, HEALTH_REASON, HEALTH_TONE, relativeTime } from './admin-home.view';
-import { formatKpiNumber } from '../../../components/kpi-card/kpi-card';
 
 /** Linhas pedidas ao servidor: a mais, porque "Só clientes" tira as internas daqui. */
 const FETCH_SIZE = 20;
@@ -58,7 +59,7 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
 @Component({
   selector: 'app-home-companies',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageCard, PillTabs, DataList, DataListCell, StatusChip, RouterLink],
+  imports: [PageCard, PillTabs, DataList, DataListCell, StatusChip, RouterLink, AlertBanner],
   host: { class: 'block min-w-0' },
   template: `
     <app-page-card title="Cruzamento por empresa" [fill]="true">
@@ -67,15 +68,13 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
           <p class="text-xs text-fg-subtle">Plano, tamanho, valor gerenciado, uso e receita no mesmo lugar</p>
           <app-pill-tabs [options]="sorts" [value]="sort()" ariaLabel="Ordenar empresas por" (selected)="pick($event)" />
         </div>
-        @if (error()) {
-          <p role="alert" class="text-sm text-rose-700 dark:text-rose-300">
-            {{ error() }}
+        @if (error(); as e) {
+          <app-alert-banner [message]="e">
             <button type="button" class="ml-1 underline min-h-[44px]" (click)="reload()">Tentar novamente</button>
-          </p>
+          </app-alert-banner>
         }
-        <!-- Dez colunas não cabem ao lado do mapa de calor: a tabela rola na horizontal (como no
-             desenho) em vez de cortar MRR e Saúde na borda do cartão. -->
-        <div class="min-w-0 overflow-x-auto" data-home-companies-scroll>
+        <!-- Dez colunas: tabela só a partir de lg (cartões abaixo); se ainda faltar largura, a
+             tabela rola dentro dela mesma (app-data-list), nunca a página. -->
         <app-data-list
           [columns]="columns"
           [rows]="shown()"
@@ -83,6 +82,7 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
           [loading]="loading()"
           [rowTarget]="true"
           [dense]="true"
+          cardsBelow="lg"
           ariaLabel="Cruzamento por empresa"
           emptyText="Nenhuma empresa neste escopo."
           (rowActivate)="open($event)"
@@ -117,7 +117,6 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
             }
           </ng-template>
         </app-data-list>
-        </div>
         <a
           routerLink="/admin/companies"
           class="self-start inline-flex items-center min-h-11 text-sm font-semibold text-fg-soft hover:text-fg underline-offset-4 hover:underline"
@@ -157,12 +156,12 @@ export class HomeCompanies {
     { key: 'plan', header: 'Plano', value: (c) => c.planName },
     { key: 'vehicles', header: 'Veíc.', kind: 'integer', end: true, value: (c) => c.vehicleCount },
     { key: 'drivers', header: 'Motor.', kind: 'integer', end: true, value: (c) => c.driverCount },
-    // Reais inteiros: os centavos não cabiam com as outras nove colunas (o CSV mantém o exato).
+    // Real completo, com centavos (regra do dono 18/11); a tabela rola dentro dela se faltar largura.
     {
       key: 'managed',
       header: 'Gerenciado',
       end: true,
-      value: (c) => (c.managedMonthCents == null ? null : formatKpiNumber('brl-cents-whole', c.managedMonthCents)),
+      value: (c) => (c.managedMonthCents == null ? null : formatBrl(c.managedMonthCents)),
     },
     { key: 'access', header: 'Acessos 30d', kind: 'integer', end: true, value: (c) => c.accessHours30d },
     { key: 'actions', header: 'Ações 30d', kind: 'integer', end: true, value: (c) => c.actions30d },
@@ -235,15 +234,15 @@ export class HomeCompanies {
   /** MRR cobrado; sem valor cobrado, o de tabela (e diz que é tabela). Zero = não paga. */
   protected mrrText(c: AdminCompanyListItem): string {
     if (c.mrrRealCents !== null && c.mrrRealCents !== undefined) {
-      return c.mrrRealCents === 0 ? '—' : formatKpiNumber('brl-cents-whole', c.mrrRealCents);
+      return c.mrrRealCents === 0 ? '—' : formatBrl(c.mrrRealCents);
     }
-    return c.mrrCents ? formatKpiNumber('brl-cents-whole', c.mrrCents) : '—';
+    return c.mrrCents ? formatBrl(c.mrrCents) : '—';
   }
 
   protected mrrNote(c: AdminCompanyListItem): string | null {
     if (c.mrrRealCents === null && c.mrrCents) return 'preço de tabela';
     if (c.mrrRealCents && c.mrrCents && c.mrrRealCents !== c.mrrCents) {
-      return `tabela ${formatKpiNumber('brl-cents-whole', c.mrrCents)}`;
+      return `tabela ${formatBrl(c.mrrCents)}`;
     }
     return null;
   }

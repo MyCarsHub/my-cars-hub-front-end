@@ -77,7 +77,3 @@ export function usesSpaced(coupon: Pick<AdminCoupon, 'timesRedeemed' | 'maxRedem
   return `${coupon.timesRedeemed ?? 0} / ${coupon.maxRedemptions ?? 1}`;
 }
 
-/** "09/11" a partir de "09/11/2026"; qualquer outra coisa volta como veio. */
-export function shortDate(full: string): string {
-  return /^\d{2}\/\d{2}\/\d{4}$/.test(full) ? full.slice(0, 5) : full;
-}

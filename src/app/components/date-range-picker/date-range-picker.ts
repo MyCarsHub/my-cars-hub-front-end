@@ -12,6 +12,7 @@ import {
     FilterChipGroup,
     FilterChipOption,
 } from '../filter-chip-group/filter-chip-group';
+import { todayInBusinessTz } from '../../utils/business-clock';
 
 export interface DateRange {
     from: string;
@@ -30,9 +31,16 @@ export type DateRangePresetKey =
     | 'year'
     | 'custom';
 
-// "Mês atual" is the default: it covers what has already happened this month
-// AND the remaining projected days — matches how the tenant thinks about
-// operational revenue.
+/**
+ * Where "Mês atual" and "Este ano" end.
+ * - `calendar`: the whole calendar period (01/11 a 30/11; 01/01 a 31/12), the fleet dashboard.
+ * - `today`: up to today (01/11 a 18/11; 01/01 a 18/11), the admin.
+ */
+export type DateRangePeriodEnd = 'calendar' | 'today';
+
+// "Mês atual" is the default. Where it ends is the caller's `periodEnd` (owner decision
+// 18/11/2026): the fleet dashboard reads the whole month (charges due later this month count);
+// the admin reads up to today.
 const PRESETS: readonly FilterChipOption<DateRangePresetKey>[] = [
     { value: 'monthCurrent', label: 'Mês atual' },
     { value: 'today', label: 'Hoje' },
@@ -46,21 +54,56 @@ const PRESETS: readonly FilterChipOption<DateRangePresetKey>[] = [
     { value: 'custom', label: 'Personalizado' },
 ];
 
+/** Presets that look forward: dropped when future dates are not allowed. */
+const FUTURE_PRESETS: readonly DateRangePresetKey[] = ['next30d', 'next90d'];
+
+/**
+ * Calendar-day arithmetic on a UTC `Date` used as a plain civil date (no time, no zone): a day
+ * shift never lands on a daylight-saving gap of the browser's zone.
+ */
+function civil(year: number, monthIndex: number, day: number): Date {
+    return new Date(Date.UTC(year, monthIndex, day));
+}
+
 function iso(date: Date): string {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
 }
 
-function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const shift = (days: number) => {
-        const d = new Date(today);
-        d.setDate(d.getDate() - days);
-        return d;
-    };
+/**
+ * "Hoje" is the BUSINESS day (Brasília, `utils/business-clock.ts`), not the browser's: an
+ * operator in Manaus at 23:30, or a laptop on UTC, must not ask for tomorrow's data.
+ */
+function businessToday(): Date {
+    const [y, m, d] = todayInBusinessTz().split('-').map(Number);
+    return civil(y, m - 1, d);
+}
+
+/** `2026-11-18` (or an ISO instant) -> `18/11/2026`; `null` when it is not a date. */
+function ptBrDay(isoDate: string): string | null {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : null;
+}
+
+/**
+ * The range as people read it: "01/11/2026 a 18/11/2026" (owner rule, 18/11/2026), the same
+ * text on every period control. Takes `yyyy-MM-dd` or an ISO instant (only the date part is
+ * read, no time-zone shift). `null` when either end is missing or not a date.
+ */
+export function formatDateRangePtBr(range: { from: string | null; to: string | null } | null | undefined): string | null {
+    if (!range?.from || !range.to) return null;
+    const from = ptBrDay(range.from);
+    const to = ptBrDay(range.to);
+    return from && to ? `${from} a ${to}` : null;
+}
+
+function rangeForPreset(preset: DateRangePresetKey, end: DateRangePeriodEnd = 'calendar'): DateRange | null {
+    const today = businessToday();
+    const year = today.getUTCFullYear();
+    const month = today.getUTCMonth();
+    const shift = (days: number) => civil(year, month, today.getUTCDate() - days);
     switch (preset) {
         case 'today':
             return { from: iso(today), to: iso(today) };
@@ -76,18 +119,18 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
             return { from: iso(today), to: iso(shift(-89)) };
         case 'monthCurrent':
             return {
-                from: iso(new Date(today.getFullYear(), today.getMonth(), 1)),
-                to: iso(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+                from: iso(civil(year, month, 1)),
+                to: iso(end === 'today' ? today : civil(year, month + 1, 0)),
             };
         case 'monthPast':
             return {
-                from: iso(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
-                to: iso(new Date(today.getFullYear(), today.getMonth(), 0)),
+                from: iso(civil(year, month - 1, 1)),
+                to: iso(civil(year, month, 0)),
             };
         case 'year':
             return {
-                from: iso(new Date(today.getFullYear(), 0, 1)),
-                to: iso(new Date(today.getFullYear(), 11, 31)),
+                from: iso(civil(year, 0, 1)),
+                to: iso(end === 'today' ? today : civil(year, 11, 31)),
             };
         case 'custom':
             return null;
@@ -110,23 +153,25 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
 
             @if (selected() === 'custom') {
                 <div class="flex flex-col sm:flex-row gap-2">
-                    <label class="flex flex-col text-xs text-gray-500 dark:text-fg-subtle gap-1 sm:flex-1">
+                    <label class="flex flex-col text-xs text-fg-subtle gap-1 sm:flex-1">
                         De
                         <input
                             type="date"
-                            class="min-h-[44px] rounded-lg border border-gray-200 dark:border-edge px-3 py-2 text-base sm:text-sm
-                                   text-gray-900 dark:text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+                            class="min-h-[44px] rounded-lg border border-edge px-3 py-2 text-base
+                                   text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                             [value]="customFrom()"
+                            [attr.max]="maxDate()"
                             (change)="onCustomFrom($any($event.target).value)"
                         />
                     </label>
-                    <label class="flex flex-col text-xs text-gray-500 dark:text-fg-subtle gap-1 sm:flex-1">
+                    <label class="flex flex-col text-xs text-fg-subtle gap-1 sm:flex-1">
                         Até
                         <input
                             type="date"
-                            class="min-h-[44px] rounded-lg border border-gray-200 dark:border-edge px-3 py-2 text-base sm:text-sm
-                                   text-gray-900 dark:text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+                            class="min-h-[44px] rounded-lg border border-edge px-3 py-2 text-base
+                                   text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                             [value]="customTo()"
+                            [attr.max]="maxDate()"
                             (change)="onCustomTo($any($event.target).value)"
                         />
                     </label>
@@ -134,10 +179,23 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
                 @if (customError()) {
                     <p class="text-xs text-red-600 dark:text-red-300">{{ customError() }}</p>
                 }
-            } @else if (showRange() && currentRange(); as r) {
-                <p class="text-xs text-gray-500 dark:text-fg-subtle">
-                    {{ r.from }} — {{ r.to }}
+            }
+            @if (showRange() && rangeText(); as text) {
+                <p class="text-xs text-fg-subtle tabular-nums" aria-live="polite" data-range-text>
+                    {{ text }}
                 </p>
+            }
+            @if (clearable() && selected() !== null) {
+                <button
+                    type="button"
+                    data-range-clear
+                    (click)="clear()"
+                    class="self-start min-h-[44px] px-3 -ml-3 text-sm font-semibold text-fg-muted
+                           hover:text-primary-700 dark:hover:text-primary-400 rounded-lg
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                >
+                    {{ clearLabel() }}
+                </button>
             }
         </div>
     `,
@@ -184,16 +242,65 @@ export class DateRangePicker implements OnInit {
     /** Wrap the chips onto several rows on the phone instead of a horizontal carousel. */
     readonly wrapChips = input(false);
 
-    /** Show the resolved ISO range (`2026-11-01 — 2026-11-30`) under the chips; the dashboard pills do not. */
+    /**
+     * Show the resolved range under the chips, "01/11/2026 a 18/11/2026". On by default and
+     * meant to stay on (owner rule 18/11/2026: every period control shows its dates); `false`
+     * exists only for a screen that prints the same dates elsewhere.
+     */
     readonly showRange = input(true);
+
+    /**
+     * Where "Mês atual" and "Este ano" end (see `DateRangePeriodEnd`). `calendar` (default) keeps
+     * the fleet dashboard on the whole month/year; the admin passes `today`.
+     */
+    readonly periodEnd = input<DateRangePeriodEnd>('calendar');
+
+    /**
+     * The range the SERVER actually used (e.g. the admin's `meta.from`/`meta.to`), shown instead
+     * of the one computed here. `yyyy-MM-dd` or ISO instants. The page owns its freshness: bind
+     * the answer of the period on screen and `null` while the next one loads, so an old range is
+     * never printed under a new chip (`null` falls back to the range computed here).
+     */
+    readonly resolvedRange = input<{ from: string | null; to: string | null } | null>(null);
+
+    /**
+     * Opt-in "Limpar período" link under the chips (only while a chip is marked). It unmarks every
+     * chip, empties De/Até and emits `rangeCleared`: the page goes back to "no period" (e.g. the
+     * whole history). A page can do the same from its own "Limpar filtros" with `clear()`.
+     * Default `false`: the dashboard keeps always having a period.
+     */
+    readonly clearable = input(false);
+    readonly clearLabel = input('Limpar período');
+
+    /**
+     * `false` = nothing after today (Brasília) can be picked: De/Até get `max` = today, a typed
+     * later date is refused with a message and not emitted, and the forward-looking chips
+     * ("Próximos 30/90 dias") are dropped. For history filters (audit, logs). Default `true`: the
+     * fleet dashboard keeps planning ahead.
+     */
+    readonly allowFuture = input(true);
+
+    /** Emitted when the selection is cleared (`clear()` or the "Limpar período" link). */
+    readonly rangeCleared = output<void>();
 
     protected readonly presets = computed<readonly FilterChipOption<DateRangePresetKey>[]>(() => {
         const keys = this.presetKeys();
-        if (keys === null) return PRESETS;
+        const all = this.allowFuture()
+            ? PRESETS
+            : PRESETS.filter((p) => !FUTURE_PRESETS.includes(p.value));
+        if (keys === null) return all;
         // Default: the selector's own order. `presetListOrder`: the caller's order (the dashboard pills).
-        if (this.presetListOrder()) return keys.flatMap((k) => PRESETS.filter((p) => p.value === k));
-        return PRESETS.filter((p) => keys.includes(p.value));
+        if (this.presetListOrder()) return keys.flatMap((k) => all.filter((p) => p.value === k));
+        return all.filter((p) => keys.includes(p.value));
     });
+
+    /**
+     * `max` of the De/Até fields: today in Brasília when the future is blocked, else none. A method,
+     * not a `computed`: a cached value would keep yesterday's date on a screen left open overnight.
+     */
+    protected maxDate(): string | null {
+        return this.allowFuture() ? null : todayInBusinessTz();
+    }
 
     constructor() {
         effect(() => {
@@ -204,18 +311,16 @@ export class DateRangePicker implements OnInit {
             const year = Number(parts[0]);
             const month = Number(parts[1]);
             if (Number.isNaN(year) || Number.isNaN(month)) return;
-            const first = new Date(year, month - 1, 1);
-            const last = new Date(year, month, 0);
+            const first = civil(year, month - 1, 1);
+            const last = civil(year, month, 0);
             this.selected.set('custom');
             this.customFrom.set(iso(first));
             this.customTo.set(iso(last));
             this.rangeChange.emit({ from: iso(first), to: iso(last) });
         });
     }
-    // "Mês atual" is the default so tenants see both realized-to-date AND the
-    // rest of the month's projected revenue on first paint — critical because
-    // rentals with future start dates (e.g. contract of R$ 42.400 starting
-    // next week) were invisible under the old rolling-30d default.
+    // "Mês atual" is the default (it replaced a rolling 30 days). With `periodEnd` `calendar` it
+    // also holds the rest of the month: rentals that start next week count on first paint.
     protected readonly selected = signal<DateRangePresetKey | null>('monthCurrent');
     protected readonly customFrom = signal<string>('');
     protected readonly customTo = signal<string>('');
@@ -229,7 +334,19 @@ export class DateRangePicker implements OnInit {
             if (!from || !to) return null;
             return { from, to };
         }
-        return rangeForPreset(key);
+        return rangeForPreset(key, this.periodEnd());
+    });
+
+    /**
+     * The line under the chips: the server's range when given, else the one computed here. Hidden
+     * while the custom fields are invalid: the old range under "Selecione as duas datas." reads as
+     * a contradiction, even though the data on screen still belongs to it.
+     */
+    protected readonly rangeText = computed<string | null>(() => {
+        if (this.customError()) return null;
+        const server = this.resolvedRange();
+        if (server !== null) return formatDateRangePtBr(server);
+        return formatDateRangePtBr(this.currentRange());
     });
 
     protected readonly customError = computed<string | null>(() => {
@@ -238,6 +355,7 @@ export class DateRangePicker implements OnInit {
         const to = this.customTo();
         if (!from || !to) return 'Selecione as duas datas.';
         if (from > to) return 'Data inicial deve ser anterior ou igual à final.';
+        if (this.isFuture(from) || this.isFuture(to)) return 'Escolha datas até hoje.';
         return null;
     });
 
@@ -247,7 +365,7 @@ export class DateRangePicker implements OnInit {
         // `null` = período é filtro opcional: não emite nada até o usuário
         // escolher. Ver `initialPreset`.
         if (initial === null) return;
-        const r = rangeForPreset(initial);
+        const r = rangeForPreset(initial, this.periodEnd());
         if (r) this.rangeChange.emit(r);
     }
 
@@ -259,7 +377,7 @@ export class DateRangePicker implements OnInit {
     protected selectPreset(key: DateRangePresetKey | null): void {
         if (key === null) return;
         this.selected.set(key);
-        const r = rangeForPreset(key);
+        const r = rangeForPreset(key, this.periodEnd());
         if (r) this.rangeChange.emit(r);
     }
 
@@ -273,10 +391,26 @@ export class DateRangePicker implements OnInit {
         this.emitCustomIfValid();
     }
 
+    /**
+     * Unmarks every chip, empties De/Até and emits `rangeCleared`. Public so a page's own
+     * "Limpar filtros" can reset the period without recreating the component.
+     */
+    clear(): void {
+        this.selected.set(null);
+        this.customFrom.set('');
+        this.customTo.set('');
+        this.rangeCleared.emit();
+    }
+
+    private isFuture(day: string): boolean {
+        const max = this.maxDate();
+        return max !== null && day > max;
+    }
+
     private emitCustomIfValid(): void {
         const from = this.customFrom();
         const to = this.customTo();
-        if (from && to && from <= to) {
+        if (from && to && from <= to && !this.isFuture(from) && !this.isFuture(to)) {
             this.rangeChange.emit({ from, to });
         }
     }

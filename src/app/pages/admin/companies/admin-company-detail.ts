@@ -33,18 +33,41 @@ import { TrialExtensionSheet } from './trial-extension-sheet';
 import { TrialExtensionResponse } from '../../../services/admin-trial.service';
 import { ContactBar } from '../contact/contact-bar';
 import { ContactActions } from '../contact/contact-actions';
-import { subscriptionChip } from './subscription-status-chip';
-import { formatBRL } from '../../../types/dashboard.types';
-import { BarChart, BarDatum } from '../../../components/charts/bar-chart/bar-chart';
+import { subscriptionChip, type SubscriptionChip } from './subscription-status-chip';
+import { formatBrl, BrlPipe } from '../../../pipes/brl.pipe';
+import { BarChart, type BarSeries } from '../../../components/charts/bar-chart/bar-chart';
+import { CHART_ORANGE } from '../../../components/charts/chart-tooltip/chart-tooltip';
+import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { KvList } from '../../../components/core/kv-list/kv-list';
+import { StatusChip, type StatusChipTone } from '../../../components/core/status-chip/status-chip';
+import {
+  DataList,
+  DataListCell,
+  type DataListColumn,
+} from '../../../components/lists/data-list/data-list';
 import { KpiCard } from '../../../components/kpi-card/kpi-card';
 import { companyRoleLabel } from '../../../utils/role-labels';
 import { PlatePipe } from '../../../pipes/plate.pipe';
 import { PersonNamePipe } from '../../../pipes/person-name.pipe';
+import { formatPhoneDisplay } from '../../../utils/phone-mask';
+import { maskCep, normalizeCep } from '../../../utils/cep-mask';
+import { planDisplayName } from '../../../utils/plan-grid-copy';
+import { gatewayLabel } from '../billing/gateway-label';
 
+/** Texto e tom de `app-status-chip`: a cor da situação mora só no chip. */
 interface ChipStyle {
   label: string;
-  chip: string;
+  tone: StatusChipTone;
 }
+
+/** Vínculo do membro em português (o backend manda o enum cru), igual ao detalhe do usuário. */
+const MEMBER_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Ativo',
+  INVITED: 'Convidado',
+  ONBOARDING: 'Em cadastro',
+  INACTIVE: 'Inativo',
+  REMOVED: 'Removido',
+};
 
 /**
  * Uma linha do bloco "Operação". `value` já chega formatado (BRL ou contagem)
@@ -89,7 +112,7 @@ function countMetric(label: string, value: number, hint: string | null = null): 
 }
 
 function moneyMetric(label: string, cents: number, hint: string | null = null): OperationMetric {
-  return { label, value: formatBRL(cents), hint, zero: cents === 0 };
+  return { label, value: formatBrl(cents), hint, zero: cents === 0 };
 }
 
 /** Linha cadastral: texto vazio/nulo vira o "—" que o resto da tela já usa. */
@@ -99,9 +122,9 @@ function registrationRow(label: string, value: string | null | undefined): Regis
 }
 
 const COMPANY_STATUS: Record<AdminCompanyStatus, ChipStyle> = {
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
-  SUSPENDED: { label: 'Suspensa', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
-  CANCELLED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
+  ACTIVE: { label: 'Ativa', tone: 'green' },
+  SUSPENDED: { label: 'Suspensa', tone: 'red' },
+  CANCELLED: { label: 'Cancelada', tone: 'neutral' },
 };
 
 const CONFIRMATION_WORD = 'SUSPENDER';
@@ -110,14 +133,22 @@ const MONTH_LABELS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 's
 
 /** Dinheiro vindo do servidor: nulo/ausente é "—", NUNCA R$ 0 (zero é dado; nulo é desconhecido). */
 function moneyOrDash(cents: number | null | undefined): string {
-  return cents === null || cents === undefined ? '—' : formatBRL(cents);
+  return cents === null || cents === undefined ? '—' : formatBrl(cents);
 }
 
-/** `yyyy-MM` -> "mai/26"; formato inesperado volta como veio. */
-function monthLabel(month: string): string {
+/**
+ * Acima de quantos meses o eixo do gráfico perde o ano ("mai/26" -> "mai"): o gráfico compartilhado
+ * não rareia os rótulos do eixo, e num celular de 375 px uma coluna de 12 mal passa da largura de
+ * três letras. Doze meses seguidos não repetem nome, então o rótulo curto ainda é único.
+ */
+const MANAGED_AXIS_WITH_YEAR_MAX = 6;
+
+/** `yyyy-MM` -> "mai/26" (ou "mai" sem o ano); formato inesperado volta como veio. */
+function monthLabel(month: string, withYear = true): string {
   const match = /^(\d{4})-(\d{2})$/.exec(month);
   if (!match) return month;
-  return `${MONTH_LABELS[Number(match[2]) - 1] ?? match[2]}/${match[1].slice(2)}`;
+  const name = MONTH_LABELS[Number(match[2]) - 1] ?? match[2];
+  return withYear ? `${name}/${match[1].slice(2)}` : name;
 }
 
 export interface FinanceTile {
@@ -151,6 +182,12 @@ export interface SubscriptionRow {
     ContactActions,
     BarChart,
     KpiCard,
+    BrlPipe,
+    ConfirmDialog,
+    KvList,
+    StatusChip,
+    DataList,
+    DataListCell,
   ],
   templateUrl: './admin-company-detail.html',
 })
@@ -192,10 +229,45 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   protected readonly companyChip = computed<ChipStyle | null>(() => {
     const status = this.detail()?.status;
     if (!status) return null;
-    return COMPANY_STATUS[status] ?? { label: status, chip: 'bg-surface-sunken text-fg-soft' };
+    return COMPANY_STATUS[status] ?? { label: status, tone: 'neutral' };
   });
 
-  protected readonly subscriptionChip = computed<ChipStyle | null>(() => {
+  /**
+   * Membros no `app-data-list` (tabela a partir de 1024px, cartões abaixo; sem linhas). Papel é
+   * chip NEUTRO (quem a pessoa é); só a situação do vínculo tem cor.
+   */
+  protected readonly memberColumns: readonly DataListColumn<AdminCompanyMember>[] = [
+    { key: 'name', header: 'Nome', primary: true, value: (m) => m.name },
+    { key: 'phone', header: 'Telefone', value: (m) => m.phoneMasked, noExport: true },
+    { key: 'role', header: 'Papel', kind: 'status', value: (m) => this.roleLabel(m.role) },
+    {
+      key: 'status',
+      header: 'Situação',
+      kind: 'status',
+      value: (m) => this.memberStatusLabel(m.status),
+      tone: (m) => this.memberStatusTone(m.status),
+    },
+    { key: 'seen', header: 'Visto por último', value: (m) => this.lastSeenLabel(m.lastSeenAt) },
+  ];
+
+  protected readonly memberId = (m: AdminCompanyMember): string => m.userId;
+
+  /** A linha do membro abre o usuário (mouse e toque); o teclado usa o link do nome. */
+  protected openMember(member: AdminCompanyMember): void {
+    void this.router.navigate(['/admin/users', member.userId]);
+  }
+
+  protected readonly suspendMessage =
+    `Ação de risco: a empresa perde o acesso na hora. Para confirmar, digite ${CONFIRMATION_WORD} no campo abaixo.`;
+  protected readonly reactivateMessage = 'A empresa voltará a ter acesso normal à plataforma.';
+
+  /** Texto do botão do diálogo: mostra o progresso enquanto a requisição está no ar. */
+  protected readonly statusConfirmLabel = computed(() => {
+    if (this.updating()) return 'Atualizando...';
+    return this.targetActive() ? 'Reativar' : 'Suspender';
+  });
+
+  protected readonly subscriptionChip = computed<SubscriptionChip | null>(() => {
     const sub = this.detail()?.subscription;
     return subscriptionChip(sub?.status, sub?.trialEndsAt);
   });
@@ -262,13 +334,25 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     ];
   });
 
-  /** Série dos 6 meses para o gráfico de barras (centavos). */
-  protected readonly managedBars = computed<BarDatum[]>(() =>
-    (this.detail()?.finance?.managedSeries ?? []).map((point) => ({
-      label: monthLabel(point.month),
-      value: point.managedCents,
-    })),
-  );
+  /** Meses da série, do mais antigo ao corrente (o servidor já manda nessa ordem). */
+  private readonly managedPoints = computed(() => this.detail()?.finance?.managedSeries ?? []);
+
+  /** Eixo x das colunas: um rótulo por mês, sem o ano quando são muitos (ver a constante). */
+  protected readonly managedLabels = computed(() => {
+    const points = this.managedPoints();
+    const withYear = points.length <= MANAGED_AXIS_WITH_YEAR_MAX;
+    return points.map((point) => monthLabel(point.month, withYear));
+  });
+
+  /** Uma série só, em colunas verticais (centavos): altura fixa, não cresce um mês por linha. */
+  protected readonly managedSeries = computed<BarSeries[]>(() => [
+    {
+      key: 'managed',
+      label: 'Valor gerenciado',
+      color: CHART_ORANGE,
+      values: this.managedPoints().map((point) => point.managedCents),
+    },
+  ]);
 
   protected readonly subscriptionRows = computed<SubscriptionRow[]>(() => {
     const sub = this.detail()?.subscription;
@@ -278,7 +362,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
       { label: 'Preço de tabela', value: moneyOrDash(sub.listPriceCents) },
       {
         label: 'Desconto',
-        value: discount === null || discount === undefined ? '—' : discount === 0 ? 'Sem desconto' : formatBRL(discount),
+        value: discount === null || discount === undefined ? '—' : discount === 0 ? 'Sem desconto' : formatBrl(discount),
       },
       { label: 'Cobrado de verdade', value: moneyOrDash(sub.chargedCents) },
       {
@@ -296,7 +380,10 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
       {
         key: 'contact',
         title: 'Contato',
-        rows: [registrationRow('Telefone', reg.phone), registrationRow('E-mail', reg.email)],
+        rows: [
+          registrationRow('Telefone', formatPhoneDisplay(reg.phone)),
+          registrationRow('E-mail', reg.email),
+        ],
       },
       {
         key: 'address',
@@ -306,7 +393,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
           registrationRow('Número', reg.addressNumber),
           registrationRow('Complemento', reg.addressComplement),
           registrationRow('Bairro', reg.addressDistrict),
-          registrationRow('CEP', reg.addressCep),
+          registrationRow('CEP', normalizeCep(reg.addressCep).length === 8 ? maskCep(reg.addressCep) : reg.addressCep),
           registrationRow('Cidade', reg.addressCity),
           registrationRow('UF', reg.addressUf),
         ],
@@ -613,27 +700,21 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
    * o suporte vê que existe algo novo em vez de ler uma informação errada.
    */
   protected undoStateChip(state: string): ChipStyle {
-    if (state === 'UNDO_REFUSED') {
-      return { label: 'Recusado', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' };
-    }
-    if (state === 'ACTIVE') {
-      return { label: 'Desfeita', chip: 'bg-surface-sunken text-fg-soft' };
-    }
-    return { label: state || 'Desconhecido', chip: 'bg-surface-sunken text-fg-muted' };
-  }
-
-  protected formatMoney(cents: number): string {
-    return formatBRL(cents);
+    if (state === 'UNDO_REFUSED') return { label: 'Recusado', tone: 'amber' };
+    if (state === 'ACTIVE') return { label: 'Desfeita', tone: 'neutral' };
+    return { label: state || 'Desconhecido', tone: 'neutral' };
   }
 
   protected roleLabel(role: string): string {
     return companyRoleLabel(role);
   }
 
-  protected memberStatusChip(status: string): string {
-    if (status === 'ACTIVE') return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
-    if (status === 'INVITED') return 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300';
-    return 'bg-surface-sunken text-fg-soft';
+  protected memberStatusLabel(status: string): string {
+    return MEMBER_STATUS_LABELS[status] ?? status;
+  }
+
+  protected memberStatusTone(status: string): StatusChipTone {
+    return status === 'ACTIVE' ? 'green' : status === 'INVITED' ? 'blue' : 'neutral';
   }
 
   /**
@@ -648,8 +729,14 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     return `${undo.vehicleId}-${undo.createdAt ?? 'sem-data'}-${index}`;
   }
 
-  protected trackMember(_index: number, member: AdminCompanyMember): string {
-    return member.userId;
+  /** "Pro", nunca "PRO (PRO_MONTHLY_STRIPE)": o ciclo já tem a linha dele. */
+  protected planLabel(name: string | null, code: string | null): string {
+    return planDisplayName(name, code);
+  }
+
+  /** "Stripe", com maiúscula de nome próprio (o backend manda "stripe"). */
+  protected gatewayName(raw: string | null): string {
+    return gatewayLabel(raw);
   }
 
   protected billingCycleLabel(value: string | null): string {

@@ -43,12 +43,15 @@
         <div class="min-w-0">
           <dt>Validade</dt>
           <dd class="text-sm font-semibold text-fg tabular-nums" data-testid="detail-validity">{{ validity() }}</dd>
+          @if (created(); as when) {
+            <dd class="text-xs text-fg-subtle tabular-nums" data-testid="detail-created">{{ when }}</dd>
+          }
         </div>
         @if (isCode()) {
           <div class="col-span-2" data-testid="detail-uses">
             <dt>Usos</dt>
             <dd class="text-sm font-semibold text-fg tabular-nums">{{ usesText() }}</dd>
-            <span class="block h-1.5 w-full rounded-full bg-surface-sunken overflow-hidden mt-1.5" aria-hidden="true">
+            <span class="block h-1.5 w-full rounded-full bg-surface-sunken overflow-hidden mt-1.5" aria-hidden="true" [attr.title]="usesHint()">
               <span class="bar-fill block h-full w-full rounded-full bg-emerald-500" [style.--p]="progress()"></span>
             </span>
           </div>
@@ -88,7 +91,7 @@
       <div app-kpi-card data-kpi="uses" variant="primary" label="Usos" [anchored]="true"
            [loading]="loading()" [countTo]="data()?.uses ?? null"></div>
       <div app-kpi-card data-kpi="discount" variant="emerald" label="Desconto concedido" [anchored]="true"
-           [loading]="loading()" [countTo]="data()?.totalDiscountCents ?? null" [format]="formatMoney"></div>
+           [loading]="loading()" [countTo]="data()?.totalDiscountCents ?? null" numberFormat="brl-cents"></div>
     </section>
 
     <section aria-labelledby="detail-who" [attr.aria-busy]="loading() ? 'true' : null">
@@ -106,7 +109,7 @@
           @if (!notFound()) {
             <button
               type="button"
-              class="press min-h-11 px-4 rounded-xl text-sm font-semibold bg-surface text-fg-soft border border-edge
+              class="press min-h-11 px-4 rounded-xl text-sm font-semibold bg-surface text-fg-soft hover:bg-surface-muted
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
               data-testid="detail-retry"
               (click)="load()"
@@ -116,7 +119,7 @@
           }
         </div>
       } @else if (rows().length === 0) {
-        <div class="fade-in rounded-xl border border-dashed border-edge-strong p-5 text-center space-y-1" data-testid="detail-empty">
+        <div class="fade-in rounded-xl bg-surface-sunken p-5 text-center space-y-1" data-testid="detail-empty">
           <p class="text-sm font-semibold text-fg">{{ texts.empty }}</p>
           <p class="text-sm text-fg-muted">{{ hint() }}</p>
         </div>

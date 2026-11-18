@@ -14,30 +14,52 @@ import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { KpiCard } from '../../../components/kpi-card/kpi-card';
+import { StatusChip, type StatusChipTone } from '../../../components/core/status-chip/status-chip';
+import { type FilterChipOption } from '../../../components/filter-chip-group/filter-chip-group';
+import { formatDateRangePtBr } from '../../../components/date-range-picker/date-range-picker';
+import {
+  DataList,
+  DataListCell,
+  type DataListColumn,
+} from '../../../components/lists/data-list/data-list';
+import { ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
+import { BrlPipe, formatBrl } from '../../../pipes/brl.pipe';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminBillingService } from '../admin-billing.service';
-import { AdminBillingIssue, BillingIssueWindow } from '../../../types/admin-billing.types';
+import {
+  AdminBillingIssue,
+  AdminMrrPlanBreakdown,
+  AdminSubscriptionListItem,
+  BillingIssueWindow,
+} from '../../../types/admin-billing.types';
+import { brtIsoDate, shiftIsoDate } from '../notifications/admin-notifications';
+import { whenExact } from '../audit/admin-when';
+import { formatFullDate, parseServerTime } from '../../../utils/server-time';
+import { planDisplayName } from '../../../utils/plan-grid-copy';
+import { gatewayLabel } from './gateway-label';
 
 const PAGE_SIZE = 20;
 
 /** 30 sozinho esconde problema antigo ainda aberto — ver `windowNotice`. */
 const ISSUE_WINDOWS: readonly BillingIssueWindow[] = [30, 90, 365];
 
+/** Situação = `app-status-chip` (texto sobre fundo tingido, sem bolinha). */
 interface ChipStyle {
   label: string;
-  chip: string;
+  tone: StatusChipTone;
 }
 
 /** Fallback só. O filtro é populado por `GET /v1/admin/billing/statuses`. */
 const SUB_STATUS_CHIPS: Record<string, ChipStyle> = {
-  TRIALING: { label: 'Trial', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' },
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
-  PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
-  UNPAID: { label: 'Não paga', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
-  INCOMPLETE: { label: 'Incompleta', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
-  CANCELLED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
-  EXPIRED: { label: 'Expirada', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
+  TRIALING: { label: 'Trial', tone: 'blue' },
+  ACTIVE: { label: 'Ativa', tone: 'green' },
+  PAST_DUE: { label: 'Atrasada', tone: 'amber' },
+  UNPAID: { label: 'Não paga', tone: 'amber' },
+  INCOMPLETE: { label: 'Incompleta', tone: 'amber' },
+  CANCELED: { label: 'Cancelada', tone: 'neutral' },
+  CANCELLED: { label: 'Cancelada', tone: 'neutral' },
+  EXPIRED: { label: 'Expirada', tone: 'red' },
 };
 
 const COMPANY_STATUS_LABELS: Record<string, string> = {
@@ -57,39 +79,27 @@ const PERIOD_LABELS: Record<string, string> = {
   DAILY: 'Diária',
 };
 
-const GATEWAY_LABELS: Record<string, string> = {
-  STRIPE: 'Stripe',
-  MERCADOPAGO: 'Mercado Pago',
-  MERCADO_PAGO: 'Mercado Pago',
-  PAGARME: 'Pagar.me',
-  PAGAR_ME: 'Pagar.me',
-  ASAAS: 'Asaas',
-  IUGU: 'Iugu',
-  MANUAL: 'Manual',
-  NONE: 'Sem gateway',
-};
-
 /**
  * Rótulo + o que o admin deve FAZER com o problema. `kind` é vocabulário aberto:
  * um valor novo cai no fallback humanizado em vez de sumir da lista.
  */
 interface IssueKindStyle {
   label: string;
-  chip: string;
+  tone: StatusChipTone;
   guidance: string;
 }
 
 const ISSUE_KINDS: Record<string, IssueKindStyle> = {
   SUBSCRIPTION_PAST_DUE: {
     label: 'Assinatura vencida',
-    chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
+    tone: 'red',
     guidance:
       'A cobrança do ciclo não foi confirmada. Verifique o pagamento no gateway e, ' +
       'se não houver regularização, suspenda a empresa.',
   },
   RECONCILIATION_PENDING: {
     label: 'Reconciliação pendente',
-    chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200',
+    tone: 'amber',
     guidance:
       'O que está no gateway não bate com o que está na base. Confira a assinatura ' +
       'no gateway antes de mudar plano ou status por aqui.',
@@ -97,17 +107,16 @@ const ISSUE_KINDS: Record<string, IssueKindStyle> = {
 };
 
 /**
- * Razões de `RECONCILIATION_PENDING`. Vocabulário real lido da migration V35
- * (`billing_reconciliations`) — são só estas duas hoje. Não adicione chave por
- * plausibilidade: valor novo cai no `humanize()` de `issueReason()` e continua
- * legível na tela.
+ * Razões dos problemas. `PAST_DUE` é a de `SUBSCRIPTION_PAST_DUE`, fixa na consulta do backend
+ * (`AdminBillingRepositoryImpl`); as outras duas são de `RECONCILIATION_PENDING`, vocabulário
+ * real lido da migration V35 (`billing_reconciliations`). Não adicione chave por plausibilidade:
+ * valor novo cai no `humanize()` de `issueReason()` e continua legível na tela.
  */
 const ISSUE_REASON_LABELS: Record<string, string> = {
+  PAST_DUE: 'Pagamento do ciclo em atraso',
   PLAN_MISMATCH: 'Plano da assinatura diverge do plano cobrado',
   ZERO_AMOUNT_PAID_PLAN: 'Pagamento registrado com valor zero em um plano pago',
 };
-
-const DEFAULT_CHIP = 'bg-surface-sunken text-fg-soft';
 
 /** `PLAN_MISMATCH` → `Plan mismatch`. Só para valores sem rótulo mapeado. */
 function humanize(raw: string): string {
@@ -116,30 +125,53 @@ function humanize(raw: string): string {
 }
 
 /**
- * `subscriptions[].gateway` chega MAIÚSCULO (`"STRIPE"`) e `mrr.byPlan[].gateway`
- * minúsculo (`"stripe"`). É divergência de schema declarada pelo backend, sem
- * correção prevista. Normalizar aqui é o que impede a mesma marca de aparecer de
- * dois jeitos na mesma tela.
+ * `YYYY-MM-DD` (data pura) vira `dd/mm/aaaa` SEM passar por `Date`: `new Date('2026-08-01')` é
+ * meia-noite UTC, que em Brasília ainda é 31/07. Instantes (`...T10:30:00`) são `LocalDateTime`
+ * em UTC sem sufixo: passam por `parseServerTime` e saem no dia de Brasília (02:00 UTC de 13/12
+ * ainda é 12/12 aqui).
  */
-export function gatewayKey(raw: string | null | undefined): string {
-  return (raw ?? '').trim().toUpperCase();
+export function formatBillingDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (day) return `${day[3]}/${day[2]}/${day[1]}`;
+  return formatFullDate(parseServerTime(value));
 }
 
-export function gatewayLabel(raw: string | null | undefined): string {
-  const key = gatewayKey(raw);
-  if (!key) return '—';
-  return GATEWAY_LABELS[key] ?? humanize(key);
+/** Instante do servidor em Brasília, "12/11/2026 às 14:08", como no resto do admin; "—" sem data. */
+export function formatBillingDateTime(value: string | null | undefined): string {
+  return whenExact(value) ?? '—';
 }
 
-interface StatusOption {
-  value: string;
-  label: string;
+/**
+ * O intervalo que a janela de problemas cobre, como o servidor decide (`occurred_at >= now() -
+ * N dias`): de hoje menos N até hoje, em Brasília. A resposta não traz `from/to`; este é o mesmo
+ * cálculo, para a data ficar visível (regra de data, auditoria 18/11 §4).
+ */
+export function issueWindowRange(days: number, todayIso: string): { from: string; to: string } {
+  return { from: shiftIsoDate(todayIso, -days), to: todayIso };
 }
 
+/**
+ * Assinaturas (admin): composição do MRR, problemas de cobrança e a lista de assinaturas.
+ * Padrão de lista do admin (18/11/2026): `app-kpi-card`, `app-list-toolbar` + `app-data-list`
+ * (sem linhas, cabeçalho em caixa normal, cartões no celular), dinheiro pelo pipe `brl`.
+ */
 @Component({
   selector: 'app-admin-billing',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BackLink, RouterLink, DefaultPageLayout, PageCard, AlertBanner],
+  imports: [
+    BackLink,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    AlertBanner,
+    KpiCard,
+    StatusChip,
+    ListToolbar,
+    DataList,
+    DataListCell,
+    BrlPipe,
+  ],
   templateUrl: './admin-billing.html',
 })
 export class AdminBilling implements OnInit {
@@ -163,21 +195,93 @@ export class AdminBilling implements OnInit {
   protected readonly statusFilter = signal<string>('');
   protected readonly subscriptionsPage = signal(0);
 
-  protected readonly issueWindows = ISSUE_WINDOWS;
   protected readonly issueWindow = signal<BillingIssueWindow>(30);
   protected readonly issuesPage = signal(0);
 
-  protected readonly statusOptions = computed<StatusOption[]>(() =>
-    this.billing
+  /** Pílulas de situação: "Todas" + o vocabulário do servidor (o valor cru vai na busca). */
+  protected readonly statusOptions = computed<FilterChipOption<string>[]>(() => [
+    { value: '', label: 'Todas' },
+    ...this.billing
       .statuses()
       .map((value) => ({ value, label: this.statusChip(value).label }))
       .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
-  );
+  ]);
+
+  protected readonly windowOptions: readonly FilterChipOption<BillingIssueWindow>[] =
+    ISSUE_WINDOWS.map((days) => ({ value: days, label: `${days} dias` }));
+
+  /**
+   * "19/10/2026 a 18/11/2026": a janela escrita em datas. Um método, não um `computed`: `Date` não
+   * é sinal, e o valor guardado ficaria com a data de ontem numa tela aberta de um dia para o outro
+   * (mesma escolha do `maxDate()` do seletor de período).
+   */
+  protected windowRangeText(): string | null {
+    return formatDateRangePtBr(issueWindowRange(this.issueWindow(), brtIsoDate(new Date())));
+  }
+
+  protected readonly planColumns: readonly DataListColumn<AdminMrrPlanBreakdown>[] = [
+    { key: 'plan', header: 'Plano', primary: true, value: (p) => this.planName(p.planName, p.planCode) },
+    { key: 'gateway', header: 'Gateway', value: (p) => gatewayLabel(p.gateway) },
+    { key: 'price', header: 'Preço do plano', kind: 'money-cents', end: true, value: (p) => p.planPriceCents },
+    { key: 'subs', header: 'Assinaturas', kind: 'integer', end: true, value: (p) => p.subscriptionsTotal },
+    {
+      key: 'activeTrial',
+      header: 'Ativas / trial',
+      end: true,
+      value: (p) => `${p.activeTotal} / ${p.trialingTotal}`,
+    },
+    {
+      key: 'pastDueCanceled',
+      header: 'Atrasadas / canceladas',
+      end: true,
+      value: (p) => `${p.pastDueTotal} / ${p.canceledTotal}`,
+    },
+    { key: 'mrr', header: 'MRR', kind: 'money-cents', end: true, value: (p) => p.mrrCents },
+    {
+      key: 'mrrActive',
+      header: 'MRR só de ativas',
+      kind: 'money-cents',
+      end: true,
+      value: (p) => p.activeOnlyMrrCents,
+    },
+  ];
+
+  protected readonly issueColumns: readonly DataListColumn<AdminBillingIssue>[] = [
+    { key: 'company', header: 'Empresa', primary: true, value: (i) => i.companyName },
+    {
+      key: 'kind',
+      header: 'Tipo',
+      kind: 'status',
+      value: (i) => this.issueKind(i.kind).label,
+      tone: (i) => this.issueKind(i.kind).tone,
+    },
+    { key: 'occurredAt', header: 'Início', value: (i) => this.formatDateTime(i.occurredAt) },
+    { key: 'plan', header: 'Plano / gateway', value: (i) => this.planName(i.planName, i.planCode) },
+    { key: 'amount', header: 'Valor', end: true, value: (i) => this.issueAmount(i) },
+    { key: 'todo', header: 'O que fazer', value: (i) => this.issueKind(i.kind).guidance },
+  ];
+
+  protected readonly subscriptionColumns: readonly DataListColumn<AdminSubscriptionListItem>[] = [
+    { key: 'company', header: 'Empresa', primary: true, value: (s) => s.companyName },
+    { key: 'plan', header: 'Plano', value: (s) => this.planName(s.planName, s.planCode) },
+    { key: 'gateway', header: 'Gateway', value: (s) => gatewayLabel(s.gateway) },
+    { key: 'status', header: 'Situação', value: (s) => this.statusChip(s.status).label },
+    {
+      key: 'price',
+      header: 'Mensalidade',
+      kind: 'money-cents',
+      end: true,
+      value: (s) => s.monthlyPriceCents,
+    },
+    { key: 'next', header: 'Próxima cobrança', value: (s) => this.formatDate(s.nextBillingAt) },
+  ];
+
+  protected readonly planRowId = (p: AdminMrrPlanBreakdown): string => p.planId;
+  protected readonly subscriptionRowId = (s: AdminSubscriptionListItem): string => s.id;
 
   protected readonly subscriptionsPages = computed(() =>
     Math.max(1, Math.ceil(Math.max(0, this.subscriptionsTotal()) / PAGE_SIZE)),
   );
-  protected readonly canPrevSubscriptions = computed(() => this.subscriptionsPage() > 0);
   protected readonly canNextSubscriptions = computed(
     () => this.subscriptionsPage() + 1 < this.subscriptionsPages(),
   );
@@ -185,8 +289,6 @@ export class AdminBilling implements OnInit {
   protected readonly issuesPages = computed(() =>
     Math.max(1, Math.ceil(Math.max(0, this.issuesTotal()) / PAGE_SIZE)),
   );
-  protected readonly canPrevIssues = computed(() => this.issuesPage() > 0);
-  protected readonly canNextIssues = computed(() => this.issuesPage() + 1 < this.issuesPages());
 
   /**
    * Texto que evita a leitura errada mais cara desta tela: "não apareceu nada,
@@ -263,29 +365,27 @@ export class AdminBilling implements OnInit {
     this.issueWindow.set(days);
   }
 
-  protected isIssueWindow(days: BillingIssueWindow): boolean {
-    return this.issueWindow() === days;
+  /** "Ampliar a janela" do vazio: passa para a próxima janela maior. */
+  protected widenWindow(): void {
+    const next = ISSUE_WINDOWS.find((d) => d > this.issueWindow());
+    if (next) this.setIssueWindow(next);
   }
 
-  protected prevSubscriptions(): void {
-    if (this.canPrevSubscriptions()) this.subscriptionsPage.update((p) => p - 1);
+  protected goToSubscriptionsPage(page: number): void {
+    if (page >= 0 && page < this.subscriptionsPages()) this.subscriptionsPage.set(page);
   }
 
   protected nextSubscriptions(): void {
     if (this.canNextSubscriptions()) this.subscriptionsPage.update((p) => p + 1);
   }
 
-  protected prevIssues(): void {
-    if (this.canPrevIssues()) this.issuesPage.update((p) => p - 1);
-  }
-
-  protected nextIssues(): void {
-    if (this.canNextIssues()) this.issuesPage.update((p) => p + 1);
+  protected goToIssuesPage(page: number): void {
+    if (page >= 0 && page < this.issuesPages()) this.issuesPage.set(page);
   }
 
   protected statusChip(status: string | null): ChipStyle {
-    if (!status) return { label: '—', chip: DEFAULT_CHIP };
-    return SUB_STATUS_CHIPS[status] ?? { label: humanize(status), chip: DEFAULT_CHIP };
+    if (!status) return { label: '—', tone: 'neutral' };
+    return SUB_STATUS_CHIPS[status] ?? { label: humanize(status), tone: 'neutral' };
   }
 
   protected companyStatusLabel(status: string | null): string {
@@ -298,6 +398,11 @@ export class AdminBilling implements OnInit {
     return PERIOD_LABELS[period] ?? humanize(period);
   }
 
+  /** "Pro", nunca "PRO" nem `PRO_MONTHLY_STRIPE`; o período vai na linha de baixo. */
+  protected planName(name: string | null, code: string | null): string {
+    return planDisplayName(name, code);
+  }
+
   protected gateway(raw: string | null): string {
     return gatewayLabel(raw);
   }
@@ -306,7 +411,7 @@ export class AdminBilling implements OnInit {
     return (
       ISSUE_KINDS[kind] ?? {
         label: humanize(kind),
-        chip: DEFAULT_CHIP,
+        tone: 'neutral',
         guidance: 'Problema não catalogado nesta tela — confira a assinatura no gateway.',
       }
     );
@@ -323,14 +428,6 @@ export class AdminBilling implements OnInit {
     return id.length <= 8 ? id : `…${id.slice(-8)}`;
   }
 
-  protected formatCents(cents: number | null | undefined): string {
-    if (cents === null || cents === undefined) return '—';
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(cents / 100);
-  }
-
   /**
    * `amountCents` vem `null` quando o provedor não informa o valor. Zero é um
    * valor de verdade; ausência é outra coisa e NÃO pode virar "R$ 0,00".
@@ -339,33 +436,21 @@ export class AdminBilling implements OnInit {
     if (issue.amountCents === null || issue.amountCents === undefined) {
       return 'Valor não informado';
     }
-    return this.formatCents(issue.amountCents);
+    return formatBrl(issue.amountCents);
   }
 
   protected issueAmountClass(issue: AdminBillingIssue): string {
     return issue.amountCents === null || issue.amountCents === undefined
-      ? 'text-fg-subtle italic'
-      : 'text-fg tabular-nums';
+      ? 'text-fg-subtle italic whitespace-normal'
+      : 'text-fg tabular-nums whitespace-nowrap';
   }
 
   protected formatDate(value: string | null): string {
-    if (!value) return '—';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return formatBillingDate(value);
   }
 
   protected formatDateTime(value: string | null): string {
-    if (!value) return '—';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatBillingDateTime(value);
   }
 
   private loadMrr(): void {
