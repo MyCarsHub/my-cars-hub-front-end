@@ -68,6 +68,11 @@ export interface DraftStatusResponse {
   doubts: SuggestionView[];
   /** Campos que o contrato enviado JÁ traz como `{{campo}}`. Ausente até a análise terminar. */
   existingFields?: FieldOption[];
+  /**
+   * Desses campos, os que estão no trecho da OUTRA parte (CPF do motorista na linha do locador).
+   * Só aviso antes de salvar. Ausente num backend anterior.
+   */
+  misplacedFields?: MisplacedField[];
   /** Ausente num backend anterior às perguntas: esta tela segue funcionando com ele. */
   questions?: QuestionView[];
   /**
@@ -77,6 +82,15 @@ export interface DraftStatusResponse {
   blocks?: BlockView[];
   /** O que já foi respondido e gravado (blocos e decisões, inclusive as expandidas dos blocos). */
   answers?: SavedAnswers;
+}
+
+/** Um `{{campo}}` já existente no trecho da outra parte. `foundIn`: a parte do trecho. Texto real. */
+export interface MisplacedField {
+  field: string;
+  label: string;
+  foundIn: 'COMPANY' | 'DRIVER';
+  paragraphId: string;
+  excerpt: string;
 }
 
 export interface SavedAnswers {

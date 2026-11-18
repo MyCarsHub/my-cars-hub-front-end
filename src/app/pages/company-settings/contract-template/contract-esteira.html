@@ -333,6 +333,7 @@
             [fields]="reviewCounts().fields"
             [clauses]="reviewCounts().clauses"
             [existing]="ai.existingFields()"
+            [misplaced]="ai.misplacedFields()"
             [unanswered]="unanswered()"
             [driverMissing]="path() === 'mine' && reviewCounts().driverMissing && !readParagraph()"
             [esignatureMissing]="esignatureMissing()"
