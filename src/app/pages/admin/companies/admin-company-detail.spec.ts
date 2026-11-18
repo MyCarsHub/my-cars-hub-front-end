@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -85,6 +86,7 @@ describe('AdminCompanyDetail — erros do backend', () => {
       imports: [AdminCompanyDetail],
       providers: [
         provideRouter([]),
+        provideNoopAnimations(),
         ApiErrorService,
         {
           provide: ActivatedRoute,
