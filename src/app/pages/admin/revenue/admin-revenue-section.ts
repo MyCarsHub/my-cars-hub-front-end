@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
@@ -123,6 +123,7 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
       </div>
 
       <div class="grid gap-4 grid-cols-1 lg:grid-cols-2">
+        @if (showMrr()) {
         <app-page-card title="Crescimento do MRR">
           <div class="p-4" data-mrr-chart>
             <p class="text-xs text-fg-subtle mb-3">
@@ -149,6 +150,7 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
             }
           </div>
         </app-page-card>
+        }
 
         <app-page-card title="Faturamento acumulado">
           <div class="p-4" data-cumulative-chart>
@@ -227,6 +229,12 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
 export class AdminRevenueSection implements OnInit {
   private readonly service = inject(AdminRevenueService);
   private readonly apiErrors = inject(ApiErrorService);
+
+  /**
+   * O gráfico do MRR estimado. A Visão geral v2 desliga: ela já desenha o MRR real e o estimado
+   * juntos, e dois gráficos de MRR na mesma tela diriam coisas diferentes.
+   */
+  readonly showMrr = input(true);
 
   protected readonly periods = PERIODS;
   protected readonly axisFloor = MONEY_AXIS_FLOOR_CENTS;

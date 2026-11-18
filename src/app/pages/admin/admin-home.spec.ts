@@ -4,354 +4,329 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { NEVER, Subject, of } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AdminHome } from './admin-home';
+import { AdminHomeService } from './home/admin-home.service';
 import { AdminMetricsService } from '../../services/admin-metrics.service';
+import { AdminCapabilitiesService } from '../../services/admin-capabilities.service';
 import { NotificationService } from '../../services/notification.service';
+import { AdminRevenueService } from './revenue/admin-revenue.service';
 import type { AdminOverviewResponse } from '../../types/admin-overview.types';
+import type { AdminHome as AdminHomeData, AdminHomePeriod, AdminHomeScope } from '../../types/admin-home.types';
+import { HOME, USAGE } from './home/admin-home.testing';
+import type { AdminCapabilityCode } from '../../types/admin-roles.types';
+
+const OVERVIEW: AdminOverviewResponse = {
+  users: { total: 0, activeTotal: 0, newLast30Days: 0, newByDay: [], onlineNow: 3 },
+  companies: { total: 0, activeTotal: 0, newLast30Days: 0 },
+  vehicles: { total: 0, activeTotal: 0 },
+  subscriptions: { total: 0, active: 0, trialing: 0, byStatus: {}, mrrCents: 0, mrrActiveOnlyCents: 0, arrCents: 0 },
+  feedback: { total: 9, pending: 3, byStatus: {} },
+  rentals: {
+    closedTotal: 42,
+    closedAmountCents: 1_234_56,
+    completedTotal: 30,
+    completedAmountCents: 900_00,
+    // COMPLETED e CANCELED omitidos de propósito: mapa esparso do backend.
+    byStatus: { RESERVED: 7, ACTIVE: 5 },
+  },
+  contracts: { total: 25, signedTotal: 9 },
+};
+
+const flat = (el: Element | null): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+
+interface Setup {
+  codes?: AdminCapabilityCode[];
+  home?: (period: AdminHomePeriod, scope: AdminHomeScope) => unknown;
+}
+
+function setup(opts: Setup = {}) {
+  const granted = new Set(opts.codes ?? ['ver']);
+  const homeSvc = {
+    home: vi.fn(
+      opts.home ??
+        ((period: AdminHomePeriod, scope: AdminHomeScope) => of({ ...HOME, meta: { ...HOME.meta, period, scope } })),
+    ),
+    usage: vi.fn((period: AdminHomePeriod, scope: AdminHomeScope) =>
+      of({ ...USAGE, meta: { ...USAGE.meta, period, scope } }),
+    ),
+    upcoming: vi.fn(() =>
+      of({
+        from: '2026-11-17',
+        until: '2026-12-16',
+        receivables: [],
+        payables: [],
+        vendorsWithoutBillingDay: 1,
+        receivablesTotalCents: 0,
+        payablesTotalCents: null,
+      }),
+    ),
+    companies: vi.fn(() => of({ content: [], page: 0, size: 20, total: 0 })),
+    movements: vi.fn(() => of({ content: [], page: 0, size: 10, total: 0 })),
+  };
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    imports: [AdminHome],
+    providers: [
+      provideRouter([]),
+      provideNoopAnimations(),
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      { provide: AdminHomeService, useValue: homeSvc },
+      { provide: AdminRevenueService, useValue: { fetch: () => NEVER } },
+      {
+        provide: AdminMetricsService,
+        useValue: {
+          overview: signal(OVERVIEW),
+          loading: signal(false),
+          error: signal<string | null>(null),
+          loadOverview: vi.fn(() => of(OVERVIEW)),
+        },
+      },
+      {
+        provide: AdminCapabilitiesService,
+        useValue: { can: (c: AdminCapabilityCode) => granted.has(c), ensureLoaded: () => of(null) },
+      },
+      { provide: NotificationService, useValue: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn(), push: vi.fn() } },
+    ],
+  });
+  const fixture = TestBed.createComponent(AdminHome);
+  fixture.detectChanges();
+  fixture.detectChanges();
+  return { fixture, host: fixture.nativeElement as HTMLElement, homeSvc };
+}
+
+function kpiCard(host: HTMLElement, key: string): HTMLElement {
+  const el = host.querySelector<HTMLElement>(`[data-kpi="${key}"]`);
+  expect(el, `cartão ${key}`).not.toBeNull();
+  return el as HTMLElement;
+}
+
+describe('AdminHome v2 — cartões', () => {
+  beforeEach(() => TestBed.resetTestingModule());
+
+  it('mostra os 10 cartões na ordem do desenho', () => {
+    const { host } = setup();
+    const labels = Array.from(host.querySelectorAll('[data-home-kpis] > [data-kpi]')).map((el) => el.getAttribute('data-kpi'));
+    expect(labels).toEqual(['mrrReal', 'profit', 'mrrEstimated', 'arr', 'costs', 'subs', 'companies', 'users', 'vehicles', 'managed']);
+  });
+
+  it('MRR real é o laranja pintado e tem o valor cobrado, com a variação contra o início do período', () => {
+    const { host } = setup();
+    const card = kpiCard(host, 'mrrReal');
+    expect(card.className).toContain('bg-primary-500');
+    expect(flat(card)).toContain('R$ 569');
+    expect(flat(card)).toContain('↗ 137%');
+    expect(flat(card)).toContain('vs 01/12');
+  });
+
+  it('MRR estimado fica ao lado, branco, com "preço de tabela"', () => {
+    const card = kpiCard(setup().host, 'mrrEstimated');
+    expect(card.className).not.toContain('bg-primary-500');
+    expect(flat(card)).toContain('R$ 769');
+    expect(flat(card)).toContain('preço de tabela');
+  });
+
+  it('sem custo lançado, lucro e custos mostram "—" e o motivo, nunca R$ 0', () => {
+    const { host } = setup();
+    for (const key of ['profit', 'costs']) {
+      const text = flat(kpiCard(host, key));
+      expect(text).toContain('—');
+      expect(text).toContain('nenhum custo lançado em novembro');
+      expect(text).not.toContain('R$ 0');
+    }
+  });
+
+  it('empresas dizem quantas são de teste; usuários e veículos, os novos do período', () => {
+    const { host } = setup();
+    expect(flat(kpiCard(host, 'companies'))).toContain('6 de teste');
+    expect(flat(kpiCard(host, 'users'))).toContain('↗ 19');
+    expect(flat(kpiCard(host, 'vehicles'))).toContain('cadastrados no período');
+    expect(flat(kpiCard(host, 'subs'))).toContain('conversões no período');
+  });
+
+  it('valor gerenciado mostra o esperado E o recebido, lado a lado', () => {
+    const { host } = setup();
+    const card = kpiCard(host, 'managed');
+    expect(flat(card.querySelector('[data-managed-expected]'))).toBe('R$ 120.417');
+    expect(flat(card.querySelector('[data-managed-received]'))).toBe('R$ 80.000');
+    expect(flat(card)).toContain('66,4% do esperado já entrou');
+  });
+});
+
+describe('AdminHome v2 — chips, período e escopo', () => {
+  beforeEach(() => TestBed.resetTestingModule());
+
+  it('chip com zero não aparece; os outros levam ao lugar de agir', () => {
+    const { host } = setup();
+    const chips = Array.from(host.querySelectorAll('[data-chip]'));
+    expect(chips.map((c) => c.getAttribute('data-chip'))).toEqual(['pastDue', 'feedback', 'reconciliation']);
+    expect(host.querySelector('[data-chip="feedback"]')!.getAttribute('href')).toBe('/admin/feedback');
+    expect(host.querySelector('[data-chip="reconciliation"]')!.getAttribute('aria-label')).toBe('1 falha de conciliação');
+  });
+
+  it('trocar o período pede de novo com o período novo', () => {
+    const { host, fixture, homeSvc } = setup();
+    const pill = Array.from(host.querySelectorAll<HTMLButtonElement>('[role="radio"]')).find((b) => flat(b) === '30 dias');
+    pill!.click();
+    fixture.detectChanges();
+    expect(homeSvc.home).toHaveBeenLastCalledWith('30d', 'clients');
+    expect(homeSvc.usage).toHaveBeenLastCalledWith('30d', 'clients');
+  });
+
+  it('"Com contas internas" pede o escopo all para a tela inteira', () => {
+    const { host, fixture, homeSvc } = setup();
+    const pill = Array.from(host.querySelectorAll<HTMLButtonElement>('[role="radio"]')).find((b) =>
+      flat(b).includes('Com contas internas'),
+    );
+    pill!.click();
+    fixture.detectChanges();
+    expect(homeSvc.home).toHaveBeenLastCalledWith('12m', 'all');
+    expect(homeSvc.movements).toHaveBeenLastCalledWith(expect.objectContaining({ includeInternal: true }));
+    expect(homeSvc.upcoming).toHaveBeenLastCalledWith('all');
+  });
+
+  it('resposta de outro período nunca aparece sob a pílula marcada', () => {
+    const late = new Subject<AdminHomeData>();
+    const { host, fixture } = setup({ home: () => late });
+    late.next({ ...HOME, meta: { ...HOME.meta, period: '30d' } });
+    fixture.detectChanges();
+    expect(flat(kpiCard(host, 'mrrReal'))).not.toContain('R$ 569');
+  });
+});
+
+describe('AdminHome v2 — Lançar custo', () => {
+  beforeEach(() => TestBed.resetTestingModule());
+
+  it('o botão só existe para quem tem custo.gerir', () => {
+    expect(setup({ codes: ['ver'] }).host.querySelector('[data-testid="launch-cost"]')).toBeNull();
+    expect(setup({ codes: ['ver', 'custo.gerir'] }).host.querySelector('[data-testid="launch-cost"]')).not.toBeNull();
+  });
+
+  it('abre a folha de custo', async () => {
+    const { host, fixture } = setup({ codes: ['ver', 'custo.gerir'] });
+    host.querySelector<HTMLButtonElement>('[data-testid="launch-cost"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(document.querySelector('[data-testid="cost-sheet"]')).not.toBeNull();
+  });
+
+  it('o lucro sem custo vira atalho para lançar (para o Dono)', async () => {
+    const { host, fixture } = setup({ codes: ['ver', 'custo.gerir'] });
+    const card = kpiCard(host, 'profit');
+    expect(card.getAttribute('role')).toBe('button');
+    card.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(document.querySelector('[data-testid="cost-sheet"]')).not.toBeNull();
+  });
+
+  it('sem custo.gerir o cartão nulo não é botão', () => {
+    expect(kpiCard(setup().host, 'profit').getAttribute('role')).toBeNull();
+  });
+});
+
+describe('AdminHome v2 — saúde, funil e uso', () => {
+  beforeEach(() => TestBed.resetTestingModule());
+
+  it('cada ladrilho de saúde diz a definição ou por que não tem número', () => {
+    const { host } = setup();
+    const text = (k: string) => flat(host.querySelector(`[data-health="${k}"]`));
+    expect(text('churn')).toContain('0%');
+    expect(text('churn')).toContain('0 cancelamentos de 4 pagantes no mês');
+    expect(text('ltv')).toContain('sem cancelamentos');
+    expect(text('cac')).toContain('informe o gasto com aquisição');
+    expect(text('retention')).toContain('calcula a partir de 27/12/2026');
+    expect(text('margin')).toContain('nenhum custo lançado em novembro');
+  });
+
+  it('o funil usa a mesma coorte e diz a conversão do teste para pago', () => {
+    const { host } = setup();
+    const step = (k: string) => flat(host.querySelector(`[data-funnel-step="${k}"]`));
+    expect(step('signups')).toBe('Cadastros60');
+    expect(step('paying')).toBe('Assinam um plano6');
+    const text = flat(host.querySelector('[data-funnel]'));
+    expect(text).toContain('Conversão do teste para pago: 20%');
+  });
+
+  it('sem captura de acessos, o mapa e o ranking dizem que são AÇÕES', () => {
+    const { host } = setup();
+    expect(flat(host.querySelector('app-home-activity-map'))).toContain('Quando agem');
+    expect(flat(host.querySelector('app-home-top-users'))).toContain('Quem mais age');
+    expect(flat(host.querySelector('app-home-top-users'))).toContain('12 ações');
+  });
+
+  it('"Sem UF" aparece com o número, senão 3 empresas pareceriam o total', () => {
+    const rows = Array.from(setup().host.querySelectorAll('[data-uf-row]')).map(flat);
+    expect(rows).toEqual(['SP2', 'PR1', 'Sem UF41']);
+  });
+
+  it('motoristas: só o que a plataforma já guarda, nada de ganho ou gasto', () => {
+    const text = flat(setup().host.querySelector('[data-role-card="DRIVER"]'));
+    expect(text).toContain('80');
+    expect(text).toContain('Com acesso ao app');
+    expect(text).not.toContain('Ganho');
+    expect(text).not.toContain('Sobra');
+  });
+});
 
 /**
- * Consolidado de aluguéis/contratos no painel de Administração.
- *
- * Duas armadilhas do contrato do backend estão cobertas aqui:
- *  - "fechado" (`closedTotal`) NÃO é "concluído": inclui RESERVED + ACTIVE +
- *    COMPLETED e exclui apenas CANCELED. Os dois recortes são exibidos com
- *    rótulos distintos;
- *  - `byStatus` é ESPARSO — status sem nenhum registro some do mapa. A ausência
- *    tem de virar zero, nunca `undefined` na tela.
+ * Os cartões da Visão geral antiga que não estão no desenho FICAM (dono, 17/11), refeitos no
+ * padrão novo. As armadilhas de antes continuam cobertas: "fechado" não é "concluído", assinados
+ * não é o total, e `byStatus` esparso vira zero.
  */
-describe('AdminHome — consolidado de aluguéis e contratos', () => {
-  const EMPTY_OVERVIEW: AdminOverviewResponse = {
-    users: { total: 0, activeTotal: 0, newLast30Days: 0, newByDay: [] },
-    companies: { total: 0, activeTotal: 0, newLast30Days: 0 },
-    vehicles: { total: 0, activeTotal: 0 },
-    subscriptions: {
-      total: 0,
-      active: 0,
-      trialing: 0,
-      byStatus: {},
-      mrrCents: 0,
-      mrrActiveOnlyCents: 0,
-      arrCents: 0,
-    },
-    feedback: { total: 0, pending: 0, byStatus: {} },
-    rentals: {
-      closedTotal: 0,
-      closedAmountCents: 0,
-      completedTotal: 0,
-      completedAmountCents: 0,
-      byStatus: {},
-    },
-    contracts: { total: 0, signedTotal: 0 },
-  };
+describe('AdminHome v2 — cartões mantidos', () => {
+  beforeEach(() => TestBed.resetTestingModule());
 
-  const POPULATED_OVERVIEW: AdminOverviewResponse = {
-    ...EMPTY_OVERVIEW,
-    rentals: {
-      closedTotal: 42,
-      closedAmountCents: 1_234_56,
-      completedTotal: 30,
-      completedAmountCents: 900_00,
-      // COMPLETED e CANCELED omitidos de propósito: mapa esparso do backend.
-      byStatus: { RESERVED: 7, ACTIVE: 5 },
-    },
-    contracts: { total: 25, signedTotal: 9 },
-  };
-
-  let overview: ReturnType<typeof signal<AdminOverviewResponse | null>>;
-
-  function configure(): void {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({
-      imports: [AdminHome],
-      providers: [
-        provideRouter([]),
-        provideNoopAnimations(),
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        {
-          provide: AdminMetricsService,
-          useValue: {
-            overview,
-            loading: signal(false),
-            error: signal<string | null>(null),
-            loadOverview: vi.fn().mockReturnValue(of(overview())),
-          },
-        },
-        {
-          provide: NotificationService,
-          useValue: {
-            error: vi.fn(),
-            success: vi.fn(),
-            warning: vi.fn(),
-            info: vi.fn(),
-            push: vi.fn(),
-          },
-        },
-      ],
-    });
-  }
-
-  /** Valor renderizado logo abaixo de um rótulo de card do consolidado. */
   function statValue(host: HTMLElement, label: string): string {
-    const labels = Array.from(host.querySelectorAll('p'));
-    const found = labels.find((p) => p.textContent?.trim() === label);
-    expect(found, `rótulo "${label}" não encontrado`).toBeTruthy();
-    return found?.nextElementSibling?.textContent?.trim() ?? '';
+    const found = Array.from(host.querySelectorAll('[data-legacy-kpis] p')).find((p) => flat(p) === label);
+    expect(found, `rótulo "${label}"`).toBeTruthy();
+    return flat(found?.nextElementSibling ?? null);
   }
 
-  /** Texto da página com quebras de linha do template colapsadas. */
-  function flatText(host: HTMLElement): string {
-    return (host.textContent ?? '').replace(/\s+/g, ' ');
-  }
-
-  /** Contagem exibida na barra de um status de aluguel. */
   function barCount(host: HTMLElement, label: string): string {
-    const spans = Array.from(host.querySelectorAll('span'));
-    const found = spans.find((s) => s.textContent?.trim() === label);
-    expect(found, `barra "${label}" não encontrada`).toBeTruthy();
-    return found?.nextElementSibling?.textContent?.trim() ?? '';
+    const found = Array.from(host.querySelectorAll('span')).find((s) => flat(s) === label);
+    expect(found, `barra "${label}"`).toBeTruthy();
+    return flat(found?.nextElementSibling ?? null);
   }
 
-  function render(): HTMLElement {
-    configure();
-    const fixture = TestBed.createComponent(AdminHome);
-    fixture.detectChanges();
-    return fixture.nativeElement;
-  }
-
-  beforeEach(() => {
-    overview = signal<AdminOverviewResponse | null>(null);
-  });
-
-  it('exibe valor e quantidade de aluguéis fechados, concluídos e de contratos', () => {
-    overview.set(POPULATED_OVERVIEW);
-    const host = render();
-
-    // Centavos -> BRL pelo mesmo formatador já usado pelo MRR/ARR da página.
+  it('aluguéis fechados, concluídos, contratos e assinados, cada um com o seu rótulo', () => {
+    const { host } = setup();
     expect(statValue(host, 'Aluguéis fechados')).toContain('1.234,56');
-    expect(flatText(host)).toContain('42 aluguéis');
-
     expect(statValue(host, 'Aluguéis concluídos')).toContain('900,00');
-    expect(flatText(host)).toContain('30 aluguéis');
-
     expect(statValue(host, 'Contratos de locação')).toBe('25');
     expect(statValue(host, 'Contratos assinados')).toBe('9');
-  });
-
-  /**
-   * A nota "Como ler os números de volume" foi REMOVIDA a pedido do dono
-   * (FIX-0421) — não se perdeu por descuido, e este teste não deve ser usado
-   * para ressuscitá-la.
-   *
-   * O que ele protege continua sendo o mesmo e continua valendo: os números de
-   * volume não podem se apresentar de forma enganosa. Sem a nota, quem carrega
-   * a ressalva é o PRÓPRIO cartão — e é isso que se afirma aqui. Se alguém
-   * apagar também a legenda do cartão, este teste cai, que era a função da
-   * versão anterior.
-   *
-   * Ficou de fora, e é consequência declarada da remoção: a DEFINIÇÃO de
-   * "fechados" (reservado + em andamento + concluído) não está mais escrita em
-   * lugar nenhum da tela. O cartão diz o que exclui, não o que soma.
-   */
-  it('não rotula o consolidado de forma enganosa nem mostra assinados como total', () => {
-    overview.set(POPULATED_OVERVIEW);
-    const host = render();
-    const text = flatText(host);
-
-    // "fechado" e "concluído" são recortes diferentes, e cada cartão diz o seu.
-    expect(text).toContain('exclui cancelados');
-    expect(text).toContain('aluguéis finalizados');
-    // Assinados NUNCA aparece como se fosse o total.
+    const text = flat(host);
+    expect(text).toContain('42 aluguéis · exclui cancelados');
+    expect(text).toContain('30 aluguéis finalizados');
     expect(text).toContain('de 25 contratos');
     expect(text).not.toContain('undefined');
+    expect(text).not.toContain('NaN');
   });
 
-  /**
-   * O pedido foi "igual aos cards existentes": os quatro números vivem na MESMA
-   * grade de indicadores, não numa seção própria.
-   */
-  it('renderiza os números de volume dentro da grade de indicadores', () => {
-    overview.set(POPULATED_OVERVIEW);
-    const host = render();
-
-    const grid = host.querySelector('div.grid.grid-cols-2');
-    expect(grid, 'grade de indicadores não encontrada').toBeTruthy();
-
-    const gridText = (grid?.textContent ?? '').replace(/\s+/g, ' ');
-    for (const label of [
-      'Usuários',
-      'Aluguéis fechados',
-      'Aluguéis concluídos',
-      'Contratos de locação',
-      'Contratos assinados',
-    ]) {
-      expect(gridText, `"${label}" fora da grade`).toContain(label);
-    }
-    expect(host.textContent).not.toContain('Volume consolidado');
+  it('online agora: o número, sem bolinha, e leva à lista filtrada', () => {
+    const { host } = setup();
+    const card = host.querySelector<HTMLElement>('[data-testid="online-now-card"]')!;
+    expect(statValue(host, 'Online agora')).toBe('3');
+    expect(card.getAttribute('role')).toBe('link');
+    expect(card.querySelector('.rounded-full.bg-success-500')).toBeNull();
   });
 
-  it('trata status ausente do mapa esparso como zero', () => {
-    overview.set(POPULATED_OVERVIEW);
-    const host = render();
-
+  it('status ausente do mapa esparso vale zero', () => {
+    const { host } = setup();
     expect(barCount(host, 'Reservado')).toBe('7');
     expect(barCount(host, 'Em andamento')).toBe('5');
-    // Ausentes do payload: precisam renderizar 0, não sumir nem virar undefined.
     expect(barCount(host, 'Concluído')).toBe('0');
     expect(barCount(host, 'Cancelado')).toBe('0');
   });
 
-  it('renderiza zeros em base vazia, sem undefined', () => {
-    overview.set(EMPTY_OVERVIEW);
-    const host = render();
-
-    expect(statValue(host, 'Aluguéis fechados')).toContain('0,00');
-    expect(statValue(host, 'Aluguéis concluídos')).toContain('0,00');
-    expect(statValue(host, 'Contratos de locação')).toBe('0');
-    expect(statValue(host, 'Contratos assinados')).toBe('0');
-    expect(host.textContent).toContain('0 aluguéis');
-    expect(host.textContent).not.toContain('undefined');
-    expect(host.textContent).not.toContain('NaN');
-
-    for (const label of ['Reservado', 'Em andamento', 'Concluído', 'Cancelado']) {
-      expect(barCount(host, label)).toBe('0');
-    }
-  });
-
-  it('mantém zeros quando a carga falha e o overview segue nulo', () => {
-    const host = render();
-
-    expect(statValue(host, 'Contratos de locação')).toBe('0');
-    expect(statValue(host, 'Aluguéis fechados')).toContain('0,00');
-    expect(host.textContent).not.toContain('undefined');
-  });
-
-  /**
-   * FEAT-0121 — o grafico de novos usuarios deixou de ser SVG desenhado a mao e
-   * passou a ser componente de biblioteca. O que a pagina deve garantir aqui e
-   * que ela ENTREGA a serie certa e continua legivel sem o desenho (o canvas
-   * nao renderiza no JSDOM, e e de proposito que a tabela carregue o dado).
-   */
-  describe('grafico de novos usuarios', () => {
-    const COM_SERIE: AdminOverviewResponse = {
-      ...POPULATED_OVERVIEW,
-      users: {
-        ...POPULATED_OVERVIEW.users,
-        newByDay: [
-          { date: '2026-09-01', count: 0 },
-          { date: '2026-09-02', count: 3 },
-          { date: '2026-09-03', count: 1 },
-        ],
-      },
-    };
-
-    it('entrega a serie ao grafico, legivel como texto', () => {
-      overview.set(COM_SERIE);
-      const host = render();
-
-      expect(host.querySelector('app-line-chart'), 'grafico nao renderizou').not.toBeNull();
-
-      const rows = Array.from(host.querySelectorAll('app-line-chart tbody tr')).map((tr) =>
-        Array.from(tr.querySelectorAll('th, td')).map((c) => c.textContent?.trim()),
-      );
-      expect(rows).toHaveLength(3);
-      expect(rows[1]?.[1]).toBe('3');
-    });
-
-    /**
-     * O pico agora e dito em TEXTO. Antes ele so existia como altura do
-     * desenho — e a altura era sempre a mesma, qualquer que fosse o numero.
-     */
-    it('diz o pico do periodo em texto', () => {
-      overview.set(COM_SERIE);
-
-      expect(flatText(render())).toContain('Pico de 3 no período');
-    });
-
-    it('mostra o estado vazio quando nao ha serie', () => {
-      overview.set(POPULATED_OVERVIEW);
-      const host = render();
-
-      expect(host.querySelector('app-line-chart')).toBeNull();
-      expect(flatText(host)).toContain('Sem dados no período');
-    });
-  });
-
-  describe('Online agora', () => {
-    it('mostra o número de usuários online e leva à lista filtrada', () => {
-      overview.set({
-        ...EMPTY_OVERVIEW,
-        users: { ...EMPTY_OVERVIEW.users, onlineNow: 3 },
-      });
-      const host = render();
-
-      const card = host.querySelector('[data-testid="online-now-card"]');
-      expect(card).not.toBeNull();
-      expect(host.querySelector('[data-testid="online-now-count"]')?.textContent?.trim()).toBe('3');
-      expect(card?.getAttribute('href')).toBe('/admin/users?online=true');
-    });
-
-    it('backend sem o campo mostra zero, nunca vazio', () => {
-      overview.set(EMPTY_OVERVIEW);
-      const host = render();
-
-      expect(host.querySelector('[data-testid="online-now-count"]')?.textContent?.trim()).toBe('0');
-    });
-  });
-
-  /**
-   * Admin v2 P0 — os cards que mentiam. "em trial" e as barras vêm da contagem
-   * por DATA do backend (3, não 32); o "MRR estimado", que repetia o MRR, deu
-   * lugar a "Testes acabando em 7 dias".
-   */
-  describe('trials honestos', () => {
-    const TRIALS_OVERVIEW: AdminOverviewResponse = {
-      ...EMPTY_OVERVIEW,
-      subscriptions: {
-        ...EMPTY_OVERVIEW.subscriptions,
-        active: 3,
-        trialing: 3,
-        trialsEndingIn7Days: 2,
-        byStatus: { ACTIVE: 3, TRIALING: 3, EXPIRED: 29 },
-        mrrCents: 23_970,
-        mrrActiveOnlyCents: 23_970,
-        arrCents: 287_640,
-      },
-    };
-
-    it('mostra os trials em andamento e os que acabam em 7 dias', () => {
-      overview.set(TRIALS_OVERVIEW);
-      const host = render();
-
-      expect(host.querySelector('[data-testid="trialing-count"]')?.textContent?.trim()).toBe('3');
-      expect(host.querySelector('[data-testid="trials-ending-count"]')?.textContent?.trim()).toBe('2');
-      expect(flatText(host)).toContain('de 3 em teste');
-    });
-
-    it('não tem mais o card duplicado "MRR estimado"', () => {
-      overview.set(TRIALS_OVERVIEW);
-      const host = render();
-
-      expect(flatText(host)).not.toContain('MRR estimado');
-      expect(statValue(host, 'MRR')).toContain('239,70');
-    });
-
-    it('a barra de teste vencido usa o status efetivo do backend', () => {
-      overview.set(TRIALS_OVERVIEW);
-      const host = render();
-
-      expect(barCount(host, 'Trial')).toBe('3');
-      expect(barCount(host, 'Teste vencido')).toBe('29');
-    });
-
-    it('backend sem o campo novo mostra zero', () => {
-      overview.set(EMPTY_OVERVIEW);
-      const host = render();
-
-      expect(host.querySelector('[data-testid="trials-ending-count"]')?.textContent?.trim()).toBe('0');
-    });
+  it('a receita da plataforma continua na página, sem um segundo gráfico de MRR', () => {
+    const { host } = setup();
+    expect(host.querySelector('app-admin-revenue-section')).not.toBeNull();
+    expect(host.querySelectorAll('[data-mrr-chart]').length).toBe(1);
   });
 });
