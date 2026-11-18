@@ -22,6 +22,17 @@ function render(rows: StackRow[], format?: 'brl-cents') {
   return fixture.nativeElement as HTMLElement;
 }
 
+
+/** Tooltip as text: "title | series value | ..." (the template has no spaces between nodes). */
+function readTip(root: Element | null | undefined): string | null {
+  if (!root) return null;
+  const title = root.querySelector('[data-tip-title]')?.textContent?.trim() ?? '';
+  const rows = [...root.querySelectorAll('[data-tip-row]')].map((r) =>
+    [...r.children].map((c) => c.textContent!.trim()).filter(Boolean).join(' '),
+  );
+  return [title, ...rows].join(' | ').replace(/\s+/g, ' ');
+}
+
 describe('StackedBarChart', () => {
   it('scales every segment against the largest row total', () => {
     const segs = render(ROWS).querySelectorAll<HTMLElement>('[data-segment]');
@@ -43,6 +54,21 @@ describe('StackedBarChart', () => {
     const el = render(ROWS, 'brl-cents');
     expect(el.textContent).toContain('R$');
     expect(el.textContent).toContain('0,40');
+  });
+
+  it('rows layout: hover or focus on a row opens its parts in a tooltip', () => {
+    const fixture = TestBed.createComponent(StackedBarChart);
+    fixture.componentRef.setInput('rows', ROWS);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const row = el.querySelector<HTMLElement>('[data-stack-row]')!;
+    expect(row.getAttribute('tabindex')).toBe('0');
+    row.dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-chart-tooltip]')!.textContent).toContain('Em aberto');
+    row.dispatchEvent(new FocusEvent('blur'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-chart-tooltip]')).toBeNull();
   });
 
   it('lists each segment key once in the legend', () => {
@@ -74,6 +100,31 @@ describe('StackedBarChart', () => {
       expect(el.querySelector('[data-stack-column]')!.getAttribute('aria-label')).toBe(
         'Janeiro: 40 (Pago 30, Em aberto 10)',
       );
+    });
+
+    it('focus reads the newest column: each part (biggest first) and the total, money in full', () => {
+      const fixture = TestBed.createComponent(StackedBarChart);
+      fixture.componentRef.setInput('rows', ROWS);
+      fixture.componentRef.setInput('layout', 'columns');
+      fixture.componentRef.setInput('valueFormat', 'brl-cents-whole');
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const control = el.querySelector<HTMLElement>('[data-stack-control]')!;
+      expect(control.getAttribute('role')).toBe('slider');
+      control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home' }));
+      fixture.detectChanges();
+      expect(readTip(el.querySelector('[data-chart-tooltip]'))).toBe('Janeiro | Pago R$ 0,30 | Em aberto R$ 0,10 | Total R$ 0,40');
+      expect(control.getAttribute('aria-valuetext')).toBe('Janeiro: Pago R$ 0,30, Em aberto R$ 0,10, Total R$ 0,40');
+      control.dispatchEvent(new FocusEvent('blur'));
+      fixture.detectChanges();
+      expect(el.querySelector('[data-chart-tooltip]')).toBeNull();
+    });
+
+    it('prints each column total on top (sm and up), compact', () => {
+      const el = cols(ROWS);
+      const totals = [...el.querySelectorAll('[data-stack-total]')].map((t) => t.textContent!.trim());
+      expect(totals).toEqual(['40', '20']);
+      expect(el.querySelector('[data-stack-total]')!.className).toContain('hidden sm:block');
     });
 
     it('nothing above zero shows the empty copy, not a flat plot', () => {

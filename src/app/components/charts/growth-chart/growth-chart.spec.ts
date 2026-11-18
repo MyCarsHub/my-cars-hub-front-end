@@ -30,6 +30,17 @@ function render(series: GrowthSeries[], extra: Record<string, unknown> = {}) {
   return fixture.nativeElement as HTMLElement;
 }
 
+
+/** Tooltip as text: "title | series value | ..." (the template has no spaces between nodes). */
+function readTip(root: Element | null | undefined): string | null {
+  if (!root) return null;
+  const title = root.querySelector('[data-tip-title]')?.textContent?.trim() ?? '';
+  const rows = [...root.querySelectorAll('[data-tip-row]')].map((r) =>
+    [...r.children].map((c) => c.textContent!.trim()).filter(Boolean).join(' '),
+  );
+  return [title, ...rows].join(' | ').replace(/\s+/g, ' ');
+}
+
 describe('smoothPath', () => {
   it('starts at the left edge, ends at the right and inverts y against the top', () => {
     const { line, area } = smoothPath([0, 10], 10);
@@ -241,7 +252,7 @@ describe('GrowthChart — canvas look', () => {
     expect(el.querySelector('linearGradient')).not.toBeNull();
   });
 
-  it('end-point tooltip: label, compact value and the reference value', () => {
+  it('end-point tooltip: label, FULL value (cents, not the compact axis) and the reference value', () => {
     const el = render(
       [
         { key: 'now', label: 'Este mês', color: '#F63B04', values: [100000, 4130000] },
@@ -249,9 +260,11 @@ describe('GrowthChart — canvas look', () => {
       ],
       { valueFormat: 'brl-cents-compact', endDot: true, endTooltip: true, tooltipLabelPrefix: 'dia ' },
     );
-    const tip = el.querySelector('[data-end-tooltip]')!;
-    expect(tip.textContent).toContain('R$ 41,3k');
-    expect(tip.textContent).toContain('mês passado R$ 38,2k');
+    const text = readTip(el.querySelector('[data-end-tooltip]'))!;
+    expect(text).toContain('dia 1');
+    expect(text).toContain('Este mês R$ 41.300,00');
+    expect(text).toContain('Mês passado R$ 38.200,00');
+    expect(text).not.toContain('41,3k');
   });
 
   it('yDivisions=5 draws six ticks (R$ 0 .. top in steps of a fifth)', () => {
@@ -324,5 +337,111 @@ describe('niceAxisTop', () => {
     expect(niceAxisTop(10, 4, true)).toBe(12);
     expect(niceAxisTop(3, 4, true)).toBe(4);
     expect(niceAxisTop(0, 4)).toBe(0);
+  });
+});
+
+/** jsdom may lack PointerEvent: a MouseEvent with the pointer type is what the chart reads. */
+function pointer(type: string, init: { clientX?: number; pointerType: string }): Event {
+  const ev = new MouseEvent(type, { clientX: init.clientX ?? 0, bubbles: true });
+  Object.defineProperty(ev, 'pointerType', { value: init.pointerType });
+  return ev;
+}
+
+describe('GrowthChart reading (hover, tap, keyboard)', () => {
+  const MONEY: GrowthSeries[] = [
+    { key: 'mrr', label: 'MRR', color: '#F63B04', values: [100000, null, 250050, 300000] },
+    { key: 'est', label: 'Estimado', color: '#10B981', values: [120000, 150000, 260000, 310000] },
+  ];
+
+  function setup(series: GrowthSeries[] = MONEY, extra: Record<string, unknown> = {}) {
+    const fixture = TestBed.createComponent(GrowthChart);
+    fixture.componentRef.setInput('series', series);
+    fixture.componentRef.setInput('labels', LABELS);
+    fixture.componentRef.setInput('ariaLabel', 'MRR');
+    fixture.componentRef.setInput('valueFormat', 'brl-cents-compact');
+    for (const [k, v] of Object.entries(extra)) fixture.componentRef.setInput(k, v);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const control = el.querySelector<HTMLElement>('[data-plot-control]')!;
+    return { fixture, el, control };
+  }
+
+  const tipText = (el: HTMLElement) => readTip(el.querySelector('[data-chart-tooltip]:not([data-end-tooltip])'));
+
+  it('the plot is one keyboard stop, a slider over the x labels', () => {
+    const { control } = setup();
+    expect(control.getAttribute('tabindex')).toBe('0');
+    expect(control.getAttribute('role')).toBe('slider');
+    expect(control.getAttribute('aria-valuemax')).toBe('4');
+  });
+
+  it('focus opens the tooltip at the newest point, every series in full with cents', () => {
+    const { fixture, el, control } = setup();
+    control.dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    const text = tipText(el)!;
+    expect(text).toContain('dia 30');
+    expect(text).toContain('MRR R$ 3.000,00');
+    expect(text).toContain('Estimado R$ 3.100,00');
+    expect(el.querySelectorAll('[data-active-dot]')).toHaveLength(2);
+  });
+
+  it('arrows move the reading; a null point says "sem dado" and gets no marker', () => {
+    const { fixture, el, control } = setup();
+    control.dispatchEvent(new FocusEvent('focus'));
+    control.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+    fixture.detectChanges();
+    expect(tipText(el)).toContain('MRR R$ 2.500,50');
+    control.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+    fixture.detectChanges();
+    const text = tipText(el)!;
+    expect(text).toContain('dia 10');
+    expect(text).toContain('MRR sem dado');
+    expect(el.querySelectorAll('[data-active-dot]')).toHaveLength(1);
+    expect(control.getAttribute('aria-valuetext')).toBe('dia 10: MRR sem dado, Estimado R$ 1.500,00');
+  });
+
+  it('Escape and blur close the reading', () => {
+    const { fixture, el, control } = setup();
+    control.dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(tipText(el)).toBeNull();
+    control.dispatchEvent(new FocusEvent('focus'));
+    control.dispatchEvent(new FocusEvent('blur'));
+    fixture.detectChanges();
+    expect(tipText(el)).toBeNull();
+  });
+
+  it('a pointer (mouse or tap) reads the nearest point; a finger lifting keeps it, a mouse leaving closes it', () => {
+    const { fixture, el, control } = setup();
+    control.getBoundingClientRect = () => ({ left: 0, width: 300, top: 0, height: 100, right: 300, bottom: 100, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    control.dispatchEvent(pointer('pointerdown', { clientX: 5, pointerType: 'touch' }));
+    fixture.detectChanges();
+    expect(tipText(el)).toContain('dia 1');
+    control.dispatchEvent(pointer('pointerleave', { pointerType: 'touch' }));
+    fixture.detectChanges();
+    expect(tipText(el)).toContain('dia 1');
+    control.dispatchEvent(pointer('pointermove', { clientX: 210, pointerType: 'mouse' }));
+    fixture.detectChanges();
+    expect(tipText(el)).toContain('dia 20');
+    control.dispatchEvent(pointer('pointerleave', { pointerType: 'mouse' }));
+    fixture.detectChanges();
+    expect(tipText(el)).toBeNull();
+  });
+
+  it('a custom formatter is used in the tooltip and the table', () => {
+    const { fixture, el, control } = setup(MONEY, { formatTooltip: (v: number) => `${v / 100} reais` });
+    control.dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    expect(tipText(el)).toContain('3000 reais');
+    expect(el.querySelector('table tbody td')!.textContent).toContain('1000 reais');
+  });
+
+  it('interactive=false keeps the plot out of the tab order', () => {
+    const { control } = setup(MONEY, { interactive: false });
+    expect(control.getAttribute('tabindex')).toBeNull();
+    expect(control.getAttribute('role')).toBeNull();
   });
 });
