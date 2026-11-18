@@ -8,7 +8,7 @@ import {
   AdminCouponMode,
   CouponDuration,
 } from '../../../types/admin-coupon.types';
-import { formatBRL } from '../../../types/dashboard.types';
+import { formatBrl } from '../../../pipes/brl.pipe';
 import { planTierOf } from '../../../utils/plan-features';
 import { PLAN_COPY } from '../../../utils/plan-grid-copy';
 import { formatFullDate, parseServerTime } from '../../../utils/server-time';
@@ -75,8 +75,17 @@ const GENERIC: Record<CouponAction, string> = {
   detail: 'Não foi possível carregar os usos do cupom. Tente de novo.',
 };
 
+/**
+ * O dinheiro dos cupons: o formatador único do app (`formatBrl`, "R$ 1.234,56"), com espaço
+ * comum depois do "R$". Os mesmos textos vão para a área de transferência e para o WhatsApp
+ * (mensagem pronta, código), então a pasta inteira usa este e nenhum outro.
+ */
+export function couponBrl(cents: number | null | undefined): string {
+  return formatBrl(cents).replace(/\u00A0/g, ' ');
+}
+
 export function discountLabel(coupon: Pick<AdminCoupon, 'amountOffCents' | 'percentOff'>): string {
-  if (coupon.amountOffCents !== null) return formatBRL(coupon.amountOffCents).replace(/\u00A0/g, ' ');
+  if (coupon.amountOffCents !== null) return couponBrl(coupon.amountOffCents);
   if (coupon.percentOff !== null) return `${PERCENT.format(coupon.percentOff)}%`;
   return '—';
 }
@@ -190,9 +199,29 @@ export function couponDate(value: string | null): string {
   return formatFullDate(parseServerTime(value));
 }
 
-export function validityLabel(coupon: Pick<AdminCoupon, 'mode' | 'expiresAt'>): string {
-  if (coupon.mode === 'APPLIED_TO_SUBSCRIPTION') return 'Nas próximas faturas';
-  return coupon.expiresAt ? `Até ${couponDate(coupon.expiresAt)}` : '—';
+/**
+ * A validade com o verbo certo e o ano sempre: "Até 29/11/2026", "Venceu em 02/11/2026" ou
+ * "Sem prazo" no código; "Nas próximas faturas" ou "Encerrado" no desconto direto (um desconto
+ * que acabou não promete fatura nenhuma).
+ */
+export function couponValidity(
+  coupon: Pick<AdminCoupon, 'mode' | 'status' | 'expiresAt' | 'timesRedeemed'> &
+    Partial<Pick<AdminCoupon, 'createdAt' | 'durationMonths' | 'maxRedemptions'>>,
+  now: Date,
+): string {
+  if (coupon.mode === 'APPLIED_TO_SUBSCRIPTION') {
+    return couponStatus(coupon, now).live ? 'Nas próximas faturas' : 'Encerrado';
+  }
+  const expires = parseServerTime(coupon.expiresAt);
+  if (!expires) return 'Sem prazo';
+  const date = formatFullDate(expires);
+  return expires.getTime() < now.getTime() ? `Venceu em ${date}` : `Até ${date}`;
+}
+
+/** "Criado em 30/10/2026", ou `null` sem data. */
+export function createdLabel(coupon: Pick<AdminCoupon, 'createdAt'>): string | null {
+  const created = parseServerTime(coupon.createdAt);
+  return created ? `Criado em ${formatFullDate(created)}` : null;
 }
 
 /** "Pro mensal", a partir de `PRO_MONTHLY_STRIPE`. */
@@ -327,7 +356,7 @@ export function openCodeMessage(
   }
   const plan = `o plano ${couponPlanName(coupon.planCode)}`;
   if (discountedAmountCents !== null) {
-    const price = formatBRL(discountedAmountCents).replace(/\u00A0/g, ' ');
+    const price = couponBrl(discountedAmountCents);
     return `Use o código ${code} na hora de assinar ${plan} e pague ${price} ${durationBenefit(coupon)}.`;
   }
   return `Use o código ${code} na hora de assinar ${plan} e ganhe ${discountLabel(coupon)} de desconto ${durationBenefit(coupon)}.`;

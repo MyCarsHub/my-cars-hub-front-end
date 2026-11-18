@@ -114,6 +114,8 @@ describe('CouponDetail', () => {
     expect(q(el, 'detail-discount')?.textContent).toContain('R$ 50,00');
     expect(q(el, 'detail-discount')?.textContent).toContain('por 3 meses');
     expect(q(el, 'detail-uses')?.textContent).toContain('2 / 5');
+    expect(q(el, 'detail-validity')?.textContent).toContain('Até 29/11/2099');
+    expect(q(el, 'detail-created')?.textContent).toContain('Criado em 30/10/2026');
     expect(q(el, 'detail-skeleton')).not.toBeNull();
     expect(q(el, 'detail-list')).toBeNull();
     expect(q(el, 'detail-refund-note')).toBeNull();
@@ -153,7 +155,7 @@ describe('CouponDetail', () => {
     const discount = el.querySelector('[data-kpi="discount"]') as HTMLElement;
     expect(uses.textContent).toContain('3');
     expect(discount.textContent).toContain('Desconto concedido');
-    expect(discount.textContent).toContain('R$ 100,00');
+    expect(discount.textContent?.replace(/\s+/g, ' ')).toContain('R$ 100,00');
     expect(discount.textContent).not.toContain('≈');
   });
 
@@ -184,6 +186,8 @@ describe('CouponDetail', () => {
     expect(empty?.textContent).toContain('Ninguém usou este cupom ainda.');
     expect(empty?.textContent).toContain('Quando alguém usar o código, aparece aqui.');
     expect(q(el, 'detail-list')).toBeNull();
+    // Sem linha tracejada: o vazio é um bloco preenchido.
+    expect(empty?.className).not.toMatch(/border/);
   });
 
   it('cupom direto na assinatura mostra a empresa no lugar do código e não tem copiar', () => {
@@ -192,6 +196,14 @@ describe('CouponDetail', () => {
     expect(q(el, 'detail-title')?.textContent).toContain('Locadora Teste');
     expect(q(el, 'detail-copy')).toBeNull();
     expect(q(el, 'detail-uses')).toBeNull();
+    expect(q(el, 'detail-validity')?.textContent).toContain('Nas próximas faturas');
+  });
+
+  it('desconto direto desativado não promete as próximas faturas', () => {
+    const off = { ...DIRECT, status: 'DEACTIVATED' as const };
+    service.redemptions.mockReturnValue(of(response({ coupon: off, redemptions: [] })));
+    const { el } = render(off, 'Locadora Teste');
+    expect(q(el, 'detail-validity')?.textContent?.trim()).toBe('Encerrado');
   });
 
   it('falha mostra o erro e "Tentar novamente" pede de novo', () => {

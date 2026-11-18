@@ -17,11 +17,12 @@ import { KpiCard } from '../../../components/kpi-card/kpi-card';
 import { NotificationService } from '../../../services/notification.service';
 import { AdminCoupon, CouponRedemptions } from '../../../types/admin-coupon.types';
 import { PlanResponse } from '../../../types/billing.types';
-import { formatBRL } from '../../../types/dashboard.types';
 import { AdminCouponsService } from './admin-coupons.service';
 import {
   copyCouponCode,
   couponErrorMessage,
+  couponValidity,
+  createdLabel,
   couponPlanName,
   couponStatus,
   discountLabel,
@@ -30,7 +31,6 @@ import {
   isAllPlans,
   kindLabel,
   uncoveredNote,
-  validityLabel,
 } from './coupon-copy';
 import { couponPriceRows } from './coupon-plan-prices';
 import { CouponPlanPricesTable } from './coupon-plan-prices-table';
@@ -112,7 +112,13 @@ export class CouponDetail implements OnInit {
   protected readonly uncovered = computed(() =>
     this.allPlans() ? uncoveredNote(this.live().uncoveredPlanCodes, false) : null,
   );
-  protected readonly validity = computed(() => validityLabel(this.live()));
+  protected readonly validity = computed(() => couponValidity(this.live(), this.now));
+  protected readonly created = computed(() => createdLabel(this.live()));
+  /** "2 de 5 usos": o texto do balão da barra. */
+  protected readonly usesHint = computed(() => {
+    const { timesRedeemed, maxRedemptions } = this.live();
+    return `${timesRedeemed ?? 0} de ${maxRedemptions ?? 1} usos`;
+  });
   protected readonly usesText = computed(() => usesSpaced(this.live()));
   protected readonly progress = computed(() => usesProgress(this.live()));
   protected readonly hint = computed(() => emptyHint(this.isOpen()));
@@ -122,9 +128,6 @@ export class CouponDetail implements OnInit {
       stagger: Math.min(i, STAGGER_CAP),
     })),
   );
-
-  protected readonly formatMoney = (cents: number): string =>
-    formatBRL(Math.round(cents)).replace(/\u00A0/g, ' ');
 
   ngOnInit(): void {
     this.load();

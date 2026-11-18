@@ -84,12 +84,20 @@ describe('AdminCoupons', () => {
     return { fixture, el: fixture.nativeElement as HTMLElement };
   };
 
-  /** O jsdom nao tem `matchMedia`: sem ele a tela e a de telefone. Isto liga a de `md` (tabela). */
-  const stubWide = (wide: boolean): void => {
+  /**
+   * A `app-data-list` desenha a tabela E os cartões; o CSS (que o jsdom não aplica) mostra um
+   * só. `[data-row]` é a linha da tabela (a partir de 1024px), `[data-card]` o cartão do celular.
+   */
+  const rows = (el: HTMLElement): HTMLElement[] => Array.from(el.querySelectorAll<HTMLElement>('[data-row]'));
+  const firstRow = (el: HTMLElement): HTMLElement => rows(el)[0];
+  const firstCard = (el: HTMLElement): HTMLElement => el.querySelector('[data-card]') as HTMLElement;
+
+  /** Com `matchMedia`, o movimento vale (sem "reduzir movimento"): a linha que sai se apaga antes. */
+  const stubMotion = (): void => {
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
       value: (query: string) => ({
-        matches: wide && query.includes('min-width'),
+        matches: false,
         media: query,
         addEventListener: () => undefined,
         removeEventListener: () => undefined,
@@ -103,9 +111,9 @@ describe('AdminCoupons', () => {
   };
 
   const clickDeactivate = (el: HTMLElement, fixture: ComponentFixture<AdminCoupons>): void => {
-    const card = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
-    openKebab(card, fixture);
-    (card.querySelector('[data-testid="menu-deactivate"]') as HTMLButtonElement).click();
+    const row = firstRow(el);
+    openKebab(row, fixture);
+    (row.querySelector('[data-testid="menu-deactivate"]') as HTMLButtonElement).click();
     fixture.detectChanges();
   };
 
@@ -152,23 +160,66 @@ describe('AdminCoupons', () => {
     expect(child?.loadComponent).toBeTypeOf('function');
   });
 
-  describe('lista', () => {
-    it('mostra código, empresa, desconto, duração, validade e situação', () => {
+  describe('padrão da plataforma', () => {
+    it('lista dentro do cartão "Lista", com toolbar e a lista compartilhada', () => {
       const { el } = render();
-      const row = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
-      for (const text of ['MCH-7KQ2M9XA', 'Locadora Teste', 'R$ 49,90', '2 meses', '29/11', 'Ativo']) {
+      const card = el.querySelector('app-page-card') as HTMLElement;
+      expect(card.querySelector('h2')?.textContent?.trim()).toBe('Lista');
+      expect(card.querySelector('[data-testid="create-coupon"]')).not.toBeNull();
+      expect(card.querySelector('app-list-toolbar')).not.toBeNull();
+      expect(card.querySelector('app-data-list[data-testid="coupons-list"]')).not.toBeNull();
+      expect(card.querySelector('[data-list-results]')?.textContent).toContain('2 cupons');
+      expect(card.querySelector('[data-export]')?.textContent).toContain('Exportar');
+    });
+
+    it('situação filtra por pílula (uma fileira), não por aba deslizante', () => {
+      const { el } = render();
+      expect(el.querySelector('app-pill-tabs')).toBeNull();
+      expect(el.querySelectorAll('app-list-toolbar [role="radiogroup"]')).toHaveLength(1);
+    });
+
+    it('o select de tipo tem 16px (sem zoom do iPhone)', () => {
+      const { el } = render();
+      const select = el.querySelector('[data-filter-type]') as HTMLSelectElement;
+      expect(select.className).toContain('text-base');
+      expect(select.className).not.toMatch(/(^|\s)(md:|sm:)?text-sm(\s|$)/);
+    });
+
+    it('o tipo é rótulo: chip neutro, a cor fica só na situação', () => {
+      service['list'].mockReturnValue(of([{ ...CODE, mode: 'OPEN_CODE', companyId: null }]));
+      const { el } = render();
+      const kind = firstRow(el).querySelector('[data-testid="coupon-kind"]') as HTMLElement;
+      const status = firstRow(el).querySelector('[data-testid="coupon-status"]') as HTMLElement;
+      expect(kind.textContent).toContain('Qualquer pessoa');
+      expect(kind.className).toContain('bg-surface-sunken');
+      expect(kind.className).not.toMatch(/primary/);
+      expect(status.className).toContain('bg-emerald-100');
+    });
+  });
+
+  describe('lista', () => {
+    it('mostra código, empresa, desconto, duração, validade com ano, criação e situação', () => {
+      const { el } = render();
+      const row = firstRow(el);
+      for (const text of ['MCH-7KQ2M9XA', 'Locadora Teste', 'R$ 49,90', 'por 2 meses', 'Até 29/11/2099', 'Criado em 30/10/2026', 'Ativo']) {
         expect(row.textContent).toContain(text);
       }
       expect(row.querySelector('a')?.getAttribute('href')).toBe('/admin/companies/co-1');
-      const card = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
-      expect(card.textContent).toContain('MCH-7KQ2M9XA');
     });
 
     it('cupom na assinatura diz que não tem código', () => {
       const { el } = render();
-      const row = el.querySelectorAll('[data-testid="coupon-card"]')[1] as HTMLElement;
+      const row = rows(el)[1];
       expect(row.textContent).toContain('Direto na assinatura');
       expect(row.textContent).toContain('20%');
+      expect(row.textContent).toContain('Nas próximas faturas');
+      expect(row.querySelector('[data-testid="copy-code"]')).toBeNull();
+    });
+
+    it('código vencido diz quando venceu', () => {
+      service['list'].mockReturnValue(of([{ ...CODE, expiresAt: '2026-01-02T10:00:00' }]));
+      const { el } = render();
+      expect(firstRow(el).querySelector('[data-testid="coupon-validity"]')?.textContent).toContain('Venceu em 02/01/2026');
     });
 
     it('busca cada empresa uma vez só, por mais cupons que ela tenha', () => {
@@ -179,7 +230,7 @@ describe('AdminCoupons', () => {
     it('falha ao achar o nome não derruba a lista', () => {
       service['company'].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
       const { el } = render();
-      const row = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
+      const row = firstRow(el);
       expect(row.textContent).toContain('MCH-7KQ2M9XA');
       expect(row.querySelector('a')?.textContent).toContain('co-1');
     });
@@ -216,14 +267,14 @@ describe('AdminCoupons', () => {
     ])('desconto %s não promete as próximas faturas', (_label, over, status) => {
       service['list'].mockReturnValue(of([{ ...APPLIED, ...over }]));
       const { el } = render();
-      const row = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
+      const row = firstRow(el);
       expect(row.textContent).toContain(status);
       expect(row.textContent).not.toContain('Nas próximas faturas');
     });
 
     it('chip de situação é só texto: sem bolinha dentro', () => {
       const { el } = render();
-      const chip = el.querySelector('[data-testid="coupon-card"] app-status-chip:not([data-testid="coupon-kind"])') as HTMLElement;
+      const chip = firstRow(el).querySelector('[data-testid="coupon-status"]') as HTMLElement;
       expect(chip.textContent?.trim()).toBe('Ativo');
       expect(chip.children).toHaveLength(0);
     });
@@ -242,13 +293,13 @@ describe('AdminCoupons', () => {
       expect(el.querySelector('[data-testid="empty"]')).toBeNull();
       (el.querySelector('[data-testid="retry"]') as HTMLButtonElement).click();
       fixture.detectChanges();
-      expect(el.querySelector('[data-testid="coupon-card"]')).not.toBeNull();
+      expect(firstRow(el)).toBeTruthy();
     });
 
     it('enquanto carrega mostra o esqueleto, não "nenhum cupom"', () => {
       service['list'].mockReturnValue(NEVER);
       const { el } = render();
-      expect(el.querySelector('[data-testid="skeleton"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="skeleton"] [data-loading]')).not.toBeNull();
       expect(el.querySelector('[data-testid="empty"]')).toBeNull();
     });
   });
@@ -257,28 +308,29 @@ describe('AdminCoupons', () => {
     it('Dono cria e desativa', () => {
       const { el, fixture } = render(DONO);
       expect(el.querySelector('[data-testid="create-coupon"]')).not.toBeNull();
-      const card = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
-      openKebab(card, fixture);
-      expect(card.querySelector('[data-testid="menu-copy"]')).not.toBeNull();
-      expect(card.querySelector('[data-testid="menu-deactivate"]')).not.toBeNull();
+      const row = firstRow(el);
+      openKebab(row, fixture);
+      expect(row.querySelector('[data-testid="menu-copy"]')).not.toBeNull();
+      expect(row.querySelector('[data-testid="menu-deactivate"]')).not.toBeNull();
     });
 
     it('outros papéis só leem: sem criar, sem desativar', () => {
       const { el, fixture } = render(LEITURA);
       expect(el.querySelector('[data-testid="create-coupon"]')).toBeNull();
-      const card = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
-      openKebab(card, fixture);
-      expect(card.querySelector('[data-testid="menu-copy"]')).not.toBeNull();
-      expect(card.querySelector('[data-testid="menu-deactivate"]')).toBeNull();
+      const row = firstRow(el);
+      openKebab(row, fixture);
+      expect(row.querySelector('[data-testid="menu-copy"]')).not.toBeNull();
+      expect(row.querySelector('[data-testid="menu-deactivate"]')).toBeNull();
     });
 
-    it('leitura de cupom sem código só tem "Ver detalhes" no kebab', () => {
+    it('leitura de cupom sem código: "Ver detalhes" e "Abrir empresa" no kebab', () => {
       service['list'].mockReturnValue(of([APPLIED]));
       const { el, fixture } = render(LEITURA);
-      const card = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
-      openKebab(card, fixture);
-      const items = Array.from(card.querySelectorAll('[role="menuitem"]')).map((i) => i.getAttribute('data-testid'));
-      expect(items).toEqual(['menu-detail']);
+      const row = firstRow(el);
+      openKebab(row, fixture);
+      const items = Array.from(row.querySelectorAll('[role="menuitem"]')).map((i) => i.getAttribute('data-testid'));
+      expect(items).toEqual(['menu-detail', 'menu-company']);
+      expect(row.querySelector('[data-testid="menu-company"]')?.getAttribute('href')).toBe('/admin/companies/co-1');
     });
 
     it('lista vazia para leitura não oferece criar', () => {
@@ -291,9 +343,9 @@ describe('AdminCoupons', () => {
   describe('copiar código', () => {
     it('leva o código à área de transferência', async () => {
       const { el, fixture } = render();
-      const card = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
-      openKebab(card, fixture);
-      (card.querySelector('[data-testid="menu-copy"]') as HTMLButtonElement).click();
+      const row = firstRow(el);
+      openKebab(row, fixture);
+      (row.querySelector('[data-testid="menu-copy"]') as HTMLButtonElement).click();
       await Promise.resolve();
       await Promise.resolve();
       expect(writeText).toHaveBeenCalledWith('MCH-7KQ2M9XA');
@@ -303,9 +355,9 @@ describe('AdminCoupons', () => {
     it('sem área de transferência não finge que copiou', async () => {
       writeText.mockRejectedValue(new Error('negado'));
       const { el, fixture } = render();
-      const card = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
-      openKebab(card, fixture);
-      (card.querySelector('[data-testid="menu-copy"]') as HTMLButtonElement).click();
+      const row = firstRow(el);
+      openKebab(row, fixture);
+      (row.querySelector('[data-testid="menu-copy"]') as HTMLButtonElement).click();
       await new Promise((resolve) => setTimeout(resolve));
       expect(notify.success).not.toHaveBeenCalled();
       expect(notify.warning).toHaveBeenCalledWith(expect.stringContaining('MCH-7KQ2M9XA'));
@@ -340,17 +392,33 @@ describe('AdminCoupons', () => {
       pending.next({ ...CODE, status: 'DEACTIVATED' });
       pending.complete();
       fixture.detectChanges();
-      expect(el.querySelector('[data-testid="coupon-card"]')?.textContent).toContain('Desativado');
+      expect(firstRow(el).textContent).toContain('Desativado');
       expect(notify.success).toHaveBeenCalledTimes(1);
       expect(service['list']).toHaveBeenCalledTimes(1);
+    });
+
+    it('a linha que sai do filtro se apaga antes de sumir', async () => {
+      stubMotion();
+      const { el, fixture } = render();
+      (fixture.componentInstance as unknown as { setSituationFilter(v: string): void }).setSituationFilter('ACTIVE');
+      fixture.detectChanges();
+      expect(rows(el)).toHaveLength(2);
+      clickDeactivate(el, fixture);
+      confirmButton(el).click();
+      fixture.detectChanges();
+      expect(firstRow(el).querySelector('[data-leaving]')).not.toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 320));
+      fixture.detectChanges();
+      expect(rows(el)).toHaveLength(1);
+      expect(el.querySelector('[data-leaving]')).toBeNull();
     });
 
     it('já desativado não oferece desativar de novo', () => {
       service['list'].mockReturnValue(of([{ ...CODE, status: 'DEACTIVATED' }]));
       const { el, fixture } = render();
-      const card = el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
-      openKebab(card, fixture);
-      expect(card.querySelector('[data-testid="menu-deactivate"]')).toBeNull();
+      const row = firstRow(el);
+      openKebab(row, fixture);
+      expect(row.querySelector('[data-testid="menu-deactivate"]')).toBeNull();
     });
 
     it('falha da Stripe traduz, fecha o diálogo e a linha continua ativa', () => {
@@ -360,7 +428,7 @@ describe('AdminCoupons', () => {
       confirmButton(el).click();
       fixture.detectChanges();
       expect(el.querySelector('[data-testid="action-error"]')?.textContent).toMatch(/continua como estava/i);
-      expect(el.querySelector('[data-testid="coupon-card"]')?.textContent).toContain('Ativo');
+      expect(firstRow(el).textContent).toContain('Ativo');
       // O nó do diálogo só sai depois da animação de saída: o estado é que prova.
       const c = fixture.componentInstance as unknown as { deactivating(): AdminCoupon | null };
       expect(c.deactivating()).toBeNull();
@@ -376,35 +444,42 @@ describe('AdminCoupons', () => {
       truncated: false,
     };
     const detail = (el: HTMLElement): HTMLElement | null => el.querySelector('app-coupon-detail');
-    const first = (el: HTMLElement): HTMLElement => el.querySelector('[data-testid="coupon-card"]') as HTMLElement;
 
     beforeEach(() => {
       service['redemptions'].mockReturnValue(of(redemptions));
     });
 
-    it('clicar no ingresso abre o detalhe daquele cupom', () => {
+    it('tocar no cartão do celular abre o detalhe daquele cupom', () => {
       const { el, fixture } = render();
-      first(el).click();
+      firstCard(el).click();
       fixture.detectChanges();
       expect(detail(el)).not.toBeNull();
       expect(service['redemptions']).toHaveBeenCalledWith('c-code');
     });
 
     it('clicar na linha da tabela abre o detalhe', () => {
-      stubWide(true);
       const { el, fixture } = render();
-      fixture.detectChanges();
-      const row = el.querySelector('tr[data-testid="coupon-card"]') as HTMLElement;
-      row.click();
+      firstRow(el).click();
       fixture.detectChanges();
       expect(detail(el)).not.toBeNull();
     });
 
+    it('o nome do cupom é o botão do teclado: abre o detalhe', () => {
+      const { el, fixture } = render();
+      const title = firstRow(el).querySelector('[data-testid="coupon-title"]') as HTMLButtonElement;
+      expect(title.tagName).toBe('BUTTON');
+      expect(title.getAttribute('aria-label')).toBe('Ver detalhes do cupom MCH-7KQ2M9XA');
+      title.click();
+      fixture.detectChanges();
+      expect(detail(el)).not.toBeNull();
+      expect(service['redemptions']).toHaveBeenCalledTimes(1);
+    });
+
     it('"Ver detalhes" é o primeiro item do kebab e abre o detalhe', () => {
       const { el, fixture } = render();
-      const card = first(el);
-      openKebab(card, fixture);
-      const items = Array.from(card.querySelectorAll('[role="menuitem"]'));
+      const row = firstRow(el);
+      openKebab(row, fixture);
+      const items = Array.from(row.querySelectorAll('[role="menuitem"]'));
       expect(items[0].getAttribute('data-testid')).toBe('menu-detail');
       (items[0] as HTMLButtonElement).click();
       fixture.detectChanges();
@@ -413,7 +488,7 @@ describe('AdminCoupons', () => {
 
     it('copiar o código não abre o detalhe', () => {
       const { el, fixture } = render();
-      (first(el).querySelector('[data-testid="copy-code"]') as HTMLButtonElement).click();
+      (firstRow(el).querySelector('[data-testid="copy-code"]') as HTMLButtonElement).click();
       fixture.detectChanges();
       expect(detail(el)).toBeNull();
       expect(service['redemptions']).not.toHaveBeenCalled();
@@ -421,52 +496,22 @@ describe('AdminCoupons', () => {
 
     it('abrir o kebab não abre o detalhe', () => {
       const { el, fixture } = render();
-      openKebab(first(el), fixture);
+      openKebab(firstRow(el), fixture);
       expect(detail(el)).toBeNull();
     });
 
     it('clicar no link da empresa não abre o detalhe', () => {
-      service['list'].mockReturnValue(of([APPLIED]));
       const { el, fixture } = render();
-      const link = first(el).querySelector('a') as HTMLAnchorElement;
+      const link = firstRow(el).querySelector('a') as HTMLAnchorElement;
       link.addEventListener('click', (e) => e.preventDefault());
       link.click();
       fixture.detectChanges();
       expect(detail(el)).toBeNull();
     });
 
-    it('Enter e Espaço na linha abrem; outra tecla não', () => {
-      const { el, fixture } = render();
-      const card = first(el);
-      expect(card.getAttribute('tabindex')).toBe('0');
-      card.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
-      fixture.detectChanges();
-      expect(detail(el)).toBeNull();
-      card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      fixture.detectChanges();
-      expect(detail(el)).not.toBeNull();
-    });
-
-    it('Espaço abre sem rolar a página', () => {
-      const { el, fixture } = render();
-      const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
-      first(el).dispatchEvent(event);
-      fixture.detectChanges();
-      expect(event.defaultPrevented).toBe(true);
-      expect(detail(el)).not.toBeNull();
-    });
-
-    it('Enter no botão de copiar não abre o detalhe', () => {
-      const { el, fixture } = render();
-      const button = first(el).querySelector('[data-testid="copy-code"]') as HTMLButtonElement;
-      button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      fixture.detectChanges();
-      expect(detail(el)).toBeNull();
-    });
-
     it('fechar o detalhe tira a folha da tela', async () => {
       const { el, fixture } = render();
-      first(el).click();
+      firstRow(el).click();
       fixture.detectChanges();
       (el.querySelector('[data-testid="bottom-sheet-close"]') as HTMLButtonElement).click();
       await new Promise((resolve) => setTimeout(resolve, 260));
@@ -525,9 +570,10 @@ describe('AdminCoupons', () => {
       company: COMPANY,
     });
     fixture.detectChanges();
-    expect(el.querySelector('[data-testid="coupon-card"]')?.textContent).toContain('Locadora Teste');
+    expect(firstRow(el).textContent).toContain('Locadora Teste');
     expect(service['company']).not.toHaveBeenCalled();
   });
+
   describe('código para qualquer pessoa', () => {
     const OPEN: AdminCoupon = {
       ...CODE,
@@ -539,127 +585,132 @@ describe('AdminCoupons', () => {
       maxRedemptions: 5,
     };
 
-    it('mostra o tipo, o código, os usos e nenhuma empresa, em tabela', () => {
-      stubWide(true);
+    it('mostra o tipo, o código, os usos e nenhuma empresa, na tabela', () => {
       service['list'].mockReturnValue(of([CODE, APPLIED, OPEN]));
-      const { fixture, el } = render();
-      fixture.detectChanges();
-      expect(el.querySelector('table[data-testid="coupons-list"]')).not.toBeNull();
-      const open = Array.from(el.querySelectorAll('[data-testid="coupon-card"]')).find((r) =>
-        r.textContent?.includes('MANOLO100OFF'),
-      ) as HTMLElement;
+      const { el } = render();
+      expect(el.querySelector('[data-testid="coupons-list"] table')).not.toBeNull();
+      const open = rows(el).find((r) => r.textContent?.includes('MANOLO100OFF')) as HTMLElement;
       expect(open.querySelector('[data-testid="coupon-kind"]')?.textContent).toContain('Qualquer pessoa');
       expect(open.querySelector('[data-testid="coupon-uses"]')?.textContent).toContain('2 / 5');
-      expect(open.querySelector('[data-testid="coupon-validity"]')?.textContent).toContain('29/11/2099');
+      expect(open.querySelector('[data-testid="coupon-uses"]')?.textContent).toContain('2 de 5 usos');
+      expect(open.querySelector('[data-testid="coupon-uses"] [title="2 de 5 usos"]')).not.toBeNull();
+      expect(open.querySelector('[data-testid="coupon-validity"]')?.textContent).toContain('Até 29/11/2099');
       expect(open.querySelector('a')).toBeNull();
     });
 
-    it('a tabela não tem linhas entre os registros nem sublinhado no cabeçalho', () => {
-      stubWide(true);
+    it('a lista não tem linhas entre os registros nem tracejado', () => {
       service['list'].mockReturnValue(of([CODE, APPLIED, OPEN]));
-      const { fixture, el } = render();
-      fixture.detectChanges();
-      const lined = Array.from(el.querySelectorAll('table, thead, tbody, tr, th, td')).filter((n) =>
-        /(^|\s)(border(-[btlrxy])?(-\d+)?|divide-\S+)(\s|$)/.test(n.className),
+      const { el } = render();
+      const list = el.querySelector('[data-testid="coupons-list"]') as HTMLElement;
+      const lined = Array.from(list.querySelectorAll('table, thead, tbody, tr, th, td, ul, li')).filter((n) =>
+        /(^|\s)(border(-[btlrxy])?(-\d+)?|border-dashed|divide-\S+)(\s|$)/.test(n.className),
       );
       expect(lined).toHaveLength(0);
+      expect(el.querySelectorAll('.border-dashed')).toHaveLength(0);
     });
 
-    it('no celular vira ingresso: código, desconto, linha tracejada e canhoto com as mesmas ações', () => {
+    it('no celular vira cartão: código, desconto, usos e validade, com copiar e kebab', () => {
       service['list'].mockReturnValue(of([OPEN]));
-      const { fixture, el } = render();
-      fixture.detectChanges();
-      expect(el.querySelector('table')).toBeNull();
-      const card = el.querySelector('article[data-testid="coupon-card"]') as HTMLElement;
+      const { el } = render();
+      const card = firstCard(el);
       expect(card.querySelector('[data-testid="coupon-title"]')?.textContent).toContain('MANOLO100OFF');
       expect(card.querySelector('[data-testid="coupon-discount"]')?.textContent).toContain('por 2 meses');
       expect(card.querySelector('[data-testid="coupon-uses"]')?.textContent).toContain('2 / 5');
-      expect(card.querySelector('[data-testid="coupon-validity"]')?.textContent).toContain('29/11');
-      expect(card.querySelectorAll('.border-dashed')).toHaveLength(1);
+      expect(card.querySelector('[data-testid="coupon-validity"]')?.textContent).toContain('29/11/2099');
       expect(card.querySelector('[data-testid="copy-code"]')).not.toBeNull();
       expect(card.querySelector('app-actions-menu')).not.toBeNull();
     });
 
-    it('desconto direto no ingresso: sem código, sem usos, só o kebab', () => {
+    it('desconto direto no cartão: sem código, sem usos, só o kebab', () => {
       service['list'].mockReturnValue(of([APPLIED]));
-      const { fixture, el } = render();
-      fixture.detectChanges();
-      const card = el.querySelector('article[data-testid="coupon-card"]') as HTMLElement;
+      const { el } = render();
+      const card = firstCard(el);
       expect(card.textContent).toContain('Locadora Teste');
-      expect(card.textContent).toContain('Próximas faturas');
+      expect(card.textContent).toContain('Nas próximas faturas');
       expect(card.querySelector('[data-testid="copy-code"]')).toBeNull();
-      expect(card.querySelector('[data-testid="coupon-uses"]')).toBeNull();
+      expect(card.querySelector('[data-testid="coupon-uses"]')?.textContent?.trim()).toBe('—');
       expect(card.querySelector('app-actions-menu')).not.toBeNull();
     });
 
-    it('os quatro cartões do topo trazem números da lista, com o desconto marcado como estimado', () => {
+    it('os quatro cartões do topo trazem números da lista, com o desconto estimado em reais com centavos', () => {
       service['list'].mockReturnValue(of([CODE, APPLIED, OPEN]));
       const { el } = render();
       const kpi = (name: string): string => el.querySelector(`[data-kpi="${name}"]`)?.textContent ?? '';
       expect(kpi('total')).toContain('3');
       expect(kpi('total')).toContain('ativos');
       expect(kpi('discount')).toContain('estimado');
-      expect(kpi('discount')).toContain('≈');
+      expect(kpi('discount').replace(/\s+/g, ' ')).toMatch(/≈ R\$ [\d.]+,\d{2}/);
       expect(kpi('uses')).toContain('3');
       expect(kpi('expiring')).toContain('Vencem em 7 dias');
       expect(kpi('expiring')).toContain('de 2 códigos ativos');
     });
 
-    it('as abas mostram a contagem e filtram por Ativos, Esgotados e Encerrados', () => {
+    it('as pílulas mostram a contagem e filtram por Ativos, Esgotados e Encerrados', () => {
       const EXHAUSTED: AdminCoupon = { ...OPEN, couponId: 'c-ex', promotionCode: 'BLACK15', timesRedeemed: 5 };
       const ENDED: AdminCoupon = { ...CODE, couponId: 'c-off', promotionCode: 'OLD-1', status: 'DEACTIVATED' };
       service['list'].mockReturnValue(of([CODE, OPEN, EXHAUSTED, ENDED]));
       const { fixture, el } = render();
-      const tab = (v: string): HTMLButtonElement => el.querySelector(`[data-testid="tab-${v}"]`) as HTMLButtonElement;
-      const cards = (): number => el.querySelectorAll('[data-testid="coupon-card"]').length;
-      expect(tab('ALL').textContent).toContain('4');
-      expect(tab('ACTIVE').textContent).toContain('2');
-      expect(tab('EXHAUSTED').textContent).toContain('1');
-      expect(tab('ENDED').textContent).toContain('1');
-      expect(tab('ALL').getAttribute('aria-checked')).toBe('true');
-      tab('EXHAUSTED').click();
+      const pill = (label: string): HTMLButtonElement =>
+        Array.from(el.querySelectorAll<HTMLButtonElement>('app-list-toolbar [role="radio"]')).find((b) =>
+          b.textContent?.trim().startsWith(label),
+        ) as HTMLButtonElement;
+      expect(pill('Todos').textContent).toContain('4');
+      expect(pill('Ativos').textContent).toContain('2');
+      expect(pill('Esgotados').textContent).toContain('1');
+      expect(pill('Encerrados').textContent).toContain('1');
+      expect(pill('Todos').getAttribute('aria-checked')).toBe('true');
+      pill('Esgotados').click();
       fixture.detectChanges();
-      expect(cards()).toBe(1);
-      expect(el.querySelector('[data-testid="coupon-title"]')?.textContent).toContain('BLACK15');
-      expect(tab('EXHAUSTED').getAttribute('aria-checked')).toBe('true');
-      tab('ENDED').click();
+      expect(rows(el)).toHaveLength(1);
+      expect(firstRow(el).querySelector('[data-testid="coupon-title"]')?.textContent).toContain('BLACK15');
+      expect(pill('Esgotados').getAttribute('aria-checked')).toBe('true');
+      pill('Encerrados').click();
       fixture.detectChanges();
-      expect(el.querySelector('[data-testid="coupon-status"]')?.textContent).toContain('Desativado');
+      expect(firstRow(el).querySelector('[data-testid="coupon-status"]')?.textContent).toContain('Desativado');
     });
 
     it('busca pelo código e filtra por tipo e situação', () => {
       service['list'].mockReturnValue(of([CODE, APPLIED, OPEN]));
       const { fixture, el } = render();
       const page = fixture.componentInstance as unknown as {
-        searchControl: { setValue(v: string): void };
+        setQuery(v: string): void;
         setTypeFilter(v: string): void;
         setSituationFilter(v: string): void;
       };
-      const cards = (): number => el.querySelectorAll('[data-testid="coupon-card"]').length;
-      expect(cards()).toBe(3);
-      page.searchControl.setValue('manolo');
+      expect(rows(el)).toHaveLength(3);
+      page.setQuery('manolo');
       fixture.detectChanges();
-      expect(cards()).toBe(1);
-      page.searchControl.setValue('');
+      expect(rows(el)).toHaveLength(1);
+      page.setQuery('');
       page.setTypeFilter('APPLIED_TO_SUBSCRIPTION');
       fixture.detectChanges();
-      expect(cards()).toBe(1);
+      expect(rows(el)).toHaveLength(1);
       page.setSituationFilter('ENDED');
       fixture.detectChanges();
       expect(el.querySelector('[data-testid="empty-filtered"]')).not.toBeNull();
-      const select = el.querySelector('[data-filter-type]') as HTMLSelectElement;
-      select.value = 'ALL';
-      select.dispatchEvent(new Event('change'));
-      (el.querySelector('[data-testid="empty-filtered"] [data-clear-filters]') as HTMLButtonElement).click();
+      expect(el.querySelector('[data-list-clear]')).not.toBeNull();
+      (el.querySelector('[data-testid="empty-filtered"]') as HTMLButtonElement).click();
       fixture.detectChanges();
-      expect(cards()).toBe(3);
+      expect(rows(el)).toHaveLength(3);
+      expect((el.querySelector('[data-filter-type]') as HTMLSelectElement).value).toBe('ALL');
+    });
+
+    it('a busca do toolbar filtra a lista', () => {
+      service['list'].mockReturnValue(of([CODE, APPLIED, OPEN]));
+      const { fixture, el } = render();
+      const input = el.querySelector('[data-list-search]') as HTMLInputElement;
+      expect(input.className).toContain('text-base');
+      input.value = 'locadora';
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      expect(rows(el)).toHaveLength(2);
+      expect(el.querySelector('[data-list-results]')?.textContent).toContain('2 cupons');
     });
 
     it('copia o código com um toque', async () => {
       service['list'].mockReturnValue(of([OPEN]));
       const { fixture, el } = render();
-      fixture.detectChanges();
-      (el.querySelector('[data-testid="coupon-card"] [data-testid="copy-code"]') as HTMLButtonElement).click();
+      (firstRow(el).querySelector('[data-testid="copy-code"]') as HTMLButtonElement).click();
       await Promise.resolve();
       expect(writeText).toHaveBeenCalledWith('MANOLO100OFF');
       await Promise.resolve();
