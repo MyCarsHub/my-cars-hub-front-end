@@ -1130,7 +1130,7 @@ export const routes: Routes = [
                                     import('./pages/admin/billing/admin-billing').then(
                                         (m) => m.AdminBilling,
                                     ),
-                                data: { pageTitle: 'Billing' },
+                                data: { pageTitle: 'Assinaturas' },
                             },
                             {
                                 // Lista para quem le; criar e desativar exigem cupom.gerir.

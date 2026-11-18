@@ -89,7 +89,7 @@ export const ADMIN_MENU: readonly AdminMenuGroup[] = [
       },
       {
         id: 'billing',
-        label: 'Billing',
+        label: 'Assinaturas',
         route: '/admin/billing',
         icon: 'M12 3v18M17 7H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H6',
         capability: 'ver',
