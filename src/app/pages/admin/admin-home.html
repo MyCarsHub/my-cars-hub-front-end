@@ -4,15 +4,15 @@
 >
   <div pageActions class="flex flex-wrap gap-2">
     @if (canManageCosts()) {
-      <button
-        type="button"
+      <a
         data-testid="launch-cost"
-        class="press min-h-11 px-4 rounded-full bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600
+        [routerLink]="costsRoute"
+        [queryParams]="launchCostParams"
+        class="press inline-flex items-center min-h-11 px-4 rounded-full bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-        (click)="openCostSheet()"
       >
         Lançar custo
-      </button>
+      </a>
     }
     <button
       type="button"
@@ -98,7 +98,7 @@
           [detail]="k.detail"
           [pressable]="k.action !== null"
           [ariaLabel]="k.action ? k.label + ': lançar custo' : null"
-          (pressed)="k.action && openCostSheet(k.action)"
+          (pressed)="k.action && openCosts(k.action)"
         ></div>
       }
       <!-- Valor gerenciado: recebido em caixa, com o esperado e quanto dele já entrou embaixo. -->
@@ -211,7 +211,7 @@
           <app-ring-legend-card
             data-vendor-ring
             title="Custos por fornecedor"
-            subtitle="Guardados à mão, com um lançamento por fornecedor a cada mês"
+            subtitle="Somados por fornecedor: os fixos lançam sozinhos todo mês, os avulsos entram em Custos"
             [slices]="vendorSlices()"
             valueFormat="brl-cents"
             [totalLabel]="'custo em ' + currentMonthName()"
@@ -220,17 +220,18 @@
       } @else {
         <app-page-card title="Custos por fornecedor" [fill]="true">
           <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 flex-1" data-vendor-empty>
-            <p class="-mt-3 text-xs text-fg-subtle">Guardados à mão, com um lançamento por fornecedor a cada mês</p>
+            <p class="-mt-3 text-xs text-fg-subtle">Somados por fornecedor: os fixos lançam sozinhos todo mês, os avulsos entram em Custos</p>
             <p class="text-sm text-fg-soft py-4">Nenhum custo lançado em {{ currentMonthName() }}.</p>
             @if (canManageCosts()) {
-              <button
-                type="button"
-                class="press self-start min-h-11 px-4 rounded-full bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600
+              <a
+                data-testid="vendor-empty-launch"
+                [routerLink]="costsRoute"
+                [queryParams]="firstCostParams"
+                class="press self-start inline-flex items-center min-h-11 px-4 rounded-full bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-                (click)="openCostSheet()"
               >
                 Lançar custo
-              </button>
+              </a>
             }
           </div>
         </app-page-card>
@@ -373,7 +374,7 @@
             [detail]="t.detail"
             [pressable]="t.action !== null"
             [ariaLabel]="t.action ? t.label + ': ' + (t.action === 'acquisition' ? 'informar o gasto com aquisição' : 'lançar custo') : null"
-            (pressed)="t.action && openCostSheet(t.action)"
+            (pressed)="t.action && openCosts(t.action)"
           ></div>
         }
       </div>
@@ -402,9 +403,6 @@
       <div class="flex flex-col gap-3 min-w-0">
         <app-home-upcoming
           [scope]="scope()"
-          [reloadKey]="upcomingReloadKey()"
-          [canManage]="canManageCosts()"
-          (askBillingDay)="askBillingDay()"
         />
         <app-home-activity-map [usage]="usage()" [loading]="usageLoading()" />
       </div>
@@ -519,14 +517,4 @@
       />
     </div>
   </div>
-
-  @if (sheetIntent(); as intent) {
-    <app-cost-sheet
-      [vendors]="vendors()"
-      [intent]="intent"
-      [vendorId]="sheetVendorId()"
-      (saved)="onCostSaved()"
-      (closed)="closeSheet()"
-    />
-  }
 </app-default-page-layout>

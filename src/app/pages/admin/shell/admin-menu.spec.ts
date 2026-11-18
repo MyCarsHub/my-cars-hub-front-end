@@ -76,7 +76,7 @@ describe('Menu da administração — capacidades', () => {
   it('Leitura (só "ver") enxerga apenas itens de leitura', () => {
     const visible = ids((c) => c === 'ver');
     expect(visible).toEqual([
-      'home', 'users', 'companies', 'charges', 'billing', 'coupons', 'support', 'notifications', 'audit',
+      'home', 'users', 'companies', 'charges', 'billing', 'coupons', 'costs', 'support', 'notifications', 'audit',
     ]);
     expect(visible).not.toContain('admins');
     expect(visible).not.toContain('blog');
@@ -119,7 +119,7 @@ describe('Menu da administração — modelo da sidebar (FIX-0864)', () => {
       'Auditoria',
     ]);
     const dinheiro = items.find((i) => i.label === 'Dinheiro')!;
-    expect(dinheiro.children!.map((c) => c.label)).toEqual(['Cobranças', 'Assinaturas', 'Cupons']);
+    expect(dinheiro.children!.map((c) => c.label)).toEqual(['Cobranças', 'Assinaturas', 'Cupons', 'Custos']);
     expect(dinheiro.route).toBeUndefined();
     const operacao = items.find((i) => i.label === 'Operação')!;
     expect(operacao.children!.map((c) => c.label)).toEqual([

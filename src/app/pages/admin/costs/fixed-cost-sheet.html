@@ -1,0 +1,95 @@
+<app-bottom-sheet [title]="title()" [subtitle]="subtitle()" [busy]="saving()" (closed)="closed.emit()">
+  <form class="flex flex-col gap-4" data-testid="fixed-cost-sheet" (ngSubmit)="submit()" novalidate>
+    @if (!editing()) {
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-fg-muted">Fornecedor</span>
+        <select [formControl]="vendorControl" data-testid="fixed-vendor" [class]="field">
+          @for (v of activeVendors(); track v.id) {
+            <option [value]="v.id">{{ optionLabel(v) }}</option>
+          }
+          <option [value]="newVendor">Novo fornecedor…</option>
+        </select>
+      </label>
+      @if (creatingVendor()) {
+        <app-vendor-fields class="rounded-2xl bg-surface-sunken p-4" data-testid="fixed-new-vendor" [form]="vendorForm" />
+      }
+    }
+
+    <label class="flex flex-col gap-1">
+      <span class="text-sm font-medium text-fg-muted">Serviço</span>
+      <input type="text" autocomplete="off" [attr.maxlength]="maxService" placeholder="Ex.: Plano Pro"
+             [formControl]="serviceControl" data-testid="fixed-service" [class]="field" />
+      @if (!editing()) {
+        <span class="text-xs text-fg-subtle">Um fornecedor pode ter mais de um custo fixo. Ex.: Vercel tem o Plano Pro e o domínio.</span>
+      }
+    </label>
+
+    <div class="grid grid-cols-2 gap-3">
+      @if (!editing()) {
+        <label class="flex flex-col gap-1 min-w-0">
+          <span class="text-sm font-medium text-fg-muted">Valor por mês</span>
+          <input type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"
+                 [formControl]="amountControl" (input)="onAmountInput($event)"
+                 [attr.aria-invalid]="amountError() ? 'true' : null"
+                 [attr.aria-describedby]="amountError() ? 'fixed-amount-error' : null"
+                 data-testid="fixed-amount" [class]="field + ' tabular-nums'" />
+          @if (amountError(); as msg) {
+            <span id="fixed-amount-error" class="text-sm text-rose-700 dark:text-rose-300">{{ msg }}</span>
+          }
+        </label>
+      }
+      <label class="flex flex-col gap-1 min-w-0" [class.col-span-2]="editing()">
+        <span class="text-sm font-medium text-fg-muted">Dia de cobrança</span>
+        <input type="text" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="1 a 31"
+               [formControl]="dayControl" data-testid="fixed-day" [class]="field + ' tabular-nums'" />
+      </label>
+    </div>
+    @if (editing()) {
+      <p class="rounded-2xl bg-surface-sunken px-4 py-3 text-sm text-fg">
+        Vale para os meses deste custo fixo que não foram editados. O dia muda o vencimento deste mês em diante; os
+        meses passados ficam como estão.
+      </p>
+    } @else {
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-fg-muted">Começa em</span>
+        <input type="month" [min]="minStart()" [formControl]="startControl" data-testid="fixed-start"
+               [class]="field + ' tabular-nums'" />
+      </label>
+
+      <div class="flex flex-col gap-2">
+        <span class="text-sm font-medium text-fg-muted">Termina</span>
+        <app-pill-tabs [options]="endOptions" [value]="endChoice()" ariaLabel="Termina" (selected)="setEnd($event)" />
+        @if (endChoice() === 'month') {
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-fg-muted">Último mês</span>
+            <input type="month" [min]="startControl.value" [formControl]="endControl" data-testid="fixed-end"
+                   [class]="field + ' tabular-nums'" />
+          </label>
+        }
+      </div>
+
+      @if (summary(); as text) {
+        <p class="rounded-2xl bg-surface-sunken px-4 py-3 text-sm text-fg" data-testid="fixed-summary" aria-live="polite">{{ text }}</p>
+      }
+    }
+
+    @if (error(); as msg) {
+      <app-alert-banner variant="error" [message]="msg" data-testid="fixed-error" />
+    }
+
+    <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true">Salvar</button>
+  </form>
+
+  <div sheetFooter class="pt-3 flex flex-col-reverse gap-2 lg:flex-row lg:justify-end">
+    <button type="button" data-testid="fixed-cancel" (click)="cancel()"
+            class="press min-h-12 rounded-xl border border-edge px-5 text-base font-semibold text-fg hover:bg-surface-muted
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+      Cancelar
+    </button>
+    <button type="button" data-testid="fixed-save" [disabled]="saving()" (click)="submit()"
+            class="press min-h-12 rounded-xl bg-primary-500 px-5 text-base font-semibold text-white hover:bg-primary-600
+                   disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+      {{ saving() ? 'Salvando…' : editing() ? 'Salvar' : 'Salvar custo fixo' }}
+    </button>
+  </div>
+</app-bottom-sheet>

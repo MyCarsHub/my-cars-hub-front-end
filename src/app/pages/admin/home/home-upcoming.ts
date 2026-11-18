@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
@@ -35,16 +35,20 @@ export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
         incoming: true,
         note: r.amountSource === 'LIST_PRICE' ? 'preço de tabela' : null,
       })),
-    ...data.payables.map((p) => ({
-      key: `p-${p.vendorId}-${p.dueDate}`,
+    // Um fornecedor pode ter vários custos no mesmo dia (Vercel: Plano Pro e Domínio): a chave e o
+    // rótulo levam o custo, não só o fornecedor.
+    ...data.payables.map((p, i) => ({
+      key: `p-${p.costId ?? p.scheduleId ?? p.vendorId}-${p.dueDate}-${i}`,
       date: p.dueDate,
-      label: `Pagar: ${p.vendorName}`,
+      label: p.description ? `Pagar: ${p.vendorName} · ${p.description}` : `Pagar: ${p.vendorName}`,
       value: p.amountCents === null ? 'sem valor' : `− ${formatBrl(p.amountCents)}`,
       incoming: false,
       note:
         p.amountCents === null
           ? 'nenhum custo lançado'
-          : p.amountMonth
+          : p.costId === null
+            ? 'previsto pelo custo fixo'
+            : p.amountMonth
             ? `valor de ${monthShort(p.amountMonth)}`
             : null,
     })),
@@ -53,10 +57,10 @@ export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
 }
 
 /**
- * "Próximos vencimentos": o que a plataforma recebe (renovações) e paga (fornecedores com dia de
- * cobrança) nos próximos 30 dias. Entrada em verde e saída em preto (cores da marca), só no texto
- * do valor; o sinal (+ / −) diz a direção sem depender da cor.
- * Fornecedor sem dia de cobrança não some em silêncio: o aviso abre o "Lançar custo" nele.
+ * "Próximos vencimentos": o que a plataforma recebe (renovações) e paga (lançamentos do mês com
+ * vencimento e custos fixos ainda não lançados, pelo dia de cobrança) nos próximos 30 dias. Entrada
+ * em verde e saída em preto (cores da marca), só no texto do valor; o sinal (+ / −) diz a direção
+ * sem depender da cor. O dia de cobrança é obrigatório no custo fixo: não há mais fornecedor "sem dia".
  */
 @Component({
   selector: 'app-home-upcoming',
@@ -110,23 +114,6 @@ export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
                 · pagar {{ money(d.payablesTotalCents) }}
               }
             </p>
-            @if (d.vendorsWithoutBillingDay > 0) {
-              @if (canManage()) {
-                <button
-                  type="button"
-                  data-billing-day-prompt
-                  class="press self-start min-h-11 rounded-xl bg-surface-sunken px-3 text-sm font-semibold text-fg-body
-                         hover:bg-surface-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                  (click)="askBillingDay.emit()"
-                >
-                  Informe o dia de cobrança de {{ vendorsText(d.vendorsWithoutBillingDay) }}
-                </button>
-              } @else {
-                <p class="text-xs text-fg-subtle">
-                  {{ vendorsText(d.vendorsWithoutBillingDay) }} sem dia de cobrança: o "pagar" fica incompleto.
-                </p>
-              }
-            }
           }
         }
       </div>
@@ -140,8 +127,6 @@ export class HomeUpcoming {
   readonly scope = input.required<AdminHomeScope>();
   /** Muda depois de um lançamento de custo: recarrega. */
   readonly reloadKey = input(0);
-  readonly canManage = input(false);
-  readonly askBillingDay = output<void>();
 
   protected readonly data = signal<AdminUpcoming | null>(null);
   protected readonly loading = signal(true);
@@ -199,9 +184,5 @@ export class HomeUpcoming {
 
   protected money(cents: number): string {
     return formatBrl(cents);
-  }
-
-  protected vendorsText(n: number): string {
-    return n === 1 ? '1 fornecedor' : `${n} fornecedores`;
   }
 }

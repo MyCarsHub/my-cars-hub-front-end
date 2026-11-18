@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { NEVER, Subject, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -338,24 +338,28 @@ describe('AdminHome v2 — Lançar custo', () => {
     expect(setup({ codes: ['ver', 'custo.gerir'] }).host.querySelector('[data-testid="launch-cost"]')).not.toBeNull();
   });
 
-  it('abre a folha de custo', async () => {
-    const { host, fixture } = setup({ codes: ['ver', 'custo.gerir'] });
-    host.querySelector<HTMLButtonElement>('[data-testid="launch-cost"]')!.click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(document.querySelector('[data-testid="cost-sheet"]')).not.toBeNull();
+  it('leva à página de Custos, na folha do avulso', () => {
+    const { host } = setup({ codes: ['ver', 'custo.gerir'] });
+    const link = host.querySelector<HTMLAnchorElement>('[data-testid="launch-cost"]')!;
+    expect(link.tagName).toBe('A');
+    expect(link.getAttribute('href')).toBe('/admin/custos?acao=avulso');
   });
 
-  it('o lucro sem custo vira atalho para lançar (para o Dono)', async () => {
+  it('o lucro sem custo vira atalho para "Novo custo fixo" na página de Custos (para o Dono)', async () => {
     const { host, fixture } = setup({ codes: ['ver', 'custo.gerir'] });
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const card = kpiCard(host, 'profit');
     expect(card.getAttribute('role')).toBe('button');
     card.click();
     fixture.detectChanges();
     await fixture.whenStable();
-    fixture.detectChanges();
-    expect(document.querySelector('[data-testid="cost-sheet"]')).not.toBeNull();
+    expect(navigate).toHaveBeenCalledWith(['/admin/custos'], { queryParams: { acao: 'fixo' } });
+  });
+
+  it('a folha antiga de custo não existe mais no Painel', () => {
+    const { host } = setup({ codes: ['ver', 'custo.gerir'] });
+    expect(host.querySelector('app-cost-sheet')).toBeNull();
   });
 
   it('sem custo.gerir o cartão nulo não é botão', () => {

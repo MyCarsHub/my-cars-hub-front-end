@@ -1142,6 +1142,15 @@ export const routes: Routes = [
                                 data: { pageTitle: 'Cupons' },
                             },
                             {
+                                // Custos da plataforma: le com `ver`; escrever pede custo.gerir (o servidor confere).
+                                path: 'custos',
+                                loadComponent: () =>
+                                    import('./pages/admin/costs/admin-costs').then(
+                                        (m) => m.AdminCosts,
+                                    ),
+                                data: { pageTitle: 'Custos' },
+                            },
+                            {
                                 // Admin v2 P0 — so leitura ("atrasado e nossa prova").
                                 path: 'cobrancas',
                                 loadComponent: () =>
