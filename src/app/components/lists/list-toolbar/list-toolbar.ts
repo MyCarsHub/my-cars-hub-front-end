@@ -140,7 +140,7 @@ export class ListToolbar<T = string> {
   readonly status = input<T | null>(null);
   readonly statusLabel = input('Filtrar por situação');
 
-  /** Records matching the current filters. `null` hides the line. */
+  /** Records matching the current filters. `null` shows no count (the line stays only for "Limpar filtros"). */
   readonly resultCount = input<number | null>(null);
   /** Singular and plural, e.g. `['usuário', 'usuários']`. */
   readonly resultNoun = input<readonly [string, string]>(['resultado', 'resultados']);
@@ -156,9 +156,14 @@ export class ListToolbar<T = string> {
   protected readonly draft = signal('');
   private timer: ReturnType<typeof setTimeout> | null = null;
 
-  protected readonly resultsText = computed(() =>
-    resultsLabel(this.resultCount() ?? 0, this.resultNoun()),
-  );
+  /**
+   * `null` = the page does not know the count (e.g. a filter the server does not apply): say
+   * nothing rather than "0 resultados". The line still exists for "Limpar filtros".
+   */
+  protected readonly resultsText = computed(() => {
+    const count = this.resultCount();
+    return count === null ? '' : resultsLabel(count, this.resultNoun());
+  });
 
   constructor() {
     effect(() => {
