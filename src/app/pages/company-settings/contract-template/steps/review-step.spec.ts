@@ -78,4 +78,39 @@ describe('ContractReviewStep', () => {
     expect(button.textContent).toContain('Copiado');
     expect(button.querySelector('.pop')).not.toBeNull();
   });
+
+  it('campo do contrato no trecho da outra parte: avisa antes de salvar, com o lado e o trecho', () => {
+    const { host } = mount({
+      misplaced: [
+        { field: 'driverCpf', label: 'CPF do motorista', foundIn: 'COMPANY', paragraphId: 'p0001',
+          excerpt: 'LOCADOR: {{companyName}}, CPF {{driverCpf}}.' },
+        { field: 'companyCnpj', label: 'CNPJ da locadora', foundIn: 'DRIVER', paragraphId: 'p0002',
+          excerpt: 'LOCATÁRIO: {{driverName}}, CNPJ {{companyCnpj}}.' },
+      ],
+    });
+    const notice = host.querySelector('[data-misplaced]') as HTMLElement;
+
+    expect(notice).not.toBeNull();
+    expect(notice.textContent).toContain('2 dados no lado errado do contrato');
+    expect(notice.textContent).toContain('CPF do motorista');
+    expect(notice.textContent).toContain('Dado do motorista no trecho da locadora');
+    expect(notice.textContent).toContain('CNPJ da locadora');
+    expect(notice.textContent).toContain('Dado da locadora no trecho do motorista');
+    expect(notice.textContent).toContain('CPF {{driverCpf}}');
+    expect(notice.textContent).not.toMatch(/\bIA\b/);
+    // Aviso, não trava: o salvar mora no pai e nada aqui fica desabilitado.
+    expect(host.querySelector('button[disabled]')).toBeNull();
+  });
+
+  it('um dado só: singular; sem nenhum, o aviso não aparece', () => {
+    const one = mount({
+      misplaced: [{ field: 'driverRg', label: 'RG do motorista', foundIn: 'COMPANY', paragraphId: 'p0001',
+        excerpt: 'LOCADOR: RG {{driverRg}}' }],
+    }).host;
+    expect(one.querySelector('[data-misplaced]')?.textContent).toContain('1 dado no lado errado do contrato');
+
+    TestBed.resetTestingModule();
+    const none = mount().host;
+    expect(none.querySelector('[data-misplaced]')).toBeNull();
+  });
 });

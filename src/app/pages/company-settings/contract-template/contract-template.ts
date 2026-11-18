@@ -188,9 +188,9 @@ export class ContractTemplate implements OnInit {
   private readonly impersonation = inject(ImpersonationService);
 
   /**
-   * Sessão de suporte («Ver como», leitura ou edição): «Remover» some. O suporte sobe e troca o
-   * contrato, mas não o apaga (auditoria 16/11, M3); o servidor recusa de qualquer jeito.
-   * `?.` porque dublês de spec antigos não conhecem `active`.
+   * Sessão de suporte («Ver como», leitura ou edição): «Remover» some. Decisão do dono (18/11):
+   * o suporte troca e adapta o contrato, nunca o apaga; o servidor recusa o DELETE em qualquer
+   * sessão de suporte. `?.` porque dublês de spec antigos não conhecem `active`.
    */
   protected readonly supportSession = () => this.impersonation.active?.() === true;
 
