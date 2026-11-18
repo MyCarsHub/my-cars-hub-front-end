@@ -19,6 +19,24 @@ function render(rows: HeatmapRow[] = ROWS) {
   return fixture.nativeElement as HTMLElement;
 }
 
+/** jsdom may lack PointerEvent: a bubbling MouseEvent with the pointer type is what the grid reads. */
+function pointer(type: string, pointerType: string): Event {
+  const ev = new MouseEvent(type, { bubbles: true });
+  Object.defineProperty(ev, 'pointerType', { value: pointerType });
+  return ev;
+}
+
+
+/** Tooltip as text: "title | series value | ..." (the template has no spaces between nodes). */
+function readTip(root: Element | null | undefined): string | null {
+  if (!root) return null;
+  const title = root.querySelector('[data-tip-title]')?.textContent?.trim() ?? '';
+  const rows = [...root.querySelectorAll('[data-tip-row]')].map((r) =>
+    [...r.children].map((c) => c.textContent!.trim()).filter(Boolean).join(' '),
+  );
+  return [title, ...rows].join(' | ').replace(/\s+/g, ' ');
+}
+
 describe('heatLevel', () => {
   it('zero is the empty tile, the max is full, small values never vanish', () => {
     expect(heatLevel(0, 8)).toBe(0);
@@ -52,11 +70,52 @@ describe('Heatmap', () => {
     expect(cells[1]).toEqual(['Ter', '1', 'sem dado', '2']);
   });
 
-  it('the tooltip says the value with its unit', () => {
-    const el = render();
+  it('hover/tap on a tile opens a tooltip: row, column, value with its unit; hollow tile says "sem dado"', () => {
+    const fixture = TestBed.createComponent(Heatmap);
+    fixture.componentRef.setInput('rows', ROWS);
+    fixture.componentRef.setInput('columns', ['0h', '2h', '4h']);
+    fixture.componentRef.setInput('ariaLabel', 'Ações por dia e hora');
+    fixture.componentRef.setInput('unit', 'ações');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
     const tiles = el.querySelectorAll<HTMLElement>('[data-heat-cell]');
-    expect(tiles[2].getAttribute('title')).toBe('Seg 4h: 8 ações');
-    expect(tiles[4].getAttribute('title')).toBe('Ter 2h: sem dado');
+    expect(tiles[2].getAttribute('title')).toBeNull();
+    tiles[2].dispatchEvent(pointer('pointerdown', 'touch'));
+    fixture.detectChanges();
+    let tip = readTip(el.querySelector('[data-chart-tooltip]'))!;
+    expect(tip).toContain('Seg');
+    expect(tip).toContain('4h 8 ações');
+    tiles[4].dispatchEvent(pointer('pointermove', 'mouse'));
+    fixture.detectChanges();
+    tip = readTip(el.querySelector('[data-chart-tooltip]'))!;
+    expect(tip).toContain('2h sem dado');
+    el.querySelector('[data-heatmap]')!.dispatchEvent(pointer('pointerleave', 'mouse'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-chart-tooltip]')).toBeNull();
+  });
+
+  it('the grid is one keyboard stop; arrows walk the tiles and announce them politely', () => {
+    const fixture = TestBed.createComponent(Heatmap);
+    fixture.componentRef.setInput('rows', ROWS);
+    fixture.componentRef.setInput('columns', ['0h', '2h', '4h']);
+    fixture.componentRef.setInput('ariaLabel', 'Ações por dia e hora');
+    fixture.componentRef.setInput('unit', 'ações');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const grid = el.querySelector<HTMLElement>('[data-heatmap]')!;
+    expect(grid.getAttribute('tabindex')).toBe('0');
+    grid.dispatchEvent(new FocusEvent('focus'));
+    grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-heat-live]')!.textContent).toBe('Ter 2h: sem dado');
+    grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'End' }));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-heat-live]')!.textContent).toBe('Ter 4h: 2 ações');
+    expect(el.querySelector('[data-chart-tooltip]')!.textContent).toContain('2 ações');
+    grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-chart-tooltip]')).toBeNull();
   });
 
   it('never paints the brand orange by default', () => {
