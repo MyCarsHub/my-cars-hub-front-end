@@ -2,14 +2,17 @@ import type { KpiDelta } from '../../../components/kpi-card/kpi-card';
 import { formatKpiNumber } from '../../../components/kpi-card/kpi-card';
 import type { StatusChipTone } from '../../../components/core/status-chip/status-chip';
 import type { HeatmapRow } from '../../../components/charts/heatmap/heatmap';
+import { chartSeriesColors } from '../../../components/charts/chart-tooltip/chart-tooltip';
 import { buildCsv, type CsvColumn } from '../../../components/lists/data-list/data-list-csv';
-import type {
-  AdminHome,
-  AdminHomeGranularity,
-  CompanyHealth,
-  CompanyHealthReason,
-  HeatCell,
-  HomeKpi,
+import {
+  ADMIN_RANGE_MAX_DAYS,
+  type AdminHome,
+  type AdminHomeGranularity,
+  type AdminHomeRange,
+  type CompanyHealth,
+  type CompanyHealthReason,
+  type HeatCell,
+  type HomeKpi,
 } from '../../../types/admin-home.types';
 import { companyRoleLabel } from '../../../utils/role-labels';
 
@@ -31,6 +34,48 @@ export function dayLabel(iso: string | null | undefined): string | null {
 export function shortDay(iso: string): string {
   const [, m, d] = iso.slice(0, 10).split('-');
   return `${d}/${m}`;
+}
+
+// ------------------------------------------------------------------ período
+
+const DAY_MS = 86_400_000;
+
+/** `YYYY-MM-DD` mais `days` dias (aritmética de calendário em UTC, sem fuso). */
+export function addDays(iso: string, days: number): string {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** Dias de `from` a `to`, contando os dois (`2026-11-01`..`2026-11-01` = 1). */
+export function spanDays(from: string, to: string): number {
+  const at = (iso: string) => {
+    const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((at(to) - at(from)) / DAY_MS) + 1;
+}
+
+/**
+ * O intervalo das pílulas como o servidor aceita (contrato `changed:` 18/11). O seletor calcula
+ * pelo relógio do navegador; o servidor recusa `to` depois de hoje em São Paulo e janela maior que
+ * {@link ADMIN_RANGE_MAX_DAYS}. Aqui o fim fica em hoje (São Paulo) e o começo, dentro do limite.
+ * A tela mostra as datas que o SERVIDOR devolve, então um corte aqui aparece escrito.
+ */
+export function clampRange(range: AdminHomeRange, today: string): AdminHomeRange {
+  const to = range.to > today ? today : range.to;
+  let from = range.from > to ? to : range.from;
+  const floor = addDays(to, -(ADMIN_RANGE_MAX_DAYS - 1));
+  if (from < floor) from = floor;
+  return { from, to };
+}
+
+/**
+ * A janela do feed de movimentações: o período da tela, até `maxDays` dias contados do fim (o
+ * servidor recusa mais de 366). Período mais longo mostra os últimos `maxDays` dias dele.
+ */
+export function movementsWindow(range: AdminHomeRange, maxDays = 366): AdminHomeRange {
+  const floor = addDays(range.to, -(maxDays - 1));
+  return { from: range.from < floor ? floor : range.from, to: range.to };
 }
 
 /** `2026-11` -> `nov` (ou `nov/26` quando a janela cruza o ano). */
@@ -72,8 +117,20 @@ export function monthLabels(months: readonly string[]): string[] {
  * base para porcentagem), não há chip: a tela não inventa "↗ 100%".
  */
 export function percentDelta(kpi: HomeKpi | null | undefined, caption: string, upIsBad = false): KpiDelta | null {
-  if (!kpi || kpi.value === null || kpi.previous === null || kpi.previous === 0) return null;
-  const change = (kpi.value - kpi.previous) / Math.abs(kpi.previous);
+  return valueDelta(kpi?.value ?? null, kpi?.previous ?? null, caption, upIsBad);
+}
+
+/** {@link percentDelta} for two loose numbers (the revenue block's period against the previous one). */
+export function valueDelta(
+  value: number | null | undefined,
+  previous: number | null | undefined,
+  caption: string,
+  upIsBad = false,
+): KpiDelta | null {
+  if (value === null || value === undefined || previous === null || previous === undefined || previous === 0) {
+    return null;
+  }
+  const change = (value - previous) / Math.abs(previous);
   const pct = Math.round(change * 100);
   const arrow = pct > 0 ? '↗' : pct < 0 ? '↘' : '→';
   const up = pct > 0;
@@ -177,18 +234,8 @@ export function roleLabel(role: string | null | undefined): string {
   return companyRoleLabel(role);
 }
 
-export function roleTone(role: string | null | undefined): StatusChipTone {
-  switch (role) {
-    case 'OWNER':
-      return 'orange';
-    case 'MANAGER':
-      return 'blue';
-    case 'DRIVER':
-      return 'green';
-    default:
-      return 'neutral';
-  }
-}
+/** Papel é chip NEUTRO (padrão da plataforma, `members/people-table.ts`): só situação tem cor. */
+export const ROLE_TONE: StatusChipTone = 'neutral';
 
 export const HEALTH_LABEL: Record<CompanyHealth, string> = {
   HEALTHY: 'Saudável',
@@ -455,24 +502,20 @@ export function resultTone(result: string): StatusChipTone {
 // ------------------------------------------------------------------ cores de dado
 
 /**
- * Cor estável por fornecedor (a ordem da lista de fornecedores). Nunca o laranja da marca: cor de
- * dado não pode parecer botão.
+ * Cor de cada fornecedor, a mesma no anel e nas colunas: `chartSeriesColors` pelo total de cada
+ * fornecedor na janela (até 4: laranja, verde, preto, cinza na ordem da lista; mais de 4: o maior
+ * laranja, o segundo verde, o resto cinza). Só cores da marca e neutros.
  */
-export const VENDOR_COLORS: readonly string[] = [
-  '#8b5cf6',
-  '#ec4899',
-  '#3b82f6',
-  '#f59e0b',
-  '#14b8a6',
-  '#94a3b8',
-  '#64748b',
-  '#a3e635',
-  '#f472b6',
-  '#38bdf8',
-];
-
-export function vendorColor(index: number): string {
-  return VENDOR_COLORS[((index % VENDOR_COLORS.length) + VENDOR_COLORS.length) % VENDOR_COLORS.length];
+export function vendorColors(home: AdminHome | null): Map<string, string> {
+  const vendors = home?.costs.vendors ?? [];
+  const totals = vendors.map((v) =>
+    (home?.costs.months ?? []).reduce(
+      (sum, m) => sum + m.byVendor.filter((r) => r.vendorId === v.vendorId).reduce((t, r) => t + r.amountCents, 0),
+      0,
+    ),
+  );
+  const colors = chartSeriesColors(totals);
+  return new Map(vendors.map((v, i) => [v.vendorId, colors[i]]));
 }
 
 // ------------------------------------------------------------------ CSV

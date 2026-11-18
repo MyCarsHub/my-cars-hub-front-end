@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { NEVER, Subject, of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AdminHome } from './admin-home';
 import { AdminHomeService } from './home/admin-home.service';
@@ -14,7 +14,7 @@ import { AdminCapabilitiesService } from '../../services/admin-capabilities.serv
 import { NotificationService } from '../../services/notification.service';
 import { AdminRevenueService } from './revenue/admin-revenue.service';
 import type { AdminOverviewResponse } from '../../types/admin-overview.types';
-import type { AdminHome as AdminHomeData, AdminHomePeriod, AdminHomeScope } from '../../types/admin-home.types';
+import type { AdminHome as AdminHomeData, AdminHomeRange, AdminHomeScope } from '../../types/admin-home.types';
 import { HOME, USAGE } from './home/admin-home.testing';
 import type { AdminCapabilityCode } from '../../types/admin-roles.types';
 
@@ -37,9 +37,17 @@ const OVERVIEW: AdminOverviewResponse = {
 
 const flat = (el: Element | null): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
+/**
+ * O relógio fica em 18/11/2026 03:00 em São Paulo (06:00 UTC): é 18/11 também no navegador de
+ * quem roda o spec (de UTC-3 a UTC+14), então "7 dias" e "Mês atual" dão as mesmas datas em
+ * qualquer fuso da máquina.
+ */
+const NOW = new Date('2026-11-18T06:00:00Z');
+const MONTH_TO_DATE: AdminHomeRange = { from: '2026-11-01', to: '2026-11-18' };
+
 interface Setup {
   codes?: AdminCapabilityCode[];
-  home?: (period: AdminHomePeriod, scope: AdminHomeScope) => unknown;
+  home?: (range: AdminHomeRange, scope: AdminHomeScope) => unknown;
 }
 
 function setup(opts: Setup = {}) {
@@ -47,10 +55,11 @@ function setup(opts: Setup = {}) {
   const homeSvc = {
     home: vi.fn(
       opts.home ??
-        ((period: AdminHomePeriod, scope: AdminHomeScope) => of({ ...HOME, meta: { ...HOME.meta, period, scope } })),
+        ((range: AdminHomeRange, scope: AdminHomeScope) =>
+          of({ ...HOME, meta: { ...HOME.meta, period: 'custom', scope, from: range.from, to: range.to } })),
     ),
-    usage: vi.fn((period: AdminHomePeriod, scope: AdminHomeScope) =>
-      of({ ...USAGE, meta: { ...USAGE.meta, period, scope } }),
+    usage: vi.fn((range: AdminHomeRange, scope: AdminHomeScope) =>
+      of({ ...USAGE, meta: { ...USAGE.meta, period: 'custom', scope, from: range.from, to: range.to } }),
     ),
     upcoming: vi.fn(() =>
       of({
@@ -66,6 +75,7 @@ function setup(opts: Setup = {}) {
     companies: vi.fn(() => of({ content: [], page: 0, size: 20, total: 0 })),
     movements: vi.fn(() => of({ content: [], page: 0, size: 10, total: 0 })),
   };
+  const revenueSvc = { fetch: vi.fn(() => NEVER) };
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     imports: [AdminHome],
@@ -75,7 +85,7 @@ function setup(opts: Setup = {}) {
       provideHttpClient(),
       provideHttpClientTesting(),
       { provide: AdminHomeService, useValue: homeSvc },
-      { provide: AdminRevenueService, useValue: { fetch: () => NEVER } },
+      { provide: AdminRevenueService, useValue: revenueSvc },
       {
         provide: AdminMetricsService,
         useValue: {
@@ -95,7 +105,7 @@ function setup(opts: Setup = {}) {
   const fixture = TestBed.createComponent(AdminHome);
   fixture.detectChanges();
   fixture.detectChanges();
-  return { fixture, host: fixture.nativeElement as HTMLElement, homeSvc };
+  return { fixture, host: fixture.nativeElement as HTMLElement, homeSvc, revenueSvc };
 }
 
 function kpiCard(host: HTMLElement, key: string): HTMLElement {
@@ -103,6 +113,23 @@ function kpiCard(host: HTMLElement, key: string): HTMLElement {
   expect(el, `cartão ${key}`).not.toBeNull();
   return el as HTMLElement;
 }
+
+function pill(host: HTMLElement, label: string): HTMLElement {
+  const found = Array.from(host.querySelectorAll<HTMLElement>('app-date-range-picker button')).find(
+    (b) => flat(b) === label,
+  );
+  expect(found, `pílula "${label}"`).toBeTruthy();
+  return found as HTMLElement;
+}
+
+/** O `Intl` escreve "R$" com espaço não quebrável. */
+const plain = (text: string): string => text.replace(/ /g, ' ');
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => vi.useRealTimers());
 
 describe('AdminHome v2 — cartões', () => {
   beforeEach(() => TestBed.resetTestingModule());
@@ -117,7 +144,7 @@ describe('AdminHome v2 — cartões', () => {
     const { host } = setup();
     const card = kpiCard(host, 'mrrReal');
     expect(card.className).toContain('bg-primary-500');
-    expect(flat(card)).toContain('R$ 569');
+    expect(plain(flat(card))).toContain('R$ 569,10');
     expect(flat(card)).toContain('↗ 137%');
     expect(flat(card)).toContain('vs 01/12');
   });
@@ -126,7 +153,7 @@ describe('AdminHome v2 — cartões', () => {
     const card = kpiCard(setup().host, 'mrrEstimated');
     expect(card.className).not.toContain('bg-primary-500');
     // Owner rule 18/11/2026: KPI money always shows cents.
-    expect(flat(card)).toContain('R$ 768,50');
+    expect(plain(flat(card))).toContain('R$ 768,50');
     expect(flat(card)).toContain('preço de tabela');
   });
 
@@ -148,16 +175,16 @@ describe('AdminHome v2 — cartões', () => {
     expect(flat(kpiCard(host, 'subs'))).toContain('conversões no período');
   });
 
-  it('valor gerenciado mostra o esperado E o recebido, lado a lado', () => {
+  it('valor gerenciado é o cartão verde pintado, com recebido e esperado completos, com centavos', () => {
     const { host } = setup();
     const card = kpiCard(host, 'managed');
-    // Compacto para caber lado a lado sem quebrar o número; o exato fica no title.
-    expect(flat(card.querySelector('[data-managed-expected]'))).toBe('R$ 120,4k');
-    const title = (sel: string) => card.querySelector(sel)?.getAttribute('title')?.replace(/\s/g, ' ');
-    expect(title('[data-managed-expected]')).toBe('R$ 120.416,87');
-    expect(flat(card.querySelector('[data-managed-received]'))).toBe('R$ 80k');
-    expect(title('[data-managed-received]')).toBe('R$ 80.000,00');
-    expect(flat(card)).toContain('66,4% do esperado já entrou');
+    expect(card.className).toContain('bg-emerald-600');
+    const text = plain(flat(card));
+    expect(text).toContain('R$ 80.000,00');
+    expect(text).toContain('de R$ 120.416,87 esperados pelo vencimento (66,4% já entrou)');
+    // Nada abreviado no cartão, nada escondido no title (regra do dono 18/11).
+    expect(text).not.toMatch(/\dk\b/);
+    expect(card.querySelector('[title]')).toBeNull();
   });
 });
 
@@ -172,33 +199,108 @@ describe('AdminHome v2 — chips, período e escopo', () => {
     expect(host.querySelector('[data-chip="reconciliation"]')!.getAttribute('aria-label')).toBe('1 falha de conciliação');
   });
 
-  it('trocar o período pede de novo com o período novo', () => {
-    const { host, fixture, homeSvc } = setup();
-    const pill = Array.from(host.querySelectorAll<HTMLButtonElement>('[role="radio"]')).find((b) => flat(b) === '30 dias');
-    pill!.click();
-    fixture.detectChanges();
-    expect(homeSvc.home).toHaveBeenLastCalledWith('30d', 'clients');
-    expect(homeSvc.usage).toHaveBeenLastCalledWith('30d', 'clients');
+  it('UM controle de período na tela: as pílulas do dashboard do dono, e a receita sem pílulas próprias', () => {
+    const { host } = setup();
+    expect(host.querySelectorAll('app-date-range-picker')).toHaveLength(1);
+    const labels = Array.from(host.querySelectorAll('app-date-range-picker button')).map(flat);
+    expect(labels).toEqual(['Hoje', '7 dias', 'Mês atual', '30 dias', 'Mês passado', 'Este ano', 'Personalizado']);
+    expect(host.querySelector('app-admin-revenue-section app-pill-tabs')).toBeNull();
+    expect(host.querySelector('[data-admin-home] app-pill-tabs[ariaLabel="Período"]')).toBeNull();
   });
 
-  it('"Com contas internas" pede o escopo all para a tela inteira', () => {
-    const { host, fixture, homeSvc } = setup();
-    const pill = Array.from(host.querySelectorAll<HTMLButtonElement>('[role="radio"]')).find((b) =>
-      flat(b).includes('Com contas internas'),
+  it('abre em "Mês atual" até HOJE, com as datas escritas, e pede home, uso, receita e feed com elas', () => {
+    const { host, homeSvc, revenueSvc } = setup();
+    expect(homeSvc.home).toHaveBeenLastCalledWith(MONTH_TO_DATE, 'clients');
+    expect(homeSvc.usage).toHaveBeenLastCalledWith(MONTH_TO_DATE, 'clients');
+    expect(revenueSvc.fetch).toHaveBeenLastCalledWith(MONTH_TO_DATE);
+    expect(homeSvc.movements).toHaveBeenLastCalledWith(
+      expect.objectContaining({ from: '2026-11-01', to: '2026-11-18', includeInternal: false }),
     );
-    pill!.click();
+    expect(flat(host.querySelector('[data-range-text]'))).toBe('01/11/2026 a 18/11/2026');
+  });
+
+  it('a linha de datas mostra o intervalo que o SERVIDOR usou', () => {
+    const { host } = setup({
+      home: (_range, scope) => of({ ...HOME, meta: { ...HOME.meta, scope, from: '2026-11-02', to: '2026-11-17' } }),
+    });
+    expect(flat(host.querySelector('[data-range-text]'))).toBe('02/11/2026 a 17/11/2026');
+  });
+
+  it('trocar a pílula pede a tela inteira de novo com as datas novas', () => {
+    const { host, fixture, homeSvc, revenueSvc } = setup();
+    pill(host, '7 dias').click();
     fixture.detectChanges();
-    expect(homeSvc.home).toHaveBeenLastCalledWith('12m', 'all');
+    const week = { from: '2026-11-12', to: '2026-11-18' };
+    expect(homeSvc.home).toHaveBeenLastCalledWith(week, 'clients');
+    expect(homeSvc.usage).toHaveBeenLastCalledWith(week, 'clients');
+    expect(revenueSvc.fetch).toHaveBeenLastCalledWith(week);
+    expect(homeSvc.movements).toHaveBeenLastCalledWith(expect.objectContaining(week));
+  });
+
+  it('"Incluir contas internas" pede o escopo all para a tela inteira', () => {
+    const { host, fixture, homeSvc } = setup();
+    host.querySelector<HTMLInputElement>('[data-testid="toggle-internal"]')!.click();
+    fixture.detectChanges();
+    expect(homeSvc.home).toHaveBeenLastCalledWith(MONTH_TO_DATE, 'all');
     expect(homeSvc.movements).toHaveBeenLastCalledWith(expect.objectContaining({ includeInternal: true }));
     expect(homeSvc.upcoming).toHaveBeenLastCalledWith('all');
   });
 
-  it('resposta de outro período nunca aparece sob a pílula marcada', () => {
-    const late = new Subject<AdminHomeData>();
-    const { host, fixture } = setup({ home: () => late });
-    late.next({ ...HOME, meta: { ...HOME.meta, period: '30d' } });
+  it('resposta de outro período nunca aparece sob as datas marcadas', () => {
+    const replies: Subject<AdminHomeData>[] = [];
+    const { host, fixture } = setup({
+      home: () => {
+        const reply = new Subject<AdminHomeData>();
+        replies.push(reply);
+        return reply;
+      },
+    });
+    pill(host, '7 dias').click();
     fixture.detectChanges();
-    expect(flat(kpiCard(host, 'mrrReal'))).not.toContain('R$ 569');
+    // A resposta atrasada do "Mês atual" chega depois da troca: não pinta nada.
+    replies[0].next(HOME);
+    fixture.detectChanges();
+    expect(plain(flat(kpiCard(host, 'mrrReal')))).not.toContain('R$ 569');
+    replies[replies.length - 1].next(HOME);
+    fixture.detectChanges();
+    expect(plain(flat(kpiCard(host, 'mrrReal')))).toContain('R$ 569,10');
+  });
+
+  it('período que terminou antes de hoje: os cartões do mês dizem qual mês', () => {
+    const { host } = setup({
+      home: (range, scope) =>
+        of({
+          ...HOME,
+          meta: { ...HOME.meta, scope, from: range.from, to: range.to, live: false, referenceMonth: '2026-10' },
+        }),
+    });
+    expect(flat(kpiCard(host, 'profit'))).toContain('Lucro de outubro');
+    expect(flat(kpiCard(host, 'costs'))).toContain('nenhum custo lançado em outubro');
+    expect(flat(kpiCard(host, 'managed'))).toContain('Gerenciado em out');
+  });
+});
+
+describe('AdminHome v2 — cores e gráficos', () => {
+  beforeEach(() => TestBed.resetTestingModule());
+
+  it('nenhuma cor fora da marca (roxo, azul, rosa, âmbar) nos gráficos e barras', () => {
+    const html = setup().host.innerHTML.toLowerCase();
+    for (const off of ['#8b5cf6', '#3b82f6', '#fb7185', '#60a5fa', '#f59e0b', '#a3a3a3', 'bg-blue-', 'bg-amber-', 'bg-neutral-400']) {
+      expect(html, off).not.toContain(off);
+    }
+  });
+
+  it('as colunas empilhadas dos custos têm nome para leitor de tela', () => {
+    const withCost: AdminHomeData = {
+      ...HOME,
+      costs: {
+        ...HOME.costs,
+        months: [{ month: '2026-11', totalCents: 9_900, byVendor: [{ vendorId: 'v-render', amountCents: 9_900 }] }],
+      },
+    };
+    const chart = setup({ home: () => of(withCost) }).host.querySelector('app-stacked-bar-chart');
+    expect(chart).not.toBeNull();
+    expect(chart!.innerHTML).toContain('empilhados por fornecedor');
   });
 });
 
@@ -237,6 +339,15 @@ describe('AdminHome v2 — Lançar custo', () => {
 
 describe('AdminHome v2 — saúde, funil e uso', () => {
   beforeEach(() => TestBed.resetTestingModule());
+
+  it('saúde é uma fileira de cartões própria, que diz que não segue o período', () => {
+    const { host } = setup();
+    const section = host.querySelector('section[data-health]');
+    expect(section).not.toBeNull();
+    expect(flat(section)).toContain('não segue o período');
+    // Sem cartão dentro de cartão: a fileira não mora num app-page-card.
+    expect(section!.closest('app-page-card')).toBeNull();
+  });
 
   it('cada ladrilho de saúde diz a definição ou por que não tem número', () => {
     const { host } = setup();
@@ -293,10 +404,11 @@ describe('AdminHome v2 — cartões mantidos', () => {
     return flat(found?.nextElementSibling ?? null);
   }
 
-  function barCount(host: HTMLElement, label: string): string {
-    const found = Array.from(host.querySelectorAll('span')).find((s) => flat(s) === label);
-    expect(found, `barra "${label}"`).toBeTruthy();
-    return flat(found?.nextElementSibling ?? null);
+  function ringCount(host: HTMLElement, ring: string, label: string): string {
+    const rows = Array.from(host.querySelectorAll(`[data-status-ring="${ring}"] [data-legend-row]`));
+    const found = rows.find((r) => flat(r).startsWith(label));
+    expect(found, `fatia "${label}"`).toBeTruthy();
+    return flat(found?.querySelector('b') ?? null);
   }
 
   it('aluguéis fechados, concluídos, contratos e assinados, cada um com o seu rótulo', () => {
@@ -322,12 +434,13 @@ describe('AdminHome v2 — cartões mantidos', () => {
     expect(card.querySelector('.rounded-full.bg-success-500')).toBeNull();
   });
 
-  it('status ausente do mapa esparso vale zero', () => {
+  it('status por anel com legenda (como o dashboard do dono); ausente do mapa esparso vale zero', () => {
     const { host } = setup();
-    expect(barCount(host, 'Reservado')).toBe('7');
-    expect(barCount(host, 'Em andamento')).toBe('5');
-    expect(barCount(host, 'Concluído')).toBe('0');
-    expect(barCount(host, 'Cancelado')).toBe('0');
+    expect(host.querySelectorAll('[data-status-ring]')).toHaveLength(3);
+    expect(ringCount(host, 'rentals', 'Reservado')).toBe('7');
+    expect(ringCount(host, 'rentals', 'Em andamento')).toBe('5');
+    expect(ringCount(host, 'rentals', 'Concluído')).toBe('0');
+    expect(ringCount(host, 'rentals', 'Cancelado')).toBe('0');
   });
 
   it('a receita da plataforma continua na página, sem um segundo gráfico de MRR', () => {
