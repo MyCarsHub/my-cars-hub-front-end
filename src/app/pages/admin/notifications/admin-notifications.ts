@@ -12,22 +12,37 @@ import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { KpiCard } from '../../../components/kpi-card/kpi-card';
+import { StatusChip, type StatusChipTone } from '../../../components/core/status-chip/status-chip';
 import {
   FilterChipGroup,
   FilterChipOption,
 } from '../../../components/filter-chip-group/filter-chip-group';
+import {
+  DataList,
+  DataListActions,
+  DataListCell,
+  type DataListColumn,
+} from '../../../components/lists/data-list/data-list';
+import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
+import { ListFilterSelect, ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { NotificationService } from '../../../services/notification.service';
 import { AdminChargeNotificationsService } from '../admin-charge-notifications.service';
 import {
+  AsaasNotificationDriver,
   AsaasNotificationsOverview,
   ChargeAsaasStatus,
   ChargeNotificationDay,
   ChargeNotificationItem,
 } from '../../../types/admin-charge-notifications.types';
 import { PersonNamePipe } from '../../../pipes/person-name.pipe';
+import { BrlPipe } from '../../../pipes/brl.pipe';
 
 export type DayPreset = 'today' | 'yesterday' | 'custom';
+
+/** Situação de aviso da cobrança: a pílula da lista (substitui o "Só não avisados"). */
+export type NotifiedFilter = 'all' | 'not' | 'yes';
 
 const DAY_PRESETS: readonly FilterChipOption<DayPreset>[] = [
   { value: 'today', label: 'Hoje' },
@@ -35,12 +50,29 @@ const DAY_PRESETS: readonly FilterChipOption<DayPreset>[] = [
   { value: 'custom', label: 'Escolher' },
 ];
 
-const CHIP_OK = 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200';
-const CHIP_WARN = 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200';
-const CHIP_BAD = 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-200';
-const CHIP_MUTED = 'bg-surface-sunken text-fg-soft';
+const NOTIFIED_OPTIONS: readonly FilterChipOption<NotifiedFilter>[] = [
+  { value: 'all', label: 'Todas' },
+  { value: 'not', label: 'Não avisadas' },
+  { value: 'yes', label: 'Avisadas' },
+];
+
+/**
+ * Quantas linhas a página desenha de cada vez. O dia pode ter até 2000 cobranças (teto do
+ * servidor) e a seção do Asaas lista TODOS os motoristas com falha e sem WhatsApp, sem teto.
+ * Desenhar tudo de uma vez travou uma aba em produção; a lista pagina no navegador.
+ */
+export const NOTIFICATIONS_PAGE_SIZE = 25;
 
 const BRT = 'America/Sao_Paulo';
+
+/** Um formatador só (criar `Intl` a cada célula custava em lista grande). "25/10, 05:00". */
+const DATE_TIME_BRT = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: BRT,
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
 /** `YYYY-MM-DD` do dia em Brasília — o mesmo fuso em que o backend decide "hoje". */
 export function brtIsoDate(instant: Date): string {
@@ -59,16 +91,52 @@ export function shiftIsoDate(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Texto de busca sem acento e sem caixa ("João" acha "joao"). */
+function fold(text: string | null | undefined): string {
+  return (text ?? '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase();
+}
+
+/** A fatia `page` (0-based) de `rows`. */
+export function pageSlice<T>(rows: readonly T[], page: number, size = NOTIFICATIONS_PAGE_SIZE): T[] {
+  return rows.slice(page * size, page * size + size);
+}
+
+export function pageCount(total: number, size = NOTIFICATIONS_PAGE_SIZE): number {
+  return Math.max(1, Math.ceil(total / size));
+}
+
 /**
  * Aba Notificações do painel da plataforma: por dia, se os motoristas foram
  * avisados das cobranças (e-mail das 05:00 e aviso do Asaas), com o motivo de
- * quem não foi e o reenvio do e-mail. Autocontida: só usa componentes
- * existentes do admin e não mexe no shell.
+ * quem não foi e o reenvio do e-mail.
+ *
+ * Padrão de lista do admin (18/11/2026): KPIs em `app-kpi-card`, listas em `app-data-list`
+ * (sem linhas, chip de situação, kebab por linha) com `app-list-toolbar` em cima. Os dados do
+ * dia chegam inteiros; busca, filtros e páginas são no navegador, sem nova requisição.
  */
 @Component({
   selector: 'app-admin-notifications',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PersonNamePipe, BackLink, DefaultPageLayout, PageCard, AlertBanner, FilterChipGroup],
+  imports: [
+    PersonNamePipe,
+    BrlPipe,
+    BackLink,
+    DefaultPageLayout,
+    PageCard,
+    AlertBanner,
+    FilterChipGroup,
+    KpiCard,
+    StatusChip,
+    ListToolbar,
+    ListFilterSelect,
+    DataList,
+    DataListCell,
+    DataListActions,
+    DataListMenuItem,
+  ],
   templateUrl: './admin-notifications.html',
 })
 export class AdminNotifications implements OnInit {
@@ -77,6 +145,7 @@ export class AdminNotifications implements OnInit {
   private readonly toasts = inject(NotificationService);
 
   protected readonly presets = DAY_PRESETS;
+  protected readonly notifiedOptions = NOTIFIED_OPTIONS;
   protected readonly preset = signal<DayPreset>('today');
   protected readonly customDate = signal<string>('');
   protected readonly todayIso = signal<string>(brtIsoDate(new Date()));
@@ -90,12 +159,16 @@ export class AdminNotifications implements OnInit {
   protected readonly asaasLoading = signal(false);
   protected readonly asaasError = signal<string | null>(null);
 
+  protected readonly query = signal('');
   protected readonly companyFilter = signal<string>('');
-  protected readonly onlyNotNotified = signal(false);
+  protected readonly notifiedFilter = signal<NotifiedFilter>('all');
+  protected readonly page = signal(0);
+  protected readonly failuresPage = signal(0);
+  protected readonly withoutWhatsappPage = signal(0);
 
-  /** Cobranças com reenvio em curso: o botão fica travado (clique duplo não sai). */
+  /** Cobranças com reenvio em curso: o item fica travado (clique duplo não sai). */
   protected readonly resending = signal<ReadonlySet<string>>(new Set());
-  /** Resultado do último reenvio por cobrança, mostrado no próprio cartão. */
+  /** Resultado do último reenvio por cobrança, mostrado na própria linha. */
   protected readonly resendMessages = signal<Readonly<Record<string, string>>>({});
 
   protected readonly selectedDate = computed<string>(() => {
@@ -115,15 +188,73 @@ export class AdminNotifications implements OnInit {
   protected readonly items = computed<ChargeNotificationItem[]>(() => {
     const all = this.day()?.items ?? [];
     const company = this.companyFilter();
-    const only = this.onlyNotNotified();
+    const notified = this.notifiedFilter();
+    const q = fold(this.query().trim());
     return all.filter(
-      (i) => (!company || i.companyId === company) && (!only || !i.notified),
+      (i) =>
+        (!company || i.companyId === company) &&
+        (notified === 'all' || (notified === 'not' ? !i.notified : i.notified)) &&
+        (!q ||
+          fold(i.driverFirstName).includes(q) ||
+          fold(i.companyName).includes(q) ||
+          fold(i.driverEmailMasked).includes(q)),
     );
   });
 
-  protected readonly hasFilters = computed(
-    () => !!this.companyFilter() || this.onlyNotNotified(),
+  /** Só a página atual vai para o DOM (ver `NOTIFICATIONS_PAGE_SIZE`). */
+  protected readonly pageItems = computed(() => pageSlice(this.items(), this.page()));
+  protected readonly totalPages = computed(() => pageCount(this.items().length));
+
+  protected readonly failures = computed(() => this.asaas()?.failures ?? []);
+  protected readonly failuresPageItems = computed(() =>
+    pageSlice(this.failures(), this.failuresPage()),
   );
+  protected readonly failuresPages = computed(() => pageCount(this.failures().length));
+
+  protected readonly withoutWhatsapp = computed(() => this.asaas()?.withoutWhatsappDrivers ?? []);
+  protected readonly withoutWhatsappPageItems = computed(() =>
+    pageSlice(this.withoutWhatsapp(), this.withoutWhatsappPage()),
+  );
+  protected readonly withoutWhatsappPages = computed(() => pageCount(this.withoutWhatsapp().length));
+
+  protected readonly hasFilters = computed(
+    () => !!this.companyFilter() || this.notifiedFilter() !== 'all' || !!this.query().trim(),
+  );
+
+  protected readonly chargeColumns: readonly DataListColumn<ChargeNotificationItem>[] = [
+    { key: 'driver', header: 'Motorista', primary: true, value: (i) => i.driverFirstName },
+    {
+      key: 'notified',
+      header: 'Situação',
+      value: (i) => (i.notified ? 'Avisado' : `Não avisado: ${i.notNotifiedReason ?? ''}`),
+    },
+    { key: 'amount', header: 'Valor', kind: 'money-cents', end: true, value: (i) => i.amountCents },
+    { key: 'due', header: 'Vencimento', value: (i) => this.formatIsoDate(i.dueDate) },
+    { key: 'email', header: 'E-mail das 05:00', value: (i) => i.email.label },
+    { key: 'asaas', header: 'Aviso do Asaas', value: (i) => i.asaas.label },
+  ];
+
+  protected readonly failureColumns: readonly DataListColumn<AsaasNotificationDriver>[] = [
+    { key: 'driver', header: 'Motorista', primary: true, value: (d) => d.driverFirstName },
+    {
+      key: 'state',
+      header: 'Situação',
+      kind: 'status',
+      value: (d) => d.label,
+      tone: (d) => this.asaasTone(d),
+    },
+    { key: 'reason', header: 'Motivo', value: (d) => d.reason },
+    { key: 'lastAttemptAt', header: 'Última tentativa', value: (d) => this.formatTime(d.lastAttemptAt) },
+  ];
+
+  protected readonly withoutWhatsappColumns: readonly DataListColumn<AsaasNotificationDriver>[] = [
+    { key: 'driver', header: 'Motorista', primary: true, value: (d) => d.driverFirstName },
+    { key: 'channels', header: 'Canais do aviso', value: (d) => this.channels(d) },
+  ];
+
+  protected readonly chargeRowId = (i: ChargeNotificationItem): string => i.chargeId;
+  protected readonly driverRowId = (d: AsaasNotificationDriver, index: number): string =>
+    `${d.companyId}:${d.driverFirstName}:${index}`;
 
   ngOnInit(): void {
     this.loadDay();
@@ -135,6 +266,7 @@ export class AdminNotifications implements OnInit {
       this.customDate.set(this.todayIso());
     }
     this.preset.set(value);
+    this.page.set(0);
     this.loadDay();
   }
 
@@ -143,24 +275,47 @@ export class AdminNotifications implements OnInit {
     if (!value) return;
     this.customDate.set(value);
     this.preset.set('custom');
+    this.page.set(0);
     this.loadDay();
+  }
+
+  protected setQuery(value: string): void {
+    this.query.set(value);
+    this.page.set(0);
   }
 
   protected onCompanyFilter(event: Event): void {
     this.companyFilter.set((event.target as HTMLSelectElement).value);
+    this.page.set(0);
   }
 
   protected selectCompany(companyId: string): void {
     this.companyFilter.set(this.companyFilter() === companyId ? '' : companyId);
+    this.page.set(0);
   }
 
-  protected onOnlyNotNotified(event: Event): void {
-    this.onlyNotNotified.set((event.target as HTMLInputElement).checked);
+  protected setNotifiedFilter(value: NotifiedFilter): void {
+    this.notifiedFilter.set(value);
+    this.page.set(0);
   }
 
   protected clearFilters(): void {
+    this.query.set('');
     this.companyFilter.set('');
-    this.onlyNotNotified.set(false);
+    this.notifiedFilter.set('all');
+    this.page.set(0);
+  }
+
+  protected goToPage(page: number): void {
+    if (page >= 0 && page < this.totalPages()) this.page.set(page);
+  }
+
+  protected goToFailuresPage(page: number): void {
+    if (page >= 0 && page < this.failuresPages()) this.failuresPage.set(page);
+  }
+
+  protected goToWithoutWhatsappPage(page: number): void {
+    if (page >= 0 && page < this.withoutWhatsappPages()) this.withoutWhatsappPage.set(page);
   }
 
   protected reloadDay(): void {
@@ -204,24 +359,25 @@ export class AdminNotifications implements OnInit {
 
   // ------------------------------------------------------------ apresentação
 
-  protected emailChip(item: ChargeNotificationItem): string {
+  /** Cor do chip do e-mail (só tons da marca: verde, âmbar, vermelho, neutro). */
+  protected emailTone(item: ChargeNotificationItem): StatusChipTone {
     switch (item.email.state) {
       case 'SENT':
-        return CHIP_OK;
+        return 'green';
       case 'SKIPPED':
-        return CHIP_WARN;
+        return 'amber';
       case 'NOT_RECORDED':
-        return item.email.reason === 'Aguardando o envio das 05:00' ? CHIP_MUTED : CHIP_BAD;
+        return item.email.reason === 'Aguardando o envio das 05:00' ? 'neutral' : 'red';
       default:
-        return CHIP_BAD;
+        return 'red';
     }
   }
 
-  protected asaasChip(status: { state: string; outdatedPolicy?: boolean }): string {
-    if (status.state === 'CONFIGURED') return status.outdatedPolicy ? CHIP_WARN : CHIP_OK;
-    if (status.state === 'PARTIAL') return CHIP_WARN;
-    if (status.state === 'NOT_APPLICABLE') return CHIP_MUTED;
-    return CHIP_BAD;
+  protected asaasTone(status: { state: string; outdatedPolicy?: boolean }): StatusChipTone {
+    if (status.state === 'CONFIGURED') return status.outdatedPolicy ? 'amber' : 'green';
+    if (status.state === 'PARTIAL') return 'amber';
+    if (status.state === 'NOT_APPLICABLE') return 'neutral';
+    return 'red';
   }
 
   protected channels(status: { email: boolean; sms: boolean; whatsapp: boolean }): string {
@@ -260,13 +416,6 @@ export class AdminNotifications implements OnInit {
     return 'em andamento';
   }
 
-  protected formatCents(cents: number | null): string {
-    if (cents === null || cents === undefined) return '—';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-      cents / 100,
-    );
-  }
-
   /** `YYYY-MM-DD` → `25/10/2026`, sem passar por fuso. */
   protected formatIsoDate(iso: string | null | undefined): string {
     if (!iso) return '—';
@@ -278,13 +427,7 @@ export class AdminNotifications implements OnInit {
     if (!value) return '—';
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString('pt-BR', {
-      timeZone: BRT,
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return DATE_TIME_BRT.format(d);
   }
 
   // ----------------------------------------------------------------- dados
@@ -309,6 +452,8 @@ export class AdminNotifications implements OnInit {
         if (this.companyFilter() && !res.companies.some((c) => c.companyId === this.companyFilter())) {
           this.companyFilter.set('');
         }
+        // Um dia novo (ou o recarregar depois do reenvio) pode ter menos páginas.
+        if (this.page() >= this.totalPages()) this.page.set(0);
       },
       error: (err: HttpErrorResponse) => {
         this.day.set(null);
@@ -327,6 +472,8 @@ export class AdminNotifications implements OnInit {
       next: (res) => {
         this.asaas.set(res);
         this.asaasLoading.set(false);
+        this.failuresPage.set(0);
+        this.withoutWhatsappPage.set(0);
       },
       error: (err: HttpErrorResponse) => {
         this.asaas.set(null);
