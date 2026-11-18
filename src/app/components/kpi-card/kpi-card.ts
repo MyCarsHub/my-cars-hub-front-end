@@ -257,6 +257,9 @@ const INTERACTIVE =
       } @else if (placeholder() === 'dash') {
         <p [class]="valueClass()">—</p>
       }
+      @if (anchored() && valueTop()) {
+        <span aria-hidden="true" class="flex-1" data-kpi-spacer></span>
+      }
       @if (delta(); as d) {
         @if (d.chip) {
           <p data-kpi-delta class="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0 text-[11px] sm:text-xs" [class]="captionClass(d)">
@@ -312,6 +315,12 @@ export class KpiCard {
   readonly placeholder = input<'none' | 'dash' | 'skeleton'>('none');
   /** Número ancorado no pé do cartão e altura mínima, para uma fileira de cartões iguais. */
   readonly anchored = input(false);
+  /**
+   * Com `anchored`: o número fica logo abaixo do rótulo e o rodapé (variação, legenda) desce
+   * para o pé. Numa fileira em que uns cartões têm variação e outros não, os números ficam na
+   * mesma altura, como no desenho da Visão geral.
+   */
+  readonly valueTop = input(false);
   readonly size = input<KpiCardSize>('regular');
   /** Cor do número nas variantes não pintadas (as pintadas são sempre brancas). */
   readonly tone = input<KpiCardTone>('default');
@@ -359,7 +368,7 @@ export class KpiCard {
       ' ' +
       SIZES[this.size()].value +
       (PAINTED.has(this.variant()) || this.variant() === 'warning' ? '' : ' ' + TONES[this.tone()]) +
-      (this.anchored() ? ' mt-auto' : ''),
+      (this.anchored() && !this.valueTop() ? ' mt-auto' : ''),
   );
   protected readonly progressPct = computed(() =>
     Math.max(0, Math.min(1, this.progress() ?? 0)) * 100,

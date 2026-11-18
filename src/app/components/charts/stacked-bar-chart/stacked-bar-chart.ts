@@ -46,6 +46,36 @@ interface LegendItem {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
+    @if (layout() === 'columns') {
+      @if (columnsEmpty()) {
+        <p data-empty class="text-sm text-fg-subtle text-center py-6">{{ emptyText() }}</p>
+      } @else {
+        <div data-stack-columns class="flex items-stretch gap-1.5 sm:gap-2 min-w-0" [style.height.px]="heightPx()">
+          @for (row of renderedRows(); track row.label; let i = $index) {
+            <div
+              data-stack-column
+              class="flex-1 min-w-0 flex flex-col items-center gap-1.5"
+              role="group"
+              [attr.aria-label]="row.label + ': ' + row.totalText + (row.summary ? ' (' + row.summary + ')' : '')"
+            >
+              <div class="bar-rise w-full flex-1 min-h-0 flex flex-col-reverse gap-px" [style.--stagger-i]="i" aria-hidden="true">
+                @for (seg of row.segments; track seg.key; let last = $last) {
+                  <div
+                    data-segment
+                    class="w-full shrink-0"
+                    [class.rounded-t-[4px]]="last"
+                    [style.height.%]="seg.pct"
+                    [style.background-color]="seg.color"
+                    [attr.title]="seg.label + ': ' + seg.text"
+                  ></div>
+                }
+              </div>
+              <span class="text-[10px] sm:text-[11px] text-fg-muted whitespace-nowrap" aria-hidden="true">{{ row.label }}</span>
+            </div>
+          }
+        </div>
+      }
+    } @else {
     <div class="space-y-3 min-w-0">
       @for (row of renderedRows(); track row.label) {
         <div class="min-w-0" role="group" [attr.aria-label]="row.label + ': ' + row.summary">
@@ -71,6 +101,7 @@ interface LegendItem {
         <p class="text-sm text-fg-subtle text-center py-6">Sem dados no período.</p>
       }
     </div>
+    }
     @if (legend().length) {
       <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-fg-muted" aria-label="Legenda">
         @for (item of legend(); track item.key) {
@@ -87,6 +118,19 @@ export class StackedBarChart {
   readonly rows = input.required<readonly StackRow[]>();
   /** How a value becomes text; default counts. */
   readonly valueFormat = input<KpiNumberFormat>('integer');
+  /**
+   * `rows` (default): horizontal bars, one per row. `columns`: one vertical column per row, the
+   * parts stacked from the bottom (costs per month, a colour per vendor).
+   */
+  readonly layout = input<'rows' | 'columns'>('rows');
+  /** Plot height of the `columns` layout. */
+  readonly heightPx = input(180);
+  readonly emptyText = input('Sem dados no período.');
+
+  /** Columns with nothing above zero draw no plot at all (the empty copy says so instead). */
+  protected readonly columnsEmpty = computed(() =>
+    this.rows().every((r) => r.segments.every((s) => !(s.value > 0))),
+  );
 
   protected readonly renderedRows = computed(() => this.render());
 

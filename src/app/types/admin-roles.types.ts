@@ -24,6 +24,7 @@ export type AdminCapabilityCode =
   | 'suporte.atender'
   | 'blog'
   | 'plataforma.operar'
+  | 'custo.gerir'
   | 'novidades.gerir';
 
 export interface AdminSelf {

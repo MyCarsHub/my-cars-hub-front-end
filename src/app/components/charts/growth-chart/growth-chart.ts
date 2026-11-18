@@ -6,8 +6,11 @@ export interface GrowthSeries {
   readonly label: string;
   /** Any CSS colour. */
   readonly color: string;
-  /** One value per x label. */
-  readonly values: readonly number[];
+  /**
+   * One value per x label. `null` = not measured: the line breaks there (never drops to zero),
+   * so a series that starts later, or has a hole, draws only where it has data.
+   */
+  readonly values: readonly (number | null)[];
   /** Reference series (previous period): thinner and dashed, never filled. */
   readonly reference?: boolean;
 }
@@ -17,12 +20,31 @@ export const GROWTH_AXIS_MIN_TOP = 5;
 
 /** Pure: axis top for all series together (floor, or the real max). */
 export function growthAxisTop(series: readonly GrowthSeries[], floor = GROWTH_AXIS_MIN_TOP): number {
-  return Math.max(floor, 0, ...series.flatMap((s) => s.values));
+  return Math.max(floor, 0, ...series.flatMap((s) => s.values).filter((v): v is number => v !== null));
+}
+
+const NICE_STEPS: readonly number[] = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+
+/**
+ * Pure: the smallest axis top >= `max` whose `divisions` ticks are round numbers (steps of
+ * 1, 1.5, 2, 2.5, 3, 4, 5, 6 or 8 x 10^k). `integer` keeps every step a whole number, for counts.
+ * Without it the ticks were fractions of the max ("R$ 869", "8" for 7.5 people).
+ */
+export function niceAxisTop(max: number, divisions: number, integer = false): number {
+  if (!(max > 0) || divisions < 1) return max;
+  const raw = max / divisions;
+  const exp = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const f of NICE_STEPS) {
+    const step = f * exp;
+    if (integer && (step < 1 || !Number.isInteger(step))) continue;
+    if (step >= raw - 1e-9) return step * divisions;
+  }
+  return Math.max(integer ? Math.ceil(raw) : raw, 1) * divisions;
 }
 
 /** Pure: true when no series has a value above zero (nothing to draw but the floor). */
 export function growthIsEmpty(series: readonly GrowthSeries[]): boolean {
-  return series.every((s) => s.values.every((v) => !(v > 0)));
+  return series.every((s) => s.values.every((v) => v === null || !(v > 0)));
 }
 
 /** Keeps a control point inside the axis so a sudden jump cannot draw the curve outside it. */
@@ -40,13 +62,14 @@ export function smoothPath(
   values: readonly number[],
   top: number,
   slots: number = values.length,
+  offset = 0,
 ): { line: string; area: string } {
   if (values.length === 0) return { line: '', area: '' };
   const n = values.length;
-  const span = Math.max(slots, n);
+  const span = Math.max(slots, n + offset);
   // The axis starts at zero: a negative value sits on the floor instead of leaving the box.
   const pts = values.map((v, i) => [
-    span === 1 ? 50 : (i / (span - 1)) * 100,
+    span === 1 ? 50 : ((i + offset) / (span - 1)) * 100,
     clampY(100 - (Math.max(0, v) / top) * 100),
   ]);
   let d = `M${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
@@ -74,12 +97,13 @@ export function linearPath(
   values: readonly number[],
   top: number,
   slots: number = values.length,
+  offset = 0,
 ): { line: string; area: string } {
   if (values.length === 0) return { line: '', area: '' };
   const n = values.length;
-  const span = Math.max(slots, n);
+  const span = Math.max(slots, n + offset);
   const pts = values.map((v, i) => [
-    span === 1 ? 50 : (i / (span - 1)) * 100,
+    span === 1 ? 50 : ((i + offset) / (span - 1)) * 100,
     clampY(100 - (Math.max(0, v) / top) * 100),
   ]);
   const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(' ');
@@ -91,13 +115,38 @@ export function endPoint(
   values: readonly number[],
   top: number,
   slots: number = values.length,
+  offset = 0,
 ): { x: number; y: number } | null {
   if (values.length === 0) return null;
-  const span = Math.max(slots, values.length);
+  const span = Math.max(slots, values.length + offset);
   return {
-    x: span === 1 ? 50 : ((values.length - 1) / (span - 1)) * 100,
+    x: span === 1 ? 50 : ((values.length - 1 + offset) / (span - 1)) * 100,
     y: clampY(100 - (Math.max(0, values[values.length - 1]) / top) * 100),
   };
+}
+
+/** Pure: the unbroken stretches of measured values, each with the index it starts at. */
+export function measuredRuns(values: readonly (number | null)[]): { offset: number; values: number[] }[] {
+  const runs: { offset: number; values: number[] }[] = [];
+  let current: { offset: number; values: number[] } | null = null;
+  values.forEach((v, i) => {
+    if (v === null || v === undefined) {
+      current = null;
+      return;
+    }
+    if (!current) {
+      current = { offset: i, values: [] };
+      runs.push(current);
+    }
+    current.values.push(v);
+  });
+  return runs;
+}
+
+/** Pure: index of the last measured value, or -1. */
+export function lastMeasured(values: readonly (number | null)[]): number {
+  for (let i = values.length - 1; i >= 0; i--) if (values[i] !== null && values[i] !== undefined) return i;
+  return -1;
 }
 
 /** A labelled mark on the x axis: `index` is the position in `labels`. */
@@ -343,15 +392,16 @@ export class GrowthChart {
     const series = this.series();
     const src = series.find((x) => x.key === main?.key);
     if (!main?.end || !src) return null;
-    const idx = src.values.length - 1;
+    const idx = lastMeasured(src.values);
+    if (idx < 0) return null;
     const ref = series.find((x) => x.reference);
-    const refValue = ref?.values[idx];
+    const refValue = ref?.values[idx] ?? undefined;
     return {
       x: main.end.x,
       // below the point, like the prototype; kept inside the plot for points near the floor
       y: Math.min(main.end.y + 6, 62),
       title: `${this.tooltipLabelPrefix()}${this.labels()[idx] ?? ''}`,
-      value: formatKpiNumber(this.valueFormat(), src.values[idx]),
+      value: formatKpiNumber(this.valueFormat(), src.values[idx] as number),
       reference:
         ref && refValue !== undefined
           ? `${ref.label.toLowerCase()} ${formatKpiNumber(this.valueFormat(), refValue)}`
@@ -364,7 +414,9 @@ export class GrowthChart {
   protected readonly top = computed(() => {
     const pinned = this.axisTop();
     const real = growthAxisTop(this.series(), this.axisFloor());
-    return pinned === null ? real : Math.max(pinned, real);
+    // A pinned top is the caller's round number; only the data's own max is rounded up.
+    if (pinned !== null && pinned >= real) return pinned;
+    return niceAxisTop(real, Math.max(1, this.yDivisions()), this.valueFormat() === 'integer');
   });
 
   protected readonly positionedTicks = computed(() => {
@@ -386,14 +438,22 @@ export class GrowthChart {
     // Reference first so the main series paints over it.
     return [...this.series()]
       .sort((a, b) => Number(!!b.reference) - Number(!!a.reference))
-      .map((s) => ({
-        key: s.key,
-        label: s.label,
-        color: s.color,
-        reference: !!s.reference,
-        ...(this.smooth() ? smoothPath(s.values, top, slots) : linearPath(s.values, top, slots)),
-        end: endPoint(s.values, top, slots),
-      }));
+      .map((s) => {
+        const runs = measuredRuns(s.values);
+        const paths = runs.map((r) =>
+          this.smooth() ? smoothPath(r.values, top, slots, r.offset) : linearPath(r.values, top, slots, r.offset),
+        );
+        const last = runs[runs.length - 1];
+        return {
+          key: s.key,
+          label: s.label,
+          color: s.color,
+          reference: !!s.reference,
+          line: paths.map((p) => p.line).join(' '),
+          area: paths.map((p) => p.area).join(' '),
+          end: last ? endPoint(last.values, top, slots, last.offset) : null,
+        };
+      });
   });
 
   protected readonly yTicks = computed(() => {
@@ -411,9 +471,11 @@ export class GrowthChart {
     return out;
   });
 
-  protected text(v: number | undefined): string {
+  protected text(v: number | null | undefined): string {
     return v === undefined
       ? '—'
+      : v === null
+        ? 'sem dado'
       // The axis may be compact (R$ 10k); the text table keeps the exact value.
       : formatKpiNumber(this.valueFormat() === 'brl-cents-compact' ? 'brl-cents' : this.valueFormat(), v);
   }
