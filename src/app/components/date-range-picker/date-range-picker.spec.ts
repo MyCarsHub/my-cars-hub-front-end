@@ -184,3 +184,148 @@ describe('DateRangePicker — intervalo escrito (regra do dono 18/11/2026)', () 
     expect(formatDateRangePtBr(null)).toBeNull();
   });
 });
+
+describe('DateRangePicker — hoje em Brasília, limpar e sem futuro (lote S5)', () => {
+  let fixture: ComponentFixture<DateRangePicker>;
+  let emitted: DateRange[];
+  let cleared: number;
+
+  const root = (): HTMLElement => fixture.nativeElement as HTMLElement;
+  const rangeText = (): string | null =>
+    root().querySelector('[data-range-text]')?.textContent?.trim() ?? null;
+  const chips = () => Array.from(root().querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+  const chip = (label: string): HTMLButtonElement => chips().find((c) => c.textContent?.trim() === label)!;
+  const dateInputs = () => Array.from(root().querySelectorAll<HTMLInputElement>('input[type="date"]'));
+  const typeDate = (input: HTMLInputElement, value: string) => {
+    input.value = value;
+    input.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  };
+
+  function render(inputs: Record<string, unknown> = {}): void {
+    fixture = TestBed.createComponent(DateRangePicker);
+    for (const [key, value] of Object.entries(inputs)) fixture.componentRef.setInput(key, value);
+    emitted = [];
+    cleared = 0;
+    fixture.componentInstance.rangeChange.subscribe((r) => emitted.push(r));
+    fixture.componentInstance.rangeCleared.subscribe(() => cleared++);
+    fixture.detectChanges();
+  }
+
+  afterEach(() => vi.useRealTimers());
+
+  describe('às 22:30 de 18/11 em Brasília (01:30 de 19/11 em UTC)', () => {
+    // A browser on UTC (or east of Brasília) already reads 19/11 on its own clock.
+    const browserTz = process.env['TZ'];
+    afterEach(() => {
+      if (browserTz === undefined) delete process.env['TZ'];
+      else process.env['TZ'] = browserTz;
+    });
+    beforeEach(() => {
+      process.env['TZ'] = 'UTC';
+      expect(new Date('2026-11-19T01:30:00Z').getDate()).toBe(19);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-19T01:30:00Z'));
+      TestBed.configureTestingModule({});
+    });
+
+    it('"Hoje" é 18/11, o dia de Brasília, qualquer que seja o fuso do navegador', () => {
+      render();
+      chip('Hoje').click();
+      fixture.detectChanges();
+      expect(emitted.at(-1)).toEqual({ from: '2026-11-18', to: '2026-11-18' });
+      expect(rangeText()).toBe('18/11/2026 a 18/11/2026');
+    });
+
+    it('7 dias termina em 18/11; o dashboard (calendar) continua com o mês inteiro', () => {
+      render();
+      expect(emitted[0]).toEqual({ from: '2026-11-01', to: '2026-11-30' });
+      chip('7 dias').click();
+      expect(emitted.at(-1)).toEqual({ from: '2026-11-12', to: '2026-11-18' });
+    });
+  });
+
+  describe('às 15:30 de 18/11/2026', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-18T18:30:00Z'));
+      TestBed.configureTestingModule({});
+    });
+
+    it('sem clearable não há "Limpar período" (o dashboard sempre tem um período)', () => {
+      render();
+      expect(root().querySelector('[data-range-clear]')).toBeNull();
+    });
+
+    it('clearable: o link aparece só com chip marcado e limpar desmarca tudo e avisa', () => {
+      render({ clearable: true, initialPreset: null, periodEnd: 'today' });
+      expect(root().querySelector('[data-range-clear]')).toBeNull();
+
+      chip('Personalizado').click();
+      fixture.detectChanges();
+      typeDate(dateInputs()[0], '2026-11-01');
+      typeDate(dateInputs()[1], '2026-11-10');
+      expect(emitted.at(-1)).toEqual({ from: '2026-11-01', to: '2026-11-10' });
+
+      const clear = root().querySelector<HTMLButtonElement>('[data-range-clear]')!;
+      expect(clear.textContent?.trim()).toBe('Limpar período');
+      clear.click();
+      fixture.detectChanges();
+
+      expect(cleared).toBe(1);
+      expect(root().querySelector('[aria-checked="true"]')).toBeNull();
+      expect(dateInputs()).toHaveLength(0);
+      expect(rangeText()).toBeNull();
+      expect(root().querySelector('[data-range-clear]')).toBeNull();
+
+      // Reabrir o personalizado começa vazio.
+      chip('Personalizado').click();
+      fixture.detectChanges();
+      expect(dateInputs().map((i) => i.value)).toEqual(['', '']);
+    });
+
+    it('clear() público faz o mesmo para o "Limpar filtros" da página', () => {
+      render({ initialPreset: 'monthCurrent' });
+      fixture.componentInstance.clear();
+      fixture.detectChanges();
+      expect(cleared).toBe(1);
+      expect(root().querySelector('[aria-checked="true"]')).toBeNull();
+    });
+
+    it('allowFuture padrão: sem max nos campos e com os chips "Próximos"', () => {
+      render();
+      expect(chips().map((c) => c.textContent?.trim())).toContain('Próximos 30 dias');
+      chip('Personalizado').click();
+      fixture.detectChanges();
+      dateInputs().forEach((i) => expect(i.hasAttribute('max')).toBe(false));
+    });
+
+    it('allowFuture=false: max = hoje em Brasília, sem chips "Próximos", data futura recusada', () => {
+      render({ allowFuture: false, periodEnd: 'today' });
+      const labels = chips().map((c) => c.textContent?.trim());
+      expect(labels).not.toContain('Próximos 30 dias');
+      expect(labels).not.toContain('Próximos 90 dias');
+
+      chip('Personalizado').click();
+      fixture.detectChanges();
+      dateInputs().forEach((i) => expect(i.getAttribute('max')).toBe('2026-11-18'));
+
+      const before = emitted.length;
+      typeDate(dateInputs()[0], '2026-11-10');
+      typeDate(dateInputs()[1], '2026-11-25');
+      expect(emitted).toHaveLength(before);
+      expect(root().textContent).toContain('Escolha datas até hoje.');
+      expect(rangeText()).toBeNull();
+
+      typeDate(dateInputs()[1], '2026-11-18');
+      expect(emitted.at(-1)).toEqual({ from: '2026-11-10', to: '2026-11-18' });
+    });
+
+    it('jumpToMonth continua pulando para o mês inteiro', () => {
+      render();
+      fixture.componentRef.setInput('jumpToMonth', '2026-02');
+      fixture.detectChanges();
+      expect(emitted.at(-1)).toEqual({ from: '2026-02-01', to: '2026-02-28' });
+    });
+  });
+});

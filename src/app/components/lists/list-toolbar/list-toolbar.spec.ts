@@ -145,6 +145,20 @@ describe('ListToolbar', () => {
     expect(results()).toBeNull();
   });
 
+  it('an unknown count (null) with a filter on says nothing, never "0 resultados"; Limpar stays', () => {
+    const { fixture, el, host } = render();
+    host.count.set(null);
+    host.active.set(true);
+    fixture.detectChanges();
+    expect(el.querySelector('[data-list-results]')!.textContent!.trim()).toBe('');
+    expect(el.textContent).not.toMatch(/\d+ (usuários|resultados)/);
+    expect(el.querySelector('[data-list-clear]')).not.toBeNull();
+    // A real zero is still said.
+    host.count.set(0);
+    fixture.detectChanges();
+    expect(el.querySelector('[data-list-results]')!.textContent!.trim()).toBe('0 usuários');
+  });
+
   it('"Limpar filtros" shows only with an active filter, empties the search and emits', () => {
     const { fixture, el, host } = render();
     expect(el.querySelector('[data-list-clear]')).toBeNull();

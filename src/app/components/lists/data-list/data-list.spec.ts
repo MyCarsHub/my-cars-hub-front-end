@@ -358,3 +358,93 @@ describe('buildCsv', () => {
     expect(buildCsv([{ key: 'a', header: 'A', value: () => null }], [{}])).toBe('﻿A\r\n\r\n');
   });
 });
+
+@Component({
+  imports: [DataList, DataListActions, DataListMenuItem],
+  template: `
+    <app-data-list
+      [columns]="columns"
+      [rows]="rows()"
+      [rowId]="rowId"
+      [actionsLabel]="label()"
+      [hasActions]="can()"
+      [animateRows]="animate()"
+    >
+      <ng-template dataListActions let-row>
+        <button type="button" dataListMenuItem>Editar {{ row.plate }}</button>
+      </ng-template>
+    </app-data-list>
+  `,
+})
+class RowOptionsHost {
+  readonly columns = COLUMNS;
+  readonly rows = signal<Row[]>(ROWS);
+  readonly rowId = (r: Row) => r.id;
+  readonly label = signal<string | ((row: Row) => string)>('Mais ações');
+  readonly can = signal<((row: Row) => boolean) | null>(null);
+  readonly animate = signal(false);
+}
+
+describe('DataList — per-row kebab and entry motion (shared lot S5)', () => {
+  function renderOptions() {
+    const fixture = TestBed.createComponent(RowOptionsHost);
+    fixture.detectChanges();
+    return { fixture, el: fixture.nativeElement as HTMLElement, host: fixture.componentInstance };
+  }
+  const kebabLabels = (el: HTMLElement, scope: string) =>
+    [...el.querySelectorAll(`${scope} app-actions-menu button[aria-haspopup]`)].map((b) =>
+      b.getAttribute('aria-label'),
+    );
+
+  it('defaults: one label for every kebab, every row has one, no entry motion', () => {
+    const { el } = renderOptions();
+    expect(kebabLabels(el, '[data-table]')).toEqual(['Mais ações', 'Mais ações']);
+    expect(kebabLabels(el, '[data-cards]')).toEqual(['Mais ações', 'Mais ações']);
+    const rows = [...el.querySelectorAll<HTMLElement>('[data-row], [data-card]')];
+    rows.forEach((r) => {
+      expect(r.classList.contains('enter-up')).toBe(false);
+      expect(r.style.getPropertyValue('--stagger-i')).toBe('');
+    });
+  });
+
+  it('a function label names each kebab after its row, in both layouts', () => {
+    const { fixture, el, host } = renderOptions();
+    host.label.set((r) => `Ações do veículo ${r.plate}`);
+    fixture.detectChanges();
+    expect(kebabLabels(el, '[data-table]')).toEqual([
+      'Ações do veículo QWE-4F21',
+      'Ações do veículo =CMD("x")',
+    ]);
+    expect(kebabLabels(el, '[data-cards]')).toEqual([
+      'Ações do veículo QWE-4F21',
+      'Ações do veículo =CMD("x")',
+    ]);
+  });
+
+  it('hasActions hides the kebab of a row; the table keeps the cell so columns stay aligned', () => {
+    const { fixture, el, host } = renderOptions();
+    host.can.set((r) => r.id !== 2);
+    fixture.detectChanges();
+    const rows = el.querySelectorAll('[data-table] [data-row]');
+    expect(rows[0].querySelector('app-actions-menu')).not.toBeNull();
+    expect(rows[1].querySelector('app-actions-menu')).toBeNull();
+    expect(rows[1].querySelectorAll('td')).toHaveLength(rows[0].querySelectorAll('td').length);
+    const cards = el.querySelectorAll('[data-card]');
+    expect(cards[0].querySelector('app-actions-menu')).not.toBeNull();
+    expect(cards[1].querySelector('app-actions-menu')).toBeNull();
+  });
+
+  it('animateRows: rows and cards rise in a 40ms cascade (shared .enter-up + --stagger-i)', () => {
+    const { fixture, el, host } = renderOptions();
+    host.animate.set(true);
+    fixture.detectChanges();
+    const rows = [...el.querySelectorAll<HTMLElement>('[data-table] [data-row]')];
+    const cards = [...el.querySelectorAll<HTMLElement>('[data-card]')];
+    for (const list of [rows, cards]) {
+      expect(list.map((r) => r.classList.contains('enter-up'))).toEqual([true, true]);
+      expect(list.map((r) => r.style.getPropertyValue('--stagger-i'))).toEqual(['0', '1']);
+    }
+    // The card keeps its own box classes alongside the motion class.
+    expect(cards[0].className).toContain('rounded-xl');
+  });
+});
