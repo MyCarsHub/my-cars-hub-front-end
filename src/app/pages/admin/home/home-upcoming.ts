@@ -3,7 +3,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
 import { PageCard } from '../../../components/core/page-card/page-card';
-import { formatKpiNumber } from '../../../components/kpi-card/kpi-card';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { formatBrl } from '../../../pipes/brl.pipe';
 import { ApiErrorService } from '../../../services/api-error.service';
 import type { AdminHomeScope, AdminUpcoming } from '../../../types/admin-home.types';
 import { AdminHomeService } from './admin-home.service';
@@ -23,7 +24,6 @@ export interface DueRow {
 
 /** Pure: receber e pagar numa lista só, pela data; empate põe o receber antes. */
 export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
-  const brl = (c: number) => formatKpiNumber('brl-cents-whole', c);
   const rows: DueRow[] = [
     ...data.receivables
       .filter((r) => scope === 'all' || !r.internal)
@@ -31,7 +31,7 @@ export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
         key: `r-${r.companyId}-${r.dueDate}`,
         date: r.dueDate,
         label: `Receber: ${r.companyName} · ${r.planName}`,
-        value: `+ ${brl(r.amountCents)}`,
+        value: `+ ${formatBrl(r.amountCents)}`,
         incoming: true,
         note: r.amountSource === 'LIST_PRICE' ? 'preço de tabela' : null,
       })),
@@ -39,7 +39,7 @@ export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
       key: `p-${p.vendorId}-${p.dueDate}`,
       date: p.dueDate,
       label: `Pagar: ${p.vendorName}`,
-      value: p.amountCents === null ? 'sem valor' : `− ${brl(p.amountCents)}`,
+      value: p.amountCents === null ? 'sem valor' : `− ${formatBrl(p.amountCents)}`,
       incoming: false,
       note:
         p.amountCents === null
@@ -54,13 +54,14 @@ export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
 
 /**
  * "Próximos vencimentos": o que a plataforma recebe (renovações) e paga (fornecedores com dia de
- * cobrança) nos próximos 30 dias. Entrada em verde e saída em vermelho, só no texto do valor.
+ * cobrança) nos próximos 30 dias. Entrada em verde e saída em preto (cores da marca), só no texto
+ * do valor; o sinal (+ / −) diz a direção sem depender da cor.
  * Fornecedor sem dia de cobrança não some em silêncio: o aviso abre o "Lançar custo" nele.
  */
 @Component({
   selector: 'app-home-upcoming',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageCard],
+  imports: [PageCard, AlertBanner],
   host: { class: 'block min-w-0' },
   template: `
     <app-page-card title="Próximos vencimentos" [fill]="true">
@@ -72,11 +73,10 @@ export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
               <div class="h-9 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
             }
           </div>
-        } @else if (error()) {
-          <p role="alert" class="text-sm text-rose-700 dark:text-rose-300">
-            {{ error() }}
+        } @else if (error(); as e) {
+          <app-alert-banner [message]="e">
             <button type="button" class="ml-1 underline min-h-[44px]" (click)="reload()">Tentar novamente</button>
-          </p>
+          </app-alert-banner>
         } @else {
           <ul class="flex flex-col gap-1.5">
             @for (row of rows(); track row.key) {
@@ -90,10 +90,9 @@ export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
                 </span>
                 <b
                   class="shrink-0 text-sm tabular-nums whitespace-nowrap"
-                  [class.text-emerald-700]="row.incoming"
-                  [class.dark:text-emerald-300]="row.incoming"
-                  [class.text-rose-700]="!row.incoming"
-                  [class.dark:text-rose-300]="!row.incoming"
+                  [class.text-success-800]="row.incoming"
+                  [class.dark:text-success-100]="row.incoming"
+                  [class.text-fg]="!row.incoming"
                   >{{ row.value }}</b
                 >
               </li>
@@ -199,7 +198,7 @@ export class HomeUpcoming {
   }
 
   protected money(cents: number): string {
-    return formatKpiNumber('brl-cents-whole', cents);
+    return formatBrl(cents);
   }
 
   protected vendorsText(n: number): string {

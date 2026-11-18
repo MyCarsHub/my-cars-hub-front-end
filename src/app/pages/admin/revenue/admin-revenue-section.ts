@@ -1,69 +1,81 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
-import { BarChart } from '../../../components/charts/bar-chart/bar-chart';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { BarChart, type BarSeries } from '../../../components/charts/bar-chart/bar-chart';
+import { CHART_GREEN, chartSeriesColors } from '../../../components/charts/chart-tooltip/chart-tooltip';
 import { GrowthChart, type GrowthSeries } from '../../../components/charts/growth-chart/growth-chart';
-import { PillTabs, type PillTabOption } from '../../../components/core/pill-tabs/pill-tabs';
 import { PageCard } from '../../../components/core/page-card/page-card';
-import { KpiCard } from '../../../components/kpi-card/kpi-card';
+import { formatDateRangePtBr } from '../../../components/date-range-picker/date-range-picker';
+import { KpiCard, type KpiDelta } from '../../../components/kpi-card/kpi-card';
+import { formatBrl } from '../../../pipes/brl.pipe';
 import { ApiErrorService } from '../../../services/api-error.service';
-import { formatBRL } from '../../../types/dashboard.types';
-import type { AdminRevenue, AdminRevenuePeriod } from '../../../types/admin-revenue.types';
+import type { AdminHomeRange } from '../../../types/admin-home.types';
+import type { AdminRevenue, AdminRevenueBucket, AdminRevenuePoint } from '../../../types/admin-revenue.types';
 import { MONEY_AXIS_FLOOR_CENTS } from '../../../utils/money-axis';
+import { bucketLabels, monthLong, valueDelta } from '../home/admin-home.view';
 import { AdminRevenueService } from './admin-revenue.service';
-import { dateLabel, monthBars, presentSeries, receivedShare } from './admin-revenue.series';
+import { dateLabel, receivedShare } from './admin-revenue.series';
 
-/** Cores do protótipo (Admin.dc.html): laranja da marca para o MRR, verde para o caixa. */
-const BRAND_ORANGE = '#F63B04';
-const BRAND_GREEN = '#0a9b62';
+/** Recebido é caixa: verde. MRR e desconto são série única: a cor principal (laranja). */
+const RECEIVED_COLOR = CHART_GREEN;
+const SINGLE_SERIES_COLOR = chartSeriesColors([1])[0];
 
-const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
-  { value: '3m', label: '3 meses' },
-  { value: '12m', label: '12 meses' },
-  { value: 'all', label: 'Desde o início' },
-];
+/** Chave do pedido: a resposta só aparece sob as datas que a pediram. */
+export function rangeKey(range: AdminHomeRange | null): string | null {
+  return range ? `${range.from}|${range.to}` : null;
+}
+
+/**
+ * Os pontos do gráfico: um por intervalo da janela (`points`, contrato `changed:` 18/11). Servidor
+ * de antes da mudança só manda `months`: cada mês vira um ponto, para a tela não quebrar.
+ */
+export function revenuePoints(r: AdminRevenue | null): readonly AdminRevenuePoint[] {
+  if (!r) return [];
+  if (r.points) return r.points;
+  return r.months.map((m) => ({
+    start: `${m.month}-01`,
+    end: `${m.month}-01`,
+    mrrCents: m.mrrCents,
+    mrrAsOf: m.mrrAsOf,
+    receivedCents: m.receivedCents,
+    cumulativeReceivedCents: m.cumulativeReceivedCents,
+    couponDiscountCents: m.couponDiscountCents,
+  }));
+}
+
+const BUCKET_WORD: Record<AdminRevenueBucket, string> = { DAY: 'dia', WEEK: 'semana', MONTH: 'mês' };
+
+const hasValue = (values: readonly (number | null)[]): boolean => values.some((v) => v !== null);
 
 /**
  * Receita DA PLATAFORMA na Visão geral do admin (assinaturas das locadoras ao MyCarsHub): esperado
- * do mês, recebido, desconto em cupons, acumulado e o crescimento do MRR. Os cartões de cima da
- * Visão geral ficam como estão; esta seção entra logo abaixo deles, no lugar de "Crescimento ao
- * longo do tempo" do protótipo.
+ * do mês, recebido e desconto em cupons NO PERÍODO da tela, acumulado e o crescimento do MRR.
  *
- * Mês sem dado não vira zero: sai do gráfico e a legenda diz desde quando o dado existe.
+ * O período é o da página (um controle só, regra do dono 18/11): a seção recebe `range` e não tem
+ * pílulas próprias. Ponto sem dado não vira zero: fica sem marca no gráfico e a legenda diz desde
+ * quando o dado existe.
  */
 @Component({
   selector: 'app-admin-revenue-section',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [KpiCard, PageCard, GrowthChart, BarChart, PillTabs],
+  imports: [KpiCard, PageCard, GrowthChart, BarChart, AlertBanner],
   host: { class: 'block mb-4' },
   template: `
     <section aria-labelledby="admin-revenue-title" data-admin-revenue>
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-3">
-        <div class="min-w-0">
-          <h2 id="admin-revenue-title" class="text-base font-semibold text-fg">Receita da plataforma</h2>
-          <p class="text-xs text-fg-subtle mt-0.5">
-            Assinaturas das locadoras ao MyCarsHub. Contas internas ficam de fora.
-          </p>
-        </div>
-        <app-pill-tabs
-          [options]="periods"
-          [value]="period()"
-          ariaLabel="Período dos gráficos de receita"
-          (selected)="pick($event)"
-        />
+      <div class="mb-3 min-w-0">
+        <h2 id="admin-revenue-title" class="text-base font-semibold text-fg">Receita da plataforma</h2>
+        <p class="text-xs text-fg-subtle mt-0.5" data-revenue-range>
+          Assinaturas das locadoras ao MyCarsHub{{ rangeText() ? ', de ' + rangeText() : ', no período escolhido' }}.
+          Contas internas ficam de fora.
+        </p>
       </div>
 
-      @if (error()) {
-        <div
-          role="alert"
-          class="rounded-lg bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 text-sm p-3 mb-3"
-        >
-          {{ error() }}
-          <button type="button" class="ml-2 underline hover:no-underline min-h-[44px]" (click)="reload()">
-            Tentar novamente
-          </button>
-        </div>
+      @if (error(); as e) {
+        <app-alert-banner class="mb-3" [message]="e">
+          <button type="button" class="ml-1 underline min-h-[44px]" (click)="reload()">Tentar novamente</button>
+        </app-alert-banner>
       }
 
       <div class="grid gap-3 grid-cols-2 xl:grid-cols-4 mb-4">
@@ -72,8 +84,8 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
           data-expected-card
           class="col-span-2 xl:col-span-1"
           variant="primary"
-          label="Esperado no mês"
-          numberFormat="brl-cents-whole"
+          [label]="expectedLabel()"
+          numberFormat="brl-cents"
           [anchored]="true"
           [stagger]="0"
           [loading]="pending()"
@@ -85,26 +97,27 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
           app-kpi-card
           data-received-card
           variant="emerald"
-          label="Recebido no mês"
-          numberFormat="brl-cents-whole"
+          [label]="receivedLabel()"
+          numberFormat="brl-cents"
           placeholder="dash"
           [anchored]="true"
           [stagger]="1"
           [loading]="pending()"
-          [value]="revenue()?.received?.monthCents ?? null"
+          [value]="receivedValue()"
+          [delta]="receivedDelta()"
           [detail]="receivedDetail()"
         ></div>
         <div
           app-kpi-card
           data-discount-card
           variant="white"
-          label="Desconto em cupons no mês"
-          numberFormat="brl-cents-whole"
+          label="Desconto em cupons no período"
+          numberFormat="brl-cents"
           placeholder="dash"
           [anchored]="true"
           [stagger]="2"
           [loading]="pending()"
-          [value]="revenue()?.discounts?.monthCents ?? null"
+          [value]="discountValue()"
           [detail]="discountDetail()"
         ></div>
         <div
@@ -112,7 +125,7 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
           data-cumulative-card
           variant="white"
           label="Faturamento acumulado"
-          numberFormat="brl-cents-whole"
+          numberFormat="brl-cents"
           placeholder="dash"
           [anchored]="true"
           [stagger]="3"
@@ -132,56 +145,54 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
         data-revenue-charts
       >
         @if (showMrr()) {
-        <app-page-card title="Crescimento do MRR">
-          <div class="p-4" data-mrr-chart>
-            <p class="text-xs text-fg-subtle mb-3">
-              Receita recorrente por mês pelo preço de tabela: a última foto diária de cada mês.
-              @if (mrrSince(); as since) {
-                O histórico começa em {{ since }}.
+          <app-page-card title="Crescimento do MRR">
+            <div class="p-4" data-mrr-chart>
+              <p class="text-xs text-fg-subtle mb-3">
+                Receita recorrente pelo preço de tabela: a última foto diária de cada intervalo.
+                @if (mrrSince(); as since) {
+                  O histórico começa em {{ since }}.
+                }
+              </p>
+              @if (pending()) {
+                <div class="h-40 rounded bg-surface-sunken animate-pulse"></div>
+              } @else if (hasMrr()) {
+                <app-growth-chart
+                  [series]="mrrChart()"
+                  [labels]="labels()"
+                  valueFormat="brl-cents-compact"
+                  [axisFloor]="axisFloor"
+                  [endDot]="true"
+                  [heightPx]="180"
+                  ariaLabel="MRR estimado da plataforma no período"
+                />
+              } @else {
+                <p data-empty class="text-sm text-fg-subtle text-center py-10">{{ mrrEmpty() }}</p>
               }
-            </p>
-            @if (pending()) {
-              <div class="h-40 rounded bg-surface-sunken animate-pulse"></div>
-            } @else if (mrrSeries().values.length > 0) {
-              <app-growth-chart
-                [series]="mrrChart()"
-                [labels]="mrrSeries().labels"
-                valueFormat="brl-cents-compact"
-                [axisFloor]="axisFloor"
-                [endDot]="true"
-                [endTooltip]="true"
-                [heightPx]="180"
-                ariaLabel="MRR estimado da plataforma por mês"
-              />
-            } @else {
-              <p data-empty class="text-sm text-fg-subtle text-center py-10">{{ mrrEmpty() }}</p>
-            }
-          </div>
-        </app-page-card>
+            </div>
+          </app-page-card>
         }
 
         <app-page-card title="Faturamento acumulado">
           <div class="p-4" data-cumulative-chart>
             <p class="text-xs text-fg-subtle mb-3">
-              Tudo o que entrou das assinaturas, somado mês a mês.
+              Tudo o que entrou das assinaturas, somado até o fim de cada {{ bucketWord() }}.
               @if (receivedSince(); as since) {
                 O caixa é registrado desde {{ since }}; antes disso não há dado.
               }
             </p>
             @if (pending()) {
               <div class="h-40 rounded bg-surface-sunken animate-pulse"></div>
-            } @else if (cumulativeSeries().values.length > 0) {
+            } @else if (hasCumulative()) {
               <app-growth-chart
                 [series]="cumulativeChart()"
-                [labels]="cumulativeSeries().labels"
+                [labels]="labels()"
                 valueFormat="brl-cents-compact"
                 [axisFloor]="axisFloor"
                 [smooth]="false"
                 [endDot]="true"
-                [endTooltip]="true"
                 [heightPx]="180"
                 emptyText="Nada recebido no período."
-                ariaLabel="Faturamento acumulado da plataforma por mês"
+                ariaLabel="Faturamento acumulado da plataforma no período"
               />
             } @else {
               <p data-empty class="text-sm text-fg-subtle text-center py-10">{{ receivedEmpty() }}</p>
@@ -189,15 +200,22 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
           </div>
         </app-page-card>
 
-        <app-page-card title="Recebido por mês">
+        <app-page-card [title]="'Recebido por ' + bucketWord()">
           <div class="p-4" data-received-chart>
             <p class="text-xs text-fg-subtle mb-3">
-              Pagamentos de assinatura confirmados, no mês em que entraram.
+              Pagamentos de assinatura confirmados, no {{ bucketWord() }} em que entraram.
             </p>
             @if (pending()) {
               <div class="h-32 rounded bg-surface-sunken animate-pulse"></div>
-            } @else if (receivedBars().length > 0) {
-              <app-bar-chart [data]="receivedBars()" />
+            } @else if (hasReceived()) {
+              <app-bar-chart
+                [series]="receivedSeries()"
+                [labels]="labels()"
+                valueFormat="brl-cents"
+                [legend]="false"
+                [heightPx]="180"
+                [ariaLabel]="'Recebido por ' + bucketWord() + ' no período'"
+              />
               @if (revenue()?.received?.rowsWithoutAmount; as unknown) {
                 <p class="text-xs text-fg-subtle mt-3">
                   {{ unknown }} pagamento(s) sem valor informado pelo gateway, fora da soma.
@@ -212,7 +230,7 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
         <app-page-card title="Desconto dado em cupons">
           <div class="p-4" data-discount-chart>
             <p class="text-xs text-fg-subtle mb-3">
-              Quanto os cupons tiraram das faturas pagas, no mês do pagamento. Fatura devolvida não conta.
+              Quanto os cupons tiraram das faturas pagas, no {{ bucketWord() }} do pagamento. Fatura devolvida não conta.
             </p>
             @if (pending()) {
               <div class="h-32 rounded bg-surface-sunken animate-pulse"></div>
@@ -221,9 +239,17 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
                 Indisponível agora: a Stripe não respondeu a tempo. Os outros números seguem valendo.
               </p>
             } @else {
-              <app-bar-chart [data]="discountBars()" />
+              <app-bar-chart
+                [series]="discountSeries()"
+                [labels]="labels()"
+                valueFormat="brl-cents"
+                [legend]="false"
+                [heightPx]="180"
+                emptyText="Nenhum desconto de cupom no período."
+                [ariaLabel]="'Desconto em cupons por ' + bucketWord() + ' no período'"
+              />
               @if (revenue()?.discounts?.truncated) {
-                <p class="text-xs text-amber-700 dark:text-amber-300 mt-3">
+                <p class="text-xs text-fg-soft mt-3">
                   Muitas faturas no período: a leitura parou no limite e o valor pode estar abaixo do real.
                 </p>
               }
@@ -234,9 +260,12 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
     </section>
   `,
 })
-export class AdminRevenueSection implements OnInit {
+export class AdminRevenueSection {
   private readonly service = inject(AdminRevenueService);
   private readonly apiErrors = inject(ApiErrorService);
+
+  /** O período da página (`from`/`to`). `null` enquanto a página ainda não escolheu: nada é pedido. */
+  readonly range = input<AdminHomeRange | null>(null);
 
   /**
    * O gráfico do MRR estimado. A Visão geral v2 desliga: ela já desenha o MRR real e o estimado
@@ -244,44 +273,43 @@ export class AdminRevenueSection implements OnInit {
    */
   readonly showMrr = input(true);
 
-  protected readonly periods = PERIODS;
   protected readonly axisFloor = MONEY_AXIS_FLOOR_CENTS;
-  protected readonly period = signal<AdminRevenuePeriod>('12m');
 
-  private readonly data = signal<AdminRevenue | null>(null);
+  private readonly data = signal<{ key: string; res: AdminRevenue } | null>(null);
   private readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
 
   /**
-   * Só a resposta DO período selecionado: o número de "12 meses" nunca aparece sob "Desde o início".
+   * Só a resposta DO período na tela: o número de um intervalo nunca aparece sob as datas de outro.
    * O estado é da seção (não de um serviço raiz), então voltar ao /admin não mostra a visita anterior.
    */
   protected readonly revenue = computed(() => {
     const d = this.data();
-    return d && d.period === this.period() ? d : null;
+    return d && d.key === rangeKey(this.range()) ? d.res : null;
   });
   protected readonly pending = computed(() => this.loading() && !this.revenue());
 
   /** Cada troca de período cancela a carga anterior (switchMap): resposta atrasada não sobrescreve. */
-  private readonly requests = new Subject<AdminRevenuePeriod>();
+  private readonly requests = new Subject<AdminHomeRange>();
 
   constructor() {
     this.requests
       .pipe(
-        switchMap((period) => {
+        switchMap((range) => {
           this.loading.set(true);
           this.error.set(null);
-          return this.service.fetch(period).pipe(
-            map((res) => ({ res, failure: null as unknown })),
-            catchError((failure: unknown) => of({ res: null, failure })),
+          const key = rangeKey(range) as string;
+          return this.service.fetch(range).pipe(
+            map((res) => ({ key, res, failure: null as unknown })),
+            catchError((failure: unknown) => of({ key, res: null, failure })),
           );
         }),
         takeUntilDestroyed(),
       )
-      .subscribe(({ res, failure }) => {
+      .subscribe(({ key, res, failure }) => {
         this.loading.set(false);
         if (res) {
-          this.data.set(res);
+          this.data.set({ key, res });
           return;
         }
         // A seção mostra o próprio aviso; reivindicar o erro evita o toast repetido do interceptor.
@@ -289,13 +317,24 @@ export class AdminRevenueSection implements OnInit {
         this.data.set(null);
         this.error.set('Não foi possível carregar a receita da plataforma.');
       });
+    effect(() => {
+      const range = this.range();
+      if (range) this.requests.next(range);
+    });
   }
 
-  private readonly months = computed(() => this.revenue()?.months ?? []);
+  /** As datas que o SERVIDOR usou, escritas no subtítulo. */
+  protected readonly rangeText = computed(() => formatDateRangePtBr(this.revenue()?.meta ?? null));
 
-  protected readonly mrrSeries = computed(() => presentSeries(this.months(), (m) => m.mrrCents));
+  private readonly bucket = computed<AdminRevenueBucket>(() => this.revenue()?.meta?.bucket ?? 'MONTH');
+  protected readonly bucketWord = computed(() => BUCKET_WORD[this.bucket()]);
+  private readonly points = computed(() => revenuePoints(this.revenue()));
+  protected readonly labels = computed(() => bucketLabels(this.points().map((p) => p.start), this.bucket()));
+
+  private readonly mrrValues = computed(() => this.points().map((p) => p.mrrCents));
+  protected readonly hasMrr = computed(() => hasValue(this.mrrValues()));
   protected readonly mrrChart = computed<GrowthSeries[]>(() => [
-    { key: 'mrr', label: 'MRR estimado', color: BRAND_ORANGE, values: this.mrrSeries().values },
+    { key: 'mrr', label: 'MRR estimado', color: SINGLE_SERIES_COLOR, values: this.mrrValues() },
   ]);
   protected readonly mrrSince = computed(() => dateLabel(this.revenue()?.mrr?.since ?? null));
   protected readonly mrrEmpty = computed(() => {
@@ -305,15 +344,18 @@ export class AdminRevenueSection implements OnInit {
       : 'Ainda sem foto diária do MRR.';
   });
 
-  protected readonly cumulativeSeries = computed(() =>
-    presentSeries(this.months(), (m) => m.cumulativeReceivedCents),
-  );
+  private readonly cumulativeValues = computed(() => this.points().map((p) => p.cumulativeReceivedCents));
+  protected readonly hasCumulative = computed(() => hasValue(this.cumulativeValues()));
   protected readonly cumulativeChart = computed<GrowthSeries[]>(() => [
-    { key: 'cumulative', label: 'Acumulado', color: BRAND_GREEN, values: this.cumulativeSeries().values },
+    { key: 'cumulative', label: 'Acumulado', color: RECEIVED_COLOR, values: this.cumulativeValues() },
   ]);
 
   protected readonly receivedSince = computed(() => dateLabel(this.revenue()?.received?.since ?? null));
-  protected readonly receivedBars = computed(() => monthBars(this.months(), (m) => m.receivedCents));
+  private readonly receivedValues = computed(() => this.points().map((p) => p.receivedCents));
+  protected readonly hasReceived = computed(() => hasValue(this.receivedValues()));
+  protected readonly receivedSeries = computed<BarSeries[]>(() => [
+    { key: 'received', label: 'Recebido', color: RECEIVED_COLOR, values: this.receivedValues() },
+  ]);
   protected readonly receivedEmpty = computed(() => {
     const since = this.receivedSince();
     return since
@@ -322,51 +364,79 @@ export class AdminRevenueSection implements OnInit {
   });
 
   protected readonly discountsAvailable = computed(() => this.revenue()?.discounts?.available ?? false);
-  protected readonly discountBars = computed(() => monthBars(this.months(), (m) => m.couponDiscountCents));
+  protected readonly discountSeries = computed<BarSeries[]>(() => [
+    {
+      key: 'discount',
+      label: 'Desconto',
+      color: SINGLE_SERIES_COLOR,
+      values: this.points().map((p) => p.couponDiscountCents),
+    },
+  ]);
 
+  // ---------------------------------------------------------------- cartões
+
+  /** "Esperado em novembro": é sempre o mês corrente, qualquer que seja o período. */
+  protected readonly expectedLabel = computed(() => {
+    const month = this.revenue()?.expected?.month;
+    return month ? `Esperado em ${monthLong(month)}` : 'Esperado no mês';
+  });
   protected readonly expectedDetail = computed(() => {
     const e = this.revenue()?.expected;
     if (!e) return null;
     const until = dateLabel(e.until)?.slice(0, 5) ?? '';
-    const renewals =
-      e.upcomingRenewals === 1 ? '1 renovação' : `${e.upcomingRenewals} renovações`;
-    return `${formatBRL(e.receivedCents)} recebido + ${renewals} até ${until}, pelo preço de tabela, sem cupom`;
+    const renewals = e.upcomingRenewals === 1 ? '1 renovação' : `${e.upcomingRenewals} renovações`;
+    return `${formatBrl(e.receivedCents)} recebido + ${renewals} até ${until}, pelo preço de tabela, sem cupom`;
   });
   protected readonly expectedProgress = computed(() => {
     const e = this.revenue()?.expected;
     return e ? receivedShare(e.receivedCents, e.expectedCents) : null;
   });
 
+  /** Servidor com `periodCents`: o caixa do período. Antes da mudança: o do mês corrente, e o rótulo diz. */
+  private readonly byPeriod = computed(() => this.revenue()?.received?.periodCents !== undefined);
+  protected readonly receivedLabel = computed(() => (this.byPeriod() ? 'Recebido no período' : 'Recebido no mês'));
+  protected readonly receivedValue = computed(() => {
+    const r = this.revenue()?.received;
+    if (!r) return null;
+    return this.byPeriod() ? (r.periodCents ?? null) : r.monthCents;
+  });
+  protected readonly receivedDelta = computed<KpiDelta | null>(() => {
+    const r = this.revenue()?.received;
+    if (!r || !this.byPeriod()) return null;
+    return valueDelta(r.periodCents, r.previousPeriodCents, 'vs período anterior');
+  });
   protected readonly receivedDetail = computed(() => {
-    if (!this.revenue()) return null;
+    const r = this.revenue();
+    if (!r) return null;
     const since = this.receivedSince();
+    const previous = formatDateRangePtBr(
+      r.meta ? { from: r.meta.previousFrom, to: r.meta.previousTo } : null,
+    );
+    if (this.byPeriod() && previous && r.received.previousPeriodCents != null) {
+      return `período anterior (${previous}): ${formatBrl(r.received.previousPeriodCents)}`;
+    }
     return since ? `caixa registrado desde ${since}` : 'nenhum pagamento registrado ainda';
   });
 
+  protected readonly discountValue = computed(() => {
+    const d = this.revenue()?.discounts;
+    return d && d.available ? d.periodCents : null;
+  });
   protected readonly discountDetail = computed(() => {
     const d = this.revenue()?.discounts;
     if (!d) return null;
     if (!d.available) return 'Stripe indisponível agora';
-    return `${formatBRL(d.periodCents ?? 0)} no período escolhido`;
+    return d.discountedInvoices === 1 ? '1 fatura com desconto' : `${d.discountedInvoices} faturas com desconto`;
   });
 
   protected readonly cumulativeDetail = computed(() => {
     if (!this.revenue()) return null;
     const since = this.receivedSince();
-    return since ? `desde ${since}` : 'começa no primeiro pagamento';
+    return since ? `tudo desde ${since}; não segue o período` : 'começa no primeiro pagamento';
   });
 
-  ngOnInit(): void {
-    this.requests.next(this.period());
-  }
-
-  protected pick(period: AdminRevenuePeriod): void {
-    if (period === this.period()) return;
-    this.period.set(period);
-    this.requests.next(period);
-  }
-
   protected reload(): void {
-    this.requests.next(this.period());
+    const range = this.range();
+    if (range) this.requests.next(range);
   }
 }
