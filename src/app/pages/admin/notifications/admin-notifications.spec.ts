@@ -216,6 +216,17 @@ describe('AdminNotifications', () => {
     expect(first).toContain('Entregue (confirmado pelo provedor)');
   });
 
+  it('chips longos de e-mail e Asaas quebram linha no cartão em vez de serem cortados (375px)', () => {
+    const { el } = render();
+    const chips = el.querySelectorAll(`${CARDS} [data-testid="email-chip"], ${CARDS} [data-testid="asaas-chip"]`);
+    expect(chips.length).toBeGreaterThan(0);
+    chips.forEach((chip) => {
+      expect(chip.className).toContain('whitespace-normal');
+      expect(chip.className).not.toContain('whitespace-nowrap');
+      expect(chip.className).toContain('max-w-full');
+    });
+  });
+
   it('nunca mostra e-mail completo: só o mascarado que veio do backend', () => {
     const { el } = render();
     expect(el.textContent).toContain('r***@g***.com');

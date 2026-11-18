@@ -197,7 +197,7 @@
 
           <ng-template dataListCell="email" let-item>
             <div class="space-y-1 text-xs whitespace-normal break-words">
-              <app-status-chip size="sm" [tone]="emailTone(item)">{{ item.email.label }}</app-status-chip>
+              <app-status-chip size="sm" [wrap]="true" [tone]="emailTone(item)" data-testid="email-chip">{{ item.email.label }}</app-status-chip>
               @if (item.email.reason && item.email.state !== 'NOT_RECORDED') {
                 <span class="block text-fg-soft">{{ item.email.reason }}</span>
               }
@@ -227,7 +227,7 @@
 
           <ng-template dataListCell="asaas" let-item>
             <div class="space-y-1 text-xs whitespace-normal break-words">
-              <app-status-chip size="sm" [tone]="asaasTone(item.asaas)">{{ item.asaas.label }}</app-status-chip>
+              <app-status-chip size="sm" [wrap]="true" [tone]="asaasTone(item.asaas)" data-testid="asaas-chip">{{ item.asaas.label }}</app-status-chip>
               @if (asaasSchedule(item.asaas); as when) {
                 <span class="block text-fg-soft">{{ when }} · {{ channels(item.asaas) }}</span>
               }
