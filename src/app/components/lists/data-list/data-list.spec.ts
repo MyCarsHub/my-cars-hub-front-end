@@ -3,7 +3,15 @@ import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
 import { buildCsv } from './data-list-csv';
-import { DataList, DataListActions, DataListCell, DataListColumn } from './data-list';
+import {
+  DataList,
+  DataListActions,
+  DataListCell,
+  type DataListBreakpoint,
+  type DataListColumn,
+  pagerLabel,
+} from './data-list';
+import { DataListMenuItem } from './data-list-menu-item';
 
 interface Row {
   id: number;
@@ -30,7 +38,7 @@ const COLUMNS: DataListColumn<Row>[] = [
 ];
 
 @Component({
-  imports: [DataList, DataListActions, DataListCell],
+  imports: [DataList, DataListActions, DataListCell, DataListMenuItem],
   template: `
     <app-data-list
       [columns]="columns"
@@ -39,9 +47,17 @@ const COLUMNS: DataListColumn<Row>[] = [
       [exportFilename]="filename()"
       emptyText="Nenhum veículo."
       [rowId]="rowId"
+      [cardsBelow]="cardsBelow()"
+      [page]="page()"
+      [totalPages]="totalPages()"
+      [total]="total()"
+      [itemNoun]="['veículo', 'veículos']"
+      (pageChange)="pages.push($event)"
     >
+      <a dataListEmptyAction data-empty-cta href="/novo">Cadastrar o primeiro</a>
       <ng-template dataListActions let-row>
-        <button type="button" role="menuitem">Editar {{ row.plate }}</button>
+        <button type="button" dataListMenuItem data-edit>Editar {{ row.plate }}</button>
+        <button type="button" dataListMenuItem="danger" data-delete>Excluir</button>
       </ng-template>
       @if (custom()) {
         <ng-template dataListCell="plate" let-row
@@ -58,6 +74,22 @@ class Host {
   readonly filename = signal<string | null>('veiculos');
   readonly custom = signal(false);
   readonly rowId = (r: Row) => r.id;
+  readonly cardsBelow = signal<DataListBreakpoint>('sm');
+  readonly page = signal<number | null>(null);
+  readonly totalPages = signal<number | null>(null);
+  readonly total = signal<number | null>(null);
+  readonly pages: number[] = [];
+}
+
+@Component({
+  imports: [DataList],
+  template: `<app-data-list [columns]="columns" [rows]="rows" />`,
+})
+class RoleHost {
+  readonly columns: DataListColumn<{ role: string }>[] = [
+    { key: 'role', header: 'Papel', kind: 'status', value: (r) => r.role },
+  ];
+  readonly rows = [{ role: 'Dono' }];
 }
 
 function render() {
@@ -67,13 +99,16 @@ function render() {
 }
 
 describe('DataList', () => {
-  it('renders the same rows as a table (lg) and as cards (phone) from one column config', () => {
+  it('renders the same rows as a table (sm up) and as cards (phone) from one column config', () => {
     const { el } = render();
+    const wrap = el.querySelector('[data-table-wrap]')!;
     const table = el.querySelector('[data-table]')!;
     const cards = el.querySelector('[data-cards]')!;
-    expect(table.className).toContain('hidden');
-    expect(table.className).toContain('lg:table');
-    expect(cards.className).toContain('lg:hidden');
+    expect(wrap.className).toContain('hidden');
+    expect(wrap.className).toContain('sm:block');
+    expect(wrap.className).toContain('overflow-x-auto');
+    expect(cards.className).toContain('sm:hidden');
+    expect(cards.className).toContain('space-y-2');
     expect(table.querySelectorAll('[data-row]')).toHaveLength(2);
     expect(cards.querySelectorAll('[data-card]')).toHaveLength(2);
     expect([...table.querySelectorAll('th[scope="col"]')].map((h) => h.textContent!.trim())).toEqual([
@@ -125,11 +160,13 @@ describe('DataList', () => {
     expect(el.querySelector<HTMLButtonElement>('[data-export]')!.disabled).toBe(true);
   });
 
-  it('empty shows the empty text and disables Exportar', () => {
+  it('empty shows the icon, the empty text, the projected action, and disables Exportar', () => {
     const { fixture, el } = render();
     fixture.componentInstance.rows.set([]);
     fixture.detectChanges();
     expect(el.querySelector('[data-empty]')!.textContent).toContain('Nenhum veículo.');
+    expect(el.querySelector('[data-empty] .rounded-full svg')).not.toBeNull();
+    expect(el.querySelector('[data-empty] [data-empty-cta]')!.textContent).toContain('Cadastrar');
     expect(el.querySelector('[data-table]')).toBeNull();
     expect(el.querySelector<HTMLButtonElement>('[data-export]')!.disabled).toBe(true);
   });
@@ -141,9 +178,109 @@ describe('DataList', () => {
     expect(el.querySelector('[data-export]')).toBeNull();
   });
 
-  it('draws no divider lines (spec on classes)', () => {
-    const html = render().el.innerHTML;
-    expect(html).not.toMatch(/divide-|border-b|border-t|border-y/);
+  it('draws no divider line between rows: each record is a closed white frame, apart by space', () => {
+    const { el } = render();
+    expect(el.innerHTML).not.toMatch(/divide-|border-b\b|border-t\b|border-b-|border-t-/);
+    const table = el.querySelector('[data-table]')!;
+    expect(table.className).toContain('border-separate');
+    expect(table.className).toContain('border-spacing-y-2');
+    const cells = Array.from(table.querySelectorAll('[data-row] td'));
+    expect(cells.length).toBeGreaterThan(0);
+    for (const td of cells) {
+      // The frame closes around the record: every cell carries top AND bottom, and the row's
+      // ends carry the sides. A lone bottom/top rule (a divider) never appears.
+      expect(td.className).toContain('bg-surface');
+      expect(td.className).toContain('border-y');
+      expect(td.className).toContain('border-edge');
+      expect(td.className).toContain('first:border-l');
+      expect(td.className).toContain('last:border-r');
+    }
+    for (const card of Array.from(el.querySelectorAll('[data-card]'))) {
+      expect(card.className).toContain('bg-surface');
+      expect(card.className).toMatch(/(^| )border( |$)/);
+    }
+  });
+
+  it('headers are normal case (no uppercase / tracking)', () => {
+    const { el } = render();
+    for (const th of Array.from(el.querySelectorAll('[data-table] th'))) {
+      expect(th.className).not.toMatch(/uppercase|tracking-/);
+    }
+    for (const dt of Array.from(el.querySelectorAll('[data-card] dt'))) {
+      expect(dt.className).not.toMatch(/uppercase|tracking-/);
+    }
+  });
+
+  it('a status column without tone is a neutral chip (roles are never coloured)', () => {
+    const fixture = TestBed.createComponent(RoleHost);
+    fixture.detectChanges();
+    const chip = (fixture.nativeElement as HTMLElement).querySelector('[data-table] app-status-chip')!;
+    expect(chip.className).toContain('bg-surface-sunken');
+    expect(chip.className).not.toMatch(/emerald|primary|blue|rose|amber/);
+  });
+
+  it('cardsBelow moves the table/cards breakpoint with literal classes', () => {
+    const { fixture, el } = render();
+    fixture.componentInstance.cardsBelow.set('lg');
+    fixture.detectChanges();
+    expect(el.querySelector('[data-table-wrap]')!.className).toContain('lg:block');
+    expect(el.querySelector('[data-cards]')!.className).toContain('lg:hidden');
+    expect(el.querySelector('[data-cards]')!.className).not.toContain('sm:hidden');
+  });
+
+  it('no pager without server pagination, nor with a single page', () => {
+    const { fixture, el } = render();
+    expect(el.querySelector('[data-pager]')).toBeNull();
+    fixture.componentInstance.page.set(0);
+    fixture.componentInstance.totalPages.set(1);
+    fixture.detectChanges();
+    expect(el.querySelector('[data-pager]')).toBeNull();
+  });
+
+  it('the pager shows count and page, emits the target page, and stops at both ends', () => {
+    const { fixture, el } = render();
+    const host = fixture.componentInstance;
+    host.page.set(0);
+    host.totalPages.set(3);
+    host.total.set(1234);
+    fixture.detectChanges();
+    expect(el.querySelector('[data-pager-text]')!.textContent!.trim()).toBe(
+      '1.234 veículos · página 1 de 3',
+    );
+    const prev = el.querySelector<HTMLButtonElement>('[data-page-prev]')!;
+    const next = el.querySelector<HTMLButtonElement>('[data-page-next]')!;
+    expect(prev.disabled).toBe(true);
+    expect(next.disabled).toBe(false);
+    expect(next.className).toContain('min-h-[44px]');
+    next.click();
+    expect(host.pages).toEqual([1]);
+
+    host.page.set(2);
+    fixture.detectChanges();
+    expect(next.disabled).toBe(true);
+    prev.click();
+    expect(host.pages).toEqual([1, 1]);
+
+    host.loading.set(true);
+    fixture.detectChanges();
+    expect(el.querySelector('[data-pager]')).not.toBeNull();
+    expect(el.querySelector<HTMLButtonElement>('[data-page-prev]')!.disabled).toBe(true);
+  });
+
+  it('kebab items are 44px menu items, toned, with no line between them', () => {
+    const { fixture, el } = render();
+    el.querySelector<HTMLElement>('[data-card] app-actions-menu button')!.click();
+    fixture.detectChanges();
+    const edit = el.querySelector<HTMLElement>('[data-edit]')!;
+    const del = el.querySelector<HTMLElement>('[data-delete]')!;
+    for (const item of [edit, del]) {
+      expect(item.getAttribute('role')).toBe('menuitem');
+      expect(item.className).toContain('min-h-[44px]');
+      expect(item.className).toContain('w-full');
+      expect(item.className).not.toMatch(/border|divide/);
+    }
+    expect(edit.className).toContain('text-fg-soft');
+    expect(del.className).toContain('text-rose-600');
   });
 
   it('exports exactly the rows given, as the CSV text', () => {
@@ -154,6 +291,13 @@ describe('DataList', () => {
     expect(list.csvText()).toBe(
       '﻿Placa;Situação;Aluguel (R$)\r\nQWE-4F21;Ativo;1234,56\r\n',
     );
+  });
+});
+
+describe('pagerLabel', () => {
+  it('says the page alone when the total is unknown, and uses the singular for one', () => {
+    expect(pagerLabel(0, 2, null, ['usuário', 'usuários'])).toBe('Página 1 de 2');
+    expect(pagerLabel(1, 2, 1, ['usuário', 'usuários'])).toBe('1 usuário · página 2 de 2');
   });
 });
 
