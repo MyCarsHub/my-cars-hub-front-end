@@ -86,12 +86,12 @@ describe('ContractTemplate', () => {
       return makeFixture();
     }
 
-    // 17/11, ordem do dono: no modo edição o suporte também apaga o contrato.
-    it('modo edição: baixar, abrir e «Remover» aparecem', () => {
+    // Decisão do dono (18/11): o suporte nunca apaga o contrato, nem no modo edição.
+    it('modo edição: baixar e abrir seguem, «Remover» some', () => {
       const host: HTMLElement = withSession(true, true).nativeElement;
       expect(findButton(host, 'Baixar contrato')).toBeTruthy();
       expect(findButton(host, 'Abrir contrato')).toBeTruthy();
-      expect(findButton(host, 'Remover')).toBeTruthy();
+      expect(findButton(host, 'Remover')).toBeUndefined();
     });
 
     it('sessão de leitura: baixar e abrir seguem, «Remover» some', () => {

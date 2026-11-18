@@ -91,7 +91,6 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['POST', '/invites/resend/i-1'],
     ['DELETE', '/invites/i-1'],
     // 17/11: o resto das telas de Contratos e de Membros.
-    ['DELETE', '/settings/contract-template'],
     ['POST', '/settings/contract-template/drafts'],
     ['POST', '/settings/contract-template/drafts/d-1/consent'],
     ['PUT', '/settings/contract-template/drafts/d-1/decisions'],
@@ -152,6 +151,8 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['POST', '/invites/accept/t-1'],
     ['DELETE', '/invites'],
     ['PUT', '/settings/contract-template'],
+    // Apagar o contrato: nunca na sessão de suporte (decisão do dono, 18/11).
+    ['DELETE', '/settings/contract-template'],
     ['POST', '/settings/contract-template/drafts/d-1/other'],
     ['PUT', '/settings/contract-template/drafts/d-1'],
     ['DELETE', '/settings/contract-template/drafts'],

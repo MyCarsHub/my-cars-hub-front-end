@@ -108,11 +108,10 @@ export const SUPPORT_EDIT_WRITE_ROUTES: ReadonlyArray<{ method: string; path: Re
   { method: 'POST', path: /^\/invites$/ },
   { method: 'POST', path: /^\/invites\/resend\/[^/]+$/ },
   { method: 'DELETE', path: /^\/invites\/[^/]+$/ },
-  // 17/11, ordem do dono: "ver e fazer ações na tela de membros e contratos". Apagar o contrato, o
-  // fluxo do rascunho por IA (enviar, autorizar, responder, salvar, descartar), o «montar do zero» e
-  // remover membro. De propósito FORA: `POST /invites/{id}/revoke` (a tela usa o DELETE) e qualquer
-  // sub-recurso de membro (trocar papel, transferir a empresa).
-  { method: 'DELETE', path: /^\/settings\/contract-template$/ },
+  // 17/11, ordem do dono: "ver e fazer ações na tela de membros e contratos". O fluxo do rascunho
+  // por IA (enviar, autorizar, responder, salvar, descartar), o «montar do zero» e remover membro.
+  // De propósito FORA: APAGAR o contrato (decisão do dono, 18/11: só trocar/adaptar),
+  // `POST /invites/{id}/revoke` (a tela usa o DELETE) e qualquer sub-recurso de membro.
   { method: 'POST', path: /^\/settings\/contract-template\/drafts$/ },
   { method: 'POST', path: /^\/settings\/contract-template\/drafts\/[^/]+\/(consent|save)$/ },
   { method: 'PUT', path: /^\/settings\/contract-template\/drafts\/[^/]+\/decisions$/ },

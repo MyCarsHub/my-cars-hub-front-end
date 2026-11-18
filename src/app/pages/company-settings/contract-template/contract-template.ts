@@ -138,7 +138,7 @@ type LoadState = 'loading' | 'ready' | 'error';
                         <app-contract-icon name="eye" [size]="18" />
                         Abrir contrato
                       </button>
-                      @if (!supportReadOnly()) {
+                      @if (!supportSession()) {
                       <button type="button" (click)="deleteOpen.set(true)"
                         class="press inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-edge-strong bg-surface px-5 text-base font-medium text-fg-body hover:border-rose-300 dark:hover:border-rose-500/40 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-800 dark:hover:text-rose-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @md:col-span-2 @3xl:col-span-1">
                         <app-contract-icon name="trash" [size]="18" />
@@ -188,13 +188,11 @@ export class ContractTemplate implements OnInit {
   private readonly impersonation = inject(ImpersonationService);
 
   /**
-   * Sessão de suporte de LEITURA («Ver como»): «Remover» some, porque apagar é escrita e a sessão
-   * recusaria de qualquer jeito. No modo EDIÇÃO o botão volta (ordem do dono, 17/11: "fazer ações
-   * na tela de contratos"); o servidor admite o DELETE só com a concessão de edição.
-   * `?.` porque dublês de spec antigos não conhecem `active` nem `editMode`.
+   * Sessão de suporte («Ver como», leitura ou edição): «Remover» some. Decisão do dono (18/11):
+   * o suporte troca e adapta o contrato, nunca o apaga; o servidor recusa o DELETE em qualquer
+   * sessão de suporte. `?.` porque dublês de spec antigos não conhecem `active`.
    */
-  protected readonly supportReadOnly = () =>
-    this.impersonation.active?.() === true && this.impersonation.editMode?.() !== true;
+  protected readonly supportSession = () => this.impersonation.active?.() === true;
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly template = signal<ContractTemplateDto | null>(null);
