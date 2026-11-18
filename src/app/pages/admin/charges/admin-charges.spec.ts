@@ -6,9 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { ImpersonationService } from '../../../services/impersonation.service';
 import { NotificationService } from '../../../services/notification.service';
-import type { AdminChargesPage, TrialConversionItem } from '../../../types/admin-charges.types';
+import type { AdminChargeListItem, AdminChargesPage } from '../../../types/admin-charges.types';
 import { AdminContactService } from '../contact/admin-contact.service';
-import { AdminTrialConversion } from '../companies/admin-trial-conversion';
 import { AdminCharges } from './admin-charges';
 import { AdminChargesService } from './admin-charges.service';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
@@ -176,6 +175,30 @@ describe('AdminCharges (Cobranças)', () => {
     expect(el.querySelector('app-contact-actions')).toBeNull();
   });
 
+  it('lista mista: a linha sem ação não tem kebab (nada de item desabilitado); cada kebab tem o nome da linha', () => {
+    const agir = new Set<AdminCapabilityCode>(['ver', 'cobranca.agir']);
+    TestBed.overrideProvider(AdminCapabilitiesService, {
+      useValue: { can: (c: AdminCapabilityCode) => agir.has(c), ensureLoaded: () => of(null) },
+    });
+    const adjustment: AdminChargeListItem = {
+      ...PAGE.content[0],
+      chargeId: 'ch-2',
+      kind: 'ADJUSTMENT',
+      daysOverdue: 3,
+      driverId: null,
+      driverName: null,
+      companyName: 'Locadora Beta',
+    };
+    list.mockReturnValue(of({ ...PAGE, content: [PAGE.content[0], adjustment], total: 2 }));
+    const el: HTMLElement = render().nativeElement;
+
+    const cards = el.querySelectorAll<HTMLElement>('[data-card]');
+    expect(cards[0].querySelector('app-actions-menu button[aria-haspopup="menu"]')?.getAttribute('aria-label'))
+      .toBe('Ações da cobrança de Motorista Fictício');
+    expect(cards[1].querySelector('app-actions-menu')).toBeNull();
+    expect(el.querySelector('[data-testid="menu-none"]')).toBeNull();
+  });
+
   it('"Ver aluguel" no kebab abre a sessão somente leitura da empresa', () => {
     const start = TestBed.inject(ImpersonationService).start as ReturnType<typeof vi.fn>;
     start.mockReturnValue(of({ companyName: 'Locadora Teste' }));
@@ -247,73 +270,5 @@ describe('AdminCharges (Cobranças)', () => {
     toggle.checked = true;
     toggle.dispatchEvent(new Event('change'));
     expect(list).toHaveBeenLastCalledWith('OVERDUE', true, 0);
-  });
-});
-
-describe('AdminTrialConversion (Converter testes)', () => {
-  const ITEM: TrialConversionItem = {
-    companyId: 'co-9',
-    companyName: 'Frota Exemplo',
-    companyStatus: 'ACTIVE',
-    internal: false,
-    signupAt: '2026-09-01T10:00:00',
-    trialEndsAt: '2026-10-20T10:00:00',
-    daysSinceTrialEnd: 8,
-    subscriptionStatus: 'TRIALING',
-    planName: 'Pro',
-    vehicles: 2,
-    drivers: 1,
-    rentals: 1,
-    lastSeenAt: null,
-    lastLoginAt: '2026-10-25T09:00:00',
-    activationStage: 3,
-    ownerUserId: 'usr-9',
-    ownerName: 'Maria Dona Exemplo',
-    ownerPhoneMasked: '(21) •••••-1234',
-  };
-
-  let trialConversion: ReturnType<typeof vi.fn>;
-
-  beforeEach(() => {
-    trialConversion = vi.fn().mockReturnValue(of([ITEM]));
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({
-      imports: [AdminTrialConversion],
-      providers: [
-        provideRouter([]),
-        ApiErrorService,
-        { provide: AdminChargesService, useValue: { trialConversion } },
-        { provide: AdminContactService, useValue: { reveal: vi.fn() } },
-        { provide: NotificationService, useValue: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() } },
-      ],
-    });
-  });
-
-  it('mostra sinais de ativação, explica a ordem e liga o WhatsApp do dono', () => {
-    const fixture = TestBed.createComponent(AdminTrialConversion);
-    fixture.detectChanges();
-    const el: HTMLElement = fixture.nativeElement;
-
-    expect(trialConversion).toHaveBeenCalledWith(false);
-    const card = el.querySelector('[data-testid="conversion-card"]') as HTMLElement;
-    expect(card.textContent).toContain('Frota Exemplo');
-    expect(card.textContent).toContain('Fez aluguel');
-    expect(card.textContent).toContain('Teste acabou há 8 dias');
-    expect(card.textContent).toContain('2 veículo(s)');
-    expect(card.textContent).toContain('(21) •••••-1234');
-    expect(el.querySelector('[data-testid="order-explainer"]')?.textContent).toContain('Até onde chegou');
-    expect(el.querySelector('[data-testid="tab-convert"]')?.getAttribute('aria-current')).toBe('page');
-  });
-
-  it('a mensagem pré-preenchida é curta, em pt-BR, com o primeiro nome e a empresa', () => {
-    const fixture = TestBed.createComponent(AdminTrialConversion);
-    const text = (fixture.componentInstance as unknown as { whatsAppText(i: TrialConversionItem): string })
-      .whatsAppText(ITEM);
-
-    expect(text.startsWith('Olá, Maria!')).toBe(true);
-    expect(text).toContain('Frota Exemplo');
-    expect(text).toContain('terminou');
-    expect(text).toContain('Posso te ajudar');
-    expect(text.length).toBeLessThan(200);
   });
 });

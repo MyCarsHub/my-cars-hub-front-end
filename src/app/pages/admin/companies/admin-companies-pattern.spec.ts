@@ -239,6 +239,7 @@ describe('Converter testes — padrão da plataforma', () => {
     expect(msg.startsWith('Olá, Maria!')).toBe(true);
     expect(msg).toContain('Frota Exemplo');
     expect(msg).toContain('terminou');
+    expect(msg).toContain('Posso te ajudar');
     expect(msg.length).toBeLessThan(200);
   });
 });
