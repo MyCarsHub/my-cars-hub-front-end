@@ -102,7 +102,7 @@ describe('AdminAudit', () => {
     expect(text).toContain('Lorran');
     expect(text).toContain('lorran@mycarshub.app.br');
     // Enum cru vira rótulo legível em pt-BR, mas o valor cru não vaza na UI.
-    expect(text).toContain('Status de empresa alterado');
+    expect(text).toContain('Situação da empresa alterada');
     expect(text).not.toContain('COMPANY_STATUS_CHANGED');
     expect(text).toContain('04/08/2026');
     expect(text).toContain('Empresa');
@@ -159,7 +159,7 @@ describe('AdminAudit', () => {
     expect(values).toContain('BLOG_POST_PUBLISHED');
     expect(values).toContain('USER_STATUS_CHANGED');
     const labels = options.map((o) => o.textContent?.trim());
-    expect(labels).toContain('Post publicado');
+    expect(labels).toContain('Ação: Post publicado');
   });
 
   it('refaz a busca com o filtro de ação cru e volta para a primeira página', () => {
@@ -176,13 +176,11 @@ describe('AdminAudit', () => {
     const component = fixture.componentInstance as unknown as {
       setActionFilter: (v: string) => void;
       setActorFilter: (v: string) => void;
-      setFromFilter: (v: string) => void;
-      setToFilter: (v: string) => void;
+      setRange: (r: { from: string; to: string }) => void;
     };
     component.setActionFilter('BLOG_POST_PUBLISHED');
     component.setActorFilter('usr-1');
-    component.setFromFilter('2026-08-01');
-    component.setToFilter('2026-08-04');
+    component.setRange({ from: '2026-08-01', to: '2026-08-04' });
     fixture.detectChanges();
 
     expect(load).toHaveBeenCalled();
@@ -244,5 +242,90 @@ describe('AdminAudit', () => {
     TestBed.inject(ApiErrorService).scheduleSafetyNet(error);
     vi.runAllTimers();
     expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it('escreve a hora no fuso de Brasília: o servidor manda UTC sem sufixo', () => {
+    // 01:30 UTC do dia 19 = 22:30 do dia 18 em Brasília.
+    items.set([{ ...ENTRY, createdDate: '2026-11-19T01:30:00' }]);
+    total.set(1);
+    configure();
+
+    const fixture = TestBed.createComponent(AdminAudit);
+    fixture.detectChanges();
+
+    const when: HTMLElement = fixture.nativeElement.querySelector('[data-testid="audit-when"]');
+    expect(when.textContent).toContain('18/11/2026');
+    expect(when.textContent).toContain('22:30');
+    expect(when.getAttribute('title')).toContain('18 de novembro de 2026 às 22:30:00');
+    expect(when.getAttribute('title')).toContain('horário de Brasília');
+  });
+
+  it('nunca mostra o código cru: ação nova vira frase em português', () => {
+    items.set([
+      { ...ENTRY, id: 'n1', action: 'ANNOUNCEMENT_MEDIA_SET', targetType: 'ANNOUNCEMENT' },
+      { ...ENTRY, id: 'n2', action: 'WIDGET_GADGET_CREATED', targetType: 'WIDGET_GADGET' },
+    ]);
+    total.set(2);
+    configure();
+
+    const fixture = TestBed.createComponent(AdminAudit);
+    fixture.detectChanges();
+
+    const text: string = fixture.nativeElement.textContent;
+    expect(text).toContain('Mídia da novidade trocada');
+    expect(text).toContain('Novidade');
+    expect(text).toContain('Criação de widget gadget');
+    expect(text).not.toMatch(/[A-Z]+_[A-Z]+/);
+  });
+
+  it('abre a folha de detalhes com o que foi gravado ao tocar na linha', () => {
+    items.set([ENTRY]);
+    total.set(1);
+    configure();
+
+    const fixture = TestBed.createComponent(AdminAudit);
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('[data-row]') as HTMLElement).click();
+    fixture.detectChanges();
+
+    const sheet: HTMLElement = fixture.nativeElement.querySelector('[data-testid="audit-detail"]');
+    expect(sheet).not.toBeNull();
+    expect(sheet.textContent).toContain('11111111-2222-3333-4444-555566667777');
+    expect(sheet.querySelector('[data-testid="audit-payload"]')?.textContent).toContain(
+      'active: true -> false',
+    );
+  });
+
+  it('Limpar filtros zera ação e período e recria o seletor sem chip marcado', () => {
+    configure();
+    const fixture = TestBed.createComponent(AdminAudit);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      setActionFilter: (v: string) => void;
+      setRange: (r: { from: string; to: string }) => void;
+      clearFilters: () => void;
+    };
+    component.setActionFilter('BLOG_POST_PUBLISHED');
+    component.setRange({ from: '2026-08-01', to: '2026-08-04' });
+    fixture.detectChanges();
+    const before = fixture.nativeElement.querySelector('app-date-range-picker');
+    expect(fixture.nativeElement.querySelector('[data-testid="audit-period-all"]')).toBeNull();
+
+    load.mockClear();
+    component.clearFilters();
+    fixture.detectChanges();
+
+    const after: HTMLElement = fixture.nativeElement.querySelector('app-date-range-picker');
+    expect(after).not.toBe(before);
+    expect(after.querySelector('[aria-checked="true"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="audit-period-all"]')).not.toBeNull();
+    expect(load.mock.calls[load.mock.calls.length - 1][0]).toMatchObject({
+      action: '',
+      from: '',
+      to: '',
+      page: 0,
+    });
   });
 });

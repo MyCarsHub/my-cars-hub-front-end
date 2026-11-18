@@ -6,113 +6,79 @@ import {
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { NgTemplateOutlet } from '@angular/common';
 
 import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
+import { KvList } from '../../../components/core/kv-list/kv-list';
+import { StatusChip } from '../../../components/core/status-chip/status-chip';
+import {
+  DateRange,
+  DateRangePicker,
+  DateRangePresetKey,
+} from '../../../components/date-range-picker/date-range-picker';
+import {
+  DataList,
+  DataListActions,
+  DataListCell,
+  type DataListColumn,
+} from '../../../components/lists/data-list/data-list';
+import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
+import { ListFilterSelect, ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminAuditService } from '../admin-audit.service';
 import { AdminAuditLogItem } from '../../../types/admin-audit.types';
+import { AuditTone, auditActionLabel, auditActionTone, auditTargetLabel } from './audit-labels';
+import { whenAgo, whenDay, whenExact, whenLong, whenTime } from './admin-when';
 
 const PAGE_SIZE = 20;
 
-/**
- * Rótulos das ações. Chave = `name()` do enum `AdminAuditAction`; o valor cru é
- * o que vai no filtro para a API. Ação nova no backend que ainda não tenha
- * rótulo aqui cai no fallback de `humanize()` em vez de sumir da tela.
- */
-const ACTION_LABELS: Record<string, string> = {
-  USER_STATUS_CHANGED: 'Status de usuário alterado',
-  USER_SYSTEM_ROLE_CHANGED: 'Papel de sistema alterado',
-  COMPANY_STATUS_CHANGED: 'Status de empresa alterado',
-  FEEDBACK_TASK_STATUS_CHANGED: 'Status de feedback alterado',
-  FEEDBACK_TASK_DELETED: 'Feedback removido',
-  BLOG_POST_CREATED: 'Post criado',
-  BLOG_POST_UPDATED: 'Post editado',
-  BLOG_POST_PUBLISHED: 'Post publicado',
-  BLOG_POST_UNPUBLISHED: 'Post despublicado',
-  BLOG_POST_DELETED: 'Post removido',
-  RENTAL_SCHEDULE_REGENERATED: 'Cronograma regenerado',
-  NOTIFICATION_TEST_DISPATCHED: 'Teste de templates enviado',
-  CONTRACT_TEMPLATE_SAVED: 'Template de contrato salvo',
-  CHARGE_EMAIL_RESENT: 'E-mail de cobrança reenviado',
-  COMPANY_TRIAL_EXTENDED: 'Teste estendido',
-  USER_CONTACT_REVEALED: 'Contato de usuário revelado',
-  DRIVER_CONTACT_REVEALED: 'Contato de motorista revelado',
-  COMPANY_CONTACT_REVEALED: 'Contato de empresa revelado',
-  CHARGE_ASAAS_COMPARED: 'Cobrança comparada com o Asaas',
-  // Cobre qualquer tipo de cobrança, não só a caução (o rótulo antigo dizia "Caução").
-  CHARGE_MARKED_RECEIVED_OUTSIDE: 'Recebida por fora (admin)',
-  // FEAT-0573 — movimentações da locadora nas Cobranças flexíveis.
-  RENTAL_CHARGES_RENEGOTIATED: 'Cobranças renegociadas (acordo)',
-  RENTAL_CHARGE_RECEIVED_OUTSIDE: 'Recebida por fora (locadora)',
-  RENTAL_CHARGE_AGREEMENT_NEEDS_ATTENTION: 'Acordo precisa de atenção',
-  CHARGE_RETRIED_BY_ADMIN: 'Cobrança gerada de novo',
-  DRIVER_NAME_CORRECTED: 'Nome do motorista corrigido',
-  DRIVER_ASAAS_CUSTOMER_SYNCED: 'Cliente atualizado no Asaas',
-};
-
-const TARGET_LABELS: Record<string, string> = {
-  USER: 'Usuário',
-  COMPANY: 'Empresa',
-  FEEDBACK_TASK: 'Feedback',
-  BLOG_POST: 'Post',
-  RENTAL: 'Aluguel',
-  NOTIFICATION: 'Notificação',
-  RENTAL_CHARGE: 'Cobrança',
-  DRIVER: 'Motorista',
-};
-
-/** Cor do chip por família de ação — remoções em vermelho, criações em verde. */
-const ACTION_CHIPS: Record<string, string> = {
-  USER_STATUS_CHANGED: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  USER_SYSTEM_ROLE_CHANGED: 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300',
-  COMPANY_STATUS_CHANGED: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  FEEDBACK_TASK_STATUS_CHANGED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
-  FEEDBACK_TASK_DELETED: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
-  BLOG_POST_CREATED: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  BLOG_POST_UPDATED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
-  BLOG_POST_PUBLISHED: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  BLOG_POST_UNPUBLISHED: 'bg-surface-strong text-fg-soft',
-  BLOG_POST_DELETED: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
-  RENTAL_SCHEDULE_REGENERATED: 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
-  NOTIFICATION_TEST_DISPATCHED: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300',
-  CONTRACT_TEMPLATE_SAVED: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  CHARGE_EMAIL_RESENT: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300',
-  COMPANY_TRIAL_EXTENDED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
-  USER_CONTACT_REVEALED: 'bg-surface-strong text-fg-soft',
-  DRIVER_CONTACT_REVEALED: 'bg-surface-strong text-fg-soft',
-  COMPANY_CONTACT_REVEALED: 'bg-surface-strong text-fg-soft',
-  CHARGE_ASAAS_COMPARED: 'bg-surface-strong text-fg-soft',
-  CHARGE_MARKED_RECEIVED_OUTSIDE: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
-  CHARGE_RETRIED_BY_ADMIN: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
-  DRIVER_NAME_CORRECTED: 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-100',
-  DRIVER_ASAAS_CUSTOMER_SYNCED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
-  RENTAL_CHARGES_RENEGOTIATED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200',
-  RENTAL_CHARGE_RECEIVED_OUTSIDE: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
-  RENTAL_CHARGE_AGREEMENT_NEEDS_ATTENTION: 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-100',
-};
-
-const DEFAULT_CHIP = 'bg-surface-sunken text-fg-soft';
-
-/** `BLOG_POST_DELETED` → `Blog post deleted`. Só para valores sem rótulo mapeado. */
-function humanize(raw: string): string {
-  const spaced = raw.replace(/_/g, ' ').toLowerCase();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
+/** Chips do período. Sem chip marcado ao abrir: a trilha começa sem recorte de data. */
+const PERIOD_KEYS: readonly DateRangePresetKey[] = [
+  'today',
+  '7d',
+  '30d',
+  'monthCurrent',
+  'monthPast',
+  'year',
+  'custom',
+];
 
 interface ActionOption {
   value: string;
   label: string;
 }
 
+function actorName(item: AdminAuditLogItem): string {
+  return item.actorName?.trim() || item.actorEmail?.trim() || 'Pessoa removida';
+}
+
 @Component({
   selector: 'app-admin-audit',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BackLink, DefaultPageLayout, PageCard, AlertBanner],
+  imports: [
+    NgTemplateOutlet,
+    BackLink,
+    DefaultPageLayout,
+    PageCard,
+    AlertBanner,
+    BottomSheet,
+    KvList,
+    StatusChip,
+    DateRangePicker,
+    DataList,
+    DataListCell,
+    DataListActions,
+    DataListMenuItem,
+    ListToolbar,
+    ListFilterSelect,
+  ],
   templateUrl: './admin-audit.html',
 })
 export class AdminAudit implements OnInit {
@@ -124,6 +90,8 @@ export class AdminAudit implements OnInit {
   protected readonly total = this.auditService.total;
   protected readonly actors = this.auditService.actors;
 
+  protected readonly periodKeys = PERIOD_KEYS;
+
   /** Falha ao CARREGAR a trilha — banner inline, nunca toast. */
   protected readonly error = signal<string | null>(null);
 
@@ -133,13 +101,24 @@ export class AdminAudit implements OnInit {
   protected readonly toFilter = signal<string>('');
   protected readonly currentPage = signal(0);
 
-  /** Linhas com o payload expandido, por id. */
-  protected readonly expanded = signal<Record<string, boolean>>({});
+  /**
+   * O seletor de período não tem "desmarcar": "Limpar filtros" troca o ramo do `@if` e o
+   * seletor nasce de novo, sem chip marcado.
+   */
+  private readonly pickerKey = signal(0);
+  protected readonly pickerEven = computed(() => this.pickerKey() % 2 === 0);
+
+  /** Relógio do "há 3 h", renovado a cada carga da trilha. */
+  protected readonly now = signal(Date.now());
+
+  /** Registro aberto na folha de detalhes. */
+  protected readonly detail = signal<AdminAuditLogItem | null>(null);
+  private readonly sheet = viewChild(BottomSheet);
 
   protected readonly actionOptions = computed<ActionOption[]>(() =>
     this.auditService
       .actions()
-      .map((value) => ({ value, label: ACTION_LABELS[value] ?? humanize(value) }))
+      .map((value) => ({ value, label: auditActionLabel(value) }))
       .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
   );
 
@@ -149,12 +128,35 @@ export class AdminAudit implements OnInit {
     return Math.max(1, Math.ceil(t / PAGE_SIZE));
   });
 
-  protected readonly canPrev = computed(() => this.currentPage() > 0);
-  protected readonly canNext = computed(() => this.currentPage() + 1 < this.totalPages());
-
   protected readonly hasFilters = computed(
     () => !!this.actorFilter() || !!this.actionFilter() || !!this.fromFilter() || !!this.toFilter(),
   );
+
+  protected readonly emptyText = computed(() =>
+    this.hasFilters()
+      ? 'Nenhuma ação registrada com esses filtros.'
+      : 'Nenhuma ação administrativa registrada ainda.',
+  );
+
+  protected readonly columns: DataListColumn<AdminAuditLogItem>[] = [
+    {
+      key: 'action',
+      header: 'Ação',
+      kind: 'status',
+      primary: true,
+      value: (r) => auditActionLabel(r.action),
+      tone: (r) => auditActionTone(r.action),
+    },
+    { key: 'when', header: 'Quando', value: (r) => whenExact(r.createdDate) ?? '—' },
+    { key: 'actor', header: 'Quem fez', value: (r) => actorName(r) },
+    {
+      key: 'target',
+      header: 'Alvo',
+      value: (r) => [auditTargetLabel(r.targetType), r.targetId].filter(Boolean).join(' '),
+    },
+  ];
+
+  protected readonly rowId = (row: AdminAuditLogItem): string => row.id;
 
   constructor() {
     effect(() => {
@@ -167,6 +169,7 @@ export class AdminAudit implements OnInit {
       this.auditService
         .load({ actorUserId, action, from, to, page, size: PAGE_SIZE })
         .subscribe({
+          next: () => this.now.set(Date.now()),
           error: (err: HttpErrorResponse) =>
             this.error.set(
               this.apiErrors.messageFor(
@@ -194,14 +197,11 @@ export class AdminAudit implements OnInit {
     this.actionFilter.set(value);
   }
 
-  protected setFromFilter(value: string): void {
+  /** Período do seletor compartilhado (`yyyy-MM-dd`, dias de Brasília no backend). */
+  protected setRange(range: DateRange): void {
     this.currentPage.set(0);
-    this.fromFilter.set(value);
-  }
-
-  protected setToFilter(value: string): void {
-    this.currentPage.set(0);
-    this.toFilter.set(value);
+    this.fromFilter.set(range.from);
+    this.toFilter.set(range.to);
   }
 
   protected clearFilters(): void {
@@ -210,56 +210,66 @@ export class AdminAudit implements OnInit {
     this.actionFilter.set('');
     this.fromFilter.set('');
     this.toFilter.set('');
+    this.pickerKey.update((k) => k + 1);
   }
 
-  protected prevPage(): void {
-    if (this.canPrev()) this.currentPage.update((p) => p - 1);
-  }
-
-  protected nextPage(): void {
-    if (this.canNext()) this.currentPage.update((p) => p + 1);
+  protected goToPage(page: number): void {
+    this.currentPage.set(Math.max(0, Math.min(page, this.totalPages() - 1)));
   }
 
   protected actionLabel(action: string): string {
-    return ACTION_LABELS[action] ?? humanize(action);
+    return auditActionLabel(action);
   }
 
-  protected actionChip(action: string): string {
-    return ACTION_CHIPS[action] ?? DEFAULT_CHIP;
+  protected actionTone(action: string): AuditTone {
+    return auditActionTone(action);
   }
 
   protected targetLabel(targetType: string): string {
-    return TARGET_LABELS[targetType] ?? humanize(targetType);
+    return auditTargetLabel(targetType);
   }
 
   protected actorLabel(item: AdminAuditLogItem): string {
-    return item.actorName?.trim() || item.actorEmail?.trim() || 'Ator removido';
+    return actorName(item);
   }
 
-  /** Últimos 8 chars do UUID — o suficiente para conferir, sem estourar o layout. */
+  /** Últimos 8 chars do UUID — o suficiente para conferir; o inteiro fica no balão e na folha. */
   protected shortId(id: string | null): string {
     if (!id) return '—';
     return id.length <= 8 ? id : `…${id.slice(-8)}`;
   }
 
-  protected isExpanded(id: string): boolean {
-    return !!this.expanded()[id];
+  protected day(value: string | null): string {
+    return whenDay(value);
   }
 
-  protected toggleExpanded(id: string): void {
-    this.expanded.update((state) => ({ ...state, [id]: !state[id] }));
+  protected time(value: string | null): string {
+    return whenTime(value);
   }
 
-  protected formatDateTime(value: string | null): string {
-    if (!value) return '—';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  protected exact(value: string | null): string {
+    return whenExact(value) ?? '—';
+  }
+
+  protected long(value: string | null): string | null {
+    return whenLong(value);
+  }
+
+  protected ago(value: string | null): string | null {
+    return whenAgo(value, this.now());
+  }
+
+  protected openDetail(item: AdminAuditLogItem): void {
+    this.detail.set(item);
+  }
+
+  protected dismissDetail(): void {
+    const ref = this.sheet();
+    if (ref) ref.requestClose();
+    else this.detail.set(null);
+  }
+
+  protected closeDetail(): void {
+    this.detail.set(null);
   }
 }
