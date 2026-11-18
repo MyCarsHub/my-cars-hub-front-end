@@ -10,6 +10,8 @@ import {
 } from '@angular/core';
 import { animate, style, transition, trigger } from '@angular/animations';
 
+export type ConfirmDialogVariant = 'info' | 'warning' | 'danger' | 'success';
+
 @Component({
   selector: 'app-confirm-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -67,8 +69,10 @@ export class ConfirmDialog {
    * - 'info'    → blue (default)
    * - 'warning' → amber
    * - 'danger'  → red
+   * - 'success' → solid brand green (#10B981, `success-500`) with white text, for a confirm
+   *   that turns something back ON (e.g. "Reativar"). Opt-in: the other variants are unchanged.
    */
-  variant = input<'info' | 'warning' | 'danger'>('info');
+  variant = input<ConfirmDialogVariant>('info');
 
   /**
    * Opt-in checkbox (opcional). Só é renderizado quando `optionLabel` tem
@@ -120,6 +124,7 @@ export class ConfirmDialog {
       info: 'bg-primary-50 dark:bg-primary-500/10',
       warning: 'bg-amber-50 dark:bg-amber-500/10',
       danger: 'bg-red-50 dark:bg-red-500/10',
+      success: 'bg-success-50 dark:bg-success-500/10',
     };
     return map[this.variant()] ?? 'bg-primary-50 dark:bg-primary-500/10';
   }
@@ -129,6 +134,7 @@ export class ConfirmDialog {
       info: 'bg-primary-500 text-white hover:bg-primary-600 focus:ring-primary-400',
       warning: 'bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-400',
       danger: 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-400',
+      success: 'bg-success-500 text-white hover:bg-success-700 focus:ring-success-500',
     };
     return map[this.variant()] ?? map['info'];
   }
