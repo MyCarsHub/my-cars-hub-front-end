@@ -1,53 +1,58 @@
-import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
+  ViewEncapsulation,
   computed,
   inject,
   signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { EMPTY, catchError, from, mergeMap } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
-import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { BackLink } from '../../../components/core/back-link/back-link';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
-import { PillTabOption, PillTabs } from '../../../components/core/pill-tabs/pill-tabs';
+import { PageCard } from '../../../components/core/page-card/page-card';
+import { StatusChip, StatusChipTone } from '../../../components/core/status-chip/status-chip';
 import { FilterChipOption } from '../../../components/filter-chip-group/filter-chip-group';
 import { KpiCard } from '../../../components/kpi-card/kpi-card';
-import { StatusChip } from '../../../components/core/status-chip/status-chip';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
+import {
+  DataList,
+  DataListActions,
+  DataListCell,
+  DataListColumn,
+} from '../../../components/lists/data-list/data-list';
+import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
+import { ListFilterSelect, ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { NotificationService } from '../../../services/notification.service';
 import { AdminCoupon, CouponCompany } from '../../../types/admin-coupon.types';
 import { PlanResponse } from '../../../types/billing.types';
-import { formatBRL } from '../../../types/dashboard.types';
-import { mediaQuerySignal } from '../../../utils/viewport';
 import { AdminCouponsService } from './admin-coupons.service';
 import {
+  CouponStatusView,
   copyCouponCode,
+  couponBrl,
   couponErrorMessage,
-  couponDate,
   couponPlanName,
   couponStatus,
+  couponValidity,
+  createdLabel,
   discountLabel,
-  durationShort,
   durationText,
   isAllPlans,
   kindLabel,
-  usesLabel,
 } from './coupon-copy';
 import { monthlySavingsLine } from './coupon-plan-prices';
 import {
+  CouponSituation,
   SituationFilter,
   TypeFilter,
   couponSituation,
   filterCoupons,
-  shortDate,
   situationCounts,
   usesProgress,
   usesSpaced,
@@ -64,7 +69,7 @@ const TYPE_OPTIONS: readonly FilterChipOption<TypeFilter>[] = [
   { value: 'APPLIED_TO_SUBSCRIPTION', label: 'Direto na assinatura' },
 ];
 
-/** Quanto a linha leva para encolher (casa com `.collapse-row` em styles.css). */
+/** Quanto a linha leva para sair (casa com as transições de saída de admin-coupons.css). */
 const COLLAPSE_MS = 300;
 /** Quanto o "Copiado" fica na tela. */
 const COPIED_MS = 1600;
@@ -82,31 +87,93 @@ const SHORT_ID_LENGTH = 8;
 
 const plural = (n: number, one: string, many: string): string => (n === 1 ? `1 ${one}` : `${n} ${many}`);
 
+/** Uma linha da lista: o cupom e os textos que a tabela, o cartão do celular e o CSV mostram. */
+export interface CouponRow {
+  coupon: AdminCoupon;
+  status: CouponStatusView;
+  situation: CouponSituation;
+  /** Saindo da lista atual (desativado fora do filtro): a linha some antes de os dados trocarem. */
+  leaving: boolean;
+  kind: string;
+  isCode: boolean;
+  /** O código; no desconto direto, a empresa. */
+  title: string;
+  company: string;
+  /** "Todos os planos" ou "Plano Pro". */
+  planLine: string;
+  discount: string;
+  /** "por 3 meses", "uma vez", "para sempre". */
+  durationText: string;
+  /** Só em % e todos os planos: quanto cada plano economiza por mês. */
+  savings: string | null;
+  canShare: boolean;
+  canDeactivate: boolean;
+  /** "2 / 5" no código; "—" no desconto direto. */
+  uses: string;
+  /** "2 de 5 usos": nome acessível e balão da barra. */
+  usesHint: string;
+  progress: number;
+  /** "Até 29/11/2026", "Venceu em 02/11/2026", "Nas próximas faturas"... */
+  validity: string;
+  /** "Criado em 30/10/2026". */
+  created: string | null;
+}
+
+/**
+ * Uma configuração para a tabela (a partir de 1024px), o cartão do celular e o CSV. As células
+ * são desenhadas no template (`dataListCell`); o `value` é o texto do CSV.
+ */
+const COLUMNS: readonly DataListColumn<CouponRow>[] = [
+  { key: 'title', header: 'Código ou empresa', primary: true, value: (r) => r.title },
+  { key: 'kind', header: 'Tipo', kind: 'status', value: (r) => r.kind },
+  { key: 'discount', header: 'Desconto', value: (r) => `${r.discount} ${r.durationText}` },
+  { key: 'uses', header: 'Usos', value: (r) => r.uses },
+  { key: 'validity', header: 'Validade', value: (r) => r.validity },
+  {
+    key: 'status',
+    header: 'Situação',
+    kind: 'status',
+    value: (r) => r.status.label,
+    tone: (r): StatusChipTone => r.status.tone,
+  },
+];
+
 /**
  * Admin > Cupons. A lista mora na Stripe, então uma falha aqui costuma ser dela.
  * `cupom.gerir` libera criar e desativar; os outros papéis só leem. O servidor
  * confere de novo em toda rota.
+ *
+ * Padrão da plataforma (auditoria 18/11, D1): `app-page-card "Lista"` + `app-list-toolbar`
+ * (busca, "Tipo: X", pílulas de situação) + `app-data-list` (tabela a partir de 1024px,
+ * cartões abaixo, sem linhas, kebab por linha).
  */
 @Component({
   selector: 'app-admin-coupons',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Os seletores de admin-coupons.css começam por `app-admin-coupons`: sem encapsulamento eles
+  // alcançam as linhas que a `app-data-list` desenha, e não vazam para outra tela.
+  encapsulation: ViewEncapsulation.None,
   imports: [
-    ActionsMenu,
     AlertBanner,
     BackLink,
     ConfirmDialog,
     CouponDetail,
     CouponShare,
     CouponSheet,
+    DataList,
+    DataListActions,
+    DataListCell,
+    DataListMenuItem,
     DefaultPageLayout,
     KpiCard,
-    PillTabs,
-    ReactiveFormsModule,
-    NgTemplateOutlet,
+    ListFilterSelect,
+    ListToolbar,
+    PageCard,
     RouterLink,
     StatusChip,
   ],
   templateUrl: './admin-coupons.html',
+  styleUrl: './admin-coupons.css',
 })
 export class AdminCoupons implements OnInit {
   private readonly service = inject(AdminCouponsService);
@@ -116,8 +183,6 @@ export class AdminCoupons implements OnInit {
   private readonly router = inject(Router);
   private readonly doc = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
-  /** `md` do Tailwind: daí para cima é tabela, abaixo é cartão-ingresso. */
-  protected readonly wide = mediaQuerySignal('(min-width: 48rem)');
 
   private readonly now = new Date();
   private readonly requestedNames = new Set<string>();
@@ -146,26 +211,28 @@ export class AdminCoupons implements OnInit {
   /** Cupons que estão encolhendo antes de sair da lista (desativados fora do filtro atual). */
   private readonly leaving = signal<ReadonlySet<string>>(new Set());
   protected readonly copiedId = signal<string | null>(null);
-  /** Troca a cada mudança de tipo/aba: a lista é refeita e a cascata de entrada recomeça. */
+  /** Troca a cada mudança de tipo/situação: a lista é refeita e a cascata de entrada recomeça. */
   protected readonly epoch = signal(0);
   protected readonly epochs = computed(() => [{ id: this.epoch() }]);
 
   protected readonly canManage = computed(() => this.caps.can('cupom.gerir'));
 
   protected readonly typeOptions = TYPE_OPTIONS;
-  protected readonly searchControl = new FormControl('', { nonNullable: true });
-  private readonly search = toSignal(this.searchControl.valueChanges, { initialValue: '' });
+  protected readonly columns = COLUMNS;
+  protected readonly rowId = (row: CouponRow): string => row.coupon.couponId;
+  /** A busca é local: a lista inteira já veio da Stripe, filtrar aqui mostra exatamente o que existe. */
+  protected readonly search = signal('');
   protected readonly typeFilter = signal<TypeFilter>('ALL');
   protected readonly situationFilter = signal<SituationFilter>('ALL');
 
-  private readonly allRows = computed(() =>
+  private readonly allRows = computed<CouponRow[]>(() =>
     this.items().map((coupon) => {
       const status = couponStatus(coupon, this.now);
       const isCode = coupon.mode !== 'APPLIED_TO_SUBSCRIPTION';
       const company = this.companyName(coupon.companyId);
-      const expires = coupon.expiresAt ? couponDate(coupon.expiresAt) : '—';
-      const all = isAllPlans(coupon);
       const plan = couponPlanName(coupon.planCode);
+      const used = coupon.timesRedeemed ?? 0;
+      const max = coupon.maxRedemptions ?? 1;
       return {
         coupon,
         status,
@@ -173,25 +240,20 @@ export class AdminCoupons implements OnInit {
         leaving: this.leaving().has(coupon.couponId),
         kind: kindLabel(coupon.mode),
         isCode,
-        isOpen: coupon.mode === 'OPEN_CODE',
         // Quem lê procura pelo código; o desconto direto só tem a empresa.
         title: coupon.promotionCode ?? company,
         company,
-        plan,
-        /** "Todos os planos" ou "Plano Pro": a linha embaixo do código, no celular. */
-        planLine: all ? plan : `Plano ${plan}`,
+        planLine: isAllPlans(coupon) ? plan : `Plano ${plan}`,
         discount: discountLabel(coupon),
-        duration: durationShort(coupon),
         durationText: durationText(coupon),
-        /** Só em % e todos os planos: quanto cada plano economiza por mês. */
         savings: monthlySavingsLine(coupon, this.plans()),
         canShare: isCode && status.live && !!coupon.promotionCode,
-        usesAria: usesLabel(coupon),
-        uses: isCode ? usesSpaced(coupon) : '—',
-        progress: isCode ? usesProgress(coupon) : 0,
-        validity: isCode ? expires : status.live ? 'Próximas faturas' : 'Encerrado',
-        validityShort: isCode ? shortDate(expires) : '',
         canDeactivate: this.canManage() && status.live,
+        uses: isCode ? usesSpaced(coupon) : '—',
+        usesHint: `${used} de ${max} ${max === 1 ? 'uso' : 'usos'}`,
+        progress: isCode ? usesProgress(coupon) : 0,
+        validity: couponValidity(coupon, this.now),
+        created: createdLabel(coupon),
       };
     }),
   );
@@ -204,25 +266,23 @@ export class AdminCoupons implements OnInit {
 
   protected readonly rows = computed(() => filterCoupons(this.allRows(), this.filters()));
 
-  /** As abas contam a lista já filtrada por busca e tipo; cada uma mostra o que aparece ao escolhê-la. */
-  protected readonly situationTabs = computed<readonly PillTabOption<SituationFilter>[]>(() => {
+  /**
+   * Pílulas de situação (filtro, não troca de visão: `app-filter-chip-group` do toolbar). Cada uma
+   * conta a lista já filtrada por busca e tipo, isto é, o que aparece ao escolhê-la.
+   */
+  protected readonly situationOptions = computed<readonly FilterChipOption<SituationFilter>[]>(() => {
     const n = situationCounts(this.allRows(), this.filters());
     return [
-      { value: 'ALL', label: 'Todos', count: n.ALL, testId: 'tab-ALL' },
-      { value: 'ACTIVE', label: 'Ativos', count: n.ACTIVE, testId: 'tab-ACTIVE' },
-      { value: 'EXHAUSTED', label: 'Esgotados', count: n.EXHAUSTED, testId: 'tab-EXHAUSTED' },
-      { value: 'ENDED', label: 'Encerrados', shortLabel: 'Enc.', count: n.ENDED, testId: 'tab-ENDED' },
+      { value: 'ALL', label: `Todos · ${n.ALL}` },
+      { value: 'ACTIVE', label: `Ativos · ${n.ACTIVE}` },
+      { value: 'EXHAUSTED', label: `Esgotados · ${n.EXHAUSTED}` },
+      { value: 'ENDED', label: `Encerrados · ${n.ENDED}` },
     ];
   });
 
   protected readonly anyFilter = computed(
     () => this.search().trim() !== '' || this.typeFilter() !== 'ALL' || this.situationFilter() !== 'ALL',
   );
-
-  protected readonly resultsText = computed(() => {
-    const n = this.rows().length;
-    return n === 0 ? 'Nenhum resultado' : n === 1 ? '1 resultado' : `${n} resultados`;
-  });
 
   /** Números do topo: da lista inteira, a busca e os filtros não mexem. O desconto é estimativa. */
   protected readonly stats = computed(() => computeCouponStats(this.items(), this.now, this.prices()));
@@ -235,16 +295,10 @@ export class AdminCoupons implements OnInit {
     return `${this.activeCaption()} · ${plural(exhausted, 'esgotado', 'esgotados')} · ${plural(ended, 'encerrado', 'encerrados')}`;
   });
 
-  /** Estimativa contada em centavos e sempre mostrada com o `≈` na frente. */
-  protected readonly formatDiscount = (cents: number): string =>
-    `≈ ${formatBRL(Math.round(cents))}`.replace(new RegExp(String.fromCharCode(160), 'g'), ' ');
-  protected readonly formatDiscountCompact = (cents: number): string =>
-    `≈ R$ ${Math.round(cents / 100).toLocaleString('pt-BR')}`;
-
   /** "+ R$ 59,80 por mês, para sempre": o que os cupons sem fim descontam, fora do total. */
   private readonly foreverCaption = computed(() => {
     const cents = this.stats().foreverMonthlyCents;
-    return cents > 0 ? `+ ${formatBRL(Math.round(cents)).replace(/\u00A0/g, ' ')} por mês, para sempre` : null;
+    return cents > 0 ? `+ ${couponBrl(cents)} por mês, para sempre` : null;
   });
 
   protected readonly discountCaption = computed(() => {
@@ -388,14 +442,23 @@ export class AdminCoupons implements OnInit {
     this.setTypeFilter((event.target as HTMLSelectElement).value as TypeFilter);
   }
 
+  protected setQuery(value: string): void {
+    this.search.set(value);
+  }
+
   protected clearFilters(): void {
-    this.searchControl.setValue('');
+    this.search.set('');
     this.setTypeFilter('ALL');
     this.setSituationFilter('ALL');
   }
 
   protected openDetail(couponId: string): void {
     this.detailId.set(couponId);
+  }
+
+  /** A linha inteira abre o detalhe; link, botão de copiar e kebab têm dono próprio (a lista cuida). */
+  protected onRowActivate(row: CouponRow): void {
+    this.openDetail(row.coupon.couponId);
   }
 
   protected closeDetail(): void {
@@ -410,21 +473,6 @@ export class AdminCoupons implements OnInit {
 
   protected closeShare(): void {
     this.shareId.set(null);
-  }
-
-  /** Cliques em link, botão de copiar e kebab têm dono próprio e não abrem o detalhe. */
-  protected onRowClick(event: Event, couponId: string): void {
-    const target = event.target;
-    if (target instanceof Element && target.closest('a, button, [role="menuitem"]')) return;
-    this.openDetail(couponId);
-  }
-
-  /** Enter e Espaço na própria linha; nas teclas dos controles de dentro, nada. */
-  protected onRowKey(event: KeyboardEvent, couponId: string): void {
-    if (event.target !== event.currentTarget) return;
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    this.openDetail(couponId);
   }
 
   protected openSheet(): void {
@@ -499,7 +547,7 @@ export class AdminCoupons implements OnInit {
           this.filters(),
         ).length;
         if (stays === 0 && this.motionOk()) {
-          // Sai da lista atual: a altura encolhe e só então os dados trocam.
+          // Sai da lista atual: a linha encolhe e só então os dados trocam.
           this.leaving.update((set) => new Set(set).add(updated.couponId));
           this.later(() => {
             commit();

@@ -1,7 +1,6 @@
 import { CouponRedemption } from '../../../types/admin-coupon.types';
-import { formatBRL } from '../../../types/dashboard.types';
 import { formatFullDate, formatTime, parseServerTime } from '../../../utils/server-time';
-import { couponPlanName, isAllPlans } from './coupon-copy';
+import { couponBrl, couponPlanName, isAllPlans } from './coupon-copy';
 
 export const UNKNOWN_COMPANY = 'Empresa não identificada';
 export const PENDING_INVOICE = 'Aplicado · aguardando 1ª fatura paga';
@@ -11,8 +10,6 @@ export const EMPTY_TITLE = 'Ninguém usou este cupom ainda.';
 
 /** Quantas linhas entram em cascata; o resto aparece junto, para a lista nunca "escorrer". */
 export const STAGGER_CAP = 8;
-
-const brl = (cents: number): string => formatBRL(cents).replace(/\u00A0/g, ' ');
 
 export interface RedemptionView {
   key: string;
@@ -42,9 +39,9 @@ export function redemptionView(item: CouponRedemption, index: number): Redemptio
     plan: plan === '—' ? null : plan,
     when: date ? `${formatFullDate(date)} às ${formatTime(date)}` : '—',
     pending,
-    paid: brl(item.amountPaidCents),
-    original: showPrices ? brl(item.amountWithoutDiscountCents) : null,
-    discount: showPrices ? `− ${brl(item.discountCents)}` : null,
+    paid: couponBrl(item.amountPaidCents),
+    original: showPrices ? couponBrl(item.amountWithoutDiscountCents) : null,
+    discount: showPrices ? `− ${couponBrl(item.discountCents)}` : null,
   };
 }
 

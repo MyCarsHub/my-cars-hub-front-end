@@ -3,7 +3,10 @@ import { TimeoutError } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  couponBrl,
   couponDate,
+  couponValidity,
+  createdLabel,
   couponErrorMessage,
   couponPlanLabel,
   couponStatus,
@@ -12,7 +15,6 @@ import {
   modeCopy,
   openCodeMessage,
   usesLabel,
-  validityLabel,
 } from './coupon-copy';
 
 const NOW = new Date('2026-10-30T12:00:00Z');
@@ -33,10 +35,25 @@ describe('coupon-copy', () => {
     expect(durationLabel(null)).toBe('—');
   });
 
-  it('código vale até a data; desconto na assinatura não tem prazo de resgate', () => {
-    expect(validityLabel({ mode: 'PROMOTION_CODE', expiresAt: '2026-11-29T10:00:00' })).toBe('Até 29/11/2026');
-    expect(validityLabel({ mode: 'PROMOTION_CODE', expiresAt: null })).toBe('—');
-    expect(validityLabel({ mode: 'APPLIED_TO_SUBSCRIPTION', expiresAt: null })).toBe('Nas próximas faturas');
+  it('validade com verbo e ano: até, venceu em, sem prazo; desconto direto acabado não promete fatura', () => {
+    const code = { mode: 'PROMOTION_CODE' as const, status: 'ACTIVE' as const, timesRedeemed: 0 };
+    expect(couponValidity({ ...code, expiresAt: '2026-11-29T10:00:00' }, NOW)).toBe('Até 29/11/2026');
+    expect(couponValidity({ ...code, expiresAt: '2026-10-02T10:00:00' }, NOW)).toBe('Venceu em 02/10/2026');
+    expect(couponValidity({ ...code, expiresAt: null }, NOW)).toBe('Sem prazo');
+    const direct = { mode: 'APPLIED_TO_SUBSCRIPTION' as const, expiresAt: null, timesRedeemed: 0 };
+    expect(couponValidity({ ...direct, status: 'ACTIVE' }, NOW)).toBe('Nas próximas faturas');
+    expect(couponValidity({ ...direct, status: 'DEACTIVATED' }, NOW)).toBe('Encerrado');
+  });
+
+  it('data de criação por extenso, com o ano', () => {
+    expect(createdLabel({ createdAt: '2026-10-30T10:00:00' })).toBe('Criado em 30/10/2026');
+    expect(createdLabel({ createdAt: null })).toBeNull();
+  });
+
+  it('um formatador de dinheiro: centavos sempre, espaço comum para a mensagem copiada', () => {
+    expect(couponBrl(123456)).toBe('R$ 1.234,56');
+    expect(couponBrl(0)).toBe('R$ 0,00');
+    expect(couponBrl(null)).toBe('—');
   });
 
   it('lê datas da API no fuso do negócio', () => {

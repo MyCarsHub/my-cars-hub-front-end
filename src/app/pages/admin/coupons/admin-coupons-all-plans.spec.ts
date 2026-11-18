@@ -119,19 +119,14 @@ describe('Cupons — todos os planos na lista e compartilhar', () => {
     return { fixture, el: fixture.nativeElement as HTMLElement };
   };
 
-  const stubWide = (wide: boolean): void => {
-    stubGlobal(window, 'matchMedia', (query: string) => ({
-      matches: wide && query.includes('min-width'),
-      media: query,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-    }));
-  };
-
-  const card = (el: HTMLElement, text: string): HTMLElement =>
-    Array.from(el.querySelectorAll<HTMLElement>('[data-testid="coupon-card"]')).find((c) =>
-      c.textContent?.includes(text),
-    ) as HTMLElement;
+  /**
+   * A `app-data-list` desenha a tabela E os cartões (um some pelo CSS, que o jsdom não aplica):
+   * `[data-row]` é a linha da tabela (a partir de 1024px), `[data-card]` o cartão do celular.
+   */
+  const find = (el: HTMLElement, selector: string, text: string): HTMLElement =>
+    Array.from(el.querySelectorAll<HTMLElement>(selector)).find((c) => c.textContent?.includes(text)) as HTMLElement;
+  const card = (el: HTMLElement, text: string): HTMLElement => find(el, '[data-card]', text);
+  const row = (el: HTMLElement, text: string): HTMLElement => find(el, '[data-row]', text);
 
   beforeEach(() => {
     TestBed.resetTestingModule();
@@ -155,15 +150,16 @@ describe('Cupons — todos os planos na lista e compartilhar', () => {
     restoreGlobals();
   });
 
-  it('no celular: "Todos os planos · qualquer pessoa" e quanto cada plano economiza por mês', () => {
+  it('no celular: "Todos os planos", o tipo e quanto cada plano economiza por mês, com centavos', () => {
     const { el } = mount();
     const open = card(el, 'BEMVINDO20');
     expect(open.querySelector('[data-testid="coupon-summary"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
-      'Todos os planos · qualquer pessoa',
+      'Todos os planos',
     );
+    expect(open.querySelector('[data-testid="coupon-kind"]')?.textContent).toContain('Qualquer pessoa');
     expect(open.querySelector('[data-testid="coupon-discount"]')?.textContent).toContain('por 3 meses');
     expect(open.querySelector('[data-testid="coupon-savings"]')?.textContent?.trim()).toBe(
-      'Desconto por mês: Starter R$ 15,98 · Pro R$ 29,98 · Scale R$ 59,80',
+      'Starter R$ 15,98 · Pro R$ 29,98 · Scale R$ 59,80',
     );
     const direct = card(el, 'Locadora Horizonte');
     expect(direct.querySelector('[data-testid="coupon-summary"]')?.textContent).toContain('Plano Starter');
@@ -171,11 +167,15 @@ describe('Cupons — todos os planos na lista e compartilhar', () => {
   });
 
   it('no computador: a coluna Desconto traz a duração e o desconto por mês', () => {
-    stubWide(true);
     const { el } = mount();
-    const discount = card(el, 'BEMVINDO20').querySelector('[data-testid="coupon-discount"]')?.textContent ?? '';
-    expect(discount.replace(/\s+/g, ' ')).toContain('3 meses · por mês: Starter R$ 15,98 · Pro R$ 29,98 · Scale R$ 59,80');
-    expect(card(el, 'BEMVINDO20').querySelector('[data-testid="coupon-summary"]')?.textContent).toContain(
+    const discount = row(el, 'BEMVINDO20').querySelector('[data-testid="coupon-discount"]') as HTMLElement;
+    expect(discount.textContent).toContain('20%');
+    expect(discount.textContent).toContain('por 3 meses');
+    expect(discount.textContent).toContain('Por mês:');
+    expect(discount.querySelector('[data-testid="coupon-savings"]')?.textContent?.trim()).toBe(
+      'Starter R$ 15,98 · Pro R$ 29,98 · Scale R$ 59,80',
+    );
+    expect(row(el, 'BEMVINDO20').querySelector('[data-testid="coupon-summary"]')?.textContent).toContain(
       'Todos os planos',
     );
   });
@@ -187,6 +187,11 @@ describe('Cupons — todos os planos na lista e compartilhar', () => {
     fixture.detectChanges();
     const items = Array.from(open.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent?.trim());
     expect(items).toEqual(['Ver detalhes', 'Compartilhar', 'Copiar código', 'Desativar']);
+    // O kebab é o da plataforma: itens de 44px, sem linha entre eles.
+    for (const item of Array.from(open.querySelectorAll('[role="menuitem"]'))) {
+      expect(item.className).toContain('min-h-[44px]');
+      expect(item.className).not.toMatch(/(^|\s)border-t(\s|$)/);
+    }
     (open.querySelector('[data-testid="menu-share"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     await fixture.whenStable();

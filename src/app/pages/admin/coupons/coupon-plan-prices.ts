@@ -1,9 +1,8 @@
 import { AdminCoupon } from '../../../types/admin-coupon.types';
 import { PlanResponse } from '../../../types/billing.types';
-import { formatBRL } from '../../../types/dashboard.types';
 import { planTierOf } from '../../../utils/plan-features';
 import { PLAN_COPY } from '../../../utils/plan-grid-copy';
-import { ALL_PLANS_TIERS, isAllPlans } from './coupon-copy';
+import { ALL_PLANS_TIERS, couponBrl, isAllPlans } from './coupon-copy';
 
 /** Um preço de um plano num período, com e sem o cupom. */
 export interface PlanPrice {
@@ -28,8 +27,6 @@ export interface PlanPriceRow {
   yearly: PriceCell | null;
 }
 
-const brl = (cents: number): string => formatBRL(Math.round(cents)).replace(/\u00A0/g, ' ');
-
 /** "Pro", a partir do nome ou do código do plano. */
 function tierName(planName: string, planCode: string): string {
   const tier = planTierOf(planName) ?? planTierOf(planCode.split('_')[0]);
@@ -42,7 +39,7 @@ export function planPriceRows(prices: readonly PlanPrice[]): PlanPriceRow[] {
   for (const item of prices) {
     const name = tierName(item.planName, item.planCode);
     const row = rows.get(name) ?? { name, monthly: null, yearly: null };
-    const cell = { price: brl(item.discountedCents), was: `era ${brl(item.listCents)}` };
+    const cell = { price: couponBrl(item.discountedCents), was: `era ${couponBrl(item.listCents)}` };
     if (item.period === 'YEARLY') row.yearly = cell;
     else row.monthly = cell;
     rows.set(name, row);
@@ -131,7 +128,7 @@ export function monthlySavingsLine(
     if (seen.has(name)) continue;
     seen.add(name);
     const listCents = Math.round(plan.price * 100);
-    parts.push(`${name} ${brl(listCents - discountedCents(listCents, coupon))}`);
+    parts.push(`${name} ${couponBrl(listCents - discountedCents(listCents, coupon))}`);
   }
   return parts.join(' · ');
 }
