@@ -529,7 +529,7 @@
     [title]="targetActive() ? 'Reativar empresa' : 'Suspender empresa'"
     [message]="targetActive() ? reactivateMessage : suspendMessage"
     [confirmLabel]="statusConfirmLabel()"
-    [variant]="targetActive() ? 'info' : 'danger'"
+    [variant]="targetActive() ? 'success' : 'danger'"
     [size]="targetActive() ? 'default' : 'large'"
     [busy]="updating()"
     (confirmed)="confirmStatusChange()"

@@ -56,9 +56,10 @@ export function spanDays(from: string, to: string): number {
 }
 
 /**
- * O intervalo das pílulas como o servidor aceita (contrato `changed:` 18/11). O seletor calcula
- * pelo relógio do navegador; o servidor recusa `to` depois de hoje em São Paulo e janela maior que
- * {@link ADMIN_RANGE_MAX_DAYS}. Aqui o fim fica em hoje (São Paulo) e o começo, dentro do limite.
+ * O intervalo das pílulas como o servidor aceita (contrato `changed:` 18/11). O servidor recusa
+ * `to` depois de hoje em São Paulo e janela maior que {@link ADMIN_RANGE_MAX_DAYS}; o seletor já
+ * não deixa escolher data futura, e o Personalizado pode passar do limite. Aqui o fim fica em hoje
+ * (São Paulo) e o começo, dentro do limite.
  * A tela mostra as datas que o SERVIDOR devolve, então um corte aqui aparece escrito.
  */
 export function clampRange(range: AdminHomeRange, today: string): AdminHomeRange {

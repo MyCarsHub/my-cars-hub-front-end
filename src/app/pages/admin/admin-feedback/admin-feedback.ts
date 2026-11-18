@@ -202,6 +202,8 @@ export class AdminFeedback implements OnInit {
   ];
 
   protected readonly rowId = (t: FeedbackTaskResponse): string => t.id;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (t: FeedbackTaskResponse): string => `Ações da sugestão ${t.title}`;
 
   ngOnInit(): void {
     this.reload();

@@ -106,7 +106,11 @@ describe('AdminBlogList', () => {
     expect(host.querySelector('[data-list-search]')).not.toBeNull();
     expect(host.querySelector('[data-filter-category]')?.className).toContain('text-base');
     expect(chip(host, 'Todos').textContent).toContain('2');
+    // Contagem no campo `count` da pílula (número à parte), não colada no rótulo.
+    expect(chip(host, 'Todos').textContent).not.toContain('·');
     expect(tableRows(host)).toHaveLength(2);
+    // Entrada em cascata da própria app-data-list (`animateRows`), sem CSS da página.
+    expect(host.querySelector('[data-row]')?.classList.contains('enter-up')).toBe(true);
     expect(host.querySelector('.divide-y, [class*="divide-"]')).toBeNull();
     expect(host.querySelector('[data-export]')).not.toBeNull();
   });

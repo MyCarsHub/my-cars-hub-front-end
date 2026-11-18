@@ -45,7 +45,7 @@
       <!-- Lista (kit app-data-list): tabela a partir de lg, cartões abaixo. Sem linhas, ação na kebab. -->
       <app-data-list
         ariaLabel="Empresas"
-        actionsLabel="Ações da empresa"
+        [actionsLabel]="kebabLabel"
         emptyText="Nenhuma empresa encontrada com esses filtros."
         exportFilename="empresas"
         cardsBelow="lg"

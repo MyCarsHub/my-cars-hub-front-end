@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
-  ViewEncapsulation,
   computed,
   inject,
   signal,
@@ -94,9 +93,6 @@ interface ConfirmState {
 @Component({
   selector: 'app-admin-announcements',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  // Os seletores de admin-announcements.css começam por `app-admin-announcements`: sem
-  // encapsulamento eles alcançam as linhas da `app-data-list`, e não vazam para outra tela.
-  encapsulation: ViewEncapsulation.None,
   host: { class: 'block' },
   imports: [
     DefaultPageLayout,
@@ -113,7 +109,6 @@ interface ConfirmState {
     AnnouncementSheet,
   ],
   templateUrl: './admin-announcements.html',
-  styleUrl: './admin-announcements.css',
 })
 export class AdminAnnouncements implements OnInit {
   private readonly service = inject(AdminAnnouncementsService);
@@ -135,6 +130,8 @@ export class AdminAnnouncements implements OnInit {
 
   protected readonly columns = COLUMNS;
   protected readonly rowId = (row: Row): string => row.a.id;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (row: Row): string => `Ações da novidade ${row.a.title}`;
   protected readonly search = signal('');
   /** Troca a cada mudança de situação: a lista é refeita e a cascata de entrada recomeça. */
   private readonly epoch = signal(0);
@@ -154,10 +151,10 @@ export class AdminAnnouncements implements OnInit {
     const list = this.searched();
     const n = (s: AnnouncementStatus) => list.filter((a) => a.status === s).length;
     return [
-      { value: 'ALL', label: `Todas · ${list.length}` },
-      { value: 'DRAFT', label: `Rascunhos · ${n('DRAFT')}` },
-      { value: 'PUBLISHED', label: `Publicadas · ${n('PUBLISHED')}` },
-      { value: 'EXPIRED', label: `Encerradas · ${n('EXPIRED')}` },
+      { value: 'ALL', label: 'Todas', count: list.length },
+      { value: 'DRAFT', label: 'Rascunhos', count: n('DRAFT') },
+      { value: 'PUBLISHED', label: 'Publicadas', count: n('PUBLISHED') },
+      { value: 'EXPIRED', label: 'Encerradas', count: n('EXPIRED') },
     ];
   });
 

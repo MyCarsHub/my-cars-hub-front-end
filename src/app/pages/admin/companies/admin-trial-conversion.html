@@ -49,7 +49,7 @@
         <app-data-list
           data-testid="conversion-list"
           ariaLabel="Testes para converter"
-          actionsLabel="Ações da empresa"
+          [actionsLabel]="kebabLabel"
           [emptyText]="query() ? 'Nenhuma empresa com essa busca.' : 'Nenhum teste acabando ou vencido.'"
           exportFilename="converter-testes"
           cardsBelow="lg"

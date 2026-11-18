@@ -123,6 +123,8 @@ export class AdminTrialConversion implements OnInit {
   ];
 
   protected readonly rowId = (i: TrialConversionItem): string => i.companyId;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (i: TrialConversionItem): string => `Ações da empresa ${i.companyName}`;
 
   ngOnInit(): void {
     this.load();

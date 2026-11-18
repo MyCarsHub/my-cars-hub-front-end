@@ -9,7 +9,6 @@ import {
   viewChild,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { NgTemplateOutlet } from '@angular/common';
 
 import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
@@ -63,7 +62,6 @@ function actorName(item: AdminAuditLogItem): string {
   selector: 'app-admin-audit',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    NgTemplateOutlet,
     BackLink,
     DefaultPageLayout,
     PageCard,
@@ -101,12 +99,8 @@ export class AdminAudit implements OnInit {
   protected readonly toFilter = signal<string>('');
   protected readonly currentPage = signal(0);
 
-  /**
-   * O seletor de período não tem "desmarcar": "Limpar filtros" troca o ramo do `@if` e o
-   * seletor nasce de novo, sem chip marcado.
-   */
-  private readonly pickerKey = signal(0);
-  protected readonly pickerEven = computed(() => this.pickerKey() % 2 === 0);
+  /** "Limpar filtros" desmarca o período pelo próprio seletor (`clear()`), sem recriá-lo. */
+  private readonly periodPicker = viewChild(DateRangePicker);
 
   /** Relógio do "há 3 h", renovado a cada carga da trilha. */
   protected readonly now = signal(Date.now());
@@ -157,6 +151,9 @@ export class AdminAudit implements OnInit {
   ];
 
   protected readonly rowId = (row: AdminAuditLogItem): string => row.id;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (row: AdminAuditLogItem): string =>
+    `Ações do registro ${auditActionLabel(row.action)} de ${actorName(row)}`;
 
   constructor() {
     effect(() => {
@@ -204,13 +201,20 @@ export class AdminAudit implements OnInit {
     this.toFilter.set(range.to);
   }
 
+  /** Período desmarcado ("Limpar período" ou "Limpar filtros"): volta a todo o histórico. */
+  protected clearRange(): void {
+    this.currentPage.set(0);
+    this.fromFilter.set('');
+    this.toFilter.set('');
+  }
+
   protected clearFilters(): void {
     this.currentPage.set(0);
     this.actorFilter.set('');
     this.actionFilter.set('');
     this.fromFilter.set('');
     this.toFilter.set('');
-    this.pickerKey.update((k) => k + 1);
+    this.periodPicker()?.clear();
   }
 
   protected goToPage(page: number): void {

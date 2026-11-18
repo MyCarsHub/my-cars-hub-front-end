@@ -46,6 +46,7 @@ import {
   userSituation,
 } from './admin-users-view';
 import { PersonNamePipe } from '../../../pipes/person-name.pipe';
+import { formatPersonName } from '../../../utils/display-format';
 
 interface PendingAction {
   kind: 'DEACTIVATE' | 'ACTIVATE';
@@ -134,8 +135,8 @@ export class AdminUsers implements OnInit {
   });
   /**
    * Sem filtro local: o total do servidor. Com ele: as linhas que sobraram NESTA pagina, e a
-   * nota diz que o recorte e da pagina. (Nao passar `null`: com filtro ativo o toolbar
-   * escreveria "0 usuarios".)
+   * nota diz que o recorte e da pagina. (`null` esconderia o numero; a contagem da pagina, com a
+   * nota, diz mais.)
    */
   protected readonly resultCount = computed(() =>
     this.localFilter() ? this.rows().length : this.total(),
@@ -175,6 +176,9 @@ export class AdminUsers implements OnInit {
   ];
 
   protected readonly rowId = (u: AdminUserListItem): string => u.id;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (u: AdminUserListItem): string =>
+    `Ações do usuário ${formatPersonName(u.name) || u.email}`;
 
   protected readonly totalPages = computed(() => {
     const t = this.total();

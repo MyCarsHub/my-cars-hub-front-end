@@ -134,6 +134,7 @@
             @for (epoch of epochs(); track epoch.id) {
               <app-data-list
                 class="coupon-list"
+                [animateRows]="true"
                 data-testid="coupons-list"
                 [columns]="columns"
                 [rows]="rows()"
@@ -141,7 +142,7 @@
                 cardsBelow="lg"
                 emptyText="Nenhum cupom corresponde à busca e aos filtros escolhidos."
                 ariaLabel="Cupons"
-                actionsLabel="Ações do cupom"
+                [actionsLabel]="kebabLabel"
                 exportFilename="cupons.csv"
                 [rowTarget]="true"
                 (rowActivate)="onRowActivate($event)"

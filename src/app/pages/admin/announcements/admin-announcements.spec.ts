@@ -108,12 +108,15 @@ describe('AdminAnnouncements (F2)', () => {
     // Cabeçalho em caixa normal, sem tabela fingida em caixa alta e sem linha entre linhas.
     expect(el.querySelector('[data-row] .uppercase, thead .uppercase')).toBeNull();
     expect(el.querySelector('[class*="divide-"]')).toBeNull();
-    // Filtro é a fileira de pílulas (app-filter-chip-group), com a contagem no rótulo.
+    // Filtro é a fileira de pílulas (app-filter-chip-group), com a contagem na pílula.
     expect(el.querySelector('app-pill-tabs')).toBeNull();
     const drafts = Array.from(el.querySelectorAll<HTMLElement>('app-filter-chip-group button')).find((b) =>
       b.textContent?.trim().startsWith('Rascunhos'),
     )!;
     expect(drafts.textContent).toContain('1');
+    expect(drafts.textContent).not.toContain('·');
+    // Entrada em cascata da própria app-data-list (`animateRows`), sem CSS da página.
+    expect(el.querySelector('[data-row]')?.classList.contains('enter-up')).toBe(true);
     drafts.click();
     f.detectChanges();
     expect(el.querySelectorAll('[data-row]').length).toBe(1);
@@ -295,6 +298,9 @@ describe('AdminAnnouncements (F2)', () => {
 
     openMenu(1, f);
     expect($$('[role="menuitem"]').map((b) => b.textContent?.trim())).toEqual(['Editar', 'Publicar', 'Excluir rascunho']);
+    // Publicar é o item laranja do kebab compartilhado (tom `primary`), com a mesma altura dos outros.
+    expect(($('[data-testid="menu-publish"]') as HTMLElement).className).toContain('text-primary-700');
+    expect(($('[data-testid="menu-publish"]') as HTMLElement).className).toContain('min-h-[44px]');
     ($('[data-testid="menu-publish"]') as HTMLElement).click();
     f.detectChanges();
     expect(service.publish).not.toHaveBeenCalled();

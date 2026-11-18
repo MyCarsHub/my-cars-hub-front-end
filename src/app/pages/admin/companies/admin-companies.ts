@@ -144,6 +144,8 @@ export class AdminCompanies {
   }
 
   protected readonly rowId = (company: AdminCompanyListItem): string => company.id;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (company: AdminCompanyListItem): string => `Ações da empresa ${company.name}`;
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly planOptions = PLAN_OPTIONS;
 

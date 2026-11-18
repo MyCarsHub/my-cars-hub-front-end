@@ -54,7 +54,8 @@
           [loading]="loading() && items().length === 0"
           [emptyText]="tab() === 'FAILED' ? 'Nenhuma cobrança com falha.' : 'Nenhuma cobrança atrasada.'"
           ariaLabel="Cobranças"
-          actionsLabel="Ações da cobrança"
+          [actionsLabel]="kebabLabel"
+          [hasActions]="rowHasActions"
           cardsBelow="lg"
           [page]="page()"
           [totalPages]="totalPages()"
@@ -133,11 +134,6 @@
               @if (canCancel(item)) {
                 <button type="button" dataListMenuItem="danger" data-testid="menu-cancel"
                         (click)="openActions(item, 'cancel')">Cancelar cobrança</button>
-              }
-              @if (!hasAnyAction(item)) {
-                <button type="button" dataListMenuItem disabled data-testid="menu-none">
-                  Nenhuma ação para esta cobrança
-                </button>
               }
             </ng-template>
           }

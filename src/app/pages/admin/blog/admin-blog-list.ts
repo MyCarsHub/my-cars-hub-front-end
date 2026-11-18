@@ -3,7 +3,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
-  ViewEncapsulation,
   computed,
   inject,
   signal,
@@ -69,9 +68,6 @@ const CATEGORY_OPTIONS: readonly { value: BlogCategoryFilter; label: string }[] 
 @Component({
   selector: 'app-admin-blog-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  // Os seletores de admin-blog-list.css começam por `app-admin-blog-list`: sem encapsulamento
-  // eles alcançam as linhas que a `app-data-list` desenha, e não vazam para outra tela.
-  encapsulation: ViewEncapsulation.None,
   host: { class: 'block' },
   imports: [
     RouterModule,
@@ -88,7 +84,6 @@ const CATEGORY_OPTIONS: readonly { value: BlogCategoryFilter; label: string }[] 
     ListFilterSelect,
   ],
   templateUrl: './admin-blog-list.html',
-  styleUrl: './admin-blog-list.css',
 })
 export class AdminBlogList implements OnInit {
   private readonly service = inject(BlogService);
@@ -110,6 +105,8 @@ export class AdminBlogList implements OnInit {
   protected readonly columns = COLUMNS;
   protected readonly categoryOptions = CATEGORY_OPTIONS;
   protected readonly rowId = (row: BlogRow): string => row.post.id;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (row: BlogRow): string => `Ações do post ${row.post.title}`;
 
   protected readonly search = signal('');
   protected readonly statusFilter = signal<BlogStatusFilter>('ALL');
@@ -131,9 +128,9 @@ export class AdminBlogList implements OnInit {
   protected readonly statusOptions = computed<readonly FilterChipOption<BlogStatusFilter>[]>(() => {
     const n = blogStatusCounts(this.allRows(), this.filters());
     return [
-      { value: 'ALL', label: `Todos · ${n.ALL}` },
-      { value: 'PUBLISHED', label: `Publicados · ${n.PUBLISHED}` },
-      { value: 'DRAFT', label: `Rascunhos · ${n.DRAFT}` },
+      { value: 'ALL', label: 'Todos', count: n.ALL },
+      { value: 'PUBLISHED', label: 'Publicados', count: n.PUBLISHED },
+      { value: 'DRAFT', label: 'Rascunhos', count: n.DRAFT },
     ];
   });
 

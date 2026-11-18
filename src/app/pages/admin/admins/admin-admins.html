@@ -31,7 +31,7 @@
           <app-data-list
             data-testid="admin-list"
             ariaLabel="Administradores"
-            actionsLabel="Mais ações do administrador"
+            [actionsLabel]="kebabLabel"
             emptyText="Nenhum admin."
             [columns]="columns"
             [rows]="members()"

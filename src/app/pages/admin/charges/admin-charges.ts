@@ -150,11 +150,19 @@ export class AdminCharges implements OnInit {
   ];
 
   protected readonly rowId = (c: AdminChargeListItem): string => c.chargeId;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (c: AdminChargeListItem): string =>
+    `Ações da cobrança de ${c.driverName ?? c.companyName}`;
 
   /**
    * O kebab é da lista inteira (`app-data-list`): some quando NENHUMA linha tem ação para o papel
    * (perfil Leitura). Uma linha sem ação, numa lista em que outras têm, mostra o item desabilitado.
    */
+  /**
+   * A row with nothing to do draws no kebab (instead of a menu holding a disabled "nenhuma ação");
+   * when no row has one (the read-only profile) the actions column goes away entirely.
+   */
+  protected readonly rowHasActions = (item: AdminChargeListItem): boolean => this.hasAnyAction(item);
   protected readonly anyRowAction = computed(() => this.items().some((i) => this.hasAnyAction(i)));
   protected readonly totalPages = computed(() => {
     const d = this.data();
@@ -232,7 +240,7 @@ export class AdminCharges implements OnInit {
     return this.caps.can('cobranca.cancelar') && canCancelCharge(item);
   }
 
-  /** O papel tem pelo menos uma ação nesta cobrança (senão o kebab mostra só o item desabilitado). */
+  /** O papel tem pelo menos uma ação nesta cobrança (senão a linha fica sem kebab). */
   protected hasAnyAction(item: AdminChargeListItem): boolean {
     return (
       this.canCancel(item) ||

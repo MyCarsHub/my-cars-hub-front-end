@@ -59,7 +59,7 @@
           [loading]="loading() && tasks().length === 0"
           [emptyText]="emptyText()"
           ariaLabel="Sugestões"
-          actionsLabel="Ações da sugestão"
+          [actionsLabel]="kebabLabel"
           exportFilename="sugestoes.csv"
           cardsBelow="lg"
           [page]="currentPage()"

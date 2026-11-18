@@ -53,7 +53,7 @@
           [loading]="loading() && items().length === 0"
           emptyText="Nenhum usuário encontrado com esses filtros."
           ariaLabel="Usuários"
-          actionsLabel="Ações do usuário"
+          [actionsLabel]="kebabLabel"
           exportFilename="usuarios.csv"
           cardsBelow="lg"
           [rowTarget]="true"

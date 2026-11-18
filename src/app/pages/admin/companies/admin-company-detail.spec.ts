@@ -1,12 +1,14 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { AdminCompanyDetail } from './admin-company-detail';
+import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AdminCompaniesService } from '../admin-companies.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -187,6 +189,24 @@ describe('AdminCompanyDetail — erros do backend', () => {
     TestBed.inject(ApiErrorService).scheduleSafetyNet(error);
     vi.runAllTimers();
     expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it('o confirmar de "Reativar empresa" é verde sólido (success), como o botão era antes; suspender segue vermelho', () => {
+    detail.set({ ...COMPANY, active: false, status: 'SUSPENDED' });
+    configure();
+
+    const fixture = TestBed.createComponent(AdminCompanyDetail);
+    fixture.detectChanges();
+    (fixture.componentInstance as unknown as { openStatusDialog: () => void }).openStatusDialog();
+    fixture.detectChanges();
+
+    const dialog = fixture.debugElement.query(By.directive(ConfirmDialog))
+      .componentInstance as ConfirmDialog;
+    expect(dialog.variant()).toBe('success');
+
+    detail.set(COMPANY);
+    fixture.detectChanges();
+    expect(dialog.variant()).toBe('danger');
   });
 });
 

@@ -29,6 +29,7 @@ import { AdminUserListItem } from '../../../types/admin-user.types';
 import { AdminMember, AdminRole, AdminRoleReason } from '../../../types/admin-roles.types';
 import { AdminRolesService } from './admin-roles.service';
 import { PersonNamePipe } from '../../../pipes/person-name.pipe';
+import { formatPersonName } from '../../../utils/display-format';
 import { exactDateTime, lastAccessLabel } from '../users/admin-users-view';
 
 const ADMIN_ROLE_LABEL: Record<AdminRole, string> = {
@@ -147,6 +148,9 @@ export class AdminAdmins implements OnInit {
     },
   ];
   protected readonly rowId = (m: AdminMember): string => m.id;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (m: AdminMember): string =>
+    `Mais ações do administrador ${formatPersonName(m.name) || m.email}`;
 
   protected readonly roleOptions = ROLE_OPTIONS;
   protected readonly grantReasons = GRANT_REASONS;

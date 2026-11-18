@@ -658,6 +658,9 @@ describe('AdminCoupons', () => {
       expect(pill('Ativos').textContent).toContain('2');
       expect(pill('Esgotados').textContent).toContain('1');
       expect(pill('Encerrados').textContent).toContain('1');
+      expect(pill('Ativos').textContent).not.toContain('·');
+      // Entrada em cascata da própria app-data-list (`animateRows`); a página só anima a saída.
+      expect(el.querySelector('[data-row]')?.classList.contains('enter-up')).toBe(true);
       expect(pill('Todos').getAttribute('aria-checked')).toBe('true');
       pill('Esgotados').click();
       fixture.detectChanges();

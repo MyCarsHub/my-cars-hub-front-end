@@ -253,6 +253,9 @@ export class AdminNotifications implements OnInit {
   ];
 
   protected readonly chargeRowId = (i: ChargeNotificationItem): string => i.chargeId;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly chargeKebabLabel = (i: ChargeNotificationItem): string =>
+    `Ações da cobrança de ${i.driverFirstName || i.companyName}`;
   protected readonly driverRowId = (d: AsaasNotificationDriver, index: number): string =>
     `${d.companyId}:${d.driverFirstName}:${index}`;
 

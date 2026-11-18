@@ -345,7 +345,10 @@ export class AdminHome implements OnInit {
     this.caps.ensureLoaded().subscribe();
   }
 
-  /** O seletor calcula pelo relógio do navegador; o servidor manda em São Paulo (ver `clampRange`). */
+  /**
+   * O seletor já conta em São Paulo e recusa data futura (`allowFuture=false`); `clampRange` fica
+   * como guarda do contrato do servidor (fim até hoje, janela até `ADMIN_RANGE_MAX_DAYS`).
+   */
   protected onRangeChange(range: DateRange): void {
     const next = clampRange(range, todayInBusinessTz());
     const current = this.range();

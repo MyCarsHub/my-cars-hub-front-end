@@ -155,7 +155,7 @@
           [rowId]="chargeRowId"
           [emptyText]="s.due === 0 ? 'Nenhuma cobrança vencendo neste dia.' : 'Nenhuma cobrança com estes filtros.'"
           ariaLabel="Cobranças do dia"
-          actionsLabel="Ações da cobrança"
+          [actionsLabel]="chargeKebabLabel"
           cardsBelow="lg"
           [page]="page()"
           [totalPages]="totalPages()"

@@ -39,21 +39,16 @@
 
         <section aria-labelledby="audit-period-title" class="space-y-2">
           <h3 id="audit-period-title" class="text-sm font-semibold text-fg">Período</h3>
-          <ng-template #periodPicker>
-            <app-date-range-picker
-              data-testid="audit-period"
-              [initialPreset]="null"
-              [presetKeys]="periodKeys"
-              periodEnd="today"
-              (rangeChange)="setRange($event)"
-            />
-          </ng-template>
-          <!-- Trocar de ramo recria o seletor: é assim que "Limpar filtros" o desmarca. -->
-          @if (pickerEven()) {
-            <ng-container [ngTemplateOutlet]="periodPicker" />
-          } @else {
-            <ng-container [ngTemplateOutlet]="periodPicker" />
-          }
+          <app-date-range-picker
+            data-testid="audit-period"
+            [initialPreset]="null"
+            [presetKeys]="periodKeys"
+            periodEnd="today"
+            [clearable]="true"
+            [allowFuture]="false"
+            (rangeChange)="setRange($event)"
+            (rangeCleared)="clearRange()"
+          />
           @if (!fromFilter()) {
             <p class="text-xs text-fg-subtle" data-testid="audit-period-all">
               Todo o histórico. Escolha um período para recortar.
@@ -72,7 +67,7 @@
           [loading]="loading() && items().length === 0"
           [emptyText]="emptyText()"
           ariaLabel="Trilha de ações administrativas, das mais recentes para as mais antigas"
-          actionsLabel="Ações do registro"
+          [actionsLabel]="kebabLabel"
           exportFilename="auditoria.csv"
           cardsBelow="lg"
           [rowTarget]="true"

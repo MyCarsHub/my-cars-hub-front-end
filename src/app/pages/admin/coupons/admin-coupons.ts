@@ -220,6 +220,8 @@ export class AdminCoupons implements OnInit {
   protected readonly typeOptions = TYPE_OPTIONS;
   protected readonly columns = COLUMNS;
   protected readonly rowId = (row: CouponRow): string => row.coupon.couponId;
+  /** Each kebab is named after its row, so a screen reader can tell them apart. */
+  protected readonly kebabLabel = (row: CouponRow): string => `Ações do cupom ${row.title}`;
   /** A busca é local: a lista inteira já veio da Stripe, filtrar aqui mostra exatamente o que existe. */
   protected readonly search = signal('');
   protected readonly typeFilter = signal<TypeFilter>('ALL');
@@ -273,10 +275,10 @@ export class AdminCoupons implements OnInit {
   protected readonly situationOptions = computed<readonly FilterChipOption<SituationFilter>[]>(() => {
     const n = situationCounts(this.allRows(), this.filters());
     return [
-      { value: 'ALL', label: `Todos · ${n.ALL}` },
-      { value: 'ACTIVE', label: `Ativos · ${n.ACTIVE}` },
-      { value: 'EXHAUSTED', label: `Esgotados · ${n.EXHAUSTED}` },
-      { value: 'ENDED', label: `Encerrados · ${n.ENDED}` },
+      { value: 'ALL', label: 'Todos', count: n.ALL },
+      { value: 'ACTIVE', label: 'Ativos', count: n.ACTIVE },
+      { value: 'EXHAUSTED', label: 'Esgotados', count: n.EXHAUSTED },
+      { value: 'ENDED', label: 'Encerrados', count: n.ENDED },
     ];
   });
 

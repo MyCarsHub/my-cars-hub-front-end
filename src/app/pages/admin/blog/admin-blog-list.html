@@ -74,7 +74,7 @@
           <!-- The epoch changes with situation/category: the list is rebuilt and the rise-in cascade replays. -->
           @for (epoch of epochs(); track epoch.id) {
             <app-data-list
-              class="blog-list"
+              [animateRows]="true"
               data-testid="posts-list"
               [columns]="columns"
               [rows]="rows()"
@@ -82,7 +82,7 @@
               cardsBelow="lg"
               emptyText="Nenhum post corresponde à busca e aos filtros escolhidos."
               ariaLabel="Posts"
-              actionsLabel="Ações do post"
+              [actionsLabel]="kebabLabel"
               exportFilename="posts-blog.csv"
               [rowTarget]="true"
               (rowActivate)="openEditor($event)"

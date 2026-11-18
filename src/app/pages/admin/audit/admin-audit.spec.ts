@@ -10,6 +10,7 @@ import { AdminAuditService } from '../admin-audit.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import type { AdminAuditActor, AdminAuditLogItem } from '../../../types/admin-audit.types';
+import { todayInBusinessTz } from '../../../utils/business-clock';
 
 const ENTRY: AdminAuditLogItem = {
   id: 'aud-1',
@@ -297,20 +298,24 @@ describe('AdminAudit', () => {
     );
   });
 
-  it('Limpar filtros zera ação e período e recria o seletor sem chip marcado', () => {
+  it('Limpar filtros zera ação e período e desmarca o MESMO seletor (clear), sem recriá-lo', () => {
     configure();
     const fixture = TestBed.createComponent(AdminAudit);
     fixture.detectChanges();
 
     const component = fixture.componentInstance as unknown as {
       setActionFilter: (v: string) => void;
-      setRange: (r: { from: string; to: string }) => void;
       clearFilters: () => void;
     };
     component.setActionFilter('BLOG_POST_PUBLISHED');
-    component.setRange({ from: '2026-08-01', to: '2026-08-04' });
     fixture.detectChanges();
-    const before = fixture.nativeElement.querySelector('app-date-range-picker');
+    const picker: HTMLElement = fixture.nativeElement.querySelector('app-date-range-picker');
+    const sevenDays = Array.from(picker.querySelectorAll<HTMLElement>('[role="radio"]')).find(
+      (b) => b.textContent?.trim() === '7 dias',
+    )!;
+    sevenDays.click();
+    fixture.detectChanges();
+    expect(picker.querySelector('[aria-checked="true"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-testid="audit-period-all"]')).toBeNull();
 
     load.mockClear();
@@ -318,7 +323,7 @@ describe('AdminAudit', () => {
     fixture.detectChanges();
 
     const after: HTMLElement = fixture.nativeElement.querySelector('app-date-range-picker');
-    expect(after).not.toBe(before);
+    expect(after).toBe(picker);
     expect(after.querySelector('[aria-checked="true"]')).toBeNull();
     expect(fixture.nativeElement.querySelector('[data-testid="audit-period-all"]')).not.toBeNull();
     expect(load.mock.calls[load.mock.calls.length - 1][0]).toMatchObject({
@@ -327,5 +332,36 @@ describe('AdminAudit', () => {
       to: '',
       page: 0,
     });
+  });
+
+  it('"Limpar período" do seletor volta a todo o histórico; datas futuras não podem ser escolhidas', () => {
+    configure();
+    const fixture = TestBed.createComponent(AdminAudit);
+    fixture.detectChanges();
+    const picker: HTMLElement = fixture.nativeElement.querySelector('app-date-range-picker');
+    // Nada marcado ao abrir: sem o link de limpar.
+    expect(picker.querySelector('[data-range-clear]')).toBeNull();
+
+    Array.from(picker.querySelectorAll<HTMLElement>('[role="radio"]'))
+      .find((b) => b.textContent?.trim() === 'Personalizado')!
+      .click();
+    fixture.detectChanges();
+    const max = todayInBusinessTz();
+    for (const input of Array.from(picker.querySelectorAll<HTMLInputElement>('input[type="date"]'))) {
+      expect(input.getAttribute('max')).toBe(max);
+    }
+
+    Array.from(picker.querySelectorAll<HTMLElement>('[role="radio"]'))
+      .find((b) => b.textContent?.trim() === '30 dias')!
+      .click();
+    fixture.detectChanges();
+    expect(load.mock.calls[load.mock.calls.length - 1][0].from).not.toBe('');
+
+    load.mockClear();
+    picker.querySelector<HTMLElement>('[data-range-clear]')!.click();
+    fixture.detectChanges();
+    expect(picker.querySelector('[aria-checked="true"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="audit-period-all"]')).not.toBeNull();
+    expect(load.mock.calls[load.mock.calls.length - 1][0]).toMatchObject({ from: '', to: '', page: 0 });
   });
 });
