@@ -1,23 +1,16 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  OnDestroy,
-  OnInit,
   computed,
   effect,
   inject,
   signal,
 } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 
 import { BackLink } from '../../../components/core/back-link/back-link';
-import {
-  FilterChipGroup,
-  FilterChipOption,
-} from '../../../components/filter-chip-group/filter-chip-group';
+import type { FilterChipOption } from '../../../components/filter-chip-group/filter-chip-group';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
@@ -28,7 +21,9 @@ import {
   DataListCell,
   type DataListColumn,
 } from '../../../components/lists/data-list/data-list';
-import { StatusChip } from '../../../components/core/status-chip/status-chip';
+import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
+import { ListFilterSelect, ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
+import { StatusChip, type StatusChipTone } from '../../../components/core/status-chip/status-chip';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminCompaniesService } from '../admin-companies.service';
@@ -38,7 +33,7 @@ import {
   AdminCompanyListItem,
   AdminCompanyStatus,
 } from '../../../types/admin-company.types';
-import { subscriptionChip } from './subscription-status-chip';
+import { subscriptionChip, type SubscriptionChip } from './subscription-status-chip';
 import { PersonNamePipe } from '../../../pipes/person-name.pipe';
 
 type StatusFilter = 'ALL' | 'ACTIVE' | 'SUSPENDED';
@@ -51,20 +46,22 @@ interface PendingAction {
 
 interface ChipStyle {
   label: string;
-  chip: string;
+  tone: StatusChipTone;
 }
 
+/** Situação da empresa: cor só no chip (verde ativa, vermelho suspensa, neutro cancelada). */
 const COMPANY_STATUS_CHIPS: Record<AdminCompanyStatus, ChipStyle> = {
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
-  SUSPENDED: { label: 'Suspensa', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
-  CANCELLED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
+  ACTIVE: { label: 'Ativa', tone: 'green' },
+  SUSPENDED: { label: 'Suspensa', tone: 'red' },
+  CANCELLED: { label: 'Cancelada', tone: 'neutral' },
 };
 
 const PAGE_SIZE = 20;
 
 /**
  * Colunas da lista (kit `app-data-list`). Valor gerenciado e MRR vêm do backend em
- * centavos; valor ausente (backend antigo) vira "—" — o 0 só aparece quando o servidor o manda.
+ * centavos e saem com centavos ("R$ 1.234,56"); valor ausente (backend antigo) vira "—" —
+ * o 0 só aparece quando o servidor o manda.
  */
 const COLUMNS: readonly DataListColumn<AdminCompanyListItem>[] = [
   { key: 'name', header: 'Empresa', primary: true, value: (c) => c.name },
@@ -76,9 +73,9 @@ const COLUMNS: readonly DataListColumn<AdminCompanyListItem>[] = [
 ];
 
 /**
- * Opcoes dos dois filtros. Ficam FORA do template porque `FilterChipGroup.options`
- * e um `input` — um literal inline no template viraria um array novo a cada
- * deteccao de mudanca e derrubaria o `OnPush` do grupo a toa.
+ * Situação = UMA fileira de pílulas (`app-list-toolbar`); plano = select "Plano: X" na linha da
+ * busca, como Membros (padrão de lista, 18/11/2026). Ficam fora do template porque `options` é
+ * `input` de componente OnPush: um literal inline viraria um array novo a cada ciclo.
  */
 const STATUS_OPTIONS: readonly FilterChipOption<StatusFilter>[] = [
   { value: 'ALL', label: 'Todas' },
@@ -86,12 +83,18 @@ const STATUS_OPTIONS: readonly FilterChipOption<StatusFilter>[] = [
   { value: 'SUSPENDED', label: 'Suspensas' },
 ];
 
-const PLAN_OPTIONS: readonly FilterChipOption<PlanFilter>[] = [
-  { value: 'ALL', label: 'Todos planos' },
-  { value: 'TRIAL_MONTHLY', label: 'Trial' },
+const PLAN_OPTIONS: readonly { value: PlanFilter; label: string }[] = [
+  { value: 'ALL', label: 'Todos' },
+  { value: 'TRIAL_MONTHLY', label: 'Em teste' },
   { value: 'PRO_MONTHLY', label: 'Pro (mensal)' },
 ];
 
+/**
+ * Empresas (padrão de lista da plataforma, 18/11/2026): abas em `app-pill-tabs`,
+ * `app-page-card "Lista"`, `app-list-toolbar` (busca no servidor + pílulas de situação + select de
+ * plano + contagem + "Limpar filtros") e `app-data-list` (tabela a partir de 1024px, cartões
+ * abaixo, kebab por linha, paginação do servidor no rodapé do componente).
+ */
 @Component({
   selector: 'app-admin-companies',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -100,7 +103,6 @@ const PLAN_OPTIONS: readonly FilterChipOption<PlanFilter>[] = [
     AdminCompaniesTabs,
     ContactActions,
     BackLink,
-    ReactiveFormsModule,
     DefaultPageLayout,
     PageCard,
     ConfirmDialog,
@@ -108,17 +110,19 @@ const PLAN_OPTIONS: readonly FilterChipOption<PlanFilter>[] = [
     DataList,
     DataListCell,
     DataListActions,
+    DataListMenuItem,
+    ListToolbar,
+    ListFilterSelect,
     StatusChip,
-    FilterChipGroup,
     RouterLink,
   ],
   templateUrl: './admin-companies.html',
 })
-export class AdminCompanies implements OnInit, OnDestroy {
+export class AdminCompanies {
   private readonly companiesService = inject(AdminCompaniesService);
   private readonly notify = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
-  private readonly destroy$ = new Subject<void>();
+  private readonly router = inject(Router);
 
   protected readonly companies = this.companiesService.companies;
   protected readonly loading = this.companiesService.loading;
@@ -131,10 +135,8 @@ export class AdminCompanies implements OnInit, OnDestroy {
   protected readonly actionError = signal<string | null>(null);
   protected readonly total = this.companiesService.total;
 
-  protected readonly searchControl = new FormControl<string>('', { nonNullable: true });
   protected readonly search = signal<string>('');
   protected readonly columns = COLUMNS;
-  private readonly router = inject(Router);
 
   /** A linha inteira abre o detalhe (alvo de mouse e toque); o teclado usa o link do nome. */
   protected openCompany(company: AdminCompanyListItem): void {
@@ -158,8 +160,10 @@ export class AdminCompanies implements OnInit, OnDestroy {
     return Math.max(1, Math.ceil(t / PAGE_SIZE));
   });
 
-  protected readonly canPrev = computed(() => this.currentPage() > 0);
-  protected readonly canNext = computed(() => this.currentPage() + 1 < this.totalPages());
+  /** Algum filtro fora do padrão: o toolbar mostra "Limpar filtros". */
+  protected readonly filtersActive = computed(
+    () => this.search() !== '' || this.statusFilter() !== 'ALL' || this.planFilter() !== 'ALL',
+  );
 
   protected readonly confirmVariant = computed<'info' | 'warning' | 'danger'>(() => {
     const a = this.pendingAction();
@@ -215,18 +219,12 @@ export class AdminCompanies implements OnInit, OnDestroy {
     });
   }
 
-  ngOnInit(): void {
-    this.searchControl.valueChanges
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntil(this.destroy$))
-      .subscribe((value) => {
-        this.currentPage.set(0);
-        this.search.set(value ?? '');
-      });
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+  /** Busca no servidor (o toolbar já espera 300ms depois da última tecla). */
+  protected setSearch(value: string): void {
+    const next = value.trim();
+    if (next === this.search()) return;
+    this.currentPage.set(0);
+    this.search.set(next);
   }
 
   protected setStatusFilter(value: StatusFilter): void {
@@ -239,12 +237,20 @@ export class AdminCompanies implements OnInit, OnDestroy {
     this.planFilter.set(value);
   }
 
-  protected prevPage(): void {
-    if (this.canPrev()) this.currentPage.update((p) => p - 1);
+  protected onPlanChange(event: Event): void {
+    this.setPlanFilter((event.target as HTMLSelectElement).value as PlanFilter);
   }
 
-  protected nextPage(): void {
-    if (this.canNext()) this.currentPage.update((p) => p + 1);
+  protected clearFilters(): void {
+    this.currentPage.set(0);
+    this.search.set('');
+    this.statusFilter.set('ALL');
+    this.planFilter.set('ALL');
+  }
+
+  protected goToPage(page: number): void {
+    if (page < 0 || page >= this.totalPages()) return;
+    this.currentPage.set(page);
   }
 
   protected requestToggleStatus(company: AdminCompanyListItem): void {
@@ -272,10 +278,10 @@ export class AdminCompanies implements OnInit, OnDestroy {
   }
 
   protected companyChip(status: AdminCompanyStatus): ChipStyle {
-    return COMPANY_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-surface-sunken text-fg-soft' };
+    return COMPANY_STATUS_CHIPS[status] ?? { label: status, tone: 'neutral' };
   }
 
-  protected subChip(company: AdminCompanyListItem): ChipStyle | null {
+  protected subChip(company: AdminCompanyListItem): SubscriptionChip | null {
     return subscriptionChip(company.subscriptionStatus, company.trialEndsAt);
   }
 
