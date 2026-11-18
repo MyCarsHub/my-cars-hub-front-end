@@ -432,6 +432,6 @@ export function buildHomeCsv<T>(
     buildCsv(managedCols, managed),
     companies ? buildCsv(companies.columns, companies.rows) : null,
   ].filter((s): s is string => s !== null);
-  const strip = (s: string) => s.replace(/^﻿/, '');
-  return '﻿' + header + '\r\n' + sections.map(strip).join('\r\n');
+  const strip = (s: string) => s.replace(/^\uFEFF/, '');
+  return '\uFEFF' + header + '\r\n' + sections.map(strip).join('\r\n');
 }

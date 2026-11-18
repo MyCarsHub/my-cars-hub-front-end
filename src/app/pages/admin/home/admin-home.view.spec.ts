@@ -141,7 +141,7 @@ describe('admin-home.view', () => {
 
   it('buildHomeCsv: um BOM só, indicadores com motivo do nulo, dinheiro como número', () => {
     const csv = buildHomeCsv(HOME, null);
-    expect(csv.match(/﻿/g)).toHaveLength(1);
+    expect(csv.match(/\uFEFF/g)).toHaveLength(1);
     expect(csv).toContain('MRR real;;569,10;;239,70;01/12/2025;;definição');
     expect(csv).toContain('Lucro do mês;;;;;;nenhum custo lançado em novembro;definição');
     expect(csv).toContain('Churn mensal;0%;');

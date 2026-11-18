@@ -63,7 +63,7 @@ describe('BarChart', () => {
       const rows = Array.from(el.querySelectorAll('tbody tr')).map((tr) =>
         Array.from(tr.querySelectorAll('th, td')).map((c) => c.textContent?.trim()),
       );
-      expect(rows[0]).toEqual(['out', 'R$ 100,00', 'sem dado', 'sem dado']);
+      expect(rows[0]).toEqual(['out', 'R$\u00a0100,00', 'sem dado', 'sem dado']);
       expect(el.querySelectorAll<HTMLElement>('[data-bar-column]')[1].style.height).toBe('0%');
     });
 
