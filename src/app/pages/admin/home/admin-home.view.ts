@@ -295,15 +295,147 @@ const ACTION_LABEL: Record<string, string> = {
   ADMIN_ROLE_GRANTED: 'Deu acesso de admin',
   ADMIN_ROLE_CHANGED: 'Mudou o papel de um admin',
   ADMIN_ROLE_REVOKED: 'Tirou acesso de admin',
+  // Completa os três enums do backend (AuditAction, AdminAuditAction, PlatformMovementEvent).
+  LOGIN_SUCCEEDED: 'Entrou no sistema',
+  COMPANY_SWITCHED: 'Trocou de empresa',
+  INSURANCE_INSTALLMENTS_GENERATED: 'Gerou parcelas de seguro',
+  INSURANCE_INSTALLMENT_UNPAID: 'Desfez parcela de seguro',
+  INSURANCE_INSTALLMENTS_DELETED: 'Excluiu parcelas de seguro',
+  IPVA_INSTALLMENTS_GENERATED: 'Gerou parcelas de IPVA',
+  IPVA_INSTALLMENT_ADDED: 'Adicionou parcela de IPVA',
+  IPVA_INSTALLMENT_UPDATED: 'Atualizou parcela de IPVA',
+  IPVA_INSTALLMENT_DELETED: 'Excluiu parcela de IPVA',
+  IPVA_INSTALLMENT_UNPAID: 'Desfez parcela de IPVA',
+  HTTP_MUTATION: 'Alteração registrada',
+  USER_SYSTEM_ROLE_CHANGED: 'Mudou o papel de sistema de um usuário',
+  USER_REMOVED: 'Removeu um usuário',
+  USER_INVITE_RESENT: 'Reenviou um convite',
+  COMPANY_MEMBER_REMOVED: 'Removeu alguém da empresa',
+  FEEDBACK_TASK_STATUS_CHANGED: 'Mudou o status de um feedback',
+  FEEDBACK_TASK_DELETED: 'Excluiu um feedback',
+  BLOG_POST_CREATED: 'Criou um post',
+  BLOG_POST_UPDATED: 'Editou um post',
+  BLOG_POST_PUBLISHED: 'Publicou um post',
+  BLOG_POST_UNPUBLISHED: 'Despublicou um post',
+  BLOG_POST_DELETED: 'Excluiu um post',
+  SUPPORT_TICKET_STATUS_CHANGED: 'Mudou o status de um chamado',
+  SUPPORT_TICKET_REPLIED: 'Respondeu um chamado',
+  SUPPORT_TICKET_ASSIGNED: 'Assumiu um chamado',
+  IMPERSONATED_INVITES_LISTED: 'Viu os convites do cliente',
+  ADMIN_COMPANY_ACCESS_GRANTED: 'Liberou acesso de escrita a uma empresa',
+  SUPPORT_EDIT_REQUEST: 'Alterou dados no modo edição',
+  SUPPORT_EDIT_STARTED: 'Ligou o modo edição',
+  SUPPORT_EDIT_EXTENDED: 'Estendeu o modo edição',
+  SUPPORT_EDIT_WRITE_CAP_REACHED: 'Atingiu o limite do modo edição',
+  SUPPORT_EDIT_SIDE_EFFECT_SUPPRESSED: 'Segurou um envio no modo edição',
+  RENTAL_SCHEDULE_REGENERATED: 'Refez o cronograma de um aluguel',
+  CONTRACT_TEMPLATE_SAVED: 'Salvou o modelo de contrato',
+  CONTRACT_AI_CONSENT_GIVEN: 'Autorizou a IA no contrato',
+  CONTRACT_DRAFT_DISCARDED: 'Descartou um rascunho de contrato',
+  NOTIFICATION_TEST_DISPATCHED: 'Enviou um teste de notificação',
+  CHARGE_EMAIL_RESENT: 'Reenviou o e-mail de uma cobrança',
+  USER_CONTACT_REVEALED: 'Viu o contato de um usuário',
+  DRIVER_CONTACT_REVEALED: 'Viu o contato de um motorista',
+  COMPANY_CONTACT_REVEALED: 'Viu o contato de uma empresa',
+  CHARGE_ASAAS_COMPARED: 'Comparou uma cobrança com o Asaas',
+  CHARGE_MARKED_RECEIVED_OUTSIDE: 'Marcou cobrança como recebida por fora',
+  RENTAL_CHARGES_RENEGOTIATED: 'Renegociou cobranças num acordo',
+  RENTAL_CHARGE_RECEIVED_OUTSIDE: 'Recebeu uma cobrança por fora',
+  RENTAL_CHARGE_AGREEMENT_NEEDS_ATTENTION: 'Acordo de cobranças precisa de atenção',
+  DRIVER_NAME_CORRECTED: 'Corrigiu o nome de um motorista',
+  DRIVER_ASAAS_CUSTOMER_SYNCED: 'Atualizou o cliente no Asaas',
+  BILLING_REMINDER: 'Lembrete de assinatura atrasada',
+  ANNOUNCEMENT_CREATED: 'Criou um aviso',
+  ANNOUNCEMENT_UPDATED: 'Editou um aviso',
+  ANNOUNCEMENT_PUBLISHED: 'Publicou um aviso',
+  ANNOUNCEMENT_UNPUBLISHED: 'Despublicou um aviso',
+  ANNOUNCEMENT_DELETED: 'Excluiu um aviso',
+  ANNOUNCEMENT_MEDIA_SET: 'Pôs uma imagem num aviso',
+  ANNOUNCEMENT_MEDIA_REMOVED: 'Tirou a imagem de um aviso',
 };
 
-/** Ação do feed em português; desconhecida vira a própria sigla legível, nunca some. */
-export function actionLabel(action: string | null | undefined): string {
+/** Ação que ainda não tem rótulo: em português, nunca o código cru. */
+export const ACTION_FALLBACK = 'Ação registrada';
+
+/** Rotas sem registro específico, pelo template exato (`MÉTODO /v1/...`). */
+const ROUTE_LABEL: Record<string, string> = {
+  'POST /v1/auth/oauth-exchange': 'Entrou com o Google',
+  'POST /v1/announcements/{id}/read': 'Leu um aviso',
+  'POST /v1/onboarding/step': 'Avançou no primeiro acesso',
+  'POST /v1/onboarding/finish': 'Concluiu o primeiro acesso',
+  'POST /v1/support/tickets': 'Abriu um chamado de suporte',
+  'POST /v1/users/me/tour-seen': 'Viu o tour do sistema',
+  'POST /v1/rentals/preflight': 'Conferiu os dados de um aluguel novo',
+  'POST /v1/rentals/charge-preview': 'Simulou as cobranças de um aluguel',
+  'POST /v1/rentals/{rentalId}/agreements/preview': 'Simulou um acordo de cobranças',
+  'POST /v1/invites': 'Enviou um convite',
+  'POST /v1/invite-onboarding/manager': 'Concluiu o cadastro de gerente',
+  'POST /v1/vehicles/{vehicleId}/documents': 'Enviou um documento do veículo',
+  'PUT /v1/companies/me': 'Atualizou os dados da empresa',
+  'POST /v1/driver/ledger': 'Fez um lançamento no caderno do motorista',
+  'POST /v1/billing/checkout': 'Abriu o pagamento da assinatura',
+};
+
+/** Rota sem template conhecido: a área pelo primeiro trecho depois de `/v1/`. */
+const ROUTE_AREA: Record<string, string> = {
+  vehicles: 'veículos',
+  'vehicle-incidents': 'ocorrências de veículos',
+  rentals: 'aluguéis',
+  charges: 'cobranças',
+  adjustments: 'ajustes de cobrança',
+  drivers: 'motoristas',
+  driver: 'área do motorista',
+  fines: 'multas',
+  maintenances: 'manutenções',
+  insurances: 'seguros',
+  ipva: 'IPVA',
+  financings: 'financiamentos',
+  expenses: 'despesas',
+  inspections: 'vistorias',
+  'inspection-schedules': 'agenda de vistorias',
+  companies: 'empresa',
+  settings: 'configurações',
+  users: 'conta',
+  invites: 'convites',
+  'invite-onboarding': 'convites',
+  billing: 'assinatura',
+  onboarding: 'primeiro acesso',
+  announcements: 'avisos',
+  support: 'suporte',
+  feedback: 'feedback',
+  notifications: 'notificações',
+  alerts: 'alertas',
+  auth: 'acesso',
+};
+
+/**
+ * O que a rota diz da alteração. O detalhe vem em dois formatos: `... POST /v1/x` (rede de
+ * segurança da trilha, `HTTP_MUTATION`) ou `method=POST ... route=/v1/x` (modo edição).
+ */
+function routeLabel(detail: string | null | undefined): string | null {
+  if (!detail) return null;
+  const plain = /\b(POST|PUT|PATCH|DELETE) (\/v1\/\S+)/.exec(detail);
+  const method = plain?.[1] ?? /\bmethod=([A-Z]+)/.exec(detail)?.[1];
+  const route = plain?.[2] ?? /\broute=(\/v1\/\S+)/.exec(detail)?.[1];
+  if (!method || !route) return null;
+  const exact = ROUTE_LABEL[`${method} ${route}`];
+  if (exact) return exact;
+  const area = ROUTE_AREA[route.split('/')[2] ?? ''];
+  return area ? `Alteração em ${area}` : null;
+}
+
+/**
+ * Ação do feed em português. As linhas genéricas (rede de segurança e modo edição) dizem o que
+ * mudou pela rota quando o detalhe a traz; ação sem rótulo cai em {@link ACTION_FALLBACK}.
+ */
+export function actionLabel(action: string | null | undefined, detail?: string | null): string {
   if (!action) return '—';
-  const known = ACTION_LABEL[action];
-  if (known) return known;
-  const words = action.toLowerCase().split('_').filter(Boolean).join(' ');
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  if (action === 'HTTP_MUTATION') return routeLabel(detail) ?? ACTION_LABEL[action];
+  if (action === 'SUPPORT_EDIT_REQUEST') {
+    const what = routeLabel(detail);
+    return what ? `Modo edição: ${what.charAt(0).toLowerCase()}${what.slice(1)}` : ACTION_LABEL[action];
+  }
+  return ACTION_LABEL[action] ?? ACTION_FALLBACK;
 }
 
 export const ORIGIN_LABEL: Record<string, string> = {

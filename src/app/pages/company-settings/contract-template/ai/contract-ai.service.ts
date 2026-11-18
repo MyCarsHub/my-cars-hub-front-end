@@ -125,6 +125,8 @@ export class ContractAiService {
   readonly failureText = computed(() => failureMessage(this.draft()?.failureCode ?? null));
   /** O que o contrato enviado já trazia como `{{campo}}`. */
   readonly existingFields = computed(() => this.draft()?.existingFields ?? []);
+  /** Desses, os que estão no trecho da outra parte: aviso na conferência. */
+  readonly misplacedFields = computed(() => this.draft()?.misplacedFields ?? []);
   /** Dados de pessoa ou empresa: só viram campo com a resposta do dono. */
   readonly questions = computed(() => this.draft()?.questions ?? []);
   /** Os mesmos dados, por bloco (backend novo). Vazio num backend anterior. */

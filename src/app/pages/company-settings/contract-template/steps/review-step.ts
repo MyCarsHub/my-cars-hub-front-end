@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { KpiCard } from '../../../../components/kpi-card/kpi-card';
 import { NotificationService } from '../../../../services/notification.service';
 import {
@@ -7,8 +7,8 @@ import {
   AUTENTIQUE_NOTICE_NOTE,
   AUTENTIQUE_NOTICE_TITLE,
 } from '../autentique-clause';
-import { LEGAL_DISCLAIMER } from '../ai/contract-ai.messages';
-import { FieldOption } from '../ai/contract-ai.types';
+import { LEGAL_DISCLAIMER, fieldLabel, safeText } from '../ai/contract-ai.messages';
+import { FieldOption, MisplacedField } from '../ai/contract-ai.types';
 import { ContractExistingFields } from '../contract-existing-fields';
 import { ContractIcon } from '../contract-icon';
 
@@ -38,6 +38,26 @@ import { ContractIcon } from '../contract-icon';
         [countTo]="clauses()" numberFormat="integer" class="enter-up [&>p:first-child]:normal-case [&>p:first-child]:tracking-normal [&>p:first-child]:text-sm [&>p:first-child]:whitespace-normal [&>p:first-child]:overflow-visible [&>p:first-child_.truncate]:whitespace-normal [&>p:first-child_.truncate]:overflow-visible" style="--stagger-i: 1"></div>
     </div>
     <app-contract-existing-fields [fields]="existing()" />
+    @if (misplacedItems().length > 0) {
+      <section data-misplaced aria-labelledby="contract-misplaced-title"
+        class="flex flex-col gap-2.5 rounded-2xl bg-amber-50 dark:bg-amber-500/10 px-4 py-3.5 text-amber-950 dark:text-amber-100">
+        <h4 id="contract-misplaced-title" class="m-0 text-[15px] font-semibold leading-snug">
+          {{ misplacedItems().length === 1 ? '1 dado no lado errado do contrato' : misplacedItems().length + ' dados no lado errado do contrato' }}
+        </h4>
+        <p class="m-0 text-[13px] leading-snug">
+          O contrato já traz {{ misplacedItems().length === 1 ? 'este campo' : 'estes campos' }}, mas no trecho da outra parte.
+          Assim, cada aluguel sai com o dado de uma pessoa no lugar da outra. Corrija no Word e envie o contrato de novo.
+        </p>
+        <ul class="m-0 flex list-none flex-col gap-2 p-0">
+          @for (m of misplacedItems(); track m.key) {
+            <li class="flex min-w-0 flex-col gap-0.5 text-[13px] leading-snug">
+              <span class="font-semibold [overflow-wrap:anywhere]">{{ m.label }}</span>
+              <span class="[overflow-wrap:anywhere]">{{ m.where }}: «{{ m.excerpt }}»</span>
+            </li>
+          }
+        </ul>
+      </section>
+    }
     @if (unanswered().length > 0) {
       <section data-unanswered aria-labelledby="contract-unanswered-title"
         class="flex flex-col gap-2.5 rounded-2xl bg-amber-50 dark:bg-amber-500/10 px-4 py-3.5 text-amber-950 dark:text-amber-100">
@@ -119,6 +139,16 @@ export class ContractReviewStep {
   readonly clauses = input(0);
   /** O que o contrato enviado já trazia: sem perguntas, aqui é o único lugar que mostra. */
   readonly existing = input<readonly FieldOption[]>([]);
+  /** Campos que o contrato já trazia no trecho da outra parte. Aviso, não bloqueia. */
+  readonly misplaced = input<readonly MisplacedField[]>([]);
+  protected readonly misplacedItems = computed(() =>
+    this.misplaced().map((m) => ({
+      key: `${m.field}|${m.foundIn}`,
+      label: fieldLabel(m.field, m.label),
+      where: m.foundIn === 'COMPANY' ? 'Dado do motorista no trecho da locadora' : 'Dado da locadora no trecho do motorista',
+      excerpt: safeText(m.excerpt),
+    })),
+  );
   /** Perguntas sem resposta: o dado fica fixo. Texto já mascarado e legível. */
   readonly unanswered = input<readonly { id: string; value: string; where: string }[]>([]);
   /** Nenhum campo identifica o motorista: todo aluguel sairia sem dizer quem é. */

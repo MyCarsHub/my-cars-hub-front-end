@@ -112,7 +112,7 @@ export class HomeMovements {
   protected readonly resultTone = resultTone;
 
   protected readonly columns: readonly DataListColumn<PlatformMovement>[] = [
-    { key: 'action', header: 'Ação', primary: true, value: (m) => actionLabel(m.action) },
+    { key: 'action', header: 'Ação', primary: true, value: (m) => actionLabel(m.action, m.detail) },
     { key: 'when', header: 'Quando', value: (m) => relativeTime(m.occurredAt, this.now()) },
     { key: 'who', header: 'Quem', value: (m) => m.actorName },
     { key: 'company', header: 'Empresa', value: (m) => m.companyName },
