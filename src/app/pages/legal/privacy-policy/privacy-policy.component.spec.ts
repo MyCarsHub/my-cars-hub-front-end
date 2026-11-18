@@ -220,3 +220,40 @@ describe('PrivacyPolicyComponent — secao de IA (Ajustar o meu contrato)', () =
     expect(await visit('en')).toContain('Contract analysis with AI');
   });
 });
+
+/**
+ * Captura de acessos por hora (admin home v2, B10): a política tem de dizer o que é guardado, o
+ * que NÃO é, quem vê e o prazo. Se a frase sumir, a captura passa a não ter aviso.
+ */
+describe('PrivacyPolicyComponent — uso da plataforma (acessos por hora)', () => {
+  async function visit(lang: 'pt' | 'en'): Promise<string> {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: 'politica-de-privacidade', component: PrivacyPolicyComponent }]),
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        ConsentService,
+      ],
+    });
+    const suffix = lang === 'en' ? '?lang=en' : '';
+    const harness = await RouterTestingHarness.create(`/politica-de-privacidade${suffix}`);
+    harness.detectChanges();
+    return ((harness.fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+  }
+
+  it('PT: só identificador, hora e minutos; sem IP; apagado em 90 dias', async () => {
+    const text = await visit('pt');
+    expect(text).toContain('2.5 Uso da plataforma');
+    expect(text).toContain('identificador interno do usuário, a hora e quantos minutos');
+    expect(text).toContain('Não guardamos endereço IP');
+    expect(text).toContain('apagada automaticamente 90 dias depois');
+    expect(text).toContain('A contagem de acessos por hora (seção 2.5) é apagada automaticamente após 90 dias');
+  });
+
+  it('EN: the same promises', async () => {
+    const text = await visit('en');
+    expect(text).toContain('2.5 Platform usage');
+    expect(text).toContain('We do not keep the IP address');
+    expect(text).toContain('deleted automatically after 90 days');
+  });
+});
