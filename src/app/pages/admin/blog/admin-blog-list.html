@@ -4,113 +4,163 @@
 >
   <div class="space-y-4 sm:space-y-6">
     @if (error(); as msg) {
-      <app-alert-banner variant="error" [message]="msg" />
+      <div data-testid="error"><app-alert-banner variant="error" [message]="msg" /></div>
     }
 
-    <div class="flex justify-end">
-      <a routerLink="/admin/blog/novo"
-        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px]">
+    <app-page-card title="Lista">
+      <a
+        cardActions
+        routerLink="/admin/blog/novo"
+        data-testid="new-post"
+        class="press press-soft inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white
+               text-sm font-semibold shadow-sm transition-colors min-h-[44px] focus:outline-none
+               focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+      >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
         </svg>
         Novo post
       </a>
-    </div>
 
-    <app-page-card title="Posts">
-      <div class="p-2 sm:p-3">
-        @if (loading()) {
-          <div class="space-y-3 p-4">
-            <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
-            <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
-            <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
+      <div class="p-3 sm:p-4 space-y-4">
+        @if (loading() && !hasAny()) {
+          <div data-testid="skeleton">
+            <app-data-list [columns]="columns" [rows]="[]" [loading]="true" ariaLabel="Posts" />
           </div>
-        } @else if (items().length === 0) {
-          <p class="text-center text-fg-subtle text-sm py-12">Nenhum post ainda.</p>
+        } @else if (!hasAny()) {
+          <app-data-list
+            data-testid="empty"
+            [columns]="columns"
+            [rows]="[]"
+            emptyText="Nenhum post ainda."
+            ariaLabel="Posts"
+          >
+            <a
+              dataListEmptyAction
+              routerLink="/admin/blog/novo"
+              class="press min-h-12 w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
+                     justify-center gap-2 bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            >
+              Escrever o primeiro post
+            </a>
+          </app-data-list>
         } @else {
-          <ul class="divide-y divide-edge-soft">
-            @for (post of items(); track post.id) {
-              <li class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 hover:bg-surface-muted transition-colors rounded-lg">
-                <div class="flex-1 min-w-0">
-                  <div class="flex flex-wrap items-center gap-2 mb-1">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-                      [class.bg-emerald-100]="post.status === 'PUBLISHED'" [class.dark:bg-emerald-500/15]="post.status === 'PUBLISHED'"
-                      [class.text-emerald-800]="post.status === 'PUBLISHED'" [class.dark:text-emerald-200]="post.status === 'PUBLISHED'"
-                      [class.bg-surface-strong]="post.status !== 'PUBLISHED'"
-                      [class.text-fg-soft]="post.status !== 'PUBLISHED'">
-                      {{ post.status === 'PUBLISHED' ? 'Publicado' : 'Rascunho' }}
-                    </span>
-                    <span class="text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">
-                      {{ categoryLabel(post.category) }}
-                    </span>
-                  </div>
-                  <p class="text-sm font-semibold text-fg truncate">{{ post.title }}</p>
-                  <p class="text-xs text-fg-subtle mt-0.5">
-                    /blog/{{ post.slug }} · {{ post.readingMinutes }} min
-                    @if (post.publishedAt) {
-                      · publicado {{ formatDate(post.publishedAt) }}
-                    } @else {
-                      · criado {{ formatDate(post.createdDate) }}
-                    }
-                  </p>
+          <app-list-toolbar
+            searchLabel="Buscar post"
+            searchPlaceholder="Título ou endereço…"
+            [query]="search()"
+            (queryChange)="setQuery($event)"
+            [statusOptions]="statusOptions()"
+            [status]="statusFilter()"
+            statusLabel="Filtrar por situação"
+            (statusChange)="setStatus($event)"
+            [resultCount]="rows().length"
+            [resultNoun]="['post', 'posts']"
+            [filtersActive]="anyFilter()"
+            (clearFilters)="clearFilters()"
+          >
+            <select listFilterSelect data-filter-category aria-label="Categoria" (change)="onCategoryChange($event)">
+              @for (opt of categoryOptions; track opt.value) {
+                <option [value]="opt.value" [selected]="opt.value === categoryFilter()">Categoria: {{ opt.label }}</option>
+              }
+            </select>
+          </app-list-toolbar>
+
+          @if (pageNote(); as note) {
+            <p class="text-xs text-fg-subtle" data-testid="page-note">{{ note }}</p>
+          }
+
+          <!-- The epoch changes with situation/category: the list is rebuilt and the rise-in cascade replays. -->
+          @for (epoch of epochs(); track epoch.id) {
+            <app-data-list
+              class="blog-list"
+              data-testid="posts-list"
+              [columns]="columns"
+              [rows]="rows()"
+              [rowId]="rowId"
+              cardsBelow="lg"
+              emptyText="Nenhum post corresponde à busca e aos filtros escolhidos."
+              ariaLabel="Posts"
+              actionsLabel="Ações do post"
+              exportFilename="posts-blog.csv"
+              [rowTarget]="true"
+              (rowActivate)="openEditor($event)"
+              [page]="page()"
+              [totalPages]="totalPages()"
+              [total]="total()"
+              [itemNoun]="['post', 'posts']"
+              (pageChange)="goPage($event)"
+            >
+              <button
+                dataListEmptyAction
+                type="button"
+                data-clear-filters
+                (click)="clearFilters()"
+                class="press min-h-[44px] w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
+                       justify-center bg-surface-sunken text-fg-body hover:bg-surface-strong
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+              >
+                Limpar filtros
+              </button>
+
+              <!-- Title: the row's one keyboard stop; opens the editor. The address sits below it. -->
+              <ng-template dataListCell="title" let-row>
+                <div class="min-w-0">
+                  <a
+                    data-testid="post-title"
+                    [routerLink]="['/admin/blog', row.post.id, 'editar']"
+                    class="inline-flex items-center min-h-11 text-left font-semibold text-fg break-words rounded-sm
+                           hover:text-primary-700 dark:hover:text-primary-400
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    [attr.aria-label]="'Editar o post ' + row.post.title"
+                  >{{ row.post.title }}</a>
+                  <small class="block text-xs font-normal text-fg-subtle break-all" data-testid="post-path">{{ row.path }}</small>
                 </div>
-                <div class="flex items-center justify-end shrink-0">
-                  <app-actions-menu [label]="'Ações para ' + post.title">
-                    <a
-                      role="menuitem"
-                      [routerLink]="['/admin/blog', post.id, 'editar']"
-                      class="flex items-center w-full px-4 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]"
-                    >
-                      Editar
-                    </a>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      (click)="togglePublish(post)"
-                      class="w-full text-left px-4 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]"
-                    >
-                      {{ post.status === 'PUBLISHED' ? 'Despublicar' : 'Publicar' }}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      (click)="askDelete(post)"
-                      class="w-full text-left px-4 py-3 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
-                             min-h-[44px] border-t border-edge-soft"
-                    >
-                      Excluir
-                    </button>
-                  </app-actions-menu>
-                </div>
-              </li>
-            }
-          </ul>
+              </ng-template>
+
+              <!-- What it is about is a label, not a situation: neutral chip. -->
+              <ng-template dataListCell="category" let-row>
+                <app-status-chip tone="neutral" size="sm" data-testid="post-category">{{ row.category }}</app-status-chip>
+              </ng-template>
+
+              <ng-template dataListCell="status" let-row>
+                <app-status-chip [tone]="row.status.tone" size="sm" data-testid="post-status">{{ row.status.label }}</app-status-chip>
+              </ng-template>
+
+              <ng-template dataListCell="date" let-row>
+                <span class="text-fg tabular-nums whitespace-nowrap" data-testid="post-date" [attr.title]="row.dateExact">{{ row.date }}</span>
+              </ng-template>
+
+              <ng-template dataListCell="reading" let-row>
+                <span class="text-fg-body tabular-nums whitespace-nowrap">{{ row.reading }}</span>
+              </ng-template>
+
+              <ng-template dataListActions let-row>
+                <a dataListMenuItem data-testid="menu-edit" [routerLink]="['/admin/blog', row.post.id, 'editar']">Editar</a>
+                @if (row.post.status === 'PUBLISHED') {
+                  <a dataListMenuItem data-testid="menu-view" [routerLink]="['/blog', row.post.slug]" target="_blank" rel="noopener">Ver no blog</a>
+                }
+                <button type="button" dataListMenuItem data-testid="menu-publish" (click)="togglePublish(row.post)">
+                  {{ row.post.status === 'PUBLISHED' ? 'Despublicar' : 'Publicar' }}
+                </button>
+                <button type="button" dataListMenuItem="danger" data-testid="menu-delete" (click)="askDelete(row.post)">Excluir</button>
+              </ng-template>
+            </app-data-list>
+          }
         }
       </div>
     </app-page-card>
-
-    @if (totalPages() > 1) {
-      <div class="flex items-center justify-between gap-2">
-        <button type="button" (click)="goPage(page() - 1)" [disabled]="page() === 0"
-          class="px-4 py-2 rounded-lg border border-edge text-sm font-medium disabled:opacity-40">
-          Anterior
-        </button>
-        <span class="text-sm text-fg-subtle">Página {{ page() + 1 }} de {{ totalPages() }}</span>
-        <button type="button" (click)="goPage(page() + 1)" [disabled]="page() >= totalPages() - 1"
-          class="px-4 py-2 rounded-lg border border-edge text-sm font-medium disabled:opacity-40">
-          Próxima
-        </button>
-      </div>
-    }
   </div>
 </app-default-page-layout>
 
 <app-confirm-dialog
   [open]="deleteOpen()"
   title="Excluir post?"
-  message="O post será removido permanentemente e a URL /blog/{slug} deixará de funcionar."
+  [message]="'O post será removido permanentemente e o endereço /blog/' + (pendingDelete()?.slug ?? '') + ' deixará de funcionar.'"
   confirmLabel="Excluir"
   variant="danger"
+  [busy]="deleting()"
   (confirmed)="confirmDelete()"
   (cancelled)="closeDelete()"
 />

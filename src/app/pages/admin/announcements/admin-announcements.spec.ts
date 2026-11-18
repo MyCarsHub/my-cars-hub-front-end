@@ -12,7 +12,7 @@ import { visibleAdminMenu } from '../shell/admin-menu';
 import { AdminAnnouncements } from './admin-announcements';
 import { AdminAnnouncementsService } from './admin-announcements.service';
 import { isAllowedLink } from './announcement-sheet';
-import { periodLabel } from './announcement-copy';
+import { periodLabel, periodSub, titleSub } from './announcement-copy';
 
 function ann(extra: Partial<AdminAnnouncement> = {}): AdminAnnouncement {
   return {
@@ -87,26 +87,59 @@ describe('AdminAnnouncements (F2)', () => {
   }
 
   function openMenu(row: number, f: ComponentFixture<unknown>): void {
-    const trigger = $$('[data-testid="announcement-row"]')[row].querySelector<HTMLButtonElement>('app-actions-menu button')!;
+    const trigger = $$('[data-row]')[row].querySelector<HTMLButtonElement>('app-actions-menu button')!;
     trigger.click();
     f.detectChanges();
   }
 
-  it('lista com chip de situação, público, período e filtro por situação', () => {
+  it('lista no cartão "Lista", com chip de situação, público, período e filtro por situação', () => {
     const { f, el } = render();
-    const rows = el.querySelectorAll('[data-testid="announcement-row"]');
+    expect(el.querySelector('app-page-card h2')?.textContent?.trim()).toBe('Lista');
+    expect(el.querySelector('app-page-card [data-testid="create-announcement"]')).not.toBeNull();
+    const rows = el.querySelectorAll('[data-row]');
     expect(rows.length).toBe(3);
-    expect(Array.from(el.querySelectorAll('[data-testid="row-status"]')).map((e) => e.textContent?.trim())).toEqual([
+    expect(Array.from(el.querySelectorAll('[data-row] [data-testid="row-status"]')).map((e) => e.textContent?.trim())).toEqual([
       'Publicada',
       'Rascunho',
       'Encerrada',
     ]);
     expect(el.querySelector('[data-testid="row-sub"]')?.textContent).toContain('lida por 38 pessoas');
-    expect(el.querySelector('[data-testid="row-period"]')?.textContent?.trim()).toBe('12/11 a 30/11/2026');
-    (el.querySelector('[data-testid="tab-DRAFT"]') as HTMLElement).click();
+    expect(el.querySelector('[data-testid="row-period"]')?.textContent?.trim()).toBe('12/11/2026 a 30/11/2026');
+    // Cabeçalho em caixa normal, sem tabela fingida em caixa alta e sem linha entre linhas.
+    expect(el.querySelector('[data-row] .uppercase, thead .uppercase')).toBeNull();
+    expect(el.querySelector('[class*="divide-"]')).toBeNull();
+    // Filtro é a fileira de pílulas (app-filter-chip-group), com a contagem no rótulo.
+    expect(el.querySelector('app-pill-tabs')).toBeNull();
+    const drafts = Array.from(el.querySelectorAll<HTMLElement>('app-filter-chip-group button')).find((b) =>
+      b.textContent?.trim().startsWith('Rascunhos'),
+    )!;
+    expect(drafts.textContent).toContain('1');
+    drafts.click();
     f.detectChanges();
-    expect(el.querySelectorAll('[data-testid="announcement-row"]').length).toBe(1);
-    expect(el.querySelector('[data-testid="footer"]')?.textContent).toContain('1 novidade');
+    expect(el.querySelectorAll('[data-row]').length).toBe(1);
+    expect(el.querySelector('[data-list-results]')?.textContent).toContain('1 novidade');
+  });
+
+  it('busca pelo título ou texto, sem acento', () => {
+    const { f, el } = render();
+    const search = el.querySelector('[data-list-search]') as HTMLInputElement;
+    search.value = 'VELHA';
+    search.dispatchEvent(new Event('input'));
+    f.detectChanges();
+    expect(Array.from(el.querySelectorAll('[data-row] [data-testid="row-title"]')).map((e) => e.textContent?.trim())).toEqual([
+      'Velha',
+    ]);
+    search.value = 'voce lanca';
+    search.dispatchEvent(new Event('input'));
+    f.detectChanges();
+    expect(el.querySelectorAll('[data-row]').length).toBe(3);
+  });
+
+  it('tocar na linha abre a folha', () => {
+    const { f, el } = render();
+    (el.querySelector('[data-row] td:nth-child(2)') as HTMLElement).click();
+    f.detectChanges();
+    expect($('[data-testid="announcement-sheet"]')).not.toBeNull();
   });
 
   it('vazio e erro seguem a prancha (erro tem "Tentar de novo")', () => {
@@ -121,7 +154,7 @@ describe('AdminAnnouncements (F2)', () => {
     expect(el.querySelector('[data-testid="load-error"]')).not.toBeNull();
     (el.querySelector('[data-testid="retry"]') as HTMLElement).click();
     f.detectChanges();
-    expect(el.querySelectorAll('[data-testid="announcement-row"]').length).toBe(3);
+    expect(el.querySelectorAll('[data-row]').length).toBe(3);
   });
 
   it('cria, vê a prévia ao vivo e publica (salva e depois publica)', () => {
@@ -283,6 +316,20 @@ describe('AdminAnnouncements (F2)', () => {
     expect(periodLabel({ startsOn: null, endsOn: null })).toBe('Sem data');
     expect(periodLabel({ startsOn: '2026-11-12', endsOn: null })).toBe('A partir de 12/11/2026');
     expect(periodLabel({ startsOn: '2026-12-20', endsOn: '2027-01-05' })).toBe('20/12/2026 a 05/01/2027');
+  });
+
+  it('datas do servidor no fuso do negócio, sempre com o ano', () => {
+    // 01:30 do dia 19 em UTC = 22:30 do dia 18 em Brasília.
+    expect(titleSub(ann({ status: 'DRAFT', modifyDate: '2026-11-19T01:30:00' }))).toBe('editada em 18/11/2026');
+    expect(periodSub(ann({ status: 'EXPIRED', endsOn: '2026-11-30', endedAt: '2026-11-19T01:30:00' }), '2026-11-20')).toBe(
+      'encerrou em 18/11/2026',
+    );
+    expect(periodSub(ann({ status: 'EXPIRED', endedAt: null }), '2026-12-01')).toBe('encerrou em 30/11/2026');
+    expect(periodSub(ann({ status: 'PUBLISHED' }), '2026-11-18')).toBe('no ar desde 12/11/2026');
+    expect(periodSub(ann({ status: 'PUBLISHED', startsOn: null, publishedAt: '2026-11-19T01:30:00' }), '2026-11-18')).toBe(
+      'no ar desde 18/11/2026',
+    );
+    expect(periodSub(ann({ status: 'PUBLISHED', startsOn: '2026-12-01' }), '2026-11-18')).toBe('começa em 01/12/2026');
   });
 });
 

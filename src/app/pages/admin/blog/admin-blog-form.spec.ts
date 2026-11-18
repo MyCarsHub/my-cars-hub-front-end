@@ -149,4 +149,15 @@ describe('AdminBlogForm — erros de campo vindos do backend', () => {
     );
     expect(notifyError).not.toHaveBeenCalled();
   });
+
+  it('todo campo tem 16px (text-base): abaixo disso o iOS dá zoom no foco', () => {
+    const controls = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('input, select, textarea'),
+    );
+    expect(controls.length).toBeGreaterThan(0);
+    for (const c of controls) {
+      expect(c.className).toContain('text-base');
+      expect(c.className).not.toContain('text-sm');
+    }
+  });
 });
