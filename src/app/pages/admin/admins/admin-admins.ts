@@ -18,7 +18,8 @@ import {
   DataListCell,
   DataListColumn,
 } from '../../../components/lists/data-list/data-list';
-import { StatusChipTone } from '../../../components/core/status-chip/status-chip';
+import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
+import { PageCard } from '../../../components/core/page-card/page-card';
 import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
 import { ReasonOption, ReasonPicker } from '../../../components/core/reason-picker/reason-picker';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -28,6 +29,7 @@ import { AdminUserListItem } from '../../../types/admin-user.types';
 import { AdminMember, AdminRole, AdminRoleReason } from '../../../types/admin-roles.types';
 import { AdminRolesService } from './admin-roles.service';
 import { PersonNamePipe } from '../../../pipes/person-name.pipe';
+import { exactDateTime, lastAccessLabel } from '../users/admin-users-view';
 
 const ADMIN_ROLE_LABEL: Record<AdminRole, string> = {
   OWNER: 'Dono da plataforma',
@@ -95,13 +97,6 @@ const ROLE_ABILITIES: Record<AdminRole, string[]> = {
 
 export const REVOKE_WORD = 'REMOVER';
 
-const ROLE_TONE: Record<AdminRole | 'NONE', StatusChipTone> = {
-  OWNER: 'orange',
-  SUPPORT: 'blue',
-  READONLY: 'neutral',
-  NONE: 'amber',
-};
-
 @Component({
   selector: 'app-admin-admins',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -114,6 +109,8 @@ const ROLE_TONE: Record<AdminRole | 'NONE', StatusChipTone> = {
     DataList,
     DataListCell,
     DataListActions,
+    DataListMenuItem,
+    PageCard,
   ],
   templateUrl: './admin-admins.html',
 })
@@ -126,12 +123,12 @@ export class AdminAdmins implements OnInit {
 
   protected readonly columns: readonly DataListColumn<AdminMember>[] = [
     { key: 'name', header: 'Administrador', primary: true, value: (m) => m.name ?? m.email },
+    // Papel e quem a pessoa e: chip neutro (cor so na situacao).
     {
       key: 'role',
       header: 'Papel',
       kind: 'status',
       value: (m) => (m.adminRole ? ADMIN_ROLE_LABEL[m.adminRole] : 'Sem papel'),
-      tone: (m) => ROLE_TONE[m.adminRole ?? 'NONE'],
     },
     {
       key: 'active',
@@ -140,7 +137,14 @@ export class AdminAdmins implements OnInit {
       value: (m) => (m.active ? 'Ativo' : 'Desativado'),
       tone: (m) => (m.active ? 'green' : 'neutral'),
     },
-    { key: 'lastAccess', header: 'Último acesso', value: (m) => this.lastAccess(m) },
+    {
+      key: 'lastAccess',
+      header: 'Último acesso',
+      value: (m) => {
+        const exact = this.lastAccessExact(m);
+        return exact ? `${this.lastAccess(m)} (${exact})` : this.lastAccess(m);
+      },
+    },
   ];
   protected readonly rowId = (m: AdminMember): string => m.id;
 
@@ -303,12 +307,18 @@ export class AdminAdmins implements OnInit {
     return n === 1 ? '1 pessoa' : `${n} pessoas`;
   }
 
+  /**
+   * "Visto há 3 dias", o mesmo texto de Usuários. Presença (`lastSeenAt`) vence; sem ela vale o
+   * último login. Sem nenhum dos dois: "Nunca entrou".
+   */
   protected lastAccess(m: AdminMember): string {
-    const iso = m.lastSeenAt ?? m.lastLoginAt;
-    if (!iso) return 'Nunca entrou';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return 'Nunca entrou';
-    return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+    const seenAt = m.lastSeenAt ?? m.lastLoginAt ?? null;
+    return lastAccessLabel({ online: false, lastSeenAt: seenAt }, Date.now()) ?? 'Nunca entrou';
+  }
+
+  /** Data e hora exatas embaixo do relativo, no fuso do negócio ("18/11/2026 às 14:32"). */
+  protected lastAccessExact(m: AdminMember): string | null {
+    return exactDateTime(m.lastSeenAt ?? m.lastLoginAt ?? null);
   }
 
   // ---------- abrir / fechar ----------
