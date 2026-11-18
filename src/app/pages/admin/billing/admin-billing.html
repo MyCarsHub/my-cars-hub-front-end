@@ -1,5 +1,5 @@
 <app-default-page-layout
-  title="Billing"
+  title="Assinaturas"
   description="Assinaturas, problemas de cobrança em aberto e composição do MRR por plano."
 >
   <!-- ==================== MRR ==================== -->
@@ -10,8 +10,8 @@
         <div>
           <button
             type="button"
-            class="text-xs px-3 py-2 rounded-lg border border-edge bg-surface text-fg-soft
-                   hover:bg-canvas min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-400"
+            class="min-h-[44px] px-4 rounded-xl bg-surface-sunken text-sm font-semibold text-fg-body
+                   hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             (click)="reloadMrr()"
           >
             Tentar novamente
@@ -19,146 +19,68 @@
         </div>
       }
 
-      @if (mrrLoading() && !mrr()) {
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+      @if (mrr() || mrrLoading()) {
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="mrr-kpis">
+          <div
+            app-kpi-card
+            data-testid="kpi-mrr-total"
+            variant="primary"
+            label="MRR total"
+            numberFormat="brl-cents"
+            [anchored]="true"
+            [stagger]="0"
+            [loading]="mrrLoading() && !mrr()"
+            [value]="totalMrr()"
+            detail="ativas + trial"
+          ></div>
+          <div
+            app-kpi-card
+            data-testid="kpi-mrr-active"
+            variant="emerald"
+            label="MRR só de ativas"
+            numberFormat="brl-cents"
+            [anchored]="true"
+            [stagger]="1"
+            [loading]="mrrLoading() && !mrr()"
+            [value]="activeOnlyMrr()"
+            detail="exclui trial e canceladas"
+          ></div>
+          <div
+            app-kpi-card
+            class="col-span-2 sm:col-span-1"
+            data-testid="kpi-subscriptions"
+            label="Assinaturas"
+            numberFormat="integer"
+            [anchored]="true"
+            [stagger]="2"
+            [loading]="mrrLoading() && !mrr()"
+            [value]="mrr() ? totalSubscriptions() : null"
+            detail="total considerado no cálculo"
+          ></div>
         </div>
       }
 
       @if (mrr()) {
-        <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div class="rounded-xl border border-edge p-4 bg-surface">
-            <dt class="text-xs font-medium text-fg-muted">MRR total</dt>
-            <dd class="mt-1 text-xl font-semibold text-fg tabular-nums break-words">
-              {{ formatCents(totalMrr()) }}
-            </dd>
-            <p class="mt-1 text-[11px] text-fg-subtle">Ativas + trial</p>
-          </div>
-          <div class="rounded-xl border border-edge p-4 bg-surface">
-            <dt class="text-xs font-medium text-fg-muted">MRR só de ativas</dt>
-            <dd class="mt-1 text-xl font-semibold text-fg tabular-nums break-words">
-              {{ formatCents(activeOnlyMrr()) }}
-            </dd>
-            <p class="mt-1 text-[11px] text-fg-subtle">Exclui trial e canceladas</p>
-          </div>
-          <div class="rounded-xl border border-edge p-4 bg-surface">
-            <dt class="text-xs font-medium text-fg-muted">Assinaturas</dt>
-            <dd class="mt-1 text-xl font-semibold text-fg tabular-nums">
-              {{ totalSubscriptions() }}
-            </dd>
-            <p class="mt-1 text-[11px] text-fg-subtle">Total considerado no cálculo</p>
-          </div>
-        </dl>
-
-        @if (byPlan().length === 0) {
-          <p class="text-center text-sm text-fg-subtle py-8">
-            Nenhum plano com assinatura para compor o MRR.
-          </p>
-        } @else {
-          <h3 class="text-sm font-semibold text-fg pt-2">Composição por plano</h3>
-
-          <!-- MOBILE: CARDS -->
-          <ul class="space-y-3 lg:hidden list-none">
-            @for (plan of byPlan(); track plan.planId) {
-              <li class="rounded-xl border border-edge p-4 space-y-2 bg-surface">
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <p class="text-sm font-medium text-fg break-words">{{ plan.planName }}</p>
-                    <p class="text-[11px] text-fg-subtle break-words">
-                      {{ plan.planCode }} · {{ periodLabel(plan.planPeriod) }} ·
-                      {{ gateway(plan.gateway) }}
-                    </p>
-                  </div>
-                  <span class="text-sm font-semibold text-fg tabular-nums shrink-0">
-                    {{ formatCents(plan.mrrCents) }}
-                  </span>
-                </div>
-                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-fg-muted">
-                  <dt>Preço do plano</dt>
-                  <dd class="text-right tabular-nums">{{ formatCents(plan.planPriceCents) }}</dd>
-                  <dt>MRR só de ativas</dt>
-                  <dd class="text-right tabular-nums">
-                    {{ formatCents(plan.activeOnlyMrrCents) }}
-                  </dd>
-                  <dt>Assinaturas</dt>
-                  <dd class="text-right tabular-nums">{{ plan.subscriptionsTotal }}</dd>
-                  <dt>Ativas / trial</dt>
-                  <dd class="text-right tabular-nums">
-                    {{ plan.activeTotal }} / {{ plan.trialingTotal }}
-                  </dd>
-                  <dt>Atrasadas / canceladas</dt>
-                  <dd class="text-right tabular-nums">
-                    {{ plan.pastDueTotal }} / {{ plan.canceledTotal }}
-                  </dd>
-                </dl>
-              </li>
-            }
-          </ul>
-
-          <!-- DESKTOP: TABELA -->
-          <div class="hidden lg:block overflow-x-auto">
-            <table class="min-w-full text-sm">
-              <caption class="sr-only">
-                Composição do MRR por plano
-              </caption>
-              <thead>
-                <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
-                  <th scope="col" class="py-2 pr-4 font-medium">Plano</th>
-                  <th scope="col" class="py-2 pr-4 font-medium">Gateway</th>
-                  <th scope="col" class="py-2 pr-4 font-medium text-right">Preço</th>
-                  <th scope="col" class="py-2 pr-4 font-medium text-right">Assin.</th>
-                  <th scope="col" class="py-2 pr-4 font-medium text-right">Ativas</th>
-                  <th scope="col" class="py-2 pr-4 font-medium text-right">Trial</th>
-                  <th scope="col" class="py-2 pr-4 font-medium text-right">Atrasadas</th>
-                  <th scope="col" class="py-2 pr-4 font-medium text-right">Cancel.</th>
-                  <th scope="col" class="py-2 pr-4 font-medium text-right">MRR</th>
-                  <th scope="col" class="py-2 pr-4 font-medium text-right">MRR ativas</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (plan of byPlan(); track plan.planId) {
-                  <tr class="border-b border-gray-50 dark:border-edge-faint align-top">
-                    <td class="py-3 pr-4">
-                      <span class="block font-medium text-fg break-words">
-                        {{ plan.planName }}
-                      </span>
-                      <span class="block text-xs text-fg-subtle break-words">
-                        {{ plan.planCode }} · {{ periodLabel(plan.planPeriod) }}
-                      </span>
-                    </td>
-                    <td class="py-3 pr-4 text-fg-soft">{{ gateway(plan.gateway) }}</td>
-                    <td class="py-3 pr-4 text-right text-fg-soft tabular-nums">
-                      {{ formatCents(plan.planPriceCents) }}
-                    </td>
-                    <td class="py-3 pr-4 text-right text-fg-soft tabular-nums">
-                      {{ plan.subscriptionsTotal }}
-                    </td>
-                    <td class="py-3 pr-4 text-right text-fg-soft tabular-nums">
-                      {{ plan.activeTotal }}
-                    </td>
-                    <td class="py-3 pr-4 text-right text-fg-soft tabular-nums">
-                      {{ plan.trialingTotal }}
-                    </td>
-                    <td class="py-3 pr-4 text-right text-fg-soft tabular-nums">
-                      {{ plan.pastDueTotal }}
-                    </td>
-                    <td class="py-3 pr-4 text-right text-fg-soft tabular-nums">
-                      {{ plan.canceledTotal }}
-                    </td>
-                    <td class="py-3 pr-4 text-right font-medium text-fg tabular-nums">
-                      {{ formatCents(plan.mrrCents) }}
-                    </td>
-                    <td class="py-3 pr-4 text-right text-fg-soft tabular-nums">
-                      {{ formatCents(plan.activeOnlyMrrCents) }}
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
+        <h3 class="text-sm font-semibold text-fg pt-2">Composição por plano</h3>
+        <app-data-list
+          data-testid="mrr-plans"
+          [columns]="planColumns"
+          [rows]="byPlan()"
+          [rowId]="planRowId"
+          emptyText="Nenhum plano com assinatura para compor o MRR."
+          ariaLabel="Composição do MRR por plano"
+          cardsBelow="lg"
+        >
+          <ng-template dataListCell="plan" let-plan>
+            <span class="block font-semibold text-fg break-words whitespace-normal">{{ plan.planName }}</span>
+            <span class="block text-xs font-normal text-fg-subtle break-words whitespace-normal">
+              {{ plan.planCode }} · {{ periodLabel(plan.planPeriod) }}
+            </span>
+          </ng-template>
+          <ng-template dataListCell="mrr" let-plan>
+            <span class="font-semibold text-fg tabular-nums whitespace-nowrap">{{ plan.mrrCents | brl }}</span>
+          </ng-template>
+        </app-data-list>
       }
     </div>
   </app-page-card>
@@ -167,459 +89,199 @@
   <div class="mt-6">
     <app-page-card title="Problemas de cobrança">
       <div class="p-3 sm:p-4 space-y-4">
-        <div class="space-y-2">
-          <span id="billing-window-label" class="block text-xs font-medium text-fg-muted">
-            Janela de análise
-          </span>
-          <div
-            class="flex flex-wrap gap-2"
-            role="group"
-            aria-labelledby="billing-window-label"
-          >
-            @for (days of issueWindows; track days) {
-              <button
-                type="button"
-                class="text-xs px-3 py-2 rounded-full border min-h-[44px] focus:outline-none
-                       focus:ring-2 focus:ring-primary-400"
-                [class]="
-                  isIssueWindow(days)
-                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10 text-primary-800 dark:text-primary-400 font-medium'
-                    : 'border-edge bg-surface text-fg-soft hover:bg-canvas'
-                "
-                [attr.aria-pressed]="isIssueWindow(days)"
-                (click)="setIssueWindow(days)"
-              >
-                {{ days }} dias
-              </button>
-            }
-          </div>
-          <p class="text-[11px] text-fg-muted leading-relaxed">{{ windowNotice() }}</p>
+        <app-list-toolbar
+          [search]="false"
+          [statusOptions]="windowOptions"
+          [status]="issueWindow()"
+          statusLabel="Janela de análise"
+          [resultCount]="issuesLoading() && issues().length === 0 ? null : issuesTotal()"
+          [resultNoun]="['problema', 'problemas']"
+          (statusChange)="setIssueWindow($event)"
+        />
+        <div class="space-y-1">
+          @if (windowRangeText(); as range) {
+            <p class="text-sm text-fg-muted tabular-nums" data-testid="window-range" aria-live="polite">
+              Problemas iniciados de <strong class="text-fg">{{ range }}</strong>
+            </p>
+          }
+          <p class="text-xs text-fg-muted leading-relaxed">{{ windowNotice() }}</p>
         </div>
 
         @if (issuesError(); as err) {
           <app-alert-banner variant="error" [message]="err" />
-        }
-
-        @if (issuesLoading() && issues().length === 0) {
-          <div class="space-y-2">
-            <div class="h-20 rounded-lg bg-surface-sunken animate-pulse"></div>
-            <div class="h-20 rounded-lg bg-surface-sunken animate-pulse"></div>
-          </div>
-        }
-
-        @if (!issuesLoading() && issues().length === 0 && !issuesError()) {
-          <div class="text-center text-sm text-fg-subtle py-10 px-4">
-            Nenhum problema de cobrança iniciado nos últimos {{ issueWindow() }} dias.
+        } @else {
+          <app-data-list
+            data-testid="billing-issues"
+            [columns]="issueColumns"
+            [rows]="issues()"
+            [loading]="issuesLoading() && issues().length === 0"
+            [emptyText]="'Nenhum problema de cobrança iniciado nos últimos ' + issueWindow() + ' dias.'"
+            ariaLabel="Problemas de cobrança em aberto iniciados na janela selecionada"
+            cardsBelow="lg"
+            [page]="issuesPage()"
+            [totalPages]="issuesPages()"
+            [total]="issuesTotal()"
+            [itemNoun]="['problema', 'problemas']"
+            (pageChange)="goToIssuesPage($event)"
+          >
             @if (canWidenWindow()) {
-              <span class="block mt-1">
-                Isso não descarta problemas mais antigos ainda em aberto — amplie a janela.
+              <div dataListEmptyAction class="space-y-3">
+                <p class="text-sm text-fg-subtle px-4">
+                  Isso não descarta problemas mais antigos ainda em aberto — amplie a janela.
+                </p>
+                <button
+                  type="button"
+                  data-testid="widen-window"
+                  class="min-h-[44px] px-4 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                  (click)="widenWindow()"
+                >
+                  Ampliar a janela
+                </button>
+              </div>
+            }
+
+            <ng-template dataListCell="company" let-issue>
+              @if (issue.companyId) {
+                <a
+                  [routerLink]="['/admin/companies', issue.companyId]"
+                  class="font-semibold text-fg hover:text-primary-700 dark:hover:text-primary-400 hover:underline
+                         break-words whitespace-normal rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                >
+                  {{ issue.companyName || 'Empresa sem nome' }}
+                </a>
+              } @else {
+                <span class="font-semibold text-fg break-words whitespace-normal">
+                  {{ issue.companyName || 'Empresa não identificada' }}
+                </span>
+              }
+              <span class="block text-xs font-normal text-fg-faint tabular-nums">
+                Assinatura {{ shortId(issue.subscriptionId) }}
               </span>
-            }
-          </div>
-        }
+            </ng-template>
 
-        @if (issues().length > 0) {
-          <!-- MOBILE: CARDS -->
-          <ul class="space-y-3 lg:hidden list-none">
-            @for (issue of issues(); track $index) {
-              <li class="rounded-xl border border-edge p-4 space-y-2 bg-surface">
-                <div class="flex items-start justify-between gap-2">
-                  <span
-                    class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                           font-medium uppercase tracking-wide break-words"
-                    [class]="issueKind(issue.kind).chip"
-                  >
-                    {{ issueKind(issue.kind).label }}
-                  </span>
-                  <time
-                    class="text-[11px] text-fg-subtle tabular-nums shrink-0"
-                    [attr.datetime]="issue.occurredAt"
-                  >
-                    {{ formatDateTime(issue.occurredAt) }}
-                  </time>
-                </div>
+            <ng-template dataListCell="occurredAt" let-issue>
+              <time class="tabular-nums whitespace-nowrap" [attr.datetime]="issue.occurredAt">
+                {{ formatDateTime(issue.occurredAt) }}
+              </time>
+            </ng-template>
 
-                @if (issue.companyId) {
-                  <a
-                    [routerLink]="['/admin/companies', issue.companyId]"
-                    class="block text-sm font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400
-                           underline break-words focus:outline-none focus:ring-2
-                           focus:ring-primary-400 rounded"
-                  >
-                    {{ issue.companyName || 'Empresa sem nome' }}
-                  </a>
-                } @else {
-                  <p class="text-sm font-medium text-fg break-words">
-                    {{ issue.companyName || 'Empresa não identificada' }}
-                  </p>
+            <ng-template dataListCell="plan" let-issue>
+              <span class="whitespace-normal break-words">{{ issue.planName || '—' }}</span>
+              <span class="block text-xs text-fg-subtle whitespace-normal break-words">
+                {{ gateway(issue.gateway) }}
+                @if (issue.externalIdMasked) {
+                  · <span class="tabular-nums">{{ issue.externalIdMasked }}</span>
                 }
+              </span>
+            </ng-template>
 
-                <p class="text-[11px] text-fg-subtle break-words">
-                  {{ issue.planName || '—' }} · {{ gateway(issue.gateway) }}
-                  @if (issue.externalIdMasked) {
-                    · <span class="tabular-nums">{{ issue.externalIdMasked }}</span>
-                  }
-                </p>
+            <ng-template dataListCell="amount" let-issue>
+              <span [class]="issueAmountClass(issue)">{{ issueAmount(issue) }}</span>
+            </ng-template>
 
-                <p class="text-sm" [class]="issueAmountClass(issue)">{{ issueAmount(issue) }}</p>
-
+            <ng-template dataListCell="todo" let-issue>
+              <div class="max-w-sm text-xs text-fg-muted whitespace-normal break-words">
                 @if (issue.reason) {
-                  <p class="text-xs text-fg-soft break-words">{{ issueReason(issue.reason) }}</p>
+                  <span class="block text-fg-body mb-1">{{ issueReason(issue.reason) }}</span>
                 }
-
-                <p class="text-[11px] text-fg-muted leading-relaxed">
-                  {{ issueKind(issue.kind).guidance }}
-                </p>
-
-                <p class="text-[11px] text-fg-faint">
-                  Assinatura <span class="tabular-nums">{{ shortId(issue.subscriptionId) }}</span>
-                </p>
-              </li>
-            }
-          </ul>
-
-          <!-- DESKTOP: TABELA -->
-          <div class="hidden lg:block overflow-x-auto">
-            <table class="min-w-full text-sm">
-              <caption class="sr-only">
-                Problemas de cobrança em aberto iniciados na janela selecionada
-              </caption>
-              <thead>
-                <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
-                  <th scope="col" class="py-2 pr-4 font-medium">Início</th>
-                  <th scope="col" class="py-2 pr-4 font-medium">Tipo</th>
-                  <th scope="col" class="py-2 pr-4 font-medium">Empresa</th>
-                  <th scope="col" class="py-2 pr-4 font-medium">Plano / gateway</th>
-                  <th scope="col" class="py-2 pr-4 font-medium">Valor</th>
-                  <th scope="col" class="py-2 pr-4 font-medium">O que fazer</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (issue of issues(); track $index) {
-                  <tr class="border-b border-gray-50 dark:border-edge-faint align-top">
-                    <td class="py-3 pr-4 text-fg-muted tabular-nums whitespace-nowrap">
-                      <time [attr.datetime]="issue.occurredAt">
-                        {{ formatDateTime(issue.occurredAt) }}
-                      </time>
-                    </td>
-                    <td class="py-3 pr-4">
-                      <span
-                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                        [class]="issueKind(issue.kind).chip"
-                      >
-                        {{ issueKind(issue.kind).label }}
-                      </span>
-                    </td>
-                    <td class="py-3 pr-4">
-                      @if (issue.companyId) {
-                        <a
-                          [routerLink]="['/admin/companies', issue.companyId]"
-                          class="font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 underline
-                                 break-words focus:outline-none focus:ring-2
-                                 focus:ring-primary-400 rounded"
-                        >
-                          {{ issue.companyName || 'Empresa sem nome' }}
-                        </a>
-                      } @else {
-                        <span class="font-medium text-fg break-words">
-                          {{ issue.companyName || 'Empresa não identificada' }}
-                        </span>
-                      }
-                      <span class="block text-xs text-fg-faint tabular-nums">
-                        {{ shortId(issue.subscriptionId) }}
-                      </span>
-                    </td>
-                    <td class="py-3 pr-4 text-fg-soft">
-                      {{ issue.planName || '—' }}
-                      <span class="block text-xs text-fg-subtle">
-                        {{ gateway(issue.gateway) }}
-                        @if (issue.externalIdMasked) {
-                          · {{ issue.externalIdMasked }}
-                        }
-                      </span>
-                    </td>
-                    <td class="py-3 pr-4" [class]="issueAmountClass(issue)">
-                      {{ issueAmount(issue) }}
-                    </td>
-                    <td class="py-3 pr-4 max-w-sm text-xs text-fg-muted">
-                      @if (issue.reason) {
-                        <span class="block text-fg-body mb-1">{{ issueReason(issue.reason) }}</span>
-                      }
-                      {{ issueKind(issue.kind).guidance }}
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-
-          <div class="flex items-center justify-between pt-2 gap-3">
-            <p class="text-xs text-fg-subtle tabular-nums">
-              Página {{ issuesPage() + 1 }} de {{ issuesPages() }} — {{ issuesTotal() }} problema(s)
-            </p>
-            <div class="flex gap-2">
-              <button
-                type="button"
-                class="text-xs px-3 py-2 rounded-lg border border-edge min-h-[44px]
-                       hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400
-                       disabled:opacity-40 disabled:cursor-not-allowed"
-                (click)="prevIssues()"
-                [disabled]="!canPrevIssues() || issuesLoading()"
-              >
-                Anterior
-              </button>
-              <button
-                type="button"
-                class="text-xs px-3 py-2 rounded-lg border border-edge min-h-[44px]
-                       hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400
-                       disabled:opacity-40 disabled:cursor-not-allowed"
-                (click)="nextIssues()"
-                [disabled]="!canNextIssues() || issuesLoading()"
-              >
-                Próxima
-              </button>
-            </div>
-          </div>
+                {{ issueKind(issue.kind).guidance }}
+              </div>
+            </ng-template>
+          </app-data-list>
         }
       </div>
     </app-page-card>
   </div>
 
-  <!-- ==================== ASSINATURAS ==================== -->
-  <div class="mt-6">
-    <app-page-card title="Assinaturas">
+  <!-- ==================== LISTA DE ASSINATURAS ==================== -->
+  <div class="mt-6" data-testid="subscriptions-card">
+    <app-page-card title="Lista">
       <div class="p-3 sm:p-4 space-y-4">
-        <label class="block sm:max-w-xs">
-          <span class="block text-xs font-medium text-fg-muted mb-1">Status</span>
-          <select
-            class="w-full text-sm border border-edge-field rounded-lg px-3 py-2.5 bg-surface
-                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
-            [value]="statusFilter()"
-            (change)="setStatusFilter($any($event.target).value)"
-          >
-            <option value="">Todos os status</option>
-            @for (opt of statusOptions(); track opt.value) {
-              <option [value]="opt.value">{{ opt.label }}</option>
-            }
-          </select>
-        </label>
-
-        @if (statusFilter()) {
-          <div>
-            <button
-              type="button"
-              class="text-xs px-3 py-2 rounded-full border border-edge bg-surface text-fg-soft
-                     hover:bg-canvas min-h-[44px] focus:outline-none focus:ring-2
-                     focus:ring-primary-400"
-              (click)="clearStatusFilter()"
-            >
-              Limpar filtro
-            </button>
-          </div>
-        }
+        <app-list-toolbar
+          [search]="false"
+          [statusOptions]="statusOptions()"
+          [status]="statusFilter()"
+          [resultCount]="subscriptionsLoading() && subscriptions().length === 0 ? null : subscriptionsTotal()"
+          [resultNoun]="['assinatura', 'assinaturas']"
+          [filtersActive]="statusFilter() !== ''"
+          (statusChange)="setStatusFilter($event)"
+          (clearFilters)="clearStatusFilter()"
+        />
 
         @if (subscriptionsError(); as err) {
           <app-alert-banner variant="error" [message]="err" />
-        }
-
-        @if (subscriptionsLoading() && subscriptions().length === 0) {
-          <div class="space-y-2">
-            <div class="h-20 rounded-lg bg-surface-sunken animate-pulse"></div>
-            <div class="h-20 rounded-lg bg-surface-sunken animate-pulse"></div>
-            <div class="h-20 rounded-lg bg-surface-sunken animate-pulse"></div>
-          </div>
-        }
-
-        @if (!subscriptionsLoading() && subscriptions().length === 0 && !subscriptionsError()) {
-          <div class="text-center text-sm text-fg-subtle py-10">
-            @if (statusFilter()) {
-              Nenhuma assinatura com esse status.
-            } @else {
-              Nenhuma assinatura cadastrada ainda.
-            }
-          </div>
-        }
-
-        @if (subscriptions().length > 0) {
-          <!-- MOBILE: CARDS -->
-          <ul class="space-y-3 lg:hidden list-none">
-            @for (item of subscriptions(); track item.id) {
-              <li class="rounded-xl border border-edge p-4 space-y-2 bg-surface">
-                <div class="flex items-start justify-between gap-2">
-                  <a
-                    [routerLink]="['/admin/companies', item.companyId]"
-                    class="text-sm font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 underline
-                           break-words min-w-0 focus:outline-none focus:ring-2
-                           focus:ring-primary-400 rounded"
-                  >
-                    {{ item.companyName }}
-                  </a>
-                  <span
-                    class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                           font-medium uppercase tracking-wide shrink-0"
-                    [class]="statusChip(item.status).chip"
-                  >
-                    {{ statusChip(item.status).label }}
-                  </span>
-                </div>
-
-                <p class="text-[11px] text-fg-subtle break-words">
-                  Empresa {{ companyStatusLabel(item.companyStatus) }}
-                </p>
-
-                <p class="text-sm text-fg break-words">
-                  {{ item.planName }}
-                  <span class="text-[11px] text-fg-subtle">
-                    ({{ periodLabel(item.planPeriod) }} · {{ gateway(item.gateway) }})
-                  </span>
-                </p>
-
-                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-fg-muted">
-                  <dt>Mensalidade</dt>
-                  <dd class="text-right tabular-nums">{{ formatCents(item.monthlyPriceCents) }}</dd>
-                  <dt>Próxima cobrança</dt>
-                  <dd class="text-right tabular-nums">{{ formatDate(item.nextBillingAt) }}</dd>
-                  <dt>Ciclo atual</dt>
-                  <dd class="text-right tabular-nums">
-                    {{ formatDate(item.currentPeriodStart) }} –
-                    {{ formatDate(item.currentPeriodEnd) }}
-                  </dd>
-                  @if (item.trialEndsAt) {
-                    <dt>Trial até</dt>
-                    <dd class="text-right tabular-nums">{{ formatDate(item.trialEndsAt) }}</dd>
-                  }
-                  @if (item.pastDueSince) {
-                    <dt>Atrasada desde</dt>
-                    <dd class="text-right tabular-nums">{{ formatDate(item.pastDueSince) }}</dd>
-                  }
-                </dl>
-
-                @if (item.cancelAtPeriodEnd) {
-                  <p
-                    class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                           font-medium bg-surface-strong text-fg-soft"
-                  >
-                    Cancela no fim do ciclo
-                  </p>
-                }
-
-                @if (item.externalIdMasked) {
-                  <p class="text-[11px] text-fg-faint tabular-nums break-words">
-                    {{ item.externalIdMasked }}
-                  </p>
-                }
-              </li>
-            }
-          </ul>
-
-          <!-- DESKTOP: TABELA -->
-          <div class="hidden lg:block overflow-x-auto">
-            <table class="min-w-full text-sm">
-              <caption class="sr-only">
-                Assinaturas da plataforma, com empresa, plano, gateway, status e próximo ciclo
-              </caption>
-              <thead>
-                <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
-                  <th scope="col" class="py-2 pr-4 font-medium">Empresa</th>
-                  <th scope="col" class="py-2 pr-4 font-medium">Plano</th>
-                  <th scope="col" class="py-2 pr-4 font-medium">Gateway</th>
-                  <th scope="col" class="py-2 pr-4 font-medium">Status</th>
-                  <th scope="col" class="py-2 pr-4 font-medium text-right">Mensalidade</th>
-                  <th scope="col" class="py-2 pr-4 font-medium">Próximo ciclo</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (item of subscriptions(); track item.id) {
-                  <tr class="border-b border-gray-50 dark:border-edge-faint align-top">
-                    <td class="py-3 pr-4">
-                      <a
-                        [routerLink]="['/admin/companies', item.companyId]"
-                        class="font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 underline
-                               break-words focus:outline-none focus:ring-2 focus:ring-primary-400
-                               rounded"
-                      >
-                        {{ item.companyName }}
-                      </a>
-                      <span class="block text-xs text-fg-subtle">
-                        Empresa {{ companyStatusLabel(item.companyStatus) }}
-                      </span>
-                    </td>
-                    <td class="py-3 pr-4 text-fg-soft">
-                      {{ item.planName }}
-                      <span class="block text-xs text-fg-subtle">
-                        {{ item.planCode }} · {{ periodLabel(item.planPeriod) }}
-                      </span>
-                    </td>
-                    <td class="py-3 pr-4 text-fg-soft">
-                      {{ gateway(item.gateway) }}
-                      @if (item.externalIdMasked) {
-                        <span class="block text-xs text-fg-faint tabular-nums break-words">
-                          {{ item.externalIdMasked }}
-                        </span>
-                      }
-                    </td>
-                    <td class="py-3 pr-4">
-                      <span
-                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                        [class]="statusChip(item.status).chip"
-                      >
-                        {{ statusChip(item.status).label }}
-                      </span>
-                      @if (item.cancelAtPeriodEnd) {
-                        <span class="block mt-1 text-[11px] text-fg-subtle">
-                          Cancela no fim do ciclo
-                        </span>
-                      }
-                      @if (item.pastDueSince) {
-                        <span class="block mt-1 text-[11px] text-fg-subtle tabular-nums">
-                          Atrasada desde {{ formatDate(item.pastDueSince) }}
-                        </span>
-                      }
-                    </td>
-                    <td class="py-3 pr-4 text-right text-fg-soft tabular-nums">
-                      {{ formatCents(item.monthlyPriceCents) }}
-                    </td>
-                    <td class="py-3 pr-4 text-fg-soft tabular-nums whitespace-nowrap">
-                      {{ formatDate(item.nextBillingAt) }}
-                      <span class="block text-xs text-fg-subtle">
-                        Ciclo {{ formatDate(item.currentPeriodStart) }} –
-                        {{ formatDate(item.currentPeriodEnd) }}
-                      </span>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-
-          <div class="flex items-center justify-between pt-2 gap-3">
-            <p class="text-xs text-fg-subtle tabular-nums">
-              Página {{ subscriptionsPage() + 1 }} de {{ subscriptionsPages() }} —
-              {{ subscriptionsTotal() }} assinatura(s)
-            </p>
-            <div class="flex gap-2">
-              <button
-                type="button"
-                class="text-xs px-3 py-2 rounded-lg border border-edge min-h-[44px]
-                       hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400
-                       disabled:opacity-40 disabled:cursor-not-allowed"
-                (click)="prevSubscriptions()"
-                [disabled]="!canPrevSubscriptions() || subscriptionsLoading()"
+        } @else {
+          <app-data-list
+            data-testid="subscriptions"
+            [columns]="subscriptionColumns"
+            [rows]="subscriptions()"
+            [rowId]="subscriptionRowId"
+            [loading]="subscriptionsLoading() && subscriptions().length === 0"
+            [emptyText]="statusFilter() ? 'Nenhuma assinatura com esse status.' : 'Nenhuma assinatura cadastrada ainda.'"
+            ariaLabel="Assinaturas da plataforma, com empresa, plano, gateway, situação e próximo ciclo"
+            cardsBelow="lg"
+            [page]="subscriptionsPage()"
+            [totalPages]="subscriptionsPages()"
+            [total]="subscriptionsTotal()"
+            [itemNoun]="['assinatura', 'assinaturas']"
+            (pageChange)="goToSubscriptionsPage($event)"
+          >
+            <ng-template dataListCell="company" let-item>
+              <a
+                [routerLink]="['/admin/companies', item.companyId]"
+                class="font-semibold text-fg hover:text-primary-700 dark:hover:text-primary-400 hover:underline
+                       break-words whitespace-normal rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
               >
-                Anterior
-              </button>
-              <button
-                type="button"
-                class="text-xs px-3 py-2 rounded-lg border border-edge min-h-[44px]
-                       hover:bg-canvas focus:outline-none focus:ring-2 focus:ring-primary-400
-                       disabled:opacity-40 disabled:cursor-not-allowed"
-                (click)="nextSubscriptions()"
-                [disabled]="!canNextSubscriptions() || subscriptionsLoading()"
-              >
-                Próxima
-              </button>
-            </div>
-          </div>
+                {{ item.companyName }}
+              </a>
+              <span class="block text-xs font-normal text-fg-subtle">
+                Empresa {{ companyStatusLabel(item.companyStatus) }}
+              </span>
+            </ng-template>
+
+            <ng-template dataListCell="plan" let-item>
+              <span class="whitespace-normal break-words">{{ item.planName }}</span>
+              <span class="block text-xs text-fg-subtle whitespace-normal break-words">
+                {{ item.planCode }} · {{ periodLabel(item.planPeriod) }}
+              </span>
+            </ng-template>
+
+            <ng-template dataListCell="gateway" let-item>
+              {{ gateway(item.gateway) }}
+              @if (item.externalIdMasked) {
+                <span class="block text-xs text-fg-faint tabular-nums break-words whitespace-normal">
+                  {{ item.externalIdMasked }}
+                </span>
+              }
+            </ng-template>
+
+            <ng-template dataListCell="status" let-item>
+              <app-status-chip size="sm" [tone]="statusChip(item.status).tone">
+                {{ statusChip(item.status).label }}
+              </app-status-chip>
+              @if (item.cancelAtPeriodEnd) {
+                <span class="block mt-1 text-xs text-fg-subtle">Cancela no fim do ciclo</span>
+              }
+              @if (item.pastDueSince) {
+                <span class="block mt-1 text-xs text-fg-subtle tabular-nums">
+                  Atrasada desde {{ formatDate(item.pastDueSince) }}
+                </span>
+              }
+              @if (item.trialEndsAt) {
+                <span class="block mt-1 text-xs text-fg-subtle tabular-nums">
+                  Trial até {{ formatDate(item.trialEndsAt) }}
+                </span>
+              }
+            </ng-template>
+
+            <ng-template dataListCell="next" let-item>
+              <span class="tabular-nums whitespace-nowrap">{{ formatDate(item.nextBillingAt) }}</span>
+              <span class="block text-xs text-fg-subtle tabular-nums whitespace-nowrap">
+                Ciclo {{ formatDate(item.currentPeriodStart) }} a {{ formatDate(item.currentPeriodEnd) }}
+              </span>
+            </ng-template>
+          </app-data-list>
         }
       </div>
     </app-page-card>

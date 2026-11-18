@@ -12,7 +12,18 @@ import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
-import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
+import { PageCard } from '../../../components/core/page-card/page-card';
+import { PillTabs, type PillTabOption } from '../../../components/core/pill-tabs/pill-tabs';
+import { StatusChip, type StatusChipTone } from '../../../components/core/status-chip/status-chip';
+import {
+  DataList,
+  DataListActions,
+  DataListCell,
+  type DataListColumn,
+} from '../../../components/lists/data-list/data-list';
+import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
+import { ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
+import { BrlPipe } from '../../../pipes/brl.pipe';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { canCancelCharge, canReceiveCharge, canRetryCharge } from './charge-action-rules';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -35,6 +46,13 @@ const STATUS_LABELS: Record<string, string> = {
   RENEGOTIATED: 'Renegociada',
 };
 
+/** Situação = cor do chip (decisão D1): falha vermelho, atrasada âmbar, renegociada azul. */
+const STATUS_TONES: Record<string, StatusChipTone> = {
+  FAILED: 'red',
+  PAST_DUE: 'amber',
+  RENEGOTIATED: 'blue',
+};
+
 const KIND_LABELS: Record<string, string> = {
   RENTAL_TOTAL: 'Aluguel (total)',
   RENTAL_PERIOD: 'Aluguel',
@@ -55,12 +73,30 @@ const KIND_LABELS: Record<string, string> = {
  * <p>"Atrasado é nossa prova" (regra do dono): atrasada nunca é reemitida,
  * re-datada nem passada para falha — a tela nem oferece, e o backend recusa.</p>
  *
- * <p>Layout: cards no celular e tablet; tabela com colunas e hover a partir de 1024px.</p>
+ * <p>Layout (padrão de lista do admin, 18/11/2026): `app-page-card "Lista"` + abas com contagem
+ * + `app-list-toolbar` + `app-data-list` (cartões abaixo de 1024px, tabela a partir dele, kebab
+ * por linha, sem linhas entre registros). Dinheiro pelo pipe `brl`.</p>
  */
 @Component({
   selector: 'app-admin-charges',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PersonNamePipe, DefaultPageLayout, AlertBanner, RouterLink, ContactActions, ChargeActionsSheet, ActionsMenu],
+  imports: [
+    PersonNamePipe,
+    BrlPipe,
+    DefaultPageLayout,
+    PageCard,
+    PillTabs,
+    StatusChip,
+    ListToolbar,
+    DataList,
+    DataListCell,
+    DataListActions,
+    DataListMenuItem,
+    AlertBanner,
+    RouterLink,
+    ContactActions,
+    ChargeActionsSheet,
+  ],
   templateUrl: './admin-charges.html',
 })
 export class AdminCharges implements OnInit {
@@ -85,6 +121,41 @@ export class AdminCharges implements OnInit {
   protected readonly sheetMode = signal<ChargeActionMode>('menu');
 
   protected readonly items = computed(() => this.data()?.content ?? []);
+
+  /** Abas com a contagem do servidor (sem número enquanto a primeira resposta não chega). */
+  protected readonly tabOptions = computed<PillTabOption<AdminChargeTab>[]>(() => {
+    const d = this.data();
+    return [
+      { value: 'FAILED', label: 'Com falha', count: d?.failedCount, testId: 'tab-failed' },
+      { value: 'OVERDUE', label: 'Atrasadas', count: d?.overdueCount, testId: 'tab-overdue' },
+    ];
+  });
+
+  /**
+   * Uma config para a tabela e para o cartão. Células com conteúdo próprio (link da empresa,
+   * contato, vencimento relativo) vêm dos `dataListCell` do template; `value` alimenta o CSV.
+   */
+  protected readonly columns: readonly DataListColumn<AdminChargeListItem>[] = [
+    { key: 'company', header: 'Empresa · motorista', primary: true, value: (c) => c.companyName },
+    { key: 'kind', header: 'Tipo', value: (c) => this.kindLabel(c.kind) },
+    { key: 'amount', header: 'Valor', kind: 'money-cents', end: true, value: (c) => c.amountCents },
+    { key: 'due', header: 'Vencimento', value: (c) => this.dueDate(c.dueDate) },
+    {
+      key: 'status',
+      header: 'Situação',
+      kind: 'status',
+      value: (c) => this.statusLabel(c.status),
+      tone: (c) => STATUS_TONES[c.status] ?? 'neutral',
+    },
+  ];
+
+  protected readonly rowId = (c: AdminChargeListItem): string => c.chargeId;
+
+  /**
+   * O kebab é da lista inteira (`app-data-list`): some quando NENHUMA linha tem ação para o papel
+   * (perfil Leitura). Uma linha sem ação, numa lista em que outras têm, mostra o item desabilitado.
+   */
+  protected readonly anyRowAction = computed(() => this.items().some((i) => this.hasAnyAction(i)));
   protected readonly totalPages = computed(() => {
     const d = this.data();
     return d ? Math.max(1, Math.ceil(d.total / d.size)) : 1;
@@ -161,7 +232,7 @@ export class AdminCharges implements OnInit {
     return this.caps.can('cobranca.cancelar') && canCancelCharge(item);
   }
 
-  /** O kebab só aparece se o papel tiver pelo menos uma ação nesta cobrança. */
+  /** O papel tem pelo menos uma ação nesta cobrança (senão o kebab mostra só o item desabilitado). */
   protected hasAnyAction(item: AdminChargeListItem): boolean {
     return (
       this.canCancel(item) ||
@@ -199,17 +270,6 @@ export class AdminCharges implements OnInit {
     return KIND_LABELS[kind] ?? kind;
   }
 
-  protected statusChip(status: string): string {
-    if (status === 'FAILED') return 'bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-200';
-    if (status === 'PAST_DUE') return 'bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-100';
-    if (status === 'RENEGOTIATED') return 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200';
-    return 'bg-surface-sunken text-fg-soft';
-  }
-
-  protected money(cents: number): string {
-    return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  }
-
   protected dueDate(iso: string | null): string {
     if (!iso) return '—';
     const [y, m, d] = iso.split('-');
@@ -224,12 +284,4 @@ export class AdminCharges implements OnInit {
     return ahead === 1 ? 'vence amanhã' : `vence em ${ahead} dias`;
   }
 
-  protected tabClass(selected: boolean): string {
-    const base =
-      'inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full text-sm font-medium whitespace-nowrap ' +
-      'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ';
-    return selected
-      ? base + 'bg-primary-500 text-white'
-      : base + 'border border-edge text-fg-soft hover:bg-canvas';
-  }
 }

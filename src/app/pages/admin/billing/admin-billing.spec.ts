@@ -5,7 +5,7 @@ import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { AdminBilling } from './admin-billing';
+import { AdminBilling, formatBillingDate, issueWindowRange } from './admin-billing';
 import { AdminBillingService } from '../admin-billing.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -95,6 +95,12 @@ interface BillingHarness {
   setStatusFilter: (v: string) => void;
   setIssueWindow: (d: BillingIssueWindow) => void;
   nextSubscriptions: () => void;
+}
+
+/** As pílulas de situação da lista de assinaturas (o último grupo da página). */
+function statusPills(root: HTMLElement): HTMLButtonElement[] {
+  const groups = root.querySelectorAll('[data-testid="subscriptions-card"] [role="radiogroup"]');
+  return Array.from(groups[groups.length - 1]?.querySelectorAll('button') ?? []) as HTMLButtonElement[];
 }
 
 describe('AdminBilling', () => {
@@ -231,12 +237,19 @@ describe('AdminBilling', () => {
     fixture.detectChanges();
 
     expect(loadStatuses).toHaveBeenCalled();
-    const select: HTMLSelectElement = fixture.nativeElement.querySelector('select');
-    const values = Array.from(select.options).map((o) => o.value);
-    expect(values).toContain('ACTIVE');
-    expect(values).toContain('PAST_DUE');
-    const labels = Array.from(select.options).map((o) => o.textContent?.trim());
-    expect(labels).toContain('Atrasada');
+    // Pílulas de situação (padrão de lista), não `<select>` nativo.
+    expect(fixture.nativeElement.querySelector('select')).toBeNull();
+    const labels = statusPills(fixture.nativeElement).map((b) => b.textContent?.trim());
+    expect(labels).toEqual(['Todas', 'Ativa', 'Atrasada']);
+
+    // O rótulo é pt-BR, mas a busca leva o enum cru.
+    loadSubscriptions.mockClear();
+    statusPills(fixture.nativeElement)
+      .find((b) => b.textContent?.trim() === 'Atrasada')!
+      .click();
+    fixture.detectChanges();
+    const args = loadSubscriptions.mock.calls[loadSubscriptions.mock.calls.length - 1][0];
+    expect(args).toMatchObject({ status: 'PAST_DUE', page: 0 });
   });
 
   it('refaz a busca com o status cru e volta para a primeira página', () => {
@@ -355,6 +368,55 @@ describe('AdminBilling', () => {
     expect(fixture.nativeElement.textContent).toContain('Nenhuma assinatura com esse status.');
   });
 
+  it('padrão: título "Assinaturas", KPIs com centavos e listas sem linhas nem caixa alta', () => {
+    subscriptions.set([SUBSCRIPTION]);
+    subscriptionsTotal.set(1);
+    issues.set([ISSUE_PAST_DUE]);
+    issuesTotal.set(1);
+    configure();
+
+    const fixture = TestBed.createComponent(AdminBilling);
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    const nbsp = (t: string | null | undefined) => (t ?? '').replace(/ /g, ' ');
+
+    expect(el.textContent).toContain('Assinaturas');
+    expect(el.textContent).not.toContain('Billing');
+    expect(nbsp(el.querySelector('[data-testid="kpi-mrr-total"] [data-kpi-value]')?.textContent)).toContain(
+      'R$ 597,00',
+    );
+    expect(nbsp(el.querySelector('[data-testid="kpi-mrr-active"] [data-kpi-value]')?.textContent)).toContain(
+      'R$ 398,00',
+    );
+    for (const th of Array.from(el.querySelectorAll('th'))) {
+      expect(th.className).not.toContain('uppercase');
+    }
+    expect(el.innerHTML).not.toMatch(/border-b|divide-/);
+    // Situação no chip padrão, com o tom da marca (âmbar para atrasada).
+    const chip = Array.from(el.querySelectorAll('[data-testid="subscriptions"] [data-card] app-status-chip')).find(
+      (c) => c.textContent?.trim() === 'Atrasada',
+    ) as HTMLElement;
+    expect(chip.className).toContain('bg-amber-100');
+  });
+
+  it('a janela de problemas mostra o intervalo em datas', () => {
+    configure();
+    const fixture = TestBed.createComponent(AdminBilling);
+    fixture.detectChanges();
+    const text = fixture.nativeElement.querySelector('[data-testid="window-range"]')?.textContent ?? '';
+    expect(text).toMatch(/Problemas iniciados de \d{2}\/\d{2}\/\d{4} a \d{2}\/\d{2}\/\d{4}/);
+  });
+
+  it('o vazio de problemas oferece ampliar a janela', () => {
+    configure();
+    const fixture = TestBed.createComponent(AdminBilling);
+    fixture.detectChanges();
+    loadIssues.mockClear();
+    (fixture.nativeElement.querySelector('[data-testid="widen-window"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(loadIssues.mock.calls[loadIssues.mock.calls.length - 1][0]).toMatchObject({ days: 90, page: 0 });
+  });
+
   it('mantém a tela viva quando o status inválido devolve 400', () => {
     const error = new HttpErrorResponse({
       status: 400,
@@ -378,11 +440,24 @@ describe('AdminBilling', () => {
     expect(text).toContain('Composição por plano');
     expect(text).toContain('Assinatura vencida');
     // O filtro continua utilizável para desfazer a escolha inválida.
-    expect(fixture.nativeElement.querySelector('select')).not.toBeNull();
+    expect(statusPills(fixture.nativeElement).length).toBeGreaterThan(0);
 
     // Erro reivindicado pela tela: nada de toast por cima do banner.
     TestBed.inject(ApiErrorService).scheduleSafetyNet(error);
     vi.runAllTimers();
     expect(notifyError).not.toHaveBeenCalled();
+  });
+});
+
+describe('datas de Assinaturas', () => {
+  it('data pura não passa por fuso (meia-noite UTC não vira o dia anterior)', () => {
+    expect(formatBillingDate('2026-08-01')).toBe('01/08/2026');
+    expect(formatBillingDate(null)).toBe('—');
+    expect(formatBillingDate('lixo')).toBe('—');
+  });
+
+  it('a janela vai de hoje menos N dias até hoje, como o servidor', () => {
+    expect(issueWindowRange(30, '2026-11-18')).toEqual({ from: '2026-10-19', to: '2026-11-18' });
+    expect(issueWindowRange(365, '2026-11-18')).toEqual({ from: '2025-11-18', to: '2026-11-18' });
   });
 });
