@@ -6,6 +6,7 @@ import {
   GrowthSeries,
   endPoint,
   growthAxisTop,
+  niceAxisTop,
   growthIsEmpty,
   lastMeasured,
   linearPath,
@@ -311,5 +312,17 @@ describe('values that were not measured (null)', () => {
   it('only nulls is the empty state', () => {
     expect(growthIsEmpty([{ key: 'a', label: 'A', color: '#000', values: [null, null] }])).toBe(true);
     expect(growthAxisTop([{ key: 'a', label: 'A', color: '#000', values: [null, 30] }])).toBe(30);
+  });
+});
+
+describe('niceAxisTop', () => {
+  it('rounds the top so every tick is a round number', () => {
+    // R$ 1.308,00 in cents, four gaps: steps of R$ 400.
+    expect(niceAxisTop(130_800, 4)).toBe(160_000);
+    expect(niceAxisTop(34, 4, true)).toBe(40);
+    // 10 people in four gaps: 3 per step, never 2,5.
+    expect(niceAxisTop(10, 4, true)).toBe(12);
+    expect(niceAxisTop(3, 4, true)).toBe(4);
+    expect(niceAxisTop(0, 4)).toBe(0);
   });
 });

@@ -61,7 +61,7 @@ export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
   selector: 'app-home-upcoming',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PageCard],
-  host: { class: 'block min-w-0 h-full' },
+  host: { class: 'block min-w-0' },
   template: `
     <app-page-card title="Próximos vencimentos" [fill]="true">
       <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-home-upcoming>

@@ -122,7 +122,15 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
         ></div>
       </div>
 
-      <div class="grid gap-4 grid-cols-1 lg:grid-cols-2">
+      <!-- Sem o MRR ficam três gráficos: uma fileira de três, sem metade vazia; cada cartão na
+           altura do conteúdo (o de cupons fica curto quando a Stripe não responde). -->
+      <div
+        class="grid gap-4 grid-cols-1"
+        [class.lg:grid-cols-2]="showMrr()"
+        [class.lg:grid-cols-3]="!showMrr()"
+        [class.items-start]="!showMrr()"
+        data-revenue-charts
+      >
         @if (showMrr()) {
         <app-page-card title="Crescimento do MRR">
           <div class="p-4" data-mrr-chart>
@@ -209,7 +217,7 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
             @if (pending()) {
               <div class="h-32 rounded bg-surface-sunken animate-pulse"></div>
             } @else if (!discountsAvailable()) {
-              <p data-empty class="text-sm text-fg-subtle text-center py-10">
+              <p data-empty class="text-sm text-fg-subtle py-2">
                 Indisponível agora: a Stripe não respondeu a tempo. Os outros números seguem valendo.
               </p>
             } @else {

@@ -23,6 +23,25 @@ export function growthAxisTop(series: readonly GrowthSeries[], floor = GROWTH_AX
   return Math.max(floor, 0, ...series.flatMap((s) => s.values).filter((v): v is number => v !== null));
 }
 
+const NICE_STEPS: readonly number[] = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+
+/**
+ * Pure: the smallest axis top >= `max` whose `divisions` ticks are round numbers (steps of
+ * 1, 1.5, 2, 2.5, 3, 4, 5, 6 or 8 x 10^k). `integer` keeps every step a whole number, for counts.
+ * Without it the ticks were fractions of the max ("R$ 869", "8" for 7.5 people).
+ */
+export function niceAxisTop(max: number, divisions: number, integer = false): number {
+  if (!(max > 0) || divisions < 1) return max;
+  const raw = max / divisions;
+  const exp = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const f of NICE_STEPS) {
+    const step = f * exp;
+    if (integer && (step < 1 || !Number.isInteger(step))) continue;
+    if (step >= raw - 1e-9) return step * divisions;
+  }
+  return Math.max(integer ? Math.ceil(raw) : raw, 1) * divisions;
+}
+
 /** Pure: true when no series has a value above zero (nothing to draw but the floor). */
 export function growthIsEmpty(series: readonly GrowthSeries[]): boolean {
   return series.every((s) => s.values.every((v) => v === null || !(v > 0)));
@@ -395,7 +414,9 @@ export class GrowthChart {
   protected readonly top = computed(() => {
     const pinned = this.axisTop();
     const real = growthAxisTop(this.series(), this.axisFloor());
-    return pinned === null ? real : Math.max(pinned, real);
+    // A pinned top is the caller's round number; only the data's own max is rounded up.
+    if (pinned !== null && pinned >= real) return pinned;
+    return niceAxisTop(real, Math.max(1, this.yDivisions()), this.valueFormat() === 'integer');
   });
 
   protected readonly positionedTicks = computed(() => {

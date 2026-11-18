@@ -82,6 +82,7 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
           [rowId]="rowId"
           [loading]="loading()"
           [rowTarget]="true"
+          [dense]="true"
           ariaLabel="Cruzamento por empresa"
           emptyText="Nenhuma empresa neste escopo."
           (rowActivate)="open($event)"
@@ -97,16 +98,19 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
             }
           </ng-template>
           <ng-template dataListCell="mrr" let-row>
-            <span class="font-semibold text-fg">{{ mrrText(row) }}</span>
+            <!-- A nota ("pelo preço de tabela") vai no title: a linha fica numa altura só. -->
+            <span class="font-semibold text-fg" [attr.title]="mrrNote(row)">{{ mrrText(row) }}</span>
             @if (mrrNote(row); as note) {
-              <span class="block text-[11px] text-fg-subtle">{{ note }}</span>
+              <span class="sr-only">{{ note }}</span>
             }
           </ng-template>
           <ng-template dataListCell="health" let-row>
             @if (healthOf(row); as h) {
-              <app-status-chip size="sm" [tone]="h.tone">{{ h.label }}</app-status-chip>
+              <span [attr.title]="h.reason">
+                <app-status-chip size="sm" [tone]="h.tone">{{ h.label }}</app-status-chip>
+              </span>
               @if (h.reason) {
-                <span class="block text-[11px] text-fg-subtle mt-0.5 whitespace-normal">{{ h.reason }}</span>
+                <span class="sr-only">{{ h.reason }}</span>
               }
             } @else {
               —
@@ -153,7 +157,13 @@ export class HomeCompanies {
     { key: 'plan', header: 'Plano', value: (c) => c.planName },
     { key: 'vehicles', header: 'Veíc.', kind: 'integer', end: true, value: (c) => c.vehicleCount },
     { key: 'drivers', header: 'Motor.', kind: 'integer', end: true, value: (c) => c.driverCount },
-    { key: 'managed', header: 'Gerenciado', kind: 'money-cents', end: true, value: (c) => c.managedMonthCents },
+    // Reais inteiros: os centavos não cabiam com as outras nove colunas (o CSV mantém o exato).
+    {
+      key: 'managed',
+      header: 'Gerenciado',
+      end: true,
+      value: (c) => (c.managedMonthCents == null ? null : formatKpiNumber('brl-cents-whole', c.managedMonthCents)),
+    },
     { key: 'access', header: 'Acessos 30d', kind: 'integer', end: true, value: (c) => c.accessHours30d },
     { key: 'actions', header: 'Ações 30d', kind: 'integer', end: true, value: (c) => c.actions30d },
     { key: 'last', header: 'Último acesso', value: (c) => this.lastText(c) },

@@ -44,6 +44,7 @@ import {
   dayLabel,
   monthLabels,
   monthLong,
+  monthShort,
   nullText,
   percentDelta,
   shortDay,
@@ -637,7 +638,7 @@ export class AdminHome implements OnInit {
       delta: percentDelta(e, 'esperado vs mês anterior'),
       share,
       shareText: share === null ? null : formatKpiNumber('ratio', share),
-      month: this.month() ? monthLong(this.month() as string) : '',
+      month: this.month() ? monthShort(this.month() as string) : '',
     };
   });
 
@@ -841,10 +842,29 @@ export class AdminHome implements OnInit {
   });
 
   /** Início do feed de movimentações: o do período, até o teto de 365 dias do servidor. */
+  // Sai do período escolhido, não do `meta.from` da resposta: esperar a resposta fazia o feed
+  // pedir duas vezes (sem `from` enquanto carregava, depois com). Mesmas datas do servidor
+  // (contrato §Conventions); "Desde o início" fica no teto.
   protected readonly movementsFrom = computed(() => {
-    const from = this.home()?.meta.from ?? null;
-    if (!from) return null;
-    const floor = minusDays(todayInBusinessTz(), MOVEMENTS_MAX_DAYS);
+    const today = todayInBusinessTz();
+    const floor = minusDays(today, MOVEMENTS_MAX_DAYS);
+    let from: string;
+    switch (this.period()) {
+      case '30d':
+        from = minusDays(today, 29);
+        break;
+      case '90d':
+        from = minusDays(today, 89);
+        break;
+      case '12m': {
+        const [y, m] = today.split('-').map(Number);
+        const first = new Date(Date.UTC(y, m - 1 - 11, 1));
+        from = first.toISOString().slice(0, 10);
+        break;
+      }
+      default:
+        from = floor;
+    }
     return from < floor ? floor : from;
   });
 

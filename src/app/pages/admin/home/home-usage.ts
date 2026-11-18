@@ -206,7 +206,7 @@ export class HomeRoles {
   selector: 'app-home-activity-map',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PageCard, Heatmap],
-  host: { class: 'block min-w-0 h-full' },
+  host: { class: 'block min-w-0' },
   template: `
     <app-page-card [title]="byAccess() ? 'Quando acessam' : 'Quando agem'" [fill]="true">
       <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-home-activity>
@@ -276,7 +276,7 @@ export class HomeActivityMap {
   selector: 'app-home-top-users',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PageCard, StatusChip, RouterLink],
-  host: { class: 'block min-w-0 h-full' },
+  host: { class: 'block min-w-0' },
   template: `
     <app-page-card [title]="byAccess() ? 'Quem mais acessa' : 'Quem mais age'" [fill]="true">
       <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-home-top-users>
@@ -330,7 +330,7 @@ export class HomeTopUsers {
   selector: 'app-home-ufs',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PageCard],
-  host: { class: 'block min-w-0 h-full' },
+  host: { class: 'block min-w-0' },
   template: `
     <app-page-card title="Onde estão os clientes" [fill]="true">
       <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-home-ufs>

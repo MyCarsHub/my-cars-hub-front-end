@@ -304,7 +304,7 @@ describe('AdminHome v2 — cartões mantidos', () => {
     // Reais inteiros: o valor com centavos quebrava a linha no cartão estreito.
     expect(statValue(host, 'Aluguéis concluídos')).toContain('900');
     expect(statValue(host, 'Aluguéis concluídos')).not.toContain(',');
-    expect(statValue(host, 'Contratos de locação')).toBe('25');
+    expect(statValue(host, 'Contratos gerados')).toBe('25');
     expect(statValue(host, 'Contratos assinados')).toBe('9');
     const text = flat(host);
     expect(text).toContain('42 aluguéis · exclui cancelados');

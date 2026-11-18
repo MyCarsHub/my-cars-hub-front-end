@@ -71,7 +71,10 @@ interface Query {
         >
           <ng-template dataListCell="who" let-row>
             <span class="inline-flex flex-wrap items-center gap-1.5 min-w-0">
-              <app-status-chip size="sm" [tone]="roleTone(row.actorRole)">{{ roleLabel(row.actorRole) }}</app-status-chip>
+              <!-- Evento do sistema (webhook, rotina) não tem papel: só "Sistema", sem chip. -->
+              @if (row.actorRole && row.actorName) {
+                <app-status-chip size="sm" [tone]="roleTone(row.actorRole)">{{ roleLabel(row.actorRole) }}</app-status-chip>
+              }
               <b class="font-semibold text-fg truncate">{{ row.actorName || 'Sistema' }}</b>
             </span>
           </ng-template>
