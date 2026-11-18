@@ -87,18 +87,39 @@ describe('AdminSupportList — listagem', () => {
     expect(text).not.toContain('Company co-1');
   });
 
+  it('escreve a abertura no fuso de Brasília: o servidor manda UTC sem sufixo', () => {
+    // 12:00 UTC = 09:00 em Brasília.
+    const created = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="ticket-created"]',
+    ) as HTMLElement;
+    expect(created.textContent).toContain('10/01/2026 às 09:00');
+    expect(created.getAttribute('title')).toContain('horário de Brasília');
+  });
+
+  it('segue o padrão: sem cartão "Filtros", chip de situação sem caixa alta, sem contorno', () => {
+    const host = fixture.nativeElement as HTMLElement;
+    expect(Array.from(host.querySelectorAll('h2')).map((h) => h.textContent?.trim())).not.toContain(
+      'Filtros',
+    );
+    expect(host.querySelector('app-status-chip')?.textContent?.trim()).toBe('Aberto');
+    expect(host.querySelector('.uppercase')).toBeNull();
+    const row = host.querySelector('li') as HTMLElement;
+    expect(row.className).not.toMatch(/border/);
+  });
+
   it('mostra "Sem responsável" enquanto ninguém assumiu o ticket', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Sem responsável');
   });
 
   it('filtra por empresa mandando companyId e voltando para a primeira página', () => {
-    const selects = (fixture.nativeElement as HTMLElement).querySelectorAll('select');
-    const companySelect = selects[1] as HTMLSelectElement;
+    const companySelect = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="company-filter"]',
+    ) as HTMLSelectElement;
 
     expect(Array.from(companySelect.options).map((o) => o.textContent?.trim())).toEqual([
-      'Todas as empresas',
-      'Locadora Aurora',
-      'Frota Sul',
+      'Empresa: Todas',
+      'Empresa: Locadora Aurora',
+      'Empresa: Frota Sul',
     ]);
 
     companySelect.value = 'co-2';
@@ -114,16 +135,18 @@ describe('AdminSupportList — listagem', () => {
   });
 
   it('filtra por status sem perder o filtro de empresa', () => {
-    const selects = (fixture.nativeElement as HTMLElement).querySelectorAll('select');
-    const statusSelect = selects[0] as HTMLSelectElement;
-    const companySelect = selects[1] as HTMLSelectElement;
+    const host = fixture.nativeElement as HTMLElement;
+    const companySelect = host.querySelector('[data-testid="company-filter"]') as HTMLSelectElement;
 
     companySelect.value = 'co-1';
     companySelect.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
-    statusSelect.value = 'IN_PROGRESS';
-    statusSelect.dispatchEvent(new Event('change'));
+    // Situação é UMA fileira de pílulas (antes: select de 14px num cartão "Filtros").
+    const pill = Array.from(host.querySelectorAll<HTMLButtonElement>('[role="radio"]')).find(
+      (b) => b.textContent?.trim() === 'Em atendimento',
+    );
+    pill?.click();
     fixture.detectChanges();
 
     expect(adminList).toHaveBeenLastCalledWith({
