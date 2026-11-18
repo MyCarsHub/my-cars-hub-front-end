@@ -132,6 +132,8 @@ export class HomeRoles {
   private readonly top = computed(() => topPeople(this.usage()));
   protected readonly topTitle = computed(() => (this.top().byAccess ? 'Quem mais acessa' : 'Mais ativos (ações)'));
   protected readonly emptyTop = computed(() => {
+    // A lista vem dos acessos quando há captura; a frase diz o que foi medido.
+    if (this.top().byAccess) return 'Ninguém deste papel acessou no período.';
     const since = dayLabel(this.usage()?.meta.actionsSince ?? null);
     return since ? 'Ninguém deste papel agiu no período.' : 'Ações registradas a partir da captura.';
   });

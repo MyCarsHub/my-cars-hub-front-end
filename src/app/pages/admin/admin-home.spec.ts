@@ -150,8 +150,12 @@ describe('AdminHome v2 — cartões', () => {
   it('valor gerenciado mostra o esperado E o recebido, lado a lado', () => {
     const { host } = setup();
     const card = kpiCard(host, 'managed');
-    expect(flat(card.querySelector('[data-managed-expected]'))).toBe('R$ 120.417');
-    expect(flat(card.querySelector('[data-managed-received]'))).toBe('R$ 80.000');
+    // Compacto para caber lado a lado sem quebrar o número; o exato fica no title.
+    expect(flat(card.querySelector('[data-managed-expected]'))).toBe('R$ 120,4k');
+    const title = (sel: string) => card.querySelector(sel)?.getAttribute('title')?.replace(/\s/g, ' ');
+    expect(title('[data-managed-expected]')).toBe('R$ 120.417');
+    expect(flat(card.querySelector('[data-managed-received]'))).toBe('R$ 80k');
+    expect(title('[data-managed-received]')).toBe('R$ 80.000');
     expect(flat(card)).toContain('66,4% do esperado já entrou');
   });
 });
@@ -296,8 +300,10 @@ describe('AdminHome v2 — cartões mantidos', () => {
 
   it('aluguéis fechados, concluídos, contratos e assinados, cada um com o seu rótulo', () => {
     const { host } = setup();
-    expect(statValue(host, 'Aluguéis fechados')).toContain('1.234,56');
-    expect(statValue(host, 'Aluguéis concluídos')).toContain('900,00');
+    expect(statValue(host, 'Aluguéis fechados')).toContain('1.235');
+    // Reais inteiros: o valor com centavos quebrava a linha no cartão estreito.
+    expect(statValue(host, 'Aluguéis concluídos')).toContain('900');
+    expect(statValue(host, 'Aluguéis concluídos')).not.toContain(',');
     expect(statValue(host, 'Contratos de locação')).toBe('25');
     expect(statValue(host, 'Contratos assinados')).toBe('9');
     const text = flat(host);

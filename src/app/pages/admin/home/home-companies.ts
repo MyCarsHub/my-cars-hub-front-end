@@ -27,8 +27,10 @@ const SORTS: readonly PillTabOption<CompanySort>[] = [
 ];
 
 function city(c: AdminCompanyListItem): string | null {
-  if (c.city && c.uf) return `${c.city}, ${c.uf}`;
-  return c.city || c.uf || null;
+  // A UF chega como foi digitada ("mg"); sigla de estado é sempre maiúscula.
+  const uf = c.uf ? c.uf.trim().toUpperCase() : null;
+  if (c.city && uf) return `${c.city}, ${uf}`;
+  return c.city || uf || null;
 }
 
 /** As colunas do CSV do "Exportar" (o que a tabela mostra, em números crus). */
@@ -71,6 +73,9 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
             <button type="button" class="ml-1 underline min-h-[44px]" (click)="reload()">Tentar novamente</button>
           </p>
         }
+        <!-- Dez colunas não cabem ao lado do mapa de calor: a tabela rola na horizontal (como no
+             desenho) em vez de cortar MRR e Saúde na borda do cartão. -->
+        <div class="min-w-0 overflow-x-auto" data-home-companies-scroll>
         <app-data-list
           [columns]="columns"
           [rows]="shown()"
@@ -84,11 +89,11 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
           <ng-template dataListCell="name" let-row>
             <a
               [routerLink]="['/admin/companies', row.id]"
-              class="font-semibold text-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"
+              class="font-semibold text-fg whitespace-nowrap hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"
               >{{ row.name }}</a
             >
             @if (cityOf(row); as place) {
-              <span class="block text-xs text-fg-subtle font-normal">{{ place }}</span>
+              <span class="block text-xs text-fg-subtle font-normal whitespace-nowrap">{{ place }}</span>
             }
           </ng-template>
           <ng-template dataListCell="mrr" let-row>
@@ -108,6 +113,7 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
             }
           </ng-template>
         </app-data-list>
+        </div>
         <a
           routerLink="/admin/companies"
           class="self-start inline-flex items-center min-h-11 text-sm font-semibold text-fg-soft hover:text-fg underline-offset-4 hover:underline"

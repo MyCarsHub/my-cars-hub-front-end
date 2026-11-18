@@ -626,9 +626,13 @@ export class AdminHome implements OnInit {
     const r = k.managedReceived;
     const share = e.value && r.value !== null ? Math.max(0, Math.min(1, r.value / e.value)) : null;
     return {
-      expected: e.value === null ? '—' : formatKpiNumber('brl-cents-whole', e.value),
+      // Compacto ("R$ 129,6k"): os dois valores dividem um cartão estreito e o número inteiro
+      // quebrava no meio. O valor exato fica no title e no CSV.
+      expected: e.value === null ? '—' : formatKpiNumber('brl-cents-compact', e.value),
+      expectedFull: e.value === null ? null : formatKpiNumber('brl-cents-whole', e.value),
       expectedNote: e.value === null ? nullText(e, this.month()) : 'esperado, pelo vencimento',
-      received: r.value === null ? '—' : formatKpiNumber('brl-cents-whole', r.value),
+      received: r.value === null ? '—' : formatKpiNumber('brl-cents-compact', r.value),
+      receivedFull: r.value === null ? null : formatKpiNumber('brl-cents-whole', r.value),
       receivedNote: r.value === null ? nullText(r, this.month()) : 'recebido em caixa',
       delta: percentDelta(e, 'esperado vs mês anterior'),
       share,
@@ -763,6 +767,20 @@ export class AdminHome implements OnInit {
       const still = parts(h?.retention90d, 'stillPaying');
       return then === null || still === null ? null : `${still} de ${then} seguem pagando`;
     };
+    const brl = (cents: number) => formatKpiNumber('brl-cents-whole', cents);
+    /** "R$ 1.108 ÷ 9 pagantes": numerador e denominador que o backend manda em `parts`. */
+    const ratioText = (kpi: HomeKpi | undefined, num: string, den: string, one: string, many: string) => {
+      const n = parts(kpi, num);
+      const d = parts(kpi, den);
+      return n === null || d === null ? null : `${brl(n)} ÷ ${d} ${d === 1 ? one : many}`;
+    };
+    const marginText = () => {
+      const mrr = parts(h?.margin, 'mrrRealCents');
+      const costs = parts(h?.margin, 'costsCents');
+      return mrr === null || costs === null ? null : `custos de ${brl(costs)} sobre ${brl(mrr)}`;
+    };
+    /** Sem pagantes, a frase diz qual base faltou (início do mês, 90 dias atrás). */
+    const noPaying = (kpi: HomeKpi | undefined, text: string) => (kpi?.nullReason === 'NO_PAYING' ? text : null);
     const neutral = (text: string | null): KpiDelta | null => (text ? { text, tone: 'neutral' } : null);
     const tile = (
       key: string,
@@ -771,6 +789,7 @@ export class AdminHome implements OnInit {
       format: KpiNumberFormat,
       extra: string | null = null,
       action: CostSheetIntent | null = null,
+      nullOverride: string | null = null,
     ): KpiView => ({
       key,
       label,
@@ -778,16 +797,21 @@ export class AdminHome implements OnInit {
       value: kpi?.value ?? null,
       format,
       delta: kpi?.value === null ? null : neutral(extra),
-      detail: kpi ? (kpi.value === null ? nullText(kpi, this.month()) : kpi.definition) : null,
+      detail: kpi ? (kpi.value === null ? (nullOverride ?? nullText(kpi, this.month())) : kpi.definition) : null,
       action,
     });
     return [
-      tile('churn', 'Churn mensal', h?.churnMonthly, 'ratio', churnText()),
+      tile('churn', 'Churn mensal', h?.churnMonthly, 'ratio', churnText(), null,
+        noPaying(h?.churnMonthly, 'ninguém pagava no início do mês')),
       tile('ltv', 'LTV', h?.ltv, 'brl-cents-whole'),
-      tile('cac', 'CAC', h?.cac, 'brl-cents-whole', null, this.costAction(h?.cac, 'acquisition')),
-      tile('retention', 'Retenção em 90 dias', h?.retention90d, 'ratio', retentionText()),
-      tile('arpa', 'Receita por cliente', h?.arpa, 'brl-cents-whole'),
-      tile('margin', 'Margem', h?.margin, 'ratio', null, this.costAction(h?.margin)),
+      tile('cac', 'CAC', h?.cac, 'brl-cents-whole',
+        ratioText(h?.cac, 'acquisitionCents', 'newPaying', 'cliente novo', 'clientes novos'),
+        this.costAction(h?.cac, 'acquisition')),
+      tile('retention', 'Retenção em 90 dias', h?.retention90d, 'ratio', retentionText(), null,
+        noPaying(h?.retention90d, 'ninguém pagava 90 dias atrás')),
+      tile('arpa', 'Receita por cliente', h?.arpa, 'brl-cents-whole',
+        ratioText(h?.arpa, 'mrrRealCents', 'payingCompanies', 'pagante', 'pagantes')),
+      tile('margin', 'Margem', h?.margin, 'ratio', marginText(), this.costAction(h?.margin)),
     ];
   });
 

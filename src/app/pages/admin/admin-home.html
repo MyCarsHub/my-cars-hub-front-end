@@ -74,6 +74,7 @@
           [numberFormat]="k.format"
           placeholder="dash"
           [anchored]="true"
+          [valueTop]="true"
           [stagger]="i"
           [loading]="pending()"
           [value]="k.value"
@@ -97,11 +98,11 @@
           @if (managed(); as m) {
             <div class="mt-auto grid grid-cols-2 gap-3 min-w-0">
               <div class="min-w-0">
-                <p class="text-lg sm:text-xl lg:text-lg xl:text-xl font-semibold tabular-nums break-words" data-managed-expected>{{ m.expected }}</p>
+                <p class="text-lg sm:text-xl lg:text-lg xl:text-xl font-semibold tabular-nums whitespace-nowrap" [attr.title]="m.expectedFull" data-managed-expected>{{ m.expected }}</p>
                 <p class="text-[11px] text-white/70 break-words">{{ m.expectedNote }}</p>
               </div>
               <div class="min-w-0">
-                <p class="text-lg sm:text-xl lg:text-lg xl:text-xl font-semibold tabular-nums break-words" data-managed-received>{{ m.received }}</p>
+                <p class="text-lg sm:text-xl lg:text-lg xl:text-xl font-semibold tabular-nums whitespace-nowrap" [attr.title]="m.receivedFull" data-managed-received>{{ m.received }}</p>
                 <p class="text-[11px] text-white/70 break-words">{{ m.receivedNote }}</p>
               </div>
             </div>
@@ -419,7 +420,7 @@
         label="Aluguéis fechados"
         [loading]="loading() && !overview()"
         [value]="closedRentals().cents"
-        numberFormat="brl-cents"
+        numberFormat="brl-cents-whole"
         [detail]="closedRentals().count + ' aluguéis · exclui cancelados'"
       ></div>
       <div
@@ -428,7 +429,7 @@
         label="Aluguéis concluídos"
         [loading]="loading() && !overview()"
         [value]="completedRentals().cents"
-        numberFormat="brl-cents"
+        numberFormat="brl-cents-whole"
         [detail]="completedRentals().count + ' aluguéis finalizados'"
       ></div>
       <div
