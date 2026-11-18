@@ -83,6 +83,15 @@ class Host {
 
 @Component({
   imports: [DataList],
+  template: `<app-data-list [columns]="columns" [rows]="rows" [rowTarget]="true" />`,
+})
+class TargetHost {
+  readonly columns = COLUMNS;
+  readonly rows = ROWS;
+}
+
+@Component({
+  imports: [DataList],
   template: `<app-data-list [columns]="columns" [rows]="rows" />`,
 })
 class RoleHost {
@@ -178,27 +187,41 @@ describe('DataList', () => {
     expect(el.querySelector('[data-export]')).toBeNull();
   });
 
-  it('draws no divider line between rows: each record is a closed white frame, apart by space', () => {
-    const { el } = render();
-    expect(el.innerHTML).not.toMatch(/divide-|border-b\b|border-t\b|border-b-|border-t-/);
+  it('draws no line at all: rows stand out by fill (plain row on the muted area), apart by space', () => {
+    const { fixture, el } = render();
+    fixture.componentInstance.page.set(0);
+    fixture.componentInstance.totalPages.set(2);
+    fixture.detectChanges();
+    // No divider, no outline: the only `border-*` tokens allowed are the table's spacing model.
+    const tokens = Array.from(el.querySelectorAll('*')).flatMap((n) => Array.from(n.classList));
+    const lines = tokens.filter(
+      (t) => /^(.*:)?(border|divide|ring|outline)(-|$)/.test(t) &&
+        !['border-separate', 'border-spacing-y-2'].includes(t) &&
+        !/^focus-visible:(ring|outline)/.test(t),
+    );
+    expect(lines).toEqual([]);
+
+    const wrap = el.querySelector('[data-table-wrap]')!;
+    const cards = el.querySelector('[data-cards]')!;
+    for (const area of [wrap, cards]) expect(area.className).toContain('bg-surface-muted');
     const table = el.querySelector('[data-table]')!;
-    expect(table.className).toContain('border-separate');
     expect(table.className).toContain('border-spacing-y-2');
     const cells = Array.from(table.querySelectorAll('[data-row] td'));
     expect(cells.length).toBeGreaterThan(0);
-    for (const td of cells) {
-      // The frame closes around the record: every cell carries top AND bottom, and the row's
-      // ends carry the sides. A lone bottom/top rule (a divider) never appears.
-      expect(td.className).toContain('bg-surface');
-      expect(td.className).toContain('border-y');
-      expect(td.className).toContain('border-edge');
-      expect(td.className).toContain('first:border-l');
-      expect(td.className).toContain('last:border-r');
+    for (const box of [...cells, ...Array.from(el.querySelectorAll('[data-card]'))]) {
+      expect(box.className).toContain('bg-surface');
+      expect(box.className).toContain('dark:bg-surface-sunken');
+      expect(box.className).not.toContain('bg-surface-muted');
     }
-    for (const card of Array.from(el.querySelectorAll('[data-card]'))) {
-      expect(card.className).toContain('bg-surface');
-      expect(card.className).toMatch(/(^| )border( |$)/);
-    }
+  });
+
+  it('a pointer-target row darkens on hover (table) and press (card), still without a line', () => {
+    TestBed.resetTestingModule();
+    const fixture = TestBed.createComponent(TargetHost);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-row] td')!.className).toContain('group-hover:bg-surface-sunken');
+    expect(el.querySelector('[data-card]')!.className).toContain('active:bg-surface-sunken');
   });
 
   it('headers are normal case (no uppercase / tracking)', () => {
