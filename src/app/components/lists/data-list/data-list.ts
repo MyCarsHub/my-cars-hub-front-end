@@ -67,6 +67,10 @@ interface RenderedRow {
   readonly cells: readonly Cell[];
   readonly title: Cell;
   readonly rest: readonly Cell[];
+  /** The kebab's accessible name for this row. */
+  readonly actionsLabel: string;
+  /** `false` = this row draws no kebab (the table keeps the empty cell so columns stay aligned). */
+  readonly hasActions: boolean;
 }
 
 /**
@@ -208,11 +212,13 @@ const PAGER_BUTTON =
               </tr>
             </thead>
             <tbody>
-              @for (r of rendered(); track r.id) {
+              @for (r of rendered(); track r.id; let i = $index) {
                 <tr
                   data-row
                   class="group"
                   [class.cursor-pointer]="rowTarget()"
+                  [class.enter-up]="animateRows()"
+                  [style.--stagger-i]="animateRows() ? i : null"
                   (click)="onRowClick($event, r.row)"
                 >
                   @for (c of r.cells; track c.column.key) {
@@ -235,12 +241,14 @@ const PAGER_BUTTON =
                   }
                   @if (actions(); as menu) {
                     <td class="px-2 py-1 text-right align-middle" [class]="cellClass()">
-                      <app-actions-menu [label]="actionsLabel()">
-                        <ng-container
-                          [ngTemplateOutlet]="menu.template"
-                          [ngTemplateOutletContext]="{ $implicit: r.row }"
-                        />
-                      </app-actions-menu>
+                      @if (r.hasActions) {
+                        <app-actions-menu [label]="r.actionsLabel">
+                          <ng-container
+                            [ngTemplateOutlet]="menu.template"
+                            [ngTemplateOutletContext]="{ $implicit: r.row }"
+                          />
+                        </app-actions-menu>
+                      }
                     </td>
                   }
                 </tr>
@@ -256,11 +264,13 @@ const PAGER_BUTTON =
           [class]="area + ' ' + layout().cards"
           [attr.aria-label]="ariaLabel()"
         >
-          @for (r of rendered(); track r.id) {
+          @for (r of rendered(); track r.id; let i = $index) {
             <li
               data-card
               [class]="cardClass()"
               [class.cursor-pointer]="rowTarget()"
+              [class.enter-up]="animateRows()"
+              [style.--stagger-i]="animateRows() ? i : null"
               (click)="onRowClick($event, r.row)"
             >
               <div class="flex items-start justify-between gap-2 min-w-0">
@@ -271,12 +281,14 @@ const PAGER_BUTTON =
                   />
                 </div>
                 @if (actions(); as menu) {
-                  <app-actions-menu [label]="actionsLabel()">
-                    <ng-container
-                      [ngTemplateOutlet]="menu.template"
-                      [ngTemplateOutletContext]="{ $implicit: r.row }"
-                    />
-                  </app-actions-menu>
+                  @if (r.hasActions) {
+                    <app-actions-menu [label]="r.actionsLabel">
+                      <ng-container
+                        [ngTemplateOutlet]="menu.template"
+                        [ngTemplateOutletContext]="{ $implicit: r.row }"
+                      />
+                    </app-actions-menu>
+                  }
                 }
               </div>
               @if (r.rest.length) {
@@ -349,7 +361,25 @@ export class DataList<T = unknown> {
   readonly loading = input(false);
   readonly emptyText = input('Nada por aqui.');
   readonly ariaLabel = input('Lista');
-  readonly actionsLabel = input('Mais ações');
+  /**
+   * Accessible name of each row's kebab. A string names every kebab the same ("Mais ações", the
+   * default); a function names each one after its row ("Ações da cobrança de Ana"), so a screen
+   * reader can tell twenty kebabs apart.
+   */
+  readonly actionsLabel = input<string | ((row: T) => string)>('Mais ações');
+  /**
+   * Which rows draw a kebab. `null` (default) = every row, as before. A row for which it returns
+   * `false` has no kebab at all, instead of a menu with nothing to do in it (e.g. a read-only
+   * profile, or a record in a state with no action).
+   */
+  readonly hasActions = input<((row: T) => boolean) | null>(null);
+  /**
+   * Opt-in entry motion: each row/card rises 8px and fades in, 40ms apart (capped at 8 rows, the
+   * shared `.enter-up` utility in `styles.css`). Only rows that are NEW to the list animate (rows
+   * are tracked by `rowId`), so a page change or a filter replays it and a re-render does not.
+   * `prefers-reduced-motion` turns it off. Default `false`: existing lists render as before.
+   */
+  readonly animateRows = input(false);
   /** File name for the CSV; `null` hides the Exportar button. */
   readonly exportFilename = input<string | null>(null);
   /** Rows become cards BELOW this breakpoint. Default `sm` (phones, < 640px). */
@@ -398,6 +428,8 @@ export class DataList<T = unknown> {
     const cols = this.columns() as readonly DataListColumn<unknown>[];
     const defs = new Map(this.cellDefs().map((d) => [d.key(), d.template]));
     const idOf = this.rowId() as (row: unknown, index: number) => string | number;
+    const label = this.actionsLabel() as string | ((row: unknown) => string);
+    const can = this.hasActions() as ((row: unknown) => boolean) | null;
     const primary = cols.find((c) => c.primary) ?? cols[0];
     return (this.rows() as readonly unknown[]).map((row, i) => {
       const cells = cols.map((column) => ({
@@ -411,6 +443,8 @@ export class DataList<T = unknown> {
         cells,
         title: cells.find((c) => c.column === primary) ?? cells[0],
         rest: cells.filter((c) => c.column !== primary),
+        actionsLabel: typeof label === 'function' ? label(row) : label,
+        hasActions: can ? can(row) : true,
       };
     });
   });
