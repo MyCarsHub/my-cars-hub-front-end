@@ -194,7 +194,7 @@ describe('admin-home.view', () => {
     );
     expect(rows.map((r) => r.label)).toEqual(['Pagar: Render', 'Receber: Locadora A · Pro']);
     expect(rows[0].value).toBe('sem valor');
-    expect(rows[1].value.replace(/\s/g, ' ')).toBe('+ R$ 150');
+    expect(rows[1].value.replace(/\s/g, ' ')).toBe('+ R$ 149,90');
     expect(rows[1].note).toBe('preço de tabela');
   });
 

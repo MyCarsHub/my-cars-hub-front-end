@@ -30,9 +30,16 @@ export type DateRangePresetKey =
     | 'year'
     | 'custom';
 
-// "Mês atual" is the default: it covers what has already happened this month
-// AND the remaining projected days — matches how the tenant thinks about
-// operational revenue.
+/**
+ * Where "Mês atual" and "Este ano" end.
+ * - `calendar`: the whole calendar period (01/11 a 30/11; 01/01 a 31/12), the fleet dashboard.
+ * - `today`: up to today (01/11 a 18/11; 01/01 a 18/11), the admin.
+ */
+export type DateRangePeriodEnd = 'calendar' | 'today';
+
+// "Mês atual" is the default. Where it ends is the caller's `periodEnd` (owner decision
+// 18/11/2026): the fleet dashboard reads the whole month (charges due later this month count);
+// the admin reads up to today.
 const PRESETS: readonly FilterChipOption<DateRangePresetKey>[] = [
     { value: 'monthCurrent', label: 'Mês atual' },
     { value: 'today', label: 'Hoje' },
@@ -53,7 +60,25 @@ function iso(date: Date): string {
     return `${y}-${m}-${d}`;
 }
 
-function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
+/** `2026-11-18` (or an ISO instant) -> `18/11/2026`; `null` when it is not a date. */
+function ptBrDay(isoDate: string): string | null {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : null;
+}
+
+/**
+ * The range as people read it: "01/11/2026 a 18/11/2026" (owner rule, 18/11/2026), the same
+ * text on every period control. Takes `yyyy-MM-dd` or an ISO instant (only the date part is
+ * read, no time-zone shift). `null` when either end is missing or not a date.
+ */
+export function formatDateRangePtBr(range: { from: string | null; to: string | null } | null | undefined): string | null {
+    if (!range?.from || !range.to) return null;
+    const from = ptBrDay(range.from);
+    const to = ptBrDay(range.to);
+    return from && to ? `${from} a ${to}` : null;
+}
+
+function rangeForPreset(preset: DateRangePresetKey, end: DateRangePeriodEnd = 'calendar'): DateRange | null {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const shift = (days: number) => {
@@ -77,7 +102,7 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
         case 'monthCurrent':
             return {
                 from: iso(new Date(today.getFullYear(), today.getMonth(), 1)),
-                to: iso(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+                to: iso(end === 'today' ? today : new Date(today.getFullYear(), today.getMonth() + 1, 0)),
             };
         case 'monthPast':
             return {
@@ -87,7 +112,7 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
         case 'year':
             return {
                 from: iso(new Date(today.getFullYear(), 0, 1)),
-                to: iso(new Date(today.getFullYear(), 11, 31)),
+                to: iso(end === 'today' ? today : new Date(today.getFullYear(), 11, 31)),
             };
         case 'custom':
             return null;
@@ -134,9 +159,10 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
                 @if (customError()) {
                     <p class="text-xs text-red-600 dark:text-red-300">{{ customError() }}</p>
                 }
-            } @else if (showRange() && currentRange(); as r) {
-                <p class="text-xs text-gray-500 dark:text-fg-subtle">
-                    {{ r.from }} — {{ r.to }}
+            }
+            @if (showRange() && rangeText(); as text) {
+                <p class="text-xs text-gray-500 dark:text-fg-subtle tabular-nums" aria-live="polite" data-range-text>
+                    {{ text }}
                 </p>
             }
         </div>
@@ -184,8 +210,26 @@ export class DateRangePicker implements OnInit {
     /** Wrap the chips onto several rows on the phone instead of a horizontal carousel. */
     readonly wrapChips = input(false);
 
-    /** Show the resolved ISO range (`2026-11-01 — 2026-11-30`) under the chips; the dashboard pills do not. */
+    /**
+     * Show the resolved range under the chips, "01/11/2026 a 18/11/2026". On by default and
+     * meant to stay on (owner rule 18/11/2026: every period control shows its dates); `false`
+     * exists only for a screen that prints the same dates elsewhere.
+     */
     readonly showRange = input(true);
+
+    /**
+     * Where "Mês atual" and "Este ano" end (see `DateRangePeriodEnd`). `calendar` (default) keeps
+     * the fleet dashboard on the whole month/year; the admin passes `today`.
+     */
+    readonly periodEnd = input<DateRangePeriodEnd>('calendar');
+
+    /**
+     * The range the SERVER actually used (e.g. the admin's `meta.from`/`meta.to`), shown instead
+     * of the one computed here. `yyyy-MM-dd` or ISO instants. The page owns its freshness: bind
+     * the answer of the period on screen and `null` while the next one loads, so an old range is
+     * never printed under a new chip (`null` falls back to the range computed here).
+     */
+    readonly resolvedRange = input<{ from: string | null; to: string | null } | null>(null);
 
     protected readonly presets = computed<readonly FilterChipOption<DateRangePresetKey>[]>(() => {
         const keys = this.presetKeys();
@@ -212,10 +256,8 @@ export class DateRangePicker implements OnInit {
             this.rangeChange.emit({ from: iso(first), to: iso(last) });
         });
     }
-    // "Mês atual" is the default so tenants see both realized-to-date AND the
-    // rest of the month's projected revenue on first paint — critical because
-    // rentals with future start dates (e.g. contract of R$ 42.400 starting
-    // next week) were invisible under the old rolling-30d default.
+    // "Mês atual" is the default (it replaced a rolling 30 days). With `periodEnd` `calendar` it
+    // also holds the rest of the month: rentals that start next week count on first paint.
     protected readonly selected = signal<DateRangePresetKey | null>('monthCurrent');
     protected readonly customFrom = signal<string>('');
     protected readonly customTo = signal<string>('');
@@ -229,7 +271,15 @@ export class DateRangePicker implements OnInit {
             if (!from || !to) return null;
             return { from, to };
         }
-        return rangeForPreset(key);
+        return rangeForPreset(key, this.periodEnd());
+    });
+
+    /** The line under the chips: the server's range when given, else the one computed here. */
+    protected readonly rangeText = computed<string | null>(() => {
+        const server = this.resolvedRange();
+        if (server !== null) return formatDateRangePtBr(server);
+        if (this.customError()) return null;
+        return formatDateRangePtBr(this.currentRange());
     });
 
     protected readonly customError = computed<string | null>(() => {
@@ -247,7 +297,7 @@ export class DateRangePicker implements OnInit {
         // `null` = período é filtro opcional: não emite nada até o usuário
         // escolher. Ver `initialPreset`.
         if (initial === null) return;
-        const r = rangeForPreset(initial);
+        const r = rangeForPreset(initial, this.periodEnd());
         if (r) this.rangeChange.emit(r);
     }
 
@@ -259,7 +309,7 @@ export class DateRangePicker implements OnInit {
     protected selectPreset(key: DateRangePresetKey | null): void {
         if (key === null) return;
         this.selected.set(key);
-        const r = rangeForPreset(key);
+        const r = rangeForPreset(key, this.periodEnd());
         if (r) this.rangeChange.emit(r);
     }
 

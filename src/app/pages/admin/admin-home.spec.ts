@@ -125,7 +125,8 @@ describe('AdminHome v2 — cartões', () => {
   it('MRR estimado fica ao lado, branco, com "preço de tabela"', () => {
     const card = kpiCard(setup().host, 'mrrEstimated');
     expect(card.className).not.toContain('bg-primary-500');
-    expect(flat(card)).toContain('R$ 769');
+    // Owner rule 18/11/2026: KPI money always shows cents.
+    expect(flat(card)).toContain('R$ 768,50');
     expect(flat(card)).toContain('preço de tabela');
   });
 
@@ -153,9 +154,9 @@ describe('AdminHome v2 — cartões', () => {
     // Compacto para caber lado a lado sem quebrar o número; o exato fica no title.
     expect(flat(card.querySelector('[data-managed-expected]'))).toBe('R$ 120,4k');
     const title = (sel: string) => card.querySelector(sel)?.getAttribute('title')?.replace(/\s/g, ' ');
-    expect(title('[data-managed-expected]')).toBe('R$ 120.417');
+    expect(title('[data-managed-expected]')).toBe('R$ 120.416,87');
     expect(flat(card.querySelector('[data-managed-received]'))).toBe('R$ 80k');
-    expect(title('[data-managed-received]')).toBe('R$ 80.000');
+    expect(title('[data-managed-received]')).toBe('R$ 80.000,00');
     expect(flat(card)).toContain('66,4% do esperado já entrou');
   });
 });
@@ -300,10 +301,9 @@ describe('AdminHome v2 — cartões mantidos', () => {
 
   it('aluguéis fechados, concluídos, contratos e assinados, cada um com o seu rótulo', () => {
     const { host } = setup();
-    expect(statValue(host, 'Aluguéis fechados')).toContain('1.235');
-    // Reais inteiros: o valor com centavos quebrava a linha no cartão estreito.
-    expect(statValue(host, 'Aluguéis concluídos')).toContain('900');
-    expect(statValue(host, 'Aluguéis concluídos')).not.toContain(',');
+    // Regra do dono 18/11/2026: sempre com centavos; o cartão encolhe o número para caber.
+    expect(statValue(host, 'Aluguéis fechados')).toContain('R$ 1.234,56');
+    expect(statValue(host, 'Aluguéis concluídos')).toBe('R$ 900,00');
     expect(statValue(host, 'Contratos gerados')).toBe('25');
     expect(statValue(host, 'Contratos assinados')).toBe('9');
     const text = flat(host);
