@@ -100,17 +100,10 @@ describe('DashboardHome — metric labels', () => {
   });
 
   it('Recebido with a delta chip keeps the comparison caption and still no share of the faturado', () => {
-    // "Mês atual" stops at today (owner rule 18/11/2026): mid-month it is not a whole month.
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date(2026, 10, 18, 12));
-    try {
-      const { host } = render(summary({ revenueCents: 1000000, receivedCents: 1510000, previousReceivedCents: 1000000 }));
-      const card = text(host.querySelector('[data-received-card]'));
-      expect(card).toContain('vs período anterior');
-      expect(card).not.toContain('do faturado');
-    } finally {
-      vi.useRealTimers();
-    }
+    const { host } = render(summary({ revenueCents: 1000000, receivedCents: 1510000, previousReceivedCents: 1000000 }));
+    const card = text(host.querySelector('[data-received-card]'));
+    expect(card).toContain('vs mês passado');
+    expect(card).not.toContain('do faturado');
   });
 
   it('Lucro margin is over Recebido and carries the formula', () => {

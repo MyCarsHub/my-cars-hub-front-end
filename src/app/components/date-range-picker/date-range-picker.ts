@@ -30,9 +30,16 @@ export type DateRangePresetKey =
     | 'year'
     | 'custom';
 
-// "Mês atual" is the default. It runs from the 1st to TODAY (owner decision 18/11/2026): the
-// range is printed under the chips, and "01/11 a 30/11" on the 18th would promise days that
-// have not happened.
+/**
+ * Where "Mês atual" and "Este ano" end.
+ * - `calendar`: the whole calendar period (01/11 a 30/11; 01/01 a 31/12), the fleet dashboard.
+ * - `today`: up to today (01/11 a 18/11; 01/01 a 18/11), the admin.
+ */
+export type DateRangePeriodEnd = 'calendar' | 'today';
+
+// "Mês atual" is the default. Where it ends is the caller's `periodEnd` (owner decision
+// 18/11/2026): the fleet dashboard reads the whole month (charges due later this month count);
+// the admin reads up to today.
 const PRESETS: readonly FilterChipOption<DateRangePresetKey>[] = [
     { value: 'monthCurrent', label: 'Mês atual' },
     { value: 'today', label: 'Hoje' },
@@ -71,7 +78,7 @@ export function formatDateRangePtBr(range: { from: string | null; to: string | n
     return from && to ? `${from} a ${to}` : null;
 }
 
-function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
+function rangeForPreset(preset: DateRangePresetKey, end: DateRangePeriodEnd = 'calendar'): DateRange | null {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const shift = (days: number) => {
@@ -95,7 +102,7 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
         case 'monthCurrent':
             return {
                 from: iso(new Date(today.getFullYear(), today.getMonth(), 1)),
-                to: iso(today),
+                to: iso(end === 'today' ? today : new Date(today.getFullYear(), today.getMonth() + 1, 0)),
             };
         case 'monthPast':
             return {
@@ -105,7 +112,7 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
         case 'year':
             return {
                 from: iso(new Date(today.getFullYear(), 0, 1)),
-                to: iso(new Date(today.getFullYear(), 11, 31)),
+                to: iso(end === 'today' ? today : new Date(today.getFullYear(), 11, 31)),
             };
         case 'custom':
             return null;
@@ -211,6 +218,12 @@ export class DateRangePicker implements OnInit {
     readonly showRange = input(true);
 
     /**
+     * Where "Mês atual" and "Este ano" end (see `DateRangePeriodEnd`). `calendar` (default) keeps
+     * the fleet dashboard on the whole month/year; the admin passes `today`.
+     */
+    readonly periodEnd = input<DateRangePeriodEnd>('calendar');
+
+    /**
      * The range the SERVER actually used (e.g. the admin's `meta.from`/`meta.to`), shown instead
      * of the one computed here. `yyyy-MM-dd` or ISO instants. The page owns its freshness: bind
      * the answer of the period on screen and `null` while the next one loads, so an old range is
@@ -243,8 +256,8 @@ export class DateRangePicker implements OnInit {
             this.rangeChange.emit({ from: iso(first), to: iso(last) });
         });
     }
-    // "Mês atual" is the default (it replaced a rolling 30 days). Since 18/11/2026 it stops at
-    // TODAY: what falls due later this month is outside it until the day arrives.
+    // "Mês atual" is the default (it replaced a rolling 30 days). With `periodEnd` `calendar` it
+    // also holds the rest of the month: rentals that start next week count on first paint.
     protected readonly selected = signal<DateRangePresetKey | null>('monthCurrent');
     protected readonly customFrom = signal<string>('');
     protected readonly customTo = signal<string>('');
@@ -258,7 +271,7 @@ export class DateRangePicker implements OnInit {
             if (!from || !to) return null;
             return { from, to };
         }
-        return rangeForPreset(key);
+        return rangeForPreset(key, this.periodEnd());
     });
 
     /** The line under the chips: the server's range when given, else the one computed here. */
@@ -284,7 +297,7 @@ export class DateRangePicker implements OnInit {
         // `null` = período é filtro opcional: não emite nada até o usuário
         // escolher. Ver `initialPreset`.
         if (initial === null) return;
-        const r = rangeForPreset(initial);
+        const r = rangeForPreset(initial, this.periodEnd());
         if (r) this.rangeChange.emit(r);
     }
 
@@ -296,7 +309,7 @@ export class DateRangePicker implements OnInit {
     protected selectPreset(key: DateRangePresetKey | null): void {
         if (key === null) return;
         this.selected.set(key);
-        const r = rangeForPreset(key);
+        const r = rangeForPreset(key, this.periodEnd());
         if (r) this.rangeChange.emit(r);
     }
 

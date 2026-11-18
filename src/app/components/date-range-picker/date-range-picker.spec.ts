@@ -115,14 +115,34 @@ describe('DateRangePicker — intervalo escrito (regra do dono 18/11/2026)', () 
   });
   afterEach(() => vi.useRealTimers());
 
-  it('"Mês atual" vai do dia 1 até HOJE, não até o fim do mês', () => {
+  it('padrão (calendar, dashboard da frota): "Mês atual" é o mês inteiro', () => {
     render();
+    expect(emitted).toEqual([{ from: '2026-11-01', to: '2026-11-30' }]);
+  });
+
+  it('periodEnd="today" (admin): "Mês atual" vai do dia 1 até HOJE', () => {
+    render({ periodEnd: 'today' });
     expect(emitted).toEqual([{ from: '2026-11-01', to: '2026-11-18' }]);
+    expect(rangeText()).toBe('01/11/2026 a 18/11/2026');
+  });
+
+  it('"Este ano": o ano inteiro no calendar, até hoje no today', () => {
+    render();
+    chip('Este ano').click();
+    fixture.detectChanges();
+    expect(emitted.at(-1)).toEqual({ from: '2026-01-01', to: '2026-12-31' });
+    expect(rangeText()).toBe('01/01/2026 a 31/12/2026');
+
+    render({ periodEnd: 'today' });
+    chip('Este ano').click();
+    fixture.detectChanges();
+    expect(emitted.at(-1)).toEqual({ from: '2026-01-01', to: '2026-11-18' });
+    expect(rangeText()).toBe('01/01/2026 a 18/11/2026');
   });
 
   it('o intervalo aparece por padrão, em pt-BR "dd/mm/aaaa a dd/mm/aaaa", sem ISO', () => {
     render();
-    expect(rangeText()).toBe('01/11/2026 a 18/11/2026');
+    expect(rangeText()).toBe('01/11/2026 a 30/11/2026');
     expect(root().textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
@@ -141,7 +161,7 @@ describe('DateRangePicker — intervalo escrito (regra do dono 18/11/2026)', () 
     expect(rangeText()).toBe('19/10/2026 a 18/11/2026');
     fixture.componentRef.setInput('resolvedRange', null);
     fixture.detectChanges();
-    expect(rangeText()).toBe('01/11/2026 a 18/11/2026');
+    expect(rangeText()).toBe('01/11/2026 a 30/11/2026');
   });
 
   it('personalizado incompleto mostra o erro, não um intervalo', () => {

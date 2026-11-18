@@ -127,30 +127,13 @@ function render(): HTMLElement {
 const norm = (el: Element | null): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
 describe('DashboardHome — canvas match', () => {
-  // Owner rule 18/11/2026: KPI money shows cents, and "Mês atual" stops at TODAY. Mid-month the
-  // range is not a whole month, so the backend's same-length window is "período anterior".
-  it('KPI money has cents; mid-month "Mês atual" compares with the período anterior', () => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date(2026, 10, 18, 12));
-    try {
-      const host = render();
-      const billed = norm(host.querySelector('[data-billed-card]'));
-      expect(billed).toContain('R$ 45.900,00');
-      expect(billed).toContain('vs período anterior');
-      expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 41.300,00');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('on the last day of the month "Mês atual" is the whole month: "vs mês passado"', () => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date(2026, 10, 30, 12));
-    try {
-      expect(norm(render().querySelector('[data-billed-card]'))).toContain('vs mês passado');
-    } finally {
-      vi.useRealTimers();
-    }
+  // Owner rule 18/11/2026: KPI money shows cents. "Mês atual" stays the whole month here.
+  it('KPI money has cents and the caption says "vs mês passado" for the whole-month range', () => {
+    const host = render();
+    const billed = norm(host.querySelector('[data-billed-card]'));
+    expect(billed).toContain('R$ 45.900,00');
+    expect(billed).toContain('vs mês passado');
+    expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 41.300,00');
   });
 
   it('Despesas and Em atraso values are white (default tone), not rose', () => {
@@ -164,8 +147,13 @@ describe('DashboardHome — canvas match', () => {
     const host = render();
     const picker = host.querySelector('app-date-range-picker')!;
     expect(picker.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
-    expect(picker.querySelector('[data-range-text]')?.textContent?.trim()).toMatch(
-      /^01\/\d{2}\/\d{4} a \d{2}\/\d{2}\/\d{4}$/,
+    // Whole month: from the 1st to the month's last day.
+    const now = new Date();
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    const mm = `${p2(now.getMonth() + 1)}/${now.getFullYear()}`;
+    expect(picker.querySelector('[data-range-text]')?.textContent?.trim()).toBe(
+      `01/${mm} a ${p2(last.getDate())}/${mm}`,
     );
   });
 
