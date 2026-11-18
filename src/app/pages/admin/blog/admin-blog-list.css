@@ -1,1 +1,54 @@
-:host { display: block; }
+/*
+ * Movimento da lista de posts (o mesmo vocabulário da lista de cupons). A `app-data-list` não
+ * anima as linhas, então esta tela anima: cada linha (tabela) e cada cartão (celular) sobe em
+ * cascata de 40ms, no máximo 8 degraus (nunca mais de ~320ms); a lista refeita a cada troca de
+ * situação ou categoria repete a cascata.
+ *
+ * Só transform/opacity, e `prefers-reduced-motion` desliga tudo. `backwards`, não `both`: um
+ * transform preso viraria o containing block do painel `position: fixed` do kebab (veja
+ * `.enter-up` em styles.css). O componente não tem encapsulamento (as linhas são da
+ * `app-data-list`); todo seletor começa por `app-admin-blog-list .blog-list` para não vazar.
+ */
+app-admin-blog-list .blog-list [data-row],
+app-admin-blog-list .blog-list [data-card] {
+  animation: enter-up 260ms cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
+}
+app-admin-blog-list .blog-list [data-row]:nth-child(2),
+app-admin-blog-list .blog-list [data-card]:nth-child(2) {
+  animation-delay: 40ms;
+}
+app-admin-blog-list .blog-list [data-row]:nth-child(3),
+app-admin-blog-list .blog-list [data-card]:nth-child(3) {
+  animation-delay: 80ms;
+}
+app-admin-blog-list .blog-list [data-row]:nth-child(4),
+app-admin-blog-list .blog-list [data-card]:nth-child(4) {
+  animation-delay: 120ms;
+}
+app-admin-blog-list .blog-list [data-row]:nth-child(5),
+app-admin-blog-list .blog-list [data-card]:nth-child(5) {
+  animation-delay: 160ms;
+}
+app-admin-blog-list .blog-list [data-row]:nth-child(6),
+app-admin-blog-list .blog-list [data-card]:nth-child(6) {
+  animation-delay: 200ms;
+}
+app-admin-blog-list .blog-list [data-row]:nth-child(7),
+app-admin-blog-list .blog-list [data-card]:nth-child(7) {
+  animation-delay: 240ms;
+}
+app-admin-blog-list .blog-list [data-row]:nth-child(8),
+app-admin-blog-list .blog-list [data-card]:nth-child(8) {
+  animation-delay: 280ms;
+}
+app-admin-blog-list .blog-list [data-row]:nth-child(n + 9),
+app-admin-blog-list .blog-list [data-card]:nth-child(n + 9) {
+  animation-delay: 320ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  app-admin-blog-list .blog-list [data-row],
+  app-admin-blog-list .blog-list [data-card] {
+    animation: none;
+  }
+}
