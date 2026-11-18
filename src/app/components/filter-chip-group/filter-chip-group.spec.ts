@@ -186,3 +186,45 @@ describe('FilterChipGroup', () => {
     expect(chips()[0].className).toContain('snap-start');
   });
 });
+
+describe('FilterChipGroup — tokens do tema e contagem (lote S5)', () => {
+  function renderGroup(options: readonly FilterChipOption<Preset>[], value: Preset = 'a') {
+    TestBed.configureTestingModule({});
+    const fixture = TestBed.createComponent(FilterChipGroup<Preset>);
+    fixture.componentRef.setInput('options', options);
+    fixture.componentRef.setInput('value', value);
+    fixture.detectChanges();
+    return Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('[role="radio"]'),
+    );
+  }
+
+  it('o chip inativo usa os tokens fg-soft/edge, nunca gray-* cru', () => {
+    const inactive = renderGroup(OPTIONS)[1];
+    expect(inactive.className).toContain('text-fg-soft');
+    expect(inactive.className).toContain('border-edge');
+    expect(inactive.className).not.toMatch(/gray-/);
+  });
+
+  it('sem count o chip é só o rótulo, como sempre foi', () => {
+    const chips = renderGroup(OPTIONS);
+    expect(chips.map((c) => c.textContent?.trim())).toEqual(['Alfa', 'Beta', 'Gama']);
+    expect(chips[0].querySelector('[data-chip-count]')).toBeNull();
+  });
+
+  it('com count mostra o número depois do rótulo, com espaço (nome acessível "Beta 3")', () => {
+    const chips = renderGroup([
+      { value: 'a', label: 'Alfa', count: 12 },
+      { value: 'b', label: 'Beta', count: 3 },
+      { value: 'c', label: 'Gama', count: null },
+    ]);
+    expect(chips.map((c) => c.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+      'Alfa 12',
+      'Beta 3',
+      'Gama',
+    ]);
+    expect(chips[0].querySelector('[data-chip-count]')!.className).toContain('text-white/85');
+    expect(chips[1].querySelector('[data-chip-count]')!.className).toContain('text-fg-subtle');
+    expect(chips[1].textContent).toMatch(/Beta\s+3/);
+  });
+});
