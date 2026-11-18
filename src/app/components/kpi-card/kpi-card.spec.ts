@@ -318,3 +318,30 @@ describe('KpiCard link, button and extras', () => {
     expect((card.querySelector('[data-kpi-progress] > div') as HTMLElement).style.width).toBe('40%');
   });
 });
+
+
+@Component({
+  imports: [KpiCard],
+  template: `
+    <div app-kpi-card data-t="foot" label="Pé" [value]="1" [anchored]="true"></div>
+    <div app-kpi-card data-t="top" label="Topo" [value]="2" [anchored]="true" [valueTop]="true"
+         [delta]="{ text: 'novos', tone: 'neutral' }"></div>
+  `,
+})
+class AnchorHost {}
+
+describe('KpiCard — número no pé ou no topo', () => {
+  it('valueTop deixa o número logo abaixo do rótulo e empurra o rodapé com um espaçador', () => {
+    TestBed.configureTestingModule({ imports: [AnchorHost] });
+    const fixture = TestBed.createComponent(AnchorHost);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const value = (t: string) => root.querySelector(`[data-t="${t}"] p:nth-of-type(2)`) as HTMLElement;
+    expect(value('foot').className).toContain('mt-auto');
+    expect(root.querySelector('[data-t="foot"] [data-kpi-spacer]')).toBeNull();
+    expect(value('top').className).not.toContain('mt-auto');
+    const spacer = root.querySelector('[data-t="top"] [data-kpi-spacer]');
+    expect(spacer).not.toBeNull();
+    expect(spacer?.nextElementSibling?.hasAttribute('data-kpi-delta')).toBe(true);
+  });
+});

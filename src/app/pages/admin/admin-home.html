@@ -1,403 +1,548 @@
 <app-default-page-layout
   title="Administração"
-  description="Visão geral da plataforma."
+  description="A plataforma inteira em uma tela: receita, custos, crescimento, uso e movimentações."
 >
-  <!-- Error -->
-  @if (error()) {
-    <div class="rounded-lg bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 text-sm p-3 border border-red-100 dark:border-red-500/20 mb-4">
-      {{ error() }}
+  <div pageActions class="flex flex-wrap gap-2">
+    @if (canManageCosts()) {
       <button
         type="button"
-        class="ml-2 underline hover:no-underline"
-        (click)="reload()"
+        data-testid="launch-cost"
+        class="press min-h-11 px-4 rounded-full bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+        (click)="openCostSheet()"
       >
-        Tentar novamente
+        Lançar custo
       </button>
-    </div>
-  }
-
-  <!-- KPI cards -->
-  <div class="grid gap-4 grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 mb-3">
-    <!-- Users total -->
-    <div class="rounded-2xl bg-surface border border-edge p-4">
-      <p class="text-xs text-fg-subtle uppercase tracking-wide">Usuários</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
-          {{ usersDisplay() }}
-        </p>
-        <p class="text-xs text-emerald-600 dark:text-emerald-300 mt-1">
-          +{{ overview()?.users?.newLast30Days ?? 0 }} em 30 dias
-        </p>
-      }
-    </div>
-
-    <!--
-      Online agora — presença, não login: a autenticação é JWT sem sessão, então
-      conta quem fez requisição autenticada dentro da janela do backend
-      (UserPresence.ONLINE_WINDOW). O cartão leva à lista já filtrada.
-    -->
-    <a
-      routerLink="/admin/users"
-      [queryParams]="{ online: true }"
-      data-testid="online-now-card"
-      class="block rounded-2xl bg-surface border border-edge p-4 min-h-[44px]
-             hover:border-primary-300 dark:hover:border-primary-500/40 transition-colors
-             outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-      aria-label="Ver usuários online agora"
+    }
+    <button
+      type="button"
+      data-testid="export-home"
+      class="press min-h-11 px-4 rounded-full border border-edge bg-transparent text-fg text-sm font-semibold hover:bg-surface-muted
+             disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+      [disabled]="!home()"
+      (click)="exportCsv()"
     >
-      <p class="flex items-center gap-1.5 text-xs text-fg-subtle uppercase tracking-wide">
-        <span class="inline-block w-2 h-2 rounded-full bg-success-500" aria-hidden="true"></span>
-        Online agora
-      </p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums" data-testid="online-now-count">
-          {{ onlineNow() }}
-        </p>
-        <p class="text-xs text-fg-subtle mt-1">Ver quem está online</p>
-      }
-    </a>
-
-    <!-- Companies -->
-    <div class="rounded-2xl bg-surface border border-edge p-4">
-      <p class="text-xs text-fg-subtle uppercase tracking-wide">Empresas</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
-          {{ companiesDisplay() }}
-        </p>
-        <p class="text-xs text-emerald-600 dark:text-emerald-300 mt-1">
-          +{{ overview()?.companies?.newLast30Days ?? 0 }} em 30 dias
-        </p>
-      }
-    </div>
-
-    <!-- Vehicles -->
-    <div class="rounded-2xl bg-surface border border-edge p-4">
-      <p class="text-xs text-fg-subtle uppercase tracking-wide">Veículos</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
-          {{ vehiclesDisplay() }}
-        </p>
-        <p class="text-xs text-fg-subtle mt-1">
-          Ativos
-        </p>
-      }
-    </div>
-
-    <!-- Active subscriptions -->
-    <div class="rounded-2xl bg-surface border border-edge p-4">
-      <p class="text-xs text-fg-subtle uppercase tracking-wide">Assinaturas ativas</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
-          {{ overview()?.subscriptions?.active ?? 0 }}
-        </p>
-        <p class="text-xs text-fg-subtle mt-1">
-          <span data-testid="trialing-count">{{ overview()?.subscriptions?.trialing ?? 0 }}</span> em trial
-        </p>
-      }
-    </div>
-
-    <!-- MRR (active subs, strict) -->
-    <div class="rounded-2xl bg-emerald-600 text-white p-4">
-      <p class="text-xs text-white/70 uppercase tracking-wide">MRR</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold mt-1 tabular-nums">
-          {{ formatCurrency(mrrActiveOnly()) }}
-        </p>
-        <p class="text-xs text-white/70 mt-1">assinantes ativos</p>
-      }
-    </div>
-
-    <!-- ARR -->
-    <div class="rounded-2xl bg-emerald-700 text-white p-4">
-      <p class="text-xs text-white/70 uppercase tracking-wide">ARR</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold mt-1 tabular-nums">
-          {{ formatCurrency(arr()) }}
-        </p>
-        <p class="text-xs text-white/70 mt-1">MRR × 12</p>
-      }
-    </div>
-
-    <!-- Testes acabando em 7 dias — ocupa o lugar do antigo "MRR estimado",
-         que repetia o MRR (o plano de teste vale R$ 0). Conta só teste com fim
-         no futuro, nunca pelo status. -->
-    <div class="rounded-2xl bg-primary-500 text-white p-4" data-testid="trials-ending-card">
-      <p class="text-xs text-white/70 uppercase tracking-wide">Testes acabando em 7 dias</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold mt-1 tabular-nums" data-testid="trials-ending-count">
-          {{ trialsEndingSoon() }}
-        </p>
-        <p class="text-xs text-white/70 mt-1">
-          de {{ overview()?.subscriptions?.trialing ?? 0 }} em teste
-        </p>
-      }
-    </div>
-
-    <!-- Feedback pending -->
-    <div class="rounded-2xl bg-surface border border-edge p-4">
-      <p class="text-xs text-fg-subtle uppercase tracking-wide">Feedback pendente</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
-          {{ overview()?.feedback?.pending ?? 0 }}
-        </p>
-        <p class="text-xs text-fg-subtle mt-1">
-          {{ overview()?.feedback?.total ?? 0 }} totais
-        </p>
-      }
-    </div>
-
-    <!-- Volume consolidado (todas as empresas) — mesmos cartões da grade.
-         Os dois de valor ocupam a linha inteira no celular: R$ com 2xl não
-         cabe em meia coluna de 375px. As ressalvas vivem na nota abaixo. -->
-    <div class="col-span-2 sm:col-span-1 rounded-2xl bg-surface border border-edge p-4">
-      <p class="text-xs text-fg-subtle uppercase tracking-wide">Aluguéis fechados</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-28 rounded bg-surface-sunken animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
-          {{ formatCurrency(closedRentals().amount) }}
-        </p>
-        <p class="text-xs text-fg-subtle mt-1">
-          {{ closedRentals().count }} aluguéis · exclui cancelados
-        </p>
-      }
-    </div>
-
-    <div class="col-span-2 sm:col-span-1 rounded-2xl bg-surface border border-edge p-4">
-      <p class="text-xs text-fg-subtle uppercase tracking-wide">Aluguéis concluídos</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-28 rounded bg-surface-sunken animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
-          {{ formatCurrency(completedRentals().amount) }}
-        </p>
-        <p class="text-xs text-fg-subtle mt-1">
-          {{ completedRentals().count }} aluguéis finalizados
-        </p>
-      }
-    </div>
-
-    <div class="rounded-2xl bg-surface border border-edge p-4">
-      <p class="text-xs text-fg-subtle uppercase tracking-wide">Contratos de locação</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
-          {{ contractsTotal() }}
-        </p>
-        <p class="text-xs text-fg-subtle mt-1">gerados na plataforma</p>
-      }
-    </div>
-
-    <div class="rounded-2xl bg-surface border border-edge p-4">
-      <p class="text-xs text-fg-subtle uppercase tracking-wide">Contratos assinados</p>
-      @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
-      } @else {
-        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
-          {{ contractsSigned() }}
-        </p>
-        <p class="text-xs text-fg-subtle mt-1">de {{ contractsTotal() }} contratos</p>
-      }
-    </div>
+      Exportar
+    </button>
   </div>
 
-  <!-- Receita da plataforma: esperado, recebido, cupons, acumulado e MRR por mês.
-       Os cartões acima ficam como estão (05_proposta §9); a seção ocupa o lugar de
-       "Crescimento ao longo do tempo" do protótipo Admin.dc.html. -->
-  <app-admin-revenue-section />
-
-  <!-- Charts row -->
-  <div class="grid gap-4 lg:grid-cols-3 mb-4">
-    <!-- Users spark -->
-    <div class="lg:col-span-2">
-      <app-page-card title="Novos usuários — últimos 30 dias">
-        <div class="p-4">
-          @if (loading() && !overview()) {
-            <div class="h-32 rounded bg-surface-sunken animate-pulse"></div>
-          } @else if (userPoints().length > 0) {
-            <app-line-chart
-              [points]="userPoints()"
-              ariaLabel="Novos usuários por dia, últimos 30 dias"
-              valueLabel="Novos usuários"
-              [heightPx]="160"
-            />
-            <p class="text-xs text-fg-subtle mt-2 tabular-nums">
-              Pico de {{ usersPeak() }} no período.
-            </p>
-          } @else {
-            <p class="text-sm text-fg-subtle text-center py-10">
-              Sem dados no período.
-            </p>
-          }
-        </div>
-      </app-page-card>
-    </div>
-
-    <!-- Subscription status -->
-    <div>
-      <app-page-card title="Assinaturas por status">
-        <div class="p-4 space-y-3">
-          @if (loading() && !overview()) {
-            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
-            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
-            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
-          } @else {
-            @for (bar of subscriptionBars(); track bar.key) {
-              <div>
-                <div class="flex justify-between text-xs mb-1">
-                  <span class="text-fg-muted">{{ bar.label }}</span>
-                  <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
-                </div>
-                <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
-                  <div
-                    class="h-full rounded-full transition-all duration-500"
-                    [style.width.%]="bar.percent"
-                    [style.background-color]="bar.color"
-                  ></div>
-                </div>
-              </div>
-            }
-          }
-        </div>
-      </app-page-card>
-    </div>
-  </div>
-
-  <!-- Aluguéis por status + Feedback por status -->
-  <div class="grid gap-4 lg:grid-cols-2 mb-4">
-    <!-- O gráfico sobreviveu à mudança dos cartões: ele responde "onde estão os
-         aluguéis", que nenhum número isolado responde. Foi para junto das outras
-         distribuições por status, onde é o seu lugar. -->
-    <div>
-      <app-page-card title="Aluguéis por status">
-        <div class="p-4 space-y-3">
-          @if (loading() && !overview()) {
-            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
-            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
-            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
-          } @else {
-            @for (bar of rentalBars(); track bar.key) {
-              <div>
-                <div class="flex justify-between text-xs mb-1">
-                  <span class="text-fg-muted">{{ bar.label }}</span>
-                  <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
-                </div>
-                <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
-                  <div
-                    class="h-full rounded-full transition-all duration-500"
-                    [style.width.%]="bar.percent"
-                    [style.background-color]="bar.color"
-                  ></div>
-                </div>
-              </div>
-            }
-          }
-        </div>
-      </app-page-card>
-    </div>
-
-    <div>
-      <app-page-card title="Feedback por status">
-        <div class="p-4 space-y-3">
-          @if (loading() && !overview()) {
-            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
-            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
-            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
-          } @else {
-            @for (bar of feedbackBars(); track bar.key) {
-              <div>
-                <div class="flex justify-between text-xs mb-1">
-                  <span class="text-fg-muted">{{ bar.label }}</span>
-                  <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
-                </div>
-                <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
-                  <div
-                    class="h-full rounded-full transition-all duration-500"
-                    [style.width.%]="bar.percent"
-                    [style.background-color]="bar.color"
-                  ></div>
-                </div>
-              </div>
-            }
-          }
-        </div>
-      </app-page-card>
-    </div>
-
-  </div>
-
-  <!-- Sections nav -->
-  <app-page-card title="Áreas administrativas">
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 p-4">
-      @for (section of sections(); track section.title) {
-        @if (section.route && !section.disabled) {
+  <div class="flex flex-col gap-4 min-w-0" data-admin-home>
+    <!-- Chips de alerta: cada um leva ao lugar de agir; zero não aparece. -->
+    @if (chips().length) {
+      <nav aria-label="Alertas" class="flex flex-wrap gap-2" data-home-chips>
+        @for (chip of chips(); track chip.key) {
           <a
-            [routerLink]="section.route"
-            class="group flex flex-col gap-3 p-5 rounded-xl border border-edge
-                   bg-surface hover:border-primary-400 hover:shadow-sm
-                   transition-all focus:outline-none focus:ring-2 focus:ring-primary-400"
+            [routerLink]="chip.route"
+            [attr.data-chip]="chip.key"
+            [attr.aria-label]="chip.n + ' ' + chip.label"
+            class="press inline-flex items-center gap-2 min-h-11 px-3.5 rounded-full bg-surface-muted text-fg hover:bg-surface-sunken
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
           >
-            <div
-              class="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-500/10 text-primary-500 dark:text-primary-400
-                     flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-500/15 transition-colors"
-              aria-hidden="true"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                   viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path [attr.d]="section.icon" />
-              </svg>
-            </div>
-            <h3 class="text-base font-semibold text-fg">{{ section.title }}</h3>
-            <p class="text-sm text-fg-subtle">{{ section.description }}</p>
+            <b class="text-[15px] tabular-nums">{{ chip.n }}</b>
+            <span class="text-[13px] text-fg-soft">{{ chip.label }}</span>
           </a>
-        } @else {
-          <div
-            class="relative flex flex-col gap-3 p-5 rounded-xl border border-dashed
-                   border-edge bg-canvas"
-            aria-disabled="true"
-          >
-            @if (section.badge) {
-              <span class="absolute top-3 right-3 text-[10px] uppercase tracking-wide
-                           bg-surface-strong text-fg-muted px-2 py-0.5 rounded-full">
-                {{ section.badge }}
-              </span>
-            }
-            <div
-              class="w-10 h-10 rounded-lg bg-surface-sunken text-fg-faint
-                     flex items-center justify-center"
-              aria-hidden="true"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                   viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path [attr.d]="section.icon" />
-              </svg>
-            </div>
-            <h3 class="text-base font-semibold text-fg-subtle">{{ section.title }}</h3>
-            <p class="text-sm text-fg-faint">{{ section.description }}</p>
-          </div>
         }
+      </nav>
+    }
+
+    <!-- Período e escopo valem para a tela inteira. -->
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
+      <app-pill-tabs [options]="periods" [value]="period()" ariaLabel="Período" (selected)="pickPeriod($event)" />
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-xs text-fg-subtle shrink-0">Escopo</span>
+        <app-pill-tabs [options]="scopes" [value]="scope()" ariaLabel="Escopo" (selected)="pickScope($event)" />
+      </div>
+    </div>
+
+    @if (homeError()) {
+      <div role="alert" class="rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-200 text-sm p-3">
+        {{ homeError() }}
+        <button type="button" class="ml-1 underline min-h-[44px]" (click)="reloadHome()">Tentar novamente</button>
+      </div>
+    }
+
+    <!-- Os 10 cartões. -->
+    <div class="grid gap-3 grid-cols-2 lg:grid-cols-5" data-home-kpis>
+      @for (k of kpis(); track k.key; let i = $index) {
+        <div
+          app-kpi-card
+          [attr.data-kpi]="k.key"
+          [class.col-span-2]="k.wide"
+          [class.lg:col-span-1]="k.wide"
+          [variant]="k.variant"
+          [label]="k.label"
+          [numberFormat]="k.format"
+          placeholder="dash"
+          [anchored]="true"
+          [valueTop]="true"
+          [stagger]="i"
+          [loading]="pending()"
+          [value]="k.value"
+          [delta]="k.delta"
+          [detail]="k.detail"
+          [pressable]="k.action !== null"
+          [ariaLabel]="k.action ? k.label + ': lançar custo' : null"
+          (pressed)="k.action && openCostSheet(k.action)"
+        ></div>
+      }
+      <!-- Valor gerenciado: esperado e recebido, lado a lado (decisão do dono). -->
+      <div
+        data-kpi="managed"
+        class="enter-up lift col-span-2 lg:col-span-1 flex flex-col min-h-[112px] rounded-2xl bg-emerald-600 text-white p-4 min-w-0"
+        style="--stagger-i: 9"
+      >
+        <p class="text-xs text-white/70">Gerenciado{{ managed()?.month ? ' em ' + managed()?.month : '' }}</p>
+        @if (pending() || !managed()) {
+          <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
+        } @else {
+          @if (managed(); as m) {
+            <div class="mt-auto grid grid-cols-2 gap-3 min-w-0">
+              <div class="min-w-0">
+                <p class="text-lg sm:text-xl lg:text-lg xl:text-xl font-semibold tabular-nums whitespace-nowrap" [attr.title]="m.expectedFull" data-managed-expected>{{ m.expected }}</p>
+                <p class="text-[11px] text-white/70 break-words">{{ m.expectedNote }}</p>
+              </div>
+              <div class="min-w-0">
+                <p class="text-lg sm:text-xl lg:text-lg xl:text-xl font-semibold tabular-nums whitespace-nowrap" [attr.title]="m.receivedFull" data-managed-received>{{ m.received }}</p>
+                <p class="text-[11px] text-white/70 break-words">{{ m.receivedNote }}</p>
+              </div>
+            </div>
+            @if (m.share !== null) {
+              <div class="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden" aria-hidden="true">
+                <div class="h-full rounded-full bg-white" [style.width.%]="m.share * 100"></div>
+              </div>
+              <p class="text-[11px] text-white/90 mt-1">{{ m.shareText }} do esperado já entrou</p>
+            }
+          }
+        }
+      </div>
+    </div>
+
+    <h2 class="mt-2 text-base font-semibold text-fg">Crescimento ao longo do tempo</h2>
+
+    <div class="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_374px]">
+      <app-page-card title="Crescimento do MRR" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-mrr-chart>
+          <p class="-mt-3 text-xs text-fg-subtle">Receita recorrente: real e estimada pelo preço de tabela</p>
+          @if (pending()) {
+            <div class="h-48 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          } @else {
+            <app-growth-chart
+              [series]="mrrChart()"
+              [labels]="mrrLabels()"
+              valueFormat="brl-cents-compact"
+              [axisFloor]="axisFloor"
+              [legendTop]="true"
+              [endDot]="true"
+              [endTooltip]="true"
+              [heightPx]="200"
+              emptyText="Nenhum cliente pagante neste período."
+              ariaLabel="MRR real e estimado da plataforma"
+            />
+            @if (mrrNote(); as note) {
+              <p class="text-[11px] text-fg-subtle">{{ note }}</p>
+            }
+          }
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Assinantes ativos" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-subs-chart>
+          <p class="-mt-3 text-xs text-fg-subtle">Quantas locadoras pagam</p>
+          @if (pending()) {
+            <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          } @else {
+            <app-growth-chart
+              [series]="subsChart()"
+              [labels]="mrrLabels()"
+              [endDot]="true"
+              [endTooltip]="true"
+              [heightPx]="150"
+              emptyText="Nenhuma assinatura paga neste período."
+              ariaLabel="Assinaturas pagas ativas"
+            />
+            <dl class="grid grid-cols-3 gap-1.5" data-by-plan>
+              @for (p of byPlan(); track p.planName) {
+                <div class="rounded-xl bg-surface-muted px-2.5 py-2 min-w-0 flex flex-col-reverse">
+                  <dt class="text-[11px] text-fg-subtle truncate">{{ p.planName }}</dt>
+                  <dd class="m-0 text-base font-semibold text-fg tabular-nums">{{ p.subscriptions }}</dd>
+                </div>
+              } @empty {
+                <p class="col-span-3 text-xs text-fg-subtle">Nenhum plano pago ativo.</p>
+              }
+            </dl>
+          }
+        </div>
+      </app-page-card>
+    </div>
+
+    <div class="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_374px]">
+      <app-page-card title="MRR × custos × lucro" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-profit-chart>
+          <p class="-mt-3 text-xs text-fg-subtle">O que entra, o que sai e o que sobra, mês a mês</p>
+          @if (pending()) {
+            <div class="h-48 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          } @else {
+            <app-bar-chart
+              [series]="profitSeries()"
+              [labels]="profitLabels()"
+              valueFormat="brl-cents-whole"
+              [heightPx]="200"
+              ariaLabel="MRR real, custos e lucro por mês"
+              emptyText="Nenhum cliente pagante neste período."
+            />
+            @if (!anyCost()) {
+              <p class="text-[11px] text-fg-subtle">
+                Sem custo lançado no período: custo e lucro ficam de fora até o lançamento.
+              </p>
+            }
+          }
+        </div>
+      </app-page-card>
+
+      @if (pending() || vendorSlices().length) {
+        @if (pending()) {
+          <app-page-card title="Custos por fornecedor" [fill]="true">
+            <div class="px-4 sm:px-6 pb-5"><div class="h-40 rounded-xl bg-surface-sunken animate-pulse"></div></div>
+          </app-page-card>
+        } @else {
+          <app-ring-legend-card
+            data-vendor-ring
+            title="Custos por fornecedor"
+            subtitle="Guardados à mão, com um lançamento por fornecedor a cada mês"
+            [slices]="vendorSlices()"
+            valueFormat="brl-cents-whole"
+            [totalLabel]="'custo em ' + currentMonthName()"
+          />
+        }
+      } @else {
+        <app-page-card title="Custos por fornecedor" [fill]="true">
+          <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 flex-1" data-vendor-empty>
+            <p class="-mt-3 text-xs text-fg-subtle">Guardados à mão, com um lançamento por fornecedor a cada mês</p>
+            <p class="text-sm text-fg-soft py-4">Nenhum custo lançado em {{ currentMonthName() }}.</p>
+            @if (canManageCosts()) {
+              <button
+                type="button"
+                class="press self-start min-h-11 px-4 rounded-full bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                (click)="openCostSheet()"
+              >
+                Lançar custo
+              </button>
+            }
+          </div>
+        </app-page-card>
       }
     </div>
-  </app-page-card>
+
+    <div class="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_374px]">
+      <app-page-card title="Crescimento dos custos" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-costs-chart>
+          <p class="-mt-3 text-xs text-fg-subtle">
+            Cada cor é um fornecedor{{ vendorNames() ? ': ' + vendorNames() : '' }}
+          </p>
+          @if (pending()) {
+            <div class="h-48 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          } @else {
+            <app-stacked-bar-chart
+              [rows]="costRows()"
+              layout="columns"
+              valueFormat="brl-cents-whole"
+              [heightPx]="200"
+              emptyText="Nenhum custo lançado neste período."
+            />
+          }
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Valor gerenciado em aluguéis" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-managed-chart>
+          <p class="-mt-3 text-xs text-fg-subtle">Quanto dinheiro de aluguel passa pela plataforma: esperado e recebido</p>
+          @if (pending()) {
+            <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          } @else {
+            <app-growth-chart
+              [series]="managedChart()"
+              [labels]="managedLabels()"
+              valueFormat="brl-cents-compact"
+              [axisFloor]="axisFloor"
+              [legendTop]="true"
+              [endDot]="true"
+              [heightPx]="170"
+              emptyText="Nenhuma cobrança de aluguel neste período."
+              ariaLabel="Valor gerenciado em aluguéis, esperado e recebido"
+            />
+            @if (managedSince(); as since) {
+              <p class="text-[11px] text-fg-subtle">Cobranças registradas desde {{ since }}.</p>
+            }
+          }
+        </div>
+      </app-page-card>
+    </div>
+
+    <div class="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_374px]">
+      <app-page-card title="Saúde do negócio" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0" data-health>
+          <p class="-mt-3 text-xs text-fg-subtle">Retenção, valor do cliente e custo para conquistá-lo</p>
+          <div class="grid gap-2 grid-cols-2 md:grid-cols-3">
+            @for (t of health(); track t.key) {
+              <div
+                app-kpi-card
+                [attr.data-health]="t.key"
+                size="compact"
+                variant="white"
+                [label]="t.label"
+                [numberFormat]="t.format"
+                placeholder="dash"
+                [loading]="pending()"
+                [value]="t.value"
+                [delta]="t.delta"
+                [detail]="t.detail"
+                [pressable]="t.action !== null"
+                [ariaLabel]="t.action ? t.label + ': ' + (t.action === 'acquisition' ? 'informar o gasto com aquisição' : 'lançar custo') : null"
+                (pressed)="t.action && openCostSheet(t.action)"
+              ></div>
+            }
+          </div>
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Funil de assinatura" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-funnel>
+          <p class="-mt-3 text-xs text-fg-subtle">Do cadastro ao cliente pagante{{ funnel() ? ', de ' + funnel()!.cohort : '' }}</p>
+          @if (pending() || !funnel()) {
+            <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          } @else {
+            @if (funnel(); as f) {
+              <ol class="flex flex-col gap-2.5">
+                @for (s of f.steps; track s.key) {
+                  <li class="flex flex-col gap-1" [attr.data-funnel-step]="s.key">
+                    <span class="flex justify-between text-xs">
+                      <span class="text-fg-body">{{ s.label }}</span>
+                      <b class="text-fg tabular-nums">{{ s.n }}</b>
+                    </span>
+                    <span class="h-2.5 rounded-full bg-surface-sunken overflow-hidden" aria-hidden="true">
+                      <span
+                        class="block h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none"
+                        [class]="s.fill"
+                        [style.width.%]="s.pct"
+                      ></span>
+                    </span>
+                  </li>
+                }
+              </ol>
+              <p class="text-xs text-fg-subtle">
+                @if (f.rate !== null) {
+                  Conversão do teste para pago: {{ f.rate }}
+                } @else {
+                  Nenhuma empresa do período entrou em teste.
+                }
+              </p>
+              <p class="text-[11px] text-fg-subtle">
+                {{ f.conversions }} {{ f.conversions === 1 ? 'conversão' : 'conversões' }} de teste para pago no período{{
+                  f.conversionsSince ? ' (contadas desde ' + f.conversionsSince + ')' : ''
+                }}.
+              </p>
+            }
+          }
+        </div>
+      </app-page-card>
+    </div>
+
+    <h2 class="mt-2 text-base font-semibold text-fg">Quem usa a plataforma</h2>
+
+    @if (usageError()) {
+      <div role="alert" class="rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-200 text-sm p-3">
+        {{ usageError() }}
+        <button type="button" class="ml-1 underline min-h-[44px]" (click)="reloadHome()">Tentar novamente</button>
+      </div>
+    }
+
+    <app-home-roles [usage]="usage()" [loading]="usageLoading()" [companies]="companiesInScope()" />
+
+    <!-- A tabela de empresas tem dez colunas: largura inteira, para caber sem rolar. -->
+    <app-home-companies [scope]="scope()" (rowsChange)="onCompanyRows($event)" />
+
+    <!-- Duas colunas independentes, cada cartão na altura do conteúdo: sem miolo vazio nem buraco
+         entre fileiras. Os pares somam alturas parecidas (ranking + estados, vencimentos + mapa). -->
+    <div class="grid gap-3 grid-cols-1 lg:grid-cols-2 items-start" data-home-usage-pairs>
+      <div class="flex flex-col gap-3 min-w-0">
+        <app-home-top-users [usage]="usage()" [loading]="usageLoading()" />
+        <app-home-ufs [usage]="usage()" [loading]="usageLoading()" />
+      </div>
+      <div class="flex flex-col gap-3 min-w-0">
+        <app-home-upcoming
+          [scope]="scope()"
+          [reloadKey]="upcomingReloadKey()"
+          [canManage]="canManageCosts()"
+          (askBillingDay)="askBillingDay()"
+        />
+        <app-home-activity-map [usage]="usage()" [loading]="usageLoading()" />
+      </div>
+    </div>
+
+    <app-home-movements [scope]="scope()" [from]="movementsFrom()" />
+
+    <!-- Cartões da Visão geral anterior que não estão no desenho: ficam, no padrão novo (dono, 17/11). -->
+    <h2 class="mt-2 text-base font-semibold text-fg">Mais números da plataforma</h2>
+    <p class="-mt-3 text-xs text-fg-subtle">
+      Totais de hoje, sem período.{{ scope() === 'all' ? ' Contas internas ficam de fora destes números.' : '' }}
+    </p>
+
+    @if (error()) {
+      <div role="alert" class="rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-200 text-sm p-3">
+        {{ error() }}
+        <button type="button" class="ml-1 underline min-h-[44px]" (click)="reload()">Tentar novamente</button>
+      </div>
+    }
+
+    <div class="grid gap-3 grid-cols-2 lg:grid-cols-6" data-legacy-kpis>
+      <div
+        app-kpi-card
+        [anchored]="true"
+        [valueTop]="true"
+        data-testid="online-now-card"
+        label="Online agora"
+        link="/admin/users"
+        [linkQueryParams]="{ online: true }"
+        ariaLabel="Ver usuários online agora"
+        [countUp]="false"
+        [loading]="loading() && !overview()"
+        [value]="onlineNow()"
+        numberFormat="integer"
+        detail="ver quem está online"
+      ></div>
+      <div
+        app-kpi-card
+        [anchored]="true"
+        [valueTop]="true"
+        data-testid="feedback-card"
+        label="Feedback pendente"
+        link="/admin/feedback"
+        [loading]="loading() && !overview()"
+        [value]="overview()?.feedback?.pending ?? 0"
+        numberFormat="integer"
+        [detail]="(overview()?.feedback?.total ?? 0) + ' no total'"
+      ></div>
+      <div
+        app-kpi-card
+        [anchored]="true"
+        [valueTop]="true"
+        class="col-span-2 lg:col-span-1"
+        label="Aluguéis fechados"
+        [loading]="loading() && !overview()"
+        [value]="closedRentals().cents"
+        numberFormat="brl-cents-whole"
+        [detail]="closedRentals().count + ' aluguéis · exclui cancelados'"
+      ></div>
+      <div
+        app-kpi-card
+        [anchored]="true"
+        [valueTop]="true"
+        class="col-span-2 lg:col-span-1"
+        label="Aluguéis concluídos"
+        [loading]="loading() && !overview()"
+        [value]="completedRentals().cents"
+        numberFormat="brl-cents-whole"
+        [detail]="completedRentals().count + ' aluguéis finalizados'"
+      ></div>
+      <div
+        app-kpi-card
+        [anchored]="true"
+        [valueTop]="true"
+        label="Contratos gerados"
+        [loading]="loading() && !overview()"
+        [value]="contractsTotal()"
+        numberFormat="integer"
+        detail="gerados na plataforma"
+      ></div>
+      <div
+        app-kpi-card
+        [anchored]="true"
+        [valueTop]="true"
+        label="Contratos assinados"
+        [loading]="loading() && !overview()"
+        [value]="contractsSigned()"
+        numberFormat="integer"
+        [detail]="'de ' + contractsTotal() + ' contratos'"
+      ></div>
+    </div>
+
+    <app-admin-revenue-section [showMrr]="false" />
+
+    <app-page-card title="Novos cadastros">
+      <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0" data-growth-chart>
+        <p class="-mt-3 text-xs text-fg-subtle">Usuários, empresas e veículos criados em cada intervalo do período</p>
+        @if (pending()) {
+          <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+        } @else {
+          <app-growth-chart
+            [series]="growthChart()"
+            [labels]="growthLabels()"
+            [legendTop]="true"
+            [heightPx]="160"
+            emptyText="Nenhum cadastro neste período."
+            ariaLabel="Novos usuários, empresas e veículos"
+          />
+        }
+      </div>
+    </app-page-card>
+
+    <div class="grid gap-3 grid-cols-1 lg:grid-cols-3">
+      <app-page-card title="Assinaturas por status" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 space-y-3">
+          @for (bar of subscriptionBars(); track bar.key) {
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-fg-muted">{{ bar.label }}</span>
+                <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
+              </div>
+              <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-500" [style.width.%]="bar.percent" [style.background-color]="bar.color"></div>
+              </div>
+            </div>
+          }
+        </div>
+      </app-page-card>
+      <app-page-card title="Aluguéis por status" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 space-y-3">
+          @for (bar of rentalBars(); track bar.key) {
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-fg-muted">{{ bar.label }}</span>
+                <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
+              </div>
+              <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-500" [style.width.%]="bar.percent" [style.background-color]="bar.color"></div>
+              </div>
+            </div>
+          }
+        </div>
+      </app-page-card>
+      <app-page-card title="Feedback por status" [fill]="true">
+        <div class="px-4 sm:px-6 pb-5 space-y-3">
+          @for (bar of feedbackBars(); track bar.key) {
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-fg-muted">{{ bar.label }}</span>
+                <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
+              </div>
+              <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-500" [style.width.%]="bar.percent" [style.background-color]="bar.color"></div>
+              </div>
+            </div>
+          }
+        </div>
+      </app-page-card>
+    </div>
+  </div>
+
+  @if (sheetIntent(); as intent) {
+    <app-cost-sheet
+      [vendors]="vendors()"
+      [intent]="intent"
+      [vendorId]="sheetVendorId()"
+      (saved)="onCostSaved()"
+      (closed)="closeSheet()"
+    />
+  }
 </app-default-page-layout>

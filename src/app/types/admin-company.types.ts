@@ -1,3 +1,4 @@
+import type { CompanyHealth, CompanyHealthReason } from './admin-home.types';
 /**
  * DTO shapes for the /admin/companies endpoints.
  *
@@ -56,6 +57,21 @@ export interface AdminCompanyListItem {
   managedMonthCents?: number | null;
   /** FEAT-0480 — MRR de tabela, em centavos; 0 sem assinatura vigente. */
   mrrCents?: number | null;
+  /** Admin home v2 (B6) — veículos não vendidos. Opcional: backend anterior não manda. */
+  vehicleCount?: number;
+  /** Admin home v2 (B6) — linhas de motorista. */
+  driverCount?: number;
+  /** Admin home v2 (B6) — maior `last_seen_at` dos membros ativos (instante); nulo = nunca visto. */
+  lastAccessAt?: string | null;
+  /** Admin home v2 (B6) — ações dos membros em 30 dias (sem sessão de suporte). */
+  actions30d?: number;
+  /** Admin home v2 (B6) — horas com acesso dos membros em 30 dias (0 antes da captura). */
+  accessHours30d?: number;
+  /** Admin home v2 (B6) — cobrado do plano atual (centavos/mês); nulo = ativa sem valor cobrado; 0 = não paga. */
+  mrrRealCents?: number | null;
+  /** Admin home v2 (B6) — saúde pela definição <D-DEFS>. */
+  health?: CompanyHealth;
+  healthReason?: CompanyHealthReason;
 }
 
 export interface AdminCompanySubscriptionSnapshot {

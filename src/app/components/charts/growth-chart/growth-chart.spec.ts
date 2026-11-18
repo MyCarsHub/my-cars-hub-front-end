@@ -1,7 +1,18 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
-import { GrowthChart, GrowthSeries, endPoint, growthAxisTop, growthIsEmpty, linearPath, smoothPath } from './growth-chart';
+import {
+  GrowthChart,
+  GrowthSeries,
+  endPoint,
+  growthAxisTop,
+  niceAxisTop,
+  growthIsEmpty,
+  lastMeasured,
+  linearPath,
+  measuredRuns,
+  smoothPath,
+} from './growth-chart';
 
 const SERIES: GrowthSeries[] = [
   { key: 'now', label: 'Este mês', color: '#F63B04', values: [2, 6, 12, 20] },
@@ -264,5 +275,54 @@ describe('linearPath (cumulative totals)', () => {
 
   it('the plot is revealed with draw-in (motion that does not depend on hover)', () => {
     expect(render(SERIES).querySelector('[data-plot]')!.getAttribute('class')).toContain('draw-in');
+  });
+});
+
+describe('values that were not measured (null)', () => {
+  it('splits a series into the stretches that have data', () => {
+    expect(measuredRuns([null, 1, 2, null, 4])).toEqual([
+      { offset: 1, values: [1, 2] },
+      { offset: 4, values: [4] },
+    ]);
+    expect(lastMeasured([1, 2, null])).toBe(1);
+    expect(lastMeasured([null, null])).toBe(-1);
+  });
+
+  it('a series that starts later begins at its own x, never at zero', () => {
+    const { line } = linearPath([10, 10], 10, 4, 2);
+    expect(line).toBe('M66.67 0.00 L100.00 0.00');
+    expect(endPoint([10], 10, 4, 3)).toEqual({ x: 100, y: 0 });
+  });
+
+  it('the chart draws only the measured part and the table says "sem dado"', () => {
+    const el = render([
+      { key: 'real', label: 'MRR real', color: '#F63B04', values: [null, null, 8, 12] },
+      { key: 'est', label: 'MRR estimado', color: '#999', values: [null, null, null, 15], reference: true },
+    ]);
+    const lines = el.querySelectorAll('[data-line]');
+    const real = lines[1].getAttribute('d')!;
+    expect(real.startsWith('M66.67')).toBe(true);
+    const rows = Array.from(el.querySelectorAll('tbody tr')).map((tr) =>
+      Array.from(tr.querySelectorAll('th, td')).map((c) => c.textContent?.trim()),
+    );
+    expect(rows[0]).toEqual(['dia 1', 'sem dado', 'sem dado']);
+    expect(rows[3]).toEqual(['dia 30', '12', '15']);
+  });
+
+  it('only nulls is the empty state', () => {
+    expect(growthIsEmpty([{ key: 'a', label: 'A', color: '#000', values: [null, null] }])).toBe(true);
+    expect(growthAxisTop([{ key: 'a', label: 'A', color: '#000', values: [null, 30] }])).toBe(30);
+  });
+});
+
+describe('niceAxisTop', () => {
+  it('rounds the top so every tick is a round number', () => {
+    // R$ 1.308,00 in cents, four gaps: steps of R$ 400.
+    expect(niceAxisTop(130_800, 4)).toBe(160_000);
+    expect(niceAxisTop(34, 4, true)).toBe(40);
+    // 10 people in four gaps: 3 per step, never 2,5.
+    expect(niceAxisTop(10, 4, true)).toBe(12);
+    expect(niceAxisTop(3, 4, true)).toBe(4);
+    expect(niceAxisTop(0, 4)).toBe(0);
   });
 });

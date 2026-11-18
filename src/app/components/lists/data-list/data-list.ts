@@ -110,7 +110,9 @@ interface RenderedRow {
               @for (col of columns(); track col.key) {
                 <th
                   scope="col"
-                  class="px-4 py-2 text-xs font-semibold text-fg-muted"
+                  class="py-2 text-xs font-semibold text-fg-muted"
+                  [class.px-4]="!dense()"
+                  [class.px-3]="dense()"
                   [class.text-left]="!col.end"
                   [class.text-right]="col.end"
                 >
@@ -133,7 +135,12 @@ interface RenderedRow {
               >
                 @for (c of r.cells; track c.column.key) {
                   <td
-                    class="px-4 py-3 first:rounded-l-xl last:rounded-r-xl text-fg-body"
+                    class="first:rounded-l-xl last:rounded-r-xl text-fg-body"
+                    [class.px-4]="!dense()"
+                    [class.py-3]="!dense()"
+                    [class.px-3]="dense()"
+                    [class.py-2]="dense()"
+                    [class.whitespace-nowrap]="dense()"
                     [class.text-right]="c.column.end"
                     [class.tabular-nums]="c.column.end"
                   >
@@ -231,6 +238,8 @@ export class DataList<T = unknown> {
    * stop, so the row itself is deliberately not focusable.
    */
   readonly rowTarget = input(false);
+  /** Linhas baixas (~56px) e células sem quebra, para tabelas largas ao lado de outros blocos. */
+  readonly dense = input(false);
 
   readonly exported = output<string>();
   readonly rowActivate = output<T>();

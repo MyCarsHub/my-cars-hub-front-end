@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
@@ -122,7 +122,16 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
         ></div>
       </div>
 
-      <div class="grid gap-4 grid-cols-1 lg:grid-cols-2">
+      <!-- Sem o MRR ficam três gráficos: uma fileira de três, sem metade vazia; cada cartão na
+           altura do conteúdo (o de cupons fica curto quando a Stripe não responde). -->
+      <div
+        class="grid gap-4 grid-cols-1"
+        [class.lg:grid-cols-2]="showMrr()"
+        [class.lg:grid-cols-3]="!showMrr()"
+        [class.items-start]="!showMrr()"
+        data-revenue-charts
+      >
+        @if (showMrr()) {
         <app-page-card title="Crescimento do MRR">
           <div class="p-4" data-mrr-chart>
             <p class="text-xs text-fg-subtle mb-3">
@@ -149,6 +158,7 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
             }
           </div>
         </app-page-card>
+        }
 
         <app-page-card title="Faturamento acumulado">
           <div class="p-4" data-cumulative-chart>
@@ -207,7 +217,7 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
             @if (pending()) {
               <div class="h-32 rounded bg-surface-sunken animate-pulse"></div>
             } @else if (!discountsAvailable()) {
-              <p data-empty class="text-sm text-fg-subtle text-center py-10">
+              <p data-empty class="text-sm text-fg-subtle py-2">
                 Indisponível agora: a Stripe não respondeu a tempo. Os outros números seguem valendo.
               </p>
             } @else {
@@ -227,6 +237,12 @@ const PERIODS: readonly PillTabOption<AdminRevenuePeriod>[] = [
 export class AdminRevenueSection implements OnInit {
   private readonly service = inject(AdminRevenueService);
   private readonly apiErrors = inject(ApiErrorService);
+
+  /**
+   * O gráfico do MRR estimado. A Visão geral v2 desliga: ela já desenha o MRR real e o estimado
+   * juntos, e dois gráficos de MRR na mesma tela diriam coisas diferentes.
+   */
+  readonly showMrr = input(true);
 
   protected readonly periods = PERIODS;
   protected readonly axisFloor = MONEY_AXIS_FLOOR_CENTS;
