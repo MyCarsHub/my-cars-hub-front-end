@@ -153,23 +153,23 @@ function rangeForPreset(preset: DateRangePresetKey, end: DateRangePeriodEnd = 'c
 
             @if (selected() === 'custom') {
                 <div class="flex flex-col sm:flex-row gap-2">
-                    <label class="flex flex-col text-xs text-gray-500 dark:text-fg-subtle gap-1 sm:flex-1">
+                    <label class="flex flex-col text-xs text-fg-subtle gap-1 sm:flex-1">
                         De
                         <input
                             type="date"
-                            class="min-h-[44px] rounded-lg border border-gray-200 dark:border-edge px-3 py-2 text-base sm:text-sm
-                                   text-gray-900 dark:text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+                            class="min-h-[44px] rounded-lg border border-edge px-3 py-2 text-base sm:text-sm
+                                   text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                             [value]="customFrom()"
                             [attr.max]="maxDate()"
                             (change)="onCustomFrom($any($event.target).value)"
                         />
                     </label>
-                    <label class="flex flex-col text-xs text-gray-500 dark:text-fg-subtle gap-1 sm:flex-1">
+                    <label class="flex flex-col text-xs text-fg-subtle gap-1 sm:flex-1">
                         Até
                         <input
                             type="date"
-                            class="min-h-[44px] rounded-lg border border-gray-200 dark:border-edge px-3 py-2 text-base sm:text-sm
-                                   text-gray-900 dark:text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
+                            class="min-h-[44px] rounded-lg border border-edge px-3 py-2 text-base sm:text-sm
+                                   text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                             [value]="customTo()"
                             [attr.max]="maxDate()"
                             (change)="onCustomTo($any($event.target).value)"
@@ -181,7 +181,7 @@ function rangeForPreset(preset: DateRangePresetKey, end: DateRangePeriodEnd = 'c
                 }
             }
             @if (showRange() && rangeText(); as text) {
-                <p class="text-xs text-gray-500 dark:text-fg-subtle tabular-nums" aria-live="polite" data-range-text>
+                <p class="text-xs text-fg-subtle tabular-nums" aria-live="polite" data-range-text>
                     {{ text }}
                 </p>
             }

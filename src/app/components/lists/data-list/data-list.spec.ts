@@ -448,3 +448,30 @@ describe('DataList — per-row kebab and entry motion (shared lot S5)', () => {
     expect(cards[0].className).toContain('rounded-xl');
   });
 });
+
+@Component({
+  imports: [DataListMenuItem],
+  template: `
+    <button type="button" dataListMenuItem data-plain>Editar</button>
+    <button type="button" dataListMenuItem="primary" data-primary>Publicar</button>
+  `,
+})
+class MenuItemToneHost {}
+
+describe('DataListMenuItem — primary tone (opt-in)', () => {
+  it('primary is the brand-orange forward action; the default tone is unchanged', () => {
+    const fixture = TestBed.createComponent(MenuItemToneHost);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const plain = el.querySelector<HTMLElement>('[data-plain]')!;
+    const primary = el.querySelector<HTMLElement>('[data-primary]')!;
+    expect(plain.className).toContain('text-fg-soft');
+    expect(plain.className).not.toContain('primary-700');
+    expect(primary.getAttribute('role')).toBe('menuitem');
+    expect(primary.className).toContain('min-h-[44px]');
+    expect(primary.className).toContain('text-primary-700');
+    expect(primary.className).toContain('dark:text-primary-300');
+    expect(primary.className).toContain('hover:bg-primary-50');
+    expect(primary.className).not.toMatch(/border|divide|bg-primary-500 /);
+  });
+});

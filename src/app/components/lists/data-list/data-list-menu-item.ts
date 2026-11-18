@@ -1,7 +1,10 @@
 import { Directive, computed, input } from '@angular/core';
 
-/** `default` = neutral action; `danger` = destructive (Excluir, Desativar); `success` = Ativar. */
-export type DataListMenuItemTone = 'default' | 'danger' | 'success' | '';
+/**
+ * `default` = neutral action; `danger` = destructive (Excluir, Desativar); `success` = Ativar;
+ * `primary` = the row's main forward action in brand orange (Publicar).
+ */
+export type DataListMenuItemTone = 'default' | 'danger' | 'success' | 'primary' | '';
 
 const BASE =
   'flex w-full items-center text-left text-sm px-4 py-3 min-h-[44px] transition-colors ' +
@@ -11,6 +14,8 @@ const TONE: Record<Exclude<DataListMenuItemTone, ''>, string> = {
   default: 'text-fg-soft hover:bg-canvas',
   danger: 'text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10',
   success: 'text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10',
+  primary:
+    'font-semibold text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/10',
 };
 
 /**
