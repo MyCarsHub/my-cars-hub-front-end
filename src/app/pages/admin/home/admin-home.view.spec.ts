@@ -90,6 +90,8 @@ describe('admin-home.view', () => {
 
   it('actionLabel: conhecida em português; desconhecida legível, nunca vazia', () => {
     expect(actionLabel('VEHICLE_CREATED')).toBe('Cadastrou um veículo');
+    expect(actionLabel('PLATFORM_COST_SET')).toBe('Lançou um custo');
+    expect(actionLabel('CHARGE_MARKED_PAID')).toBe('Marcou cobrança como paga');
     expect(actionLabel('CAUCAO_REFUNDED')).toBe('Caucao refunded');
   });
 
