@@ -1,5 +1,6 @@
-import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { StatusChip, type StatusChipTone } from '../../../components/core/status-chip/status-chip';
+import { whenExact, whenLong } from '../audit/admin-when';
 import {
   SUPPORT_REPLY_EMAIL_STATUS_META,
   SupportTicketReply,
@@ -18,7 +19,7 @@ import {
 @Component({
   selector: 'app-admin-support-thread',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe],
+  imports: [StatusChip],
   host: { class: 'block' },
   template: `
     @if (replies().length === 0) {
@@ -28,13 +29,17 @@ import {
     } @else {
       <ol class="space-y-3 list-none">
         @for (reply of replies(); track reply.id) {
-          <li class="rounded-xl border border-edge bg-surface-muted p-3">
+          <li class="rounded-xl bg-surface dark:bg-surface-sunken p-3">
             <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
               <span class="text-sm font-medium text-fg break-words">
                 {{ reply.authorName || 'Administrador removido' }}
               </span>
-              <time class="text-[11px] text-fg-subtle tabular-nums" [attr.datetime]="reply.createdDate">
-                {{ reply.createdDate | date: 'dd/MM/yyyy HH:mm' }}
+              <time
+                class="text-xs text-fg-subtle tabular-nums"
+                [attr.datetime]="reply.createdDate"
+                [attr.title]="long(reply.createdDate)"
+              >
+                {{ exact(reply.createdDate) }}
               </time>
             </div>
 
@@ -43,13 +48,10 @@ import {
             </p>
 
             <p class="mt-2 flex flex-wrap items-center gap-1.5">
-              <span
-                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-                [class]="emailChip(reply.emailStatus)"
-              >
+              <app-status-chip size="sm" [tone]="emailTone(reply.emailStatus)">
                 {{ emailLabel(reply.emailStatus) }}
-              </span>
-              <span class="text-[11px] text-fg-muted break-words">
+              </app-status-chip>
+              <span class="text-xs text-fg-muted break-words">
                 {{ emailHint(reply.emailStatus) }}
               </span>
             </p>
@@ -66,8 +68,18 @@ export class AdminSupportThread {
     return SUPPORT_REPLY_EMAIL_STATUS_META[status]?.label ?? status;
   }
 
-  protected emailChip(status: SupportTicketReplyEmailStatus): string {
-    return SUPPORT_REPLY_EMAIL_STATUS_META[status]?.chip ?? 'bg-surface-strong text-fg-body';
+  /** Despachado é azul (feito, sem confirmação de entrega); sem e-mail fica neutro. */
+  protected emailTone(status: SupportTicketReplyEmailStatus): StatusChipTone {
+    return status === 'QUEUED' ? 'blue' : 'neutral';
+  }
+
+  /** Horário de Brasília: o servidor manda UTC sem sufixo. */
+  protected exact(value: string | null): string {
+    return whenExact(value) ?? '—';
+  }
+
+  protected long(value: string | null): string | null {
+    return whenLong(value);
   }
 
   protected emailHint(status: SupportTicketReplyEmailStatus): string {
