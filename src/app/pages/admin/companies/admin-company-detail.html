@@ -181,8 +181,15 @@
           <p class="mb-3 text-xs text-fg-subtle" title="Soma das cobranças de aluguel pelo mês de vencimento, sem canceladas, estornadas ou liberadas; não inclui caução.">
             Dinheiro de aluguel que passou pela empresa, pelo mês de vencimento das cobranças.
           </p>
-          @if (managedBars().length > 0) {
-            <app-bar-chart [data]="managedBars()" />
+          @if (managedLabels().length > 0) {
+            <app-bar-chart
+              [series]="managedSeries()"
+              [labels]="managedLabels()"
+              valueFormat="brl-cents"
+              [legend]="false"
+              [heightPx]="180"
+              ariaLabel="Valor gerenciado por mês"
+            />
           } @else {
             <p class="text-sm text-fg-subtle" data-testid="managed-series-empty">—</p>
           }

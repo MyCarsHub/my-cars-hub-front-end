@@ -35,7 +35,8 @@ import { ContactBar } from '../contact/contact-bar';
 import { ContactActions } from '../contact/contact-actions';
 import { subscriptionChip, type SubscriptionChip } from './subscription-status-chip';
 import { formatBrl, BrlPipe } from '../../../pipes/brl.pipe';
-import { BarChart, BarDatum } from '../../../components/charts/bar-chart/bar-chart';
+import { BarChart, type BarSeries } from '../../../components/charts/bar-chart/bar-chart';
+import { CHART_ORANGE } from '../../../components/charts/chart-tooltip/chart-tooltip';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { KvList } from '../../../components/core/kv-list/kv-list';
 import { StatusChip, type StatusChipTone } from '../../../components/core/status-chip/status-chip';
@@ -135,11 +136,19 @@ function moneyOrDash(cents: number | null | undefined): string {
   return cents === null || cents === undefined ? '—' : formatBrl(cents);
 }
 
-/** `yyyy-MM` -> "mai/26"; formato inesperado volta como veio. */
-function monthLabel(month: string): string {
+/**
+ * Acima de quantos meses o eixo do gráfico perde o ano ("mai/26" -> "mai"): o gráfico compartilhado
+ * não rareia os rótulos do eixo, e num celular de 375 px uma coluna de 12 mal passa da largura de
+ * três letras. Doze meses seguidos não repetem nome, então o rótulo curto ainda é único.
+ */
+const MANAGED_AXIS_WITH_YEAR_MAX = 6;
+
+/** `yyyy-MM` -> "mai/26" (ou "mai" sem o ano); formato inesperado volta como veio. */
+function monthLabel(month: string, withYear = true): string {
   const match = /^(\d{4})-(\d{2})$/.exec(month);
   if (!match) return month;
-  return `${MONTH_LABELS[Number(match[2]) - 1] ?? match[2]}/${match[1].slice(2)}`;
+  const name = MONTH_LABELS[Number(match[2]) - 1] ?? match[2];
+  return withYear ? `${name}/${match[1].slice(2)}` : name;
 }
 
 export interface FinanceTile {
@@ -325,13 +334,25 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     ];
   });
 
-  /** Série dos 6 meses para o gráfico de barras (centavos). */
-  protected readonly managedBars = computed<BarDatum[]>(() =>
-    (this.detail()?.finance?.managedSeries ?? []).map((point) => ({
-      label: monthLabel(point.month),
-      value: point.managedCents,
-    })),
-  );
+  /** Meses da série, do mais antigo ao corrente (o servidor já manda nessa ordem). */
+  private readonly managedPoints = computed(() => this.detail()?.finance?.managedSeries ?? []);
+
+  /** Eixo x das colunas: um rótulo por mês, sem o ano quando são muitos (ver a constante). */
+  protected readonly managedLabels = computed(() => {
+    const points = this.managedPoints();
+    const withYear = points.length <= MANAGED_AXIS_WITH_YEAR_MAX;
+    return points.map((point) => monthLabel(point.month, withYear));
+  });
+
+  /** Uma série só, em colunas verticais (centavos): altura fixa, não cresce um mês por linha. */
+  protected readonly managedSeries = computed<BarSeries[]>(() => [
+    {
+      key: 'managed',
+      label: 'Valor gerenciado',
+      color: CHART_ORANGE,
+      values: this.managedPoints().map((point) => point.managedCents),
+    },
+  ]);
 
   protected readonly subscriptionRows = computed<SubscriptionRow[]>(() => {
     const sub = this.detail()?.subscription;
