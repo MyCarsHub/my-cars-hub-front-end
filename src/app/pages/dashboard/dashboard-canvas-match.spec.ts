@@ -127,13 +127,30 @@ function render(): HTMLElement {
 const norm = (el: Element | null): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
 describe('DashboardHome — canvas match', () => {
-  it('KPI money is whole reais and the caption says "vs mês passado" for a whole-month range', () => {
-    const host = render();
-    const billed = norm(host.querySelector('[data-billed-card]'));
-    expect(billed).toContain('R$ 45.900');
-    expect(billed).not.toContain('45.900,00');
-    expect(billed).toContain('vs mês passado');
-    expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 41.300');
+  // Owner rule 18/11/2026: KPI money shows cents, and "Mês atual" stops at TODAY. Mid-month the
+  // range is not a whole month, so the backend's same-length window is "período anterior".
+  it('KPI money has cents; mid-month "Mês atual" compares with the período anterior', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 18, 12));
+    try {
+      const host = render();
+      const billed = norm(host.querySelector('[data-billed-card]'));
+      expect(billed).toContain('R$ 45.900,00');
+      expect(billed).toContain('vs período anterior');
+      expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 41.300,00');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('on the last day of the month "Mês atual" is the whole month: "vs mês passado"', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 30, 12));
+    try {
+      expect(norm(render().querySelector('[data-billed-card]'))).toContain('vs mês passado');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('Despesas and Em atraso values are white (default tone), not rose', () => {
@@ -143,9 +160,13 @@ describe('DashboardHome — canvas match', () => {
     }
   });
 
-  it('no ISO date line under the pills', () => {
+  it('the pills print the range in pt-BR, never ISO (owner rule 18/11/2026)', () => {
     const host = render();
-    expect(host.querySelector('app-date-range-picker')!.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    const picker = host.querySelector('app-date-range-picker')!;
+    expect(picker.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(picker.querySelector('[data-range-text]')?.textContent?.trim()).toMatch(
+      /^01\/\d{2}\/\d{4} a \d{2}\/\d{2}\/\d{4}$/,
+    );
   });
 
   it('alert chips are count + label only', () => {
@@ -164,13 +185,12 @@ describe('DashboardHome — canvas match', () => {
     expect(rings[1].innerHTML.toLowerCase()).toMatch(/rgb\(246, 59, 4\)|#f63b04/); // Alugados: orange
   });
 
-  it('"Para onde vai" is sorted by value, biggest first, in whole reais', () => {
+  it('"Para onde vai" is sorted by value, biggest first, with cents', () => {
     const host = render();
     const rows = Array.from(host.querySelectorAll('[data-money-section] [data-legend-row]')).map((r) => norm(r));
     expect(rows[0]).toContain('Lucro');
     expect(rows[1]).toContain('Financiamento');
-    expect(rows[1]).toContain('R$ 9.080');
-    expect(rows[1]).not.toContain('9.080,00');
+    expect(rows[1]).toContain('R$ 9.080,00');
     const values = rows.map((r) => Number(/R\$ ([\d.]+)/.exec(r)![1].replace(/\./g, '')));
     expect(values).toEqual([...values].sort((a, b) => b - a));
   });

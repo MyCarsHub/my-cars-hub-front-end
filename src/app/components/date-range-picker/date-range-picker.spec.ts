@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { DateRange, DateRangePicker, DateRangePresetKey } from './date-range-picker';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DateRange, DateRangePicker, DateRangePresetKey, formatDateRangePtBr } from './date-range-picker';
 
 describe('DateRangePicker — subconjunto de chips', () => {
   let fixture: ComponentFixture<DateRangePicker>;
@@ -85,5 +85,82 @@ describe('DateRangePicker — subconjunto de chips', () => {
     );
     expect(inputs).toHaveLength(2);
     inputs.forEach((i) => expect(i.className).toContain('text-base'));
+  });
+});
+
+describe('DateRangePicker — intervalo escrito (regra do dono 18/11/2026)', () => {
+  let fixture: ComponentFixture<DateRangePicker>;
+  let emitted: DateRange[];
+
+  const root = (): HTMLElement => fixture.nativeElement as HTMLElement;
+  const rangeText = (): string | null =>
+    root().querySelector('[data-range-text]')?.textContent?.trim() ?? null;
+  const chip = (label: string): HTMLButtonElement =>
+    Array.from(root().querySelectorAll<HTMLButtonElement>('[role="radio"]')).find(
+      (c) => c.textContent?.trim() === label,
+    )!;
+
+  function render(inputs: Record<string, unknown> = {}): void {
+    fixture = TestBed.createComponent(DateRangePicker);
+    for (const [key, value] of Object.entries(inputs)) fixture.componentRef.setInput(key, value);
+    emitted = [];
+    fixture.componentInstance.rangeChange.subscribe((r) => emitted.push(r));
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 18, 15, 30));
+    TestBed.configureTestingModule({});
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('"Mês atual" vai do dia 1 até HOJE, não até o fim do mês', () => {
+    render();
+    expect(emitted).toEqual([{ from: '2026-11-01', to: '2026-11-18' }]);
+  });
+
+  it('o intervalo aparece por padrão, em pt-BR "dd/mm/aaaa a dd/mm/aaaa", sem ISO', () => {
+    render();
+    expect(rangeText()).toBe('01/11/2026 a 18/11/2026');
+    expect(root().textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  it('trocar o chip troca o texto', () => {
+    render();
+    chip('Mês passado').click();
+    fixture.detectChanges();
+    expect(rangeText()).toBe('01/10/2026 a 31/10/2026');
+    chip('Hoje').click();
+    fixture.detectChanges();
+    expect(rangeText()).toBe('18/11/2026 a 18/11/2026');
+  });
+
+  it('o intervalo do servidor vence o calculado aqui; null volta ao calculado', () => {
+    render({ resolvedRange: { from: '2026-10-19T03:00:00Z', to: '2026-11-18' } });
+    expect(rangeText()).toBe('19/10/2026 a 18/11/2026');
+    fixture.componentRef.setInput('resolvedRange', null);
+    fixture.detectChanges();
+    expect(rangeText()).toBe('01/11/2026 a 18/11/2026');
+  });
+
+  it('personalizado incompleto mostra o erro, não um intervalo', () => {
+    render();
+    chip('Personalizado').click();
+    fixture.detectChanges();
+    expect(rangeText()).toBeNull();
+    expect(root().textContent).toContain('Selecione as duas datas.');
+  });
+
+  it('showRange=false esconde a linha (só para tela que mostra as datas em outro lugar)', () => {
+    render({ showRange: false });
+    expect(rangeText()).toBeNull();
+  });
+
+  it('formatDateRangePtBr: ponta ausente ou que não é data dá null', () => {
+    expect(formatDateRangePtBr({ from: '2026-11-01', to: '2026-11-18' })).toBe('01/11/2026 a 18/11/2026');
+    expect(formatDateRangePtBr({ from: null, to: '2026-11-18' })).toBeNull();
+    expect(formatDateRangePtBr({ from: 'ontem', to: '2026-11-18' })).toBeNull();
+    expect(formatDateRangePtBr(null)).toBeNull();
   });
 });

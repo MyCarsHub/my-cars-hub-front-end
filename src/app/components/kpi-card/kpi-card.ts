@@ -13,6 +13,7 @@ import {
   untracked,
 } from '@angular/core';
 import { Router, type Params } from '@angular/router';
+import { formatBrl } from '../../pipes/brl.pipe';
 
 /** Duração da contagem. */
 const COUNT_UP_MS = 700;
@@ -36,10 +37,15 @@ export type KpiCardSize = 'regular' | 'compact';
  *
  * - `integer`: 1.234
  * - `decimal`: 1.234,5 (see `decimals`, default 1)
+ * Money follows the owner rule of 18/11/2026: full pt-BR WITH cents everywhere a person reads a
+ * value (card, table, tooltip); only a chart AXIS abbreviates. All three money texts below come
+ * from the one formatter, `formatBrl` (`pipes/brl.pipe.ts`).
+ *
  * - `brl`: value in reais  -> R$ 1.234,00
  * - `brl-cents`: value in cents -> R$ 12,34
- * - `brl-cents-whole`: cents shown as whole reais -> R$ 45.900 (the canvas KPI strip)
- * - `brl-cents-compact`: cents as an axis label (150000 -> R$ 1,5k; 1000000 -> R$ 10k; 5000 -> R$ 50)
+ * - `brl-cents-whole`: DEPRECATED alias of `brl-cents` (cents -> R$ 45.900,00). It used to drop
+ *   the cents; kept so existing callers compile while the page lots move to `brl-cents`
+ * - `brl-cents-compact`: cents as an AXIS label only (150000 -> R$ 1,5k; 1000000 -> R$ 10k; 5000 -> R$ 50)
  * - `percent`: value is already in percent points (62.5 -> 62,5%; 50 -> 50%; `decimals` fixes the digits)
  * - `ratio`: value is 0..1 (0.625 -> 63%)
  */
@@ -53,8 +59,6 @@ export interface KpiDelta {
   readonly chip?: string;
 }
 
-const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-const WHOLE_BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const decimalFormatter = (digits: number, min = digits): Intl.NumberFormat =>
   new Intl.NumberFormat('pt-BR', { minimumFractionDigits: min, maximumFractionDigits: digits });
 /** Percent without `decimals`: up to one decimal, none when whole (50%, 66,7%). */
@@ -77,11 +81,10 @@ export function formatKpiNumber(kind: KpiNumberFormat, n: number, decimals: numb
     case 'decimal':
       return decimalFormatter(decimals ?? 1).format(n);
     case 'brl':
-      return BRL.format(n);
+      return formatBrl(n, 'reais');
     case 'brl-cents':
-      return BRL.format(Math.round(n) / 100);
     case 'brl-cents-whole':
-      return WHOLE_BRL.format(Math.round(n / 100));
+      return formatBrl(n, 'cents');
     case 'brl-cents-compact':
       return compactBrl(n / 100);
     case 'percent':
@@ -193,10 +196,37 @@ const DELTA_PLAIN: Record<KpiDelta['tone'], string> = {
   neutral: 'text-gray-500 dark:text-fg-subtle',
 };
 
+/*
+ * The number FITS its card, never cut: its size is the card width divided by the text length
+ * (`--kpi-fit`, in `cqi` of the card, which is a size container), capped at the old sizes
+ * (20/24px regular, 16/18px compact) and floored at a size that stays readable. Short numbers
+ * keep the old size; "R$ 120.400,00" shrinks until it fits on one line. Below the floor it may
+ * wrap (`break-words`), never overflow and never hide under an ellipsis.
+ * `--kpi-fit-sm` is the same for the text shown below `md` (`formatCompact`, when there is one).
+ */
 const SIZES: Record<KpiCardSize, { pad: string; value: string }> = {
-  regular: { pad: 'p-4', value: 'text-xl sm:text-2xl' },
-  compact: { pad: 'p-3', value: 'text-base sm:text-lg' },
+  regular: {
+    pad: 'p-4',
+    value:
+      'leading-[1.35] text-[length:clamp(14px,var(--kpi-fit-sm),20px)]' +
+      ' sm:text-[length:clamp(14px,var(--kpi-fit-sm),24px)] md:text-[length:clamp(14px,var(--kpi-fit),24px)]',
+  },
+  compact: {
+    pad: 'p-3',
+    value:
+      'leading-[1.35] text-[length:clamp(13px,var(--kpi-fit-sm),16px)]' +
+      ' sm:text-[length:clamp(13px,var(--kpi-fit-sm),18px)] md:text-[length:clamp(13px,var(--kpi-fit),18px)]',
+  },
 };
+
+/** Average advance of one value character, in em (DM Sans semibold, tabular digits), with slack. */
+const EM_PER_CHAR = 0.62;
+
+/** Font size, in `cqi` of the card, at which `text` fills the card's content width. */
+function fitSize(text: string): string {
+  const chars = Math.max(1, Array.from(text).length);
+  return `${(100 / (chars * EM_PER_CHAR)).toFixed(2)}cqi`;
+}
 
 /** Press feedback shared by every clickable card: 44px target, iOS-like squeeze, visible focus. */
 const INTERACTIVE =
@@ -246,7 +276,7 @@ const INTERACTIVE =
       <div [class]="look().skeleton"></div>
     } @else {
       @if (view(); as v) {
-        <p [class]="valueClass()">
+        <p [class]="valueClass()" [style.--kpi-fit]="fit().full" [style.--kpi-fit-sm]="fit().small" data-kpi-value>
           @if (v.compact !== null) {
             <span class="md:hidden">{{ v.compact }}</span>
             <span class="hidden md:inline">{{ v.full }}</span>
@@ -255,7 +285,7 @@ const INTERACTIVE =
           }
         </p>
       } @else if (placeholder() === 'dash') {
-        <p [class]="valueClass()">—</p>
+        <p [class]="valueClass()" [style.--kpi-fit]="fit().full" [style.--kpi-fit-sm]="fit().small" data-kpi-value>—</p>
       }
       @if (anchored() && valueTop()) {
         <span aria-hidden="true" class="flex-1" data-kpi-spacer></span>
@@ -349,7 +379,7 @@ export class KpiCard {
   protected readonly hostClass = computed(
     () =>
       this.look().card +
-      ' ' +
+      ' @container ' +
       SIZES[this.size()].pad +
       (this.anchored() ? ' flex! flex-col min-h-[112px]' : '') +
       (this.stagger() !== null ? ' enter-up lift' : '') +
@@ -412,6 +442,26 @@ export class KpiCard {
       full: this.formatter()(n),
       compact: compact ? prefix + compact(n) + suffix : null,
     };
+  });
+
+  /**
+   * Size of the number from its FINAL text, not the frame on screen: the count-up passes through
+   * shorter texts ("R$ 0,00") and the size must not jump while it counts.
+   */
+  protected readonly fit = computed<{ full: string; small: string }>(() => {
+    const target = this.numeric();
+    let full: string;
+    let small: string;
+    if (target === null) {
+      const v = this.value();
+      full = v === null ? '—' : this.prefix() + String(v) + this.suffix();
+      small = full;
+    } else {
+      full = this.formatter()(target);
+      const compact = this.formatCompact();
+      small = compact ? this.prefix() + compact(target) + this.suffix() : full;
+    }
+    return { full: fitSize(full), small: fitSize(small) };
   });
 
   constructor() {

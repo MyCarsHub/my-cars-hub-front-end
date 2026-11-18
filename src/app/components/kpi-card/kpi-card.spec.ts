@@ -145,6 +145,10 @@ describe('KpiCard number formats', () => {
     ['decimal', 1234.5, 2, 'Receita 1.234,50'],
     ['brl', 1234.5, null, 'Receita R$ 1.234,50'],
     ['brl-cents', 123450, null, 'Receita R$ 1.234,50'],
+    ['brl-cents', 12040000, null, 'Receita R$ 120.400,00'],
+    // Owner rule 18/11/2026: cards always show cents; the old "whole reais" format is an alias.
+    ['brl-cents-whole', 4590000, null, 'Receita R$ 45.900,00'],
+    ['brl-cents-compact', 150000, null, 'Receita R$ 1,5k'],
     ['percent', 62.5, null, 'Receita 62,5%'],
     ['percent', 50, null, 'Receita 50%'],
     ['percent', 66.666, 0, 'Receita 67%'],
@@ -157,6 +161,23 @@ describe('KpiCard number formats', () => {
       h.decimals.set(decimals);
     });
     expect(text()).toBe(expected);
+  });
+
+  it('valor longo cabe no cartao: tamanho pela largura do cartao e pelo texto, nunca cortado', () => {
+    const { fixture } = mount((h) => {
+      h.fmt.set('brl-cents');
+      h.value.set(12040000);
+    });
+    const root = fixture.nativeElement as HTMLElement;
+    const card = root.querySelector<HTMLElement>('[data-t="num"]')!;
+    const value = card.querySelector<HTMLElement>('[data-kpi-value]')!;
+    expect(card.className).toContain('@container');
+    // "R$ 120.400,00" = 13 characters -> 100 / (13 * 0.62) cqi.
+    expect(value.style.getPropertyValue('--kpi-fit')).toBe('12.41cqi');
+    expect(value.style.getPropertyValue('--kpi-fit-sm')).toBe('12.41cqi');
+    expect(value.className).toContain('md:text-[length:clamp(14px,var(--kpi-fit),24px)]');
+    expect(value.className).toContain('break-words');
+    expect(value.className).not.toContain('truncate');
   });
 
   it('prefixo entra antes do numero formatado', () => {
@@ -222,6 +243,22 @@ describe('KpiCard number formats', () => {
       step(400);
       fixture.detectChanges();
       expect(text()).toBe('Receita R$ 1.000,00');
+    });
+
+    it('o tamanho vem do texto FINAL: nao muda enquanto conta', () => {
+      const { fixture, text } = mount((h) => {
+        h.countUp.set(true);
+        h.fmt.set('brl-cents');
+        h.value.set(12040000);
+      });
+      const value = (): HTMLElement =>
+        (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('[data-kpi-value]')!;
+      expect(text()).toBe('Receita R$ 0,00');
+      expect(value().style.getPropertyValue('--kpi-fit')).toBe('12.41cqi');
+      step(800);
+      fixture.detectChanges();
+      expect(text()).toBe('Receita R$ 120.400,00');
+      expect(value().style.getPropertyValue('--kpi-fit')).toBe('12.41cqi');
     });
 
     it('mudanca depois da carga reanima a partir do numero anterior, nao de 0', () => {
