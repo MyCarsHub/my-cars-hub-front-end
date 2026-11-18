@@ -128,7 +128,7 @@ describe('AdminRevenueSection', () => {
     expect(norm(host.querySelector('[data-received-card]'))).toContain('R$ 489');
     expect(norm(host.querySelector('[data-received-card]'))).toContain('desde 28/09/2026');
     expect(norm(host.querySelector('[data-discount-card]'))).toContain('R$ 199');
-    expect(norm(host.querySelector('[data-cumulative-card]'))).toContain('R$ 809');
+    expect(norm(host.querySelector('[data-cumulative-card]'))).toContain('R$ 808,80');
   });
 
   it('says where each history begins and never prints a month before it as R$ 0', () => {
