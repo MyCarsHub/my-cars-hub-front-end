@@ -241,19 +241,31 @@ describe('PrivacyPolicyComponent — uso da plataforma (acessos por hora)', () =
     return ((harness.fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
   }
 
-  it('PT: só identificador, hora e minutos; sem IP; apagado em 90 dias', async () => {
+  it('PT: contagem sem IP; ações com IP em código e aparelho; visto por conta; os dois prazos', async () => {
     const text = await visit('pt');
     expect(text).toContain('2.5 Uso da plataforma');
     expect(text).toContain('identificador interno do usuário, a hora e quantos minutos');
-    expect(text).toContain('Não guardamos endereço IP');
-    expect(text).toContain('apagada automaticamente 90 dias depois');
-    expect(text).toContain('A contagem de acessos por hora (seção 2.5) é apagada automaticamente após 90 dias');
+    // O "sem IP" vale só para a contagem por hora: o registro de ações guarda IP em código e aparelho.
+    expect(text).toContain('Nela não guardamos endereço IP');
+    expect(text).not.toContain('Não guardamos endereço IP');
+    expect(text).toContain('código calculado a partir do endereço IP');
+    expect(text).toContain('tipo de aparelho e navegador');
+    // Os tops nomeados existem: a política não pode dizer "só agregados".
+    expect(text).toContain('vê esses dados por conta e por empresa (quem usou, quanto e em que horas)');
+    expect(text).not.toContain('só aparecem, agregados');
+    expect(text).toContain('apagada automaticamente 90 dias depois; o registro de ações, depois de 2 anos');
+    expect(text).toContain('A contagem de acessos por hora (seção 2.5) é apagada automaticamente após 90 dias, e o registro de ações, após 2 anos');
   });
 
   it('EN: the same promises', async () => {
     const text = await visit('en');
     expect(text).toContain('2.5 Platform usage');
-    expect(text).toContain('We do not keep the IP address');
-    expect(text).toContain('deleted automatically after 90 days');
+    expect(text).toContain('It does not keep the IP address');
+    expect(text).not.toContain('We do not keep the IP address');
+    expect(text).toContain('code computed from the IP address');
+    expect(text).toContain('per account and per company (who used it, how much and at what hours)');
+    expect(text).not.toContain('shown, aggregated');
+    expect(text).toContain('deleted automatically after 90 days; the action log, after 2 years');
+    expect(text).toContain('and the action log after 2 years');
   });
 });
