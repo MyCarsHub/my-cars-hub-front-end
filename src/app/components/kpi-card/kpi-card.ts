@@ -270,7 +270,7 @@ const INTERACTIVE =
   template: `
     <p [class]="labelClass()">
       <ng-content select="[kpiIcon]" />
-      <span class="truncate">{{ label() }}</span>
+      <span [class.truncate]="!wrapLabel()" [class.min-w-0]="wrapLabel()">{{ label() }}</span>
     </p>
     @if (loading() || (view() === null && placeholder() === 'skeleton')) {
       <div [class]="look().skeleton"></div>
@@ -368,6 +368,8 @@ export class KpiCard {
   readonly pressable = input(false);
   /** Nome acessível do cartão clicável (o padrão é o conteúdo). */
   readonly ariaLabel = input<string | null>(null);
+  /** The label wraps onto a second line instead of being cut with "…" (narrow tiles in a row). */
+  readonly wrapLabel = input(false);
   readonly pressed = output<void>();
 
   protected readonly look = computed(() => LOOKS[this.variant()]);
@@ -388,7 +390,7 @@ export class KpiCard {
   /** Cartão ancorado (com ícone): rótulo em caixa normal, que cabe inteiro em 375px. */
   protected readonly labelClass = computed(
     () =>
-      this.look().label +
+      (this.wrapLabel() ? this.look().label.replace(' truncate', ' break-words') : this.look().label) +
       ' flex items-center gap-1.5' +
       (this.anchored() ? ' normal-case! tracking-normal! text-xs! sm:text-xs!' : ''),
   );

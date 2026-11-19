@@ -7,13 +7,17 @@ import {
   CHART_GREYS,
   CHART_ORANGE,
   ChartTooltip,
+  AXIS_UNMEASURED_MAX_LABELS,
   LABELS_FIT_UNMEASURED_MAX,
+  axisLabelIndices,
+  axisLabelStep,
   barLabelFormat,
   chartSeriesColors,
   fullValueFormat,
   labelsFit,
   nearestPoint,
   slotAt,
+  sparseLabelsFit,
   stepIndex,
   tooltipShift,
   tooltipText,
@@ -128,5 +132,47 @@ describe('ChartTooltip', () => {
     expect(rows[0].textContent).toContain('R$ 1.234,56');
     expect(el.style.left).toBe('50%');
     expect(el.style.top).toBe('40%');
+  });
+});
+
+/*
+ * The x axis of the column charts ("Recebido por dia", 19/11): 30 day labels at 300px overlapped
+ * into one unreadable strip. The axis prints labels at least `step` slots apart.
+ */
+describe('x-axis label thinning', () => {
+  it('step: every label when they fit, more slots apart as the plot narrows', () => {
+    // 12 months at 600px: 50px a slot, "nov" ~ 20px wide -> every label.
+    expect(axisLabelStep(12, 600, 20, 3)).toBe(1);
+    // 30 days at 300px: 10px a slot, "01/11" ~ 30px + 6px air -> every 4th slot.
+    expect(axisLabelStep(30, 300, 30, 5)).toBe(4);
+    // Not measured yet: by count, at most a year of labels.
+    expect(axisLabelStep(AXIS_UNMEASURED_MAX_LABELS, null, null, 5)).toBe(1);
+    expect(axisLabelStep(30, null, null, 5)).toBe(3);
+    // The glyph estimate stands in for a label width not measured (jsdom).
+    expect(axisLabelStep(30, 300, null, 5)).toBe(4);
+    expect(axisLabelStep(1, 10, 100, 5)).toBe(1);
+  });
+
+  it('indices: first and last always, evenly spread, never closer than the step', () => {
+    expect(axisLabelIndices(5, 1)).toEqual([0, 1, 2, 3, 4]);
+    expect(axisLabelIndices(19, 2)).toEqual([0, 2, 4, 6, 8, 10, 12, 14, 16, 18]);
+    for (const [count, step] of [[30, 4], [31, 3], [19, 4], [60, 7], [13, 5]]) {
+      const idx = axisLabelIndices(count, step);
+      expect(idx[0]).toBe(0);
+      expect(idx[idx.length - 1]).toBe(count - 1);
+      for (let i = 1; i < idx.length; i++) expect(idx[i] - idx[i - 1]).toBeGreaterThanOrEqual(step);
+    }
+    // Not even two fit: only the newest.
+    expect(axisLabelIndices(3, 5)).toEqual([2]);
+    expect(axisLabelIndices(0, 2)).toEqual([]);
+  });
+
+  it('numbers on some columns only: the room is the distance to the nearest labelled one', () => {
+    // 30 columns at 300px, labels on 3 days far apart: they fit; on two adjacent days: they do not.
+    expect(sparseLabelsFit([2, 12, 25], 30, 6, 300)).toBe(true);
+    expect(sparseLabelsFit([2, 3], 30, 6, 300)).toBe(false);
+    // Every column labelled: the same rule as labelsFit.
+    expect(sparseLabelsFit([0, 1, 2], 3, 6, 300)).toBe(labelsFit(3, 6, 300));
+    expect(sparseLabelsFit([], 30, 6, 300)).toBe(false);
   });
 });

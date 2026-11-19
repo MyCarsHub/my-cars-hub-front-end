@@ -3,12 +3,14 @@ import {
   Component,
   computed,
   effect,
+  ElementRef,
   inject,
   OnDestroy,
   OnInit,
   signal,
+  viewChild,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs/operators';
 import { animate, state, style, transition, trigger } from '@angular/animations';
@@ -31,6 +33,19 @@ import { isAdminAreaUrl } from '../../../pages/admin/shell/admin-menu';
 import { ThemeService } from '../../../services/theme.service';
 import { PastDueBannerStore } from '../../past-due-banner/past-due-banner';
 import { formatDayMonthTime, parseServerTime } from '../../../utils/server-time';
+
+/** The path of a router URL: query string and fragment left out. */
+function urlPath(url: string): string {
+  return url.split(/[?#]/, 1)[0];
+}
+
+/**
+ * Pure: whether a navigation from `previous` to `next` opens ANOTHER page, which then starts at the
+ * top. Only the path counts: a filter in the query string or a jump to a fragment keeps the scroll.
+ */
+export function isPageChange(previous: string | null, next: string): boolean {
+  return previous !== null && urlPath(previous) !== urlPath(next);
+}
 
 /** "Depois" no aviso de atraso vale 24h; nas últimas 24h do prazo ele não sai. */
 const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
@@ -118,7 +133,7 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
             </div>
           </header>
         }
-        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip" data-main-scroller>
+        <div #mainScroller class="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip" data-main-scroller>
           <router-outlet />
         </div>
       </main>
@@ -199,7 +214,27 @@ export class AppShell implements OnInit, OnDestroy {
 
   private resizeListener: (() => void) | null = null;
 
+  /** The one element that scrolls inside the shell (the body is locked: `app-shell-active`). */
+  private readonly mainScroller = viewChild<ElementRef<HTMLElement>>('mainScroller');
+
   constructor() {
+    // O conteúdo rola num scroller próprio, não na janela, então a restauração de rolagem do
+    // roteador não o alcança: sem isto, abrir Empresas do fim da Visão geral caía no fim da página.
+    // Outra página (outro caminho) começa no topo; filtro na query e âncora mantêm a posição.
+    // Voltar/avançar também volta ao topo.
+    let previousUrl: string | null = this.router.url;
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        takeUntilDestroyed(),
+      )
+      .subscribe((e) => {
+        const next = e.urlAfterRedirects;
+        const scroller = this.mainScroller()?.nativeElement;
+        if (scroller && isPageChange(previousUrl, next)) scroller.scrollTop = 0;
+        previousUrl = next;
+      });
+
     // Lazy-load access status once the authenticated shell mounts.
     this.access.load().subscribe({ error: () => void 0 });
 

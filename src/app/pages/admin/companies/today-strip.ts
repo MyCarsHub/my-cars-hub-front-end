@@ -83,9 +83,14 @@ interface SnoozedRow extends CompanyActionTarget {
             }
           </div>
         } @else if (tiles().length > 0) {
+          <!--
+            Barra de rolagem escondida em toda largura (Firefox e WebKit): a cinza nativa era um
+            terceiro tom no escuro. A faixa segue rolando no toque, no trackpad e no teclado (Tab
+            leva a cada cartão, e o foco o traz para a vista).
+          -->
           <ol
             class="-mx-3 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none]
-                   sm:-mx-4 sm:px-4 lg:[scrollbar-width:thin]"
+                   sm:-mx-4 sm:px-4 [&::-webkit-scrollbar]:hidden"
             id="today-row"
             aria-label="Empresas para agir hoje"
             data-testid="today-row"

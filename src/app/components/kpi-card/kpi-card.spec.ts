@@ -382,3 +382,27 @@ describe('KpiCard — número no pé ou no topo', () => {
     expect(spacer?.nextElementSibling?.hasAttribute('data-kpi-delta')).toBe(true);
   });
 });
+
+@Component({
+  imports: [KpiCard],
+  template: `
+    <div app-kpi-card data-t="cut" size="compact" label="Retenção em 90 dias" value="1"></div>
+    <div app-kpi-card data-t="wrap" size="compact" [anchored]="true" [wrapLabel]="true" label="Retenção em 90 dias" value="1"></div>
+  `,
+})
+class LabelHost {}
+
+/* Saúde do negócio (19/11): seis ladrilhos estreitos cortavam "Retenção em 90 d…". */
+describe('KpiCard label wrap', () => {
+  it('cuts the label with "…" by default; wrapLabel lets it wrap instead', () => {
+    const fixture = TestBed.createComponent(LabelHost);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const label = (t: string) => root.querySelector(`[data-t="${t}"] p`)!;
+    expect(label('cut').className).toContain('truncate');
+    expect(label('cut').querySelector('span')!.className).toContain('truncate');
+    expect(label('wrap').className).not.toContain('truncate');
+    expect(label('wrap').className).toContain('break-words');
+    expect(label('wrap').querySelector('span')!.className).not.toContain('truncate');
+  });
+});
