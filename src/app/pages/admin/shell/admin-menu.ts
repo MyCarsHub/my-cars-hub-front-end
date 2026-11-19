@@ -101,6 +101,13 @@ export const ADMIN_MENU: readonly AdminMenuGroup[] = [
         icon: 'M20 12l-8 8l-9-9V3h8z',
         capability: 'ver',
       },
+      {
+        id: 'costs',
+        label: 'Custos',
+        route: '/admin/custos',
+        icon: 'M6 3h12v18l-3-2l-3 2l-3-2l-3 2zM9 8h6M9 12h6',
+        capability: 'ver',
+      },
     ],
   },
   {
