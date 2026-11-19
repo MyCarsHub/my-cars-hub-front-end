@@ -13,11 +13,10 @@ import {
   AsaasComparison,
   AsaasCustomerSyncResult,
   DriverNameCorrectionResult,
-  TrialConversionItem,
 } from '../../../types/admin-charges.types';
 
 /**
- * Cobranças do admin: leituras do P0 (lista, "Converter testes") e as ações do
+ * Cobranças do admin: a lista do P0 e as ações do
  * P1 — comparar com o Asaas, recebida por fora, tentar de novo (só FAILED no
  * prazo; o backend recusa a vencida com 409), corrigir nome do motorista e
  * atualizar o cliente no Asaas. Nenhuma ação re-data cobrança.
@@ -33,13 +32,6 @@ export class AdminChargesService {
       .set('page', String(page))
       .set('size', String(size));
     return this.http.get<AdminChargesPage>(`${environment.apiUrl}/admin/charges`, { params });
-  }
-
-  trialConversion(includeInternal: boolean): Observable<TrialConversionItem[]> {
-    const params = new HttpParams().set('includeInternal', String(includeInternal));
-    return this.http.get<TrialConversionItem[]>(`${environment.apiUrl}/admin/trial-conversion`, {
-      params,
-    });
   }
 
   compareWithAsaas(chargeId: string): Observable<AsaasComparison> {

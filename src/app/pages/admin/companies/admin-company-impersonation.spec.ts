@@ -7,6 +7,7 @@ import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AdminCompanyDetail } from './admin-company-detail';
+import { revealDetail } from './company-detail.testing';
 import { AdminCompaniesService } from '../admin-companies.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -104,6 +105,7 @@ describe('AdminCompanyDetail — abrir "ver como empresa"', () => {
             detail: signal<AdminCompanyDetailDto | null>(COMPANY),
             detailLoading: signal(false),
             statusUpdating: signal(false),
+            internalUpdating: signal(false),
             loadDetail: vi.fn().mockReturnValue(of(COMPANY)),
             updateStatus: vi.fn(),
             clearDetail: vi.fn(),
@@ -140,6 +142,7 @@ describe('AdminCompanyDetail — abrir "ver como empresa"', () => {
     configure();
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
 
     expect(impersonationButton(fixture.nativeElement as HTMLElement)).toBeDefined();
   });
@@ -148,6 +151,7 @@ describe('AdminCompanyDetail — abrir "ver como empresa"', () => {
     configure();
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
 
     impersonationButton(fixture.nativeElement as HTMLElement)?.click();
     fixture.detectChanges();
@@ -167,6 +171,7 @@ describe('AdminCompanyDetail — abrir "ver como empresa"', () => {
     configure();
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
 
     impersonationButton(fixture.nativeElement as HTMLElement)?.click();
     fixture.detectChanges();

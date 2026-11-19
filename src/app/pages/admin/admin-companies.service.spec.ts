@@ -86,6 +86,30 @@ describe('AdminCompaniesService', () => {
     service = TestBed.inject(AdminCompaniesService);
   });
 
+  describe('load', () => {
+    const paramsOfLastGet = () =>
+      (get.mock.calls.at(-1)?.[1] as { params: { get(k: string): string | null; has(k: string): boolean } }).params;
+
+    it('"vence em N dias" vai como trialEndsWithinDays, com a ordenação pelo fim do teste', () => {
+      get.mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
+      service.load({ trialEndsWithinDays: 7, sort: 'trialEndsAt', dir: 'asc', page: 0, size: 20 }).subscribe();
+      expect(get.mock.calls.at(-1)?.[0]).toBe(base);
+      const params = paramsOfLastGet();
+      expect(params.get('trialEndsWithinDays')).toBe('7');
+      expect(params.get('sort')).toBe('trialEndsAt');
+      expect(params.get('dir')).toBe('asc');
+    });
+
+    it('sem o filtro, nenhum dos três parâmetros sai', () => {
+      get.mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
+      service.load({ trialEndsWithinDays: null, page: 0, size: 20 }).subscribe();
+      const params = paramsOfLastGet();
+      expect(params.has('trialEndsWithinDays')).toBe(false);
+      expect(params.has('sort')).toBe(false);
+      expect(params.has('dir')).toBe(false);
+    });
+  });
+
   describe('updateInternal', () => {
     it('faz PATCH em /{id}/internal', () => {
       service.updateInternal('co-7', true).subscribe();

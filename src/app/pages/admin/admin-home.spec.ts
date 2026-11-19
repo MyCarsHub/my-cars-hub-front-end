@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { NEVER, Subject, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -122,6 +122,12 @@ function pill(host: HTMLElement, label: string): HTMLElement {
   return found as HTMLElement;
 }
 
+/** Abre o ⋮ do topo do Painel (o menu renderiza os itens só aberto). */
+function openTopMenu(fixture: { detectChanges(): void }, host: HTMLElement): void {
+  host.querySelector<HTMLButtonElement>('[data-testid="home-top-menu"] button[aria-haspopup="menu"]')!.click();
+  fixture.detectChanges();
+}
+
 /** O `Intl` escreve "R$" com espaço não quebrável. */
 const plain = (text: string): string => text.replace(/ /g, ' ');
 
@@ -197,6 +203,20 @@ describe('AdminHome v2 — chips, período e escopo', () => {
     expect(chips.map((c) => c.getAttribute('data-chip'))).toEqual(['pastDue', 'feedback', 'reconciliation']);
     expect(host.querySelector('[data-chip="feedback"]')!.getAttribute('href')).toBe('/admin/feedback');
     expect(host.querySelector('[data-chip="reconciliation"]')!.getAttribute('aria-label')).toBe('1 falha de conciliação');
+  });
+
+  it('"trials vencem em 7 dias" abre Empresas filtrada pelos mesmos testes (a mesma regra do número)', () => {
+    const { host } = setup({
+      home: (range: AdminHomeRange, scope: AdminHomeScope) =>
+        of({
+          ...HOME,
+          chips: { ...HOME.chips, trialsEndingIn7Days: 4 },
+          meta: { ...HOME.meta, period: 'custom', scope, from: range.from, to: range.to },
+        }),
+    });
+    const chip = host.querySelector('[data-chip="trials"]')!;
+    expect(chip.getAttribute('href')).toBe('/admin/companies?testeVenceEm=7');
+    expect(chip.getAttribute('aria-label')).toBe('4 trials vencem em 7 dias');
   });
 
   it('UM controle de período na tela: as pílulas do dashboard do dono, e a receita sem pílulas próprias', () => {
@@ -333,29 +353,60 @@ describe('AdminHome v2 — cores e gráficos', () => {
 describe('AdminHome v2 — Lançar custo', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
-  it('o botão só existe para quem tem custo.gerir', () => {
-    expect(setup({ codes: ['ver'] }).host.querySelector('[data-testid="launch-cost"]')).toBeNull();
-    expect(setup({ codes: ['ver', 'custo.gerir'] }).host.querySelector('[data-testid="launch-cost"]')).not.toBeNull();
+  it('nenhum botão solto no topo: Lançar custo e Exportar moram no ⋮ do Painel', () => {
+    const { host, fixture } = setup({ codes: ['ver', 'custo.gerir'] });
+    const top = host.querySelector('[data-testid="home-top-menu"]')!;
+    expect(top.querySelector('[data-testid="launch-cost"]')).toBeNull();
+    expect(top.querySelector('[data-testid="export-home"]')).toBeNull();
+    openTopMenu(fixture, host);
+    expect(top.querySelector('[data-testid="launch-cost"]')).not.toBeNull();
+    expect(top.querySelector('[data-testid="export-home"]')).not.toBeNull();
   });
 
-  it('abre a folha de custo', async () => {
+  it('o item "Lançar custo" só existe para quem tem custo.gerir; Exportar fica para todos', () => {
+    const viewer = setup({ codes: ['ver'] });
+    openTopMenu(viewer.fixture, viewer.host);
+    expect(viewer.host.querySelector('[data-testid="launch-cost"]')).toBeNull();
+    expect(viewer.host.querySelector('[data-testid="export-home"]')).not.toBeNull();
+    const owner = setup({ codes: ['ver', 'custo.gerir'] });
+    openTopMenu(owner.fixture, owner.host);
+    expect(owner.host.querySelector('[data-testid="launch-cost"]')).not.toBeNull();
+  });
+
+  it('leva à página de Custos, na folha do avulso', async () => {
     const { host, fixture } = setup({ codes: ['ver', 'custo.gerir'] });
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    openTopMenu(fixture, host);
     host.querySelector<HTMLButtonElement>('[data-testid="launch-cost"]')!.click();
     fixture.detectChanges();
     await fixture.whenStable();
-    fixture.detectChanges();
-    expect(document.querySelector('[data-testid="cost-sheet"]')).not.toBeNull();
+    expect(navigate).toHaveBeenCalledWith(['/admin/custos'], { queryParams: { acao: 'avulso' } });
   });
 
-  it('o lucro sem custo vira atalho para lançar (para o Dono)', async () => {
+  it('o lucro sem custo vira atalho para "Novo custo fixo" na página de Custos (para o Dono)', async () => {
     const { host, fixture } = setup({ codes: ['ver', 'custo.gerir'] });
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const card = kpiCard(host, 'profit');
     expect(card.getAttribute('role')).toBe('button');
     card.click();
     fixture.detectChanges();
     await fixture.whenStable();
-    fixture.detectChanges();
-    expect(document.querySelector('[data-testid="cost-sheet"]')).not.toBeNull();
+    expect(navigate).toHaveBeenCalledWith(['/admin/custos'], { queryParams: { acao: 'fixo' } });
+  });
+
+  it('o cartão de fornecedores vazio só avisa: nenhum "Lançar custo" solto (ele mora no ⋮)', () => {
+    const { host } = setup({ codes: ['ver', 'custo.gerir'] });
+    const empty = host.querySelector('[data-vendor-empty]');
+    expect(empty).not.toBeNull();
+    expect(flat(empty)).toContain('Nenhum custo lançado em');
+    expect(flat(empty)).not.toContain('Lançar custo');
+    expect(empty!.querySelector('a, button')).toBeNull();
+  });
+
+  it('a folha antiga de custo não existe mais no Painel', () => {
+    const { host } = setup({ codes: ['ver', 'custo.gerir'] });
+    expect(host.querySelector('app-cost-sheet')).toBeNull();
   });
 
   it('sem custo.gerir o cartão nulo não é botão', () => {

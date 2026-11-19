@@ -1,0 +1,372 @@
+<app-default-page-layout
+  title="Custos"
+  description="O que a plataforma paga todo mês. O total entra no Lucro do Painel."
+>
+  <!-- Nenhum botão de ação solto: o ⋮ do topo tem novo fixo, avulso, fornecedor e exportar. -->
+  <div pageActions class="flex justify-end" data-testid="costs-top-menu">
+    <app-actions-menu label="Ações de custos" [menuWidth]="288">
+      @if (canManage()) {
+        <button type="button" dataListMenuItem data-testid="menu-new-fixed" (click)="newFixed()">
+          <span class="flex flex-col">
+            <span class="font-semibold text-fg">Novo custo fixo</span>
+            <small class="text-xs text-fg-subtle">Lança sozinho todo mês</small>
+          </span>
+        </button>
+        <button type="button" dataListMenuItem data-testid="menu-new-entry" (click)="newEntry()">
+          <span class="flex flex-col">
+            <span class="font-semibold text-fg">Lançar custo avulso</span>
+            <small class="text-xs text-fg-subtle">Só no mês escolhido</small>
+          </span>
+        </button>
+        <button type="button" dataListMenuItem data-testid="menu-new-vendor" (click)="newVendor()">
+          <span class="flex flex-col">
+            <span class="font-semibold text-fg">Novo fornecedor</span>
+            <small class="text-xs text-fg-subtle">Nome, categoria e se está ativo</small>
+          </span>
+        </button>
+      }
+      <button type="button" dataListMenuItem data-testid="menu-export" (click)="exportCsv()">
+        <span class="flex flex-col">
+          <span class="font-semibold text-fg">Exportar</span>
+          <small class="text-xs text-fg-subtle">CSV da aba na tela</small>
+        </span>
+      </button>
+    </app-actions-menu>
+  </div>
+
+  <div class="flex flex-col gap-4 sm:gap-6 min-w-0 pb-[env(safe-area-inset-bottom)]">
+    <!-- Números do mês corrente: os mesmos do Painel em "Mês atual". Mês sem custo diz "sem custos",
+         nunca R$ 0. Laranja e verde pintados: custo e lucro. -->
+    <section class="grid gap-3 grid-cols-2 lg:grid-cols-4" [attr.aria-label]="'Resumo de ' + thisMonthWord" data-costs-kpis>
+      <div app-kpi-card data-kpi="costs" class="col-span-2 lg:col-span-1" variant="primary"
+           [label]="'Custos de ' + thisMonthWord" numberFormat="brl-cents" placeholder="dash" [anchored]="true"
+           [stagger]="0" [loading]="current() === null && monthLoading()" [value]="costsKpi().value"
+           [detail]="costsKpi().detail"></div>
+      <div app-kpi-card data-kpi="mrr" variant="white" label="Receita real (MRR)" numberFormat="brl-cents"
+           placeholder="dash" [anchored]="true" [stagger]="1" [loading]="homeLoading()" [value]="mrrKpi().value"
+           [detail]="mrrKpi().detail"></div>
+      <div app-kpi-card data-kpi="fixed" variant="white" label="Fixos ativos" numberFormat="integer" [anchored]="true"
+           [stagger]="2" [loading]="listsLoading()" [value]="running().count"
+           [detail]="brl(running().cents) + ' por mês'"></div>
+      <div app-kpi-card data-kpi="profit" class="col-span-2 lg:col-span-1" variant="emerald"
+           [label]="'Lucro de ' + thisMonthWord" numberFormat="brl-cents" placeholder="dash" [anchored]="true"
+           [stagger]="3" [loading]="homeLoading()" [value]="profitKpi().value" [detail]="profitKpi().detail"></div>
+    </section>
+
+    <p class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-fg-muted" data-costs-flow>
+      <span>Como chega no Painel:</span>
+      @if (flow(); as f) {
+        <b class="font-semibold text-fg tabular-nums">Receita {{ f.mrr }}</b>
+        <span aria-hidden="true">−</span><span class="sr-only">menos</span>
+        <b class="font-semibold text-fg tabular-nums">Custos {{ f.costs }}</b>
+        <span aria-hidden="true">=</span><span class="sr-only">igual a</span>
+        <b class="font-semibold text-fg tabular-nums">Lucro {{ f.profit }}</b>
+        <span>em “Lucro do mês” e no gráfico MRR × custos × lucro.</span>
+      } @else {
+        <span>Receita real menos os custos lançados em {{ thisMonthWord }} é o “Lucro do mês”. Sem custo lançado,
+          o Lucro fica sem número, nunca R$ 0.</span>
+      }
+    </p>
+
+    <app-pill-tabs [options]="tabOptions()" [value]="tab()" ariaLabel="Seções de custos" (selected)="setTab($event)" />
+
+    @if (listsError(); as err) {
+      <app-alert-banner variant="error">
+        {{ err }}
+        <button type="button" class="ml-2 underline min-h-11 px-2" data-testid="retry-lists" (click)="loadLists()">Tentar novamente</button>
+      </app-alert-banner>
+    }
+
+    @switch (tab()) {
+      @case ('fixos') {
+        <section class="enter-up" data-costs-tab="fixos">
+          <app-page-card title="Custos fixos">
+            <div class="px-3 sm:px-4 pb-4 space-y-4">
+              <p class="-mt-2 px-1 text-sm text-fg-subtle">
+                Cada serviço lança sozinho no dia 1 de cada mês até a data de fim; o dia de cobrança só define o vencimento.
+              </p>
+              <app-list-toolbar
+                searchLabel="Buscar custo fixo"
+                searchPlaceholder="Fornecedor ou serviço…"
+                [query]="search()"
+                (queryChange)="setQuery($event)"
+                [statusOptions]="fixedOptions()"
+                [status]="fixedFilter()"
+                statusLabel="Filtrar por situação"
+                (statusChange)="setFixedFilter($event)"
+                [resultCount]="fixed().length"
+                [resultNoun]="['custo fixo', 'custos fixos']"
+                [filtersActive]="search().trim() !== '' || fixedFilter() !== 'ALL'"
+                (clearFilters)="clearFilters()"
+              />
+              <app-data-list
+                data-testid="fixed-list"
+                [columns]="fixedColumns"
+                [rows]="fixed()"
+                [rowId]="fixedId"
+                [loading]="listsLoading() && !schedules().length"
+                [animateRows]="true"
+                cardsBelow="lg"
+                [emptyText]="schedules().length ? 'Nenhum custo fixo corresponde à busca.' : 'Nenhum custo fixo cadastrado. Use o ⋮ do topo para cadastrar o primeiro.'"
+                ariaLabel="Custos fixos"
+                [actionsLabel]="fixedKebab"
+              >
+                <ng-template dataListCell="title" let-row>
+                  <span class="flex flex-col gap-0.5 min-w-0 whitespace-normal">
+                    <b class="font-semibold text-fg break-words" data-testid="fixed-title">{{ row.title }}</b>
+                    <small class="text-xs font-normal text-fg-subtle">{{ row.category }}</small>
+                  </span>
+                </ng-template>
+                <ng-template dataListCell="amount" let-row>
+                  <span class="block whitespace-normal">
+                    <span class="font-semibold text-fg tabular-nums">{{ row.amountText }}</span>
+                    <span class="text-xs text-fg-subtle"> por mês</span>
+                    @if (row.pendingText) {
+                      <span class="block text-xs text-fg-subtle tabular-nums" data-testid="fixed-pending">{{ row.pendingText }}</span>
+                    }
+                  </span>
+                </ng-template>
+                <ng-template dataListCell="day" let-row>
+                  <span class="tabular-nums whitespace-nowrap">{{ row.dayText }}</span>
+                </ng-template>
+                <ng-template dataListCell="period" let-row>
+                  <span class="tabular-nums whitespace-normal">{{ row.periodText }}</span>
+                </ng-template>
+                <ng-template dataListCell="status" let-row>
+                  <app-status-chip size="sm" [tone]="row.chip.tone" data-testid="fixed-status">{{ row.chip.label }}</app-status-chip>
+                </ng-template>
+                <ng-template dataListActions let-row>
+                  @if (canManage()) {
+                    <button type="button" dataListMenuItem data-testid="fixed-edit" (click)="editFixed(row)">Editar serviço e dia</button>
+                    @if (!row.ended) {
+                      <button type="button" dataListMenuItem data-testid="fixed-amount" (click)="changeFixed(row, 'amount')">Mudar valor daqui para frente</button>
+                    }
+                    @if (row.schedule.endMonth) {
+                      <button type="button" dataListMenuItem data-testid="fixed-reopen" (click)="askReopen(row)">Tirar a data de fim</button>
+                    }
+                    @if (!row.ended) {
+                      <button type="button" dataListMenuItem="danger" data-testid="fixed-end" (click)="changeFixed(row, 'end')">
+                        {{ row.schedule.endMonth ? 'Mudar o último mês' : 'Encerrar' }}
+                      </button>
+                    }
+                  }
+                  <button type="button" dataListMenuItem data-testid="fixed-month" (click)="showMonth()">Ver lançamentos de {{ thisMonthWord }}</button>
+                </ng-template>
+              </app-data-list>
+              @if (running().count > 0) {
+                <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-sunken px-4 py-3">
+                  <span class="text-sm text-fg-muted">Fixos ativos somam por mês</span>
+                  <b class="text-lg font-semibold text-fg tabular-nums" data-testid="fixed-total">{{ brl(running().cents) }}</b>
+                </div>
+              }
+              <p class="px-1 text-xs text-fg-subtle">
+                Mudar o valor de um fixo vale daqui para frente; meses já lançados antes e linhas editadas não mudam.
+              </p>
+            </div>
+          </app-page-card>
+        </section>
+      }
+
+      @case ('mes') {
+        <section class="enter-up" data-costs-tab="mes">
+          <app-page-card title="Lançamentos do mês">
+            <div class="px-3 sm:px-4 pb-4 space-y-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p class="-mt-2 sm:mt-0 px-1 text-sm text-fg-subtle">Cada linha pode ser corrigida só neste mês.</p>
+                <!-- O mesmo seletor de mês de Gastos. -->
+                <div class="flex w-full sm:w-auto items-center gap-0.5 rounded-full bg-surface border border-edge p-0.5"
+                     role="group" aria-label="Mês dos lançamentos" data-testid="month-picker">
+                  <button type="button"
+                          class="size-11 rounded-full grid place-items-center text-fg hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                          aria-label="Mês anterior" data-testid="month-prev" (click)="shiftMonth(-1)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6l6 6" /></svg>
+                  </button>
+                  <span class="flex-1 sm:min-w-44 text-center text-[15px] font-semibold text-fg" aria-live="polite"
+                        data-testid="month-label">{{ monthHeading() }}</span>
+                  <button type="button"
+                          class="size-11 rounded-full grid place-items-center text-fg hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                          aria-label="Próximo mês" data-testid="month-next" (click)="shiftMonth(1)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6l-6 6" /></svg>
+                  </button>
+                </div>
+              </div>
+
+              @if (monthError(); as err) {
+                <app-alert-banner variant="error">
+                  {{ err }}
+                  <button type="button" class="ml-2 underline min-h-11 px-2" data-testid="retry-month" (click)="loadMonth()">Tentar novamente</button>
+                </app-alert-banner>
+              } @else {
+                @if (month() > thisMonth) {
+                  <p class="px-1 text-xs text-fg-subtle">Mês futuro: os custos fixos entram no dia 1; aqui só aparecem os avulsos já lançados para ele.</p>
+                }
+                <app-data-list
+                  data-testid="entry-list"
+                  [columns]="entryColumns"
+                  [rows]="entries()"
+                  [rowId]="entryId"
+                  [loading]="monthLoading()"
+                  [animateRows]="true"
+                  cardsBelow="lg"
+                  [emptyText]="'Nenhum custo lançado em ' + monthLabel() + '.'"
+                  ariaLabel="Lançamentos do mês"
+                  [actionsLabel]="entryKebab"
+                  [hasActions]="manageOnly"
+                  [rowTarget]="canManage()"
+                  (rowActivate)="onEntryActivate($event)"
+                >
+                  <ng-template dataListCell="title" let-row>
+                    <span class="flex flex-col gap-1 min-w-0 whitespace-normal">
+                      <b class="font-semibold text-fg break-words" data-testid="entry-title">{{ row.title }}</b>
+                      <span class="flex flex-wrap gap-1.5">
+                        <app-status-chip size="sm" [tone]="row.fixed ? 'neutral' : 'blue'" data-testid="entry-kind">{{ row.kind }}</app-status-chip>
+                        @if (row.edited) {
+                          <app-status-chip size="sm" tone="amber" data-testid="entry-edited">editado</app-status-chip>
+                        }
+                      </span>
+                    </span>
+                  </ng-template>
+                  <ng-template dataListCell="amount" let-row>
+                    <span class="block whitespace-normal">
+                      <span class="font-semibold text-fg tabular-nums">{{ row.amountText }}</span>
+                      @if (row.fixedText) {
+                        <span class="block text-xs text-fg-subtle tabular-nums" data-testid="entry-fixed-amount">{{ row.fixedText }}</span>
+                      }
+                    </span>
+                  </ng-template>
+                  <ng-template dataListCell="due" let-row>
+                    <span class="tabular-nums whitespace-nowrap">{{ row.dueText }}</span>
+                  </ng-template>
+                  <ng-template dataListCell="note" let-row>
+                    <span class="block whitespace-normal break-words text-fg-muted">{{ row.note }}</span>
+                  </ng-template>
+                  <ng-template dataListActions let-row>
+                    <button type="button" dataListMenuItem data-testid="entry-edit" (click)="editEntry(row)">Editar só {{ monthWord() }}</button>
+                    @if (row.edited) {
+                      <button type="button" dataListMenuItem data-testid="entry-revert" (click)="revertEntry(row)">Voltar ao valor do fixo</button>
+                    }
+                    <button type="button" dataListMenuItem="danger" data-testid="entry-remove" (click)="askRemoveEntry(row.cost)">Tirar só de {{ monthWord() }}</button>
+                  </ng-template>
+                </app-data-list>
+
+                @if (monthTotal(); as t) {
+                  <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-sunken px-4 py-3" data-testid="month-total">
+                    @if (t.total) {
+                      <span class="text-sm text-fg-muted">Total de {{ monthWord() }} · {{ t.split }}</span>
+                      <b class="text-lg font-semibold text-fg tabular-nums">{{ t.total }}</b>
+                    } @else {
+                      <span class="text-sm text-fg-muted">Sem custos em {{ monthWord() }}: o Lucro do Painel fica sem número, nunca R$ 0.</span>
+                    }
+                  </div>
+                }
+                @if (month() === thisMonth) {
+                  <p class="px-1 text-xs text-fg-subtle">Este total é o “Custos do mês” do Painel e entra no Lucro.</p>
+                }
+              }
+            </div>
+          </app-page-card>
+        </section>
+      }
+
+      @case ('fornecedores') {
+        <section class="enter-up" data-costs-tab="fornecedores">
+          <app-page-card title="Fornecedores">
+            <div class="px-3 sm:px-4 pb-4 space-y-4">
+              <p class="-mt-2 px-1 text-sm text-fg-subtle">
+                Só quem cobra: nome, categoria e se está ativo. Valores e dias ficam nos custos fixos. Desativar tira das
+                listas e guarda o histórico.
+              </p>
+              <app-data-list
+                data-testid="vendor-list"
+                [columns]="vendorColumns"
+                [rows]="vendorRows()"
+                [rowId]="vendorId"
+                [loading]="listsLoading() && !vendors().length"
+                [animateRows]="true"
+                cardsBelow="md"
+                emptyText="Nenhum fornecedor cadastrado."
+                ariaLabel="Fornecedores"
+                [actionsLabel]="vendorKebab"
+                [hasActions]="manageOnly"
+              >
+                <ng-template dataListActions let-row>
+                  <button type="button" dataListMenuItem data-testid="vendor-edit" (click)="editVendor(row)">Editar</button>
+                  @if (row.vendor.active) {
+                    <button type="button" dataListMenuItem="danger" data-testid="vendor-toggle" (click)="askToggleVendor(row)">Desativar</button>
+                  } @else {
+                    <button type="button" dataListMenuItem="success" data-testid="vendor-toggle" (click)="askToggleVendor(row)">Ativar</button>
+                  }
+                </ng-template>
+              </app-data-list>
+            </div>
+          </app-page-card>
+        </section>
+      }
+    }
+  </div>
+
+  <app-back-link link="/admin" label="Voltar para o painel admin" />
+</app-default-page-layout>
+
+@if (fixedSheet(); as s) {
+  <app-fixed-cost-sheet
+    [vendors]="vendors()"
+    [schedule]="s.schedule"
+    [presetCategory]="s.category"
+    [currentMonth]="thisMonth"
+    [currentTotalCents]="current()?.totalCents ?? null"
+    (saved)="onSaved(s.schedule ? 'Custo fixo atualizado.' : 'Custo fixo cadastrado.')"
+    (vendorCreated)="onVendorCreated()"
+    (stale)="afterWrite()"
+    (closed)="fixedSheet.set(null)"
+  />
+}
+
+@if (changeSheet(); as s) {
+  <app-fixed-cost-change-sheet
+    [mode]="s.mode"
+    [schedule]="s.schedule"
+    [currentMonth]="thisMonth"
+    (saved)="onSaved(s.mode === 'amount' ? 'Valor mudado daqui para frente.' : 'Último mês do custo fixo salvo.')"
+    (stale)="afterWrite()"
+    (closed)="changeSheet.set(null)"
+  />
+}
+
+@if (entrySheet(); as s) {
+  <app-cost-entry-sheet
+    [vendors]="vendors()"
+    [cost]="s.cost"
+    [month]="month()"
+    [presetCategory]="s.category"
+    [canChangeFixed]="entryCanChangeFixed()"
+    (saved)="onSaved(s.cost ? 'Lançamento salvo só neste mês.' : 'Custo avulso lançado.')"
+    (vendorCreated)="onVendorCreated()"
+    (remove)="removeFromEntry($event)"
+    (changeFixed)="changeFixedFromEntry($event)"
+    (stale)="afterWrite()"
+    (closed)="entrySheet.set(null)"
+  />
+}
+
+@if (vendorSheet(); as s) {
+  <app-vendor-sheet
+    [vendor]="s.vendor"
+    (saved)="onSaved(s.vendor ? 'Fornecedor atualizado.' : 'Fornecedor cadastrado.')"
+    (closed)="vendorSheet.set(null)"
+  />
+}
+
+<app-confirm-dialog
+  [open]="confirm() !== null"
+  [title]="confirm()?.title ?? ''"
+  [message]="confirm()?.message ?? ''"
+  [confirmLabel]="confirm()?.confirmLabel ?? 'Confirmar'"
+  [cancelLabel]="confirm()?.cancelLabel ?? 'Cancelar'"
+  [variant]="confirm()?.variant ?? 'info'"
+  [busy]="confirmBusy()"
+  (confirmed)="runConfirm()"
+  (cancelled)="cancelConfirm()"
+/>

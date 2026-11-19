@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
@@ -23,6 +23,7 @@ import {
 import { GrowthChart, type GrowthSeries } from '../../components/charts/growth-chart/growth-chart';
 import { RingLegendCard, type RingSlice } from '../../components/charts/ring-legend-card/ring-legend-card';
 import { StackedBarChart, type StackRow } from '../../components/charts/stacked-bar-chart/stacked-bar-chart';
+import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import { PageCard } from '../../components/core/page-card/page-card';
 import {
   DateRangePicker,
@@ -32,12 +33,12 @@ import {
 import { KpiCard, formatKpiNumber, type KpiCardVariant, type KpiDelta, type KpiNumberFormat } from '../../components/kpi-card/kpi-card';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { downloadCsv } from '../../components/lists/data-list/data-list-csv';
+import { DataListMenuItem } from '../../components/lists/data-list/data-list-menu-item';
 import { formatBrl } from '../../pipes/brl.pipe';
 import { AdminCapabilitiesService } from '../../services/admin-capabilities.service';
 import { AdminMetricsService } from '../../services/admin-metrics.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import type { AdminCompanyListItem } from '../../types/admin-company.types';
-import type { PlatformVendor, PlatformVendorCategory } from '../../types/admin-finance.types';
 import type {
   AdminHome as AdminHomeData,
   AdminHomeRange,
@@ -47,7 +48,8 @@ import type {
 } from '../../types/admin-home.types';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import { MONEY_AXIS_FLOOR_CENTS } from '../../utils/money-axis';
-import { CostSheet, type CostSheetIntent } from './finance/cost-sheet';
+import { TRIAL_ENDING_CHIP_DAYS, trialEndingQueryParams } from './segments/segment-copy';
+import { COSTS_ACTION_PARAM, COSTS_ROUTE, costsShortcutParams, type CostsShortcut } from './costs/costs-link';
 import { AdminHomeService } from './home/admin-home.service';
 import {
   bucketLabels,
@@ -141,8 +143,8 @@ interface KpiView {
   readonly format: KpiNumberFormat;
   readonly detail: string | null;
   readonly delta: KpiDelta | null;
-  /** Card que vira botão: abre o "Lançar custo" no que falta. */
-  readonly action: CostSheetIntent | null;
+  /** Card que vira atalho: leva à página de Custos, na folha do que falta. */
+  readonly action: CostsShortcut | null;
   readonly wide?: boolean;
 }
 
@@ -151,6 +153,7 @@ interface Chip {
   readonly n: number;
   readonly label: string;
   readonly route: string;
+  readonly queryParams?: Record<string, string>;
 }
 
 interface FunnelStep {
@@ -187,6 +190,8 @@ function queryKey(range: AdminHomeRange, scope: AdminHomeScope): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DefaultPageLayout,
+    ActionsMenu,
+    DataListMenuItem,
     PageCard,
     RouterLink,
     DateRangePicker,
@@ -197,7 +202,6 @@ function queryKey(range: AdminHomeRange, scope: AdminHomeScope): string {
     StackedBarChart,
     RingLegendCard,
     AdminRevenueSection,
-    CostSheet,
     HomeCompanies,
     HomeMovements,
     HomeUpcoming,
@@ -213,6 +217,7 @@ export class AdminHome implements OnInit {
   private readonly homeService = inject(AdminHomeService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly caps = inject(AdminCapabilitiesService);
+  private readonly router = inject(Router);
 
   /** Só o Dono lança custo (`custo.gerir`); o servidor confere de novo. */
   protected readonly canManageCosts = computed(() => this.caps.can('custo.gerir'));
@@ -263,22 +268,10 @@ export class AdminHome implements OnInit {
   /** Linhas do "Cruzamento por empresa", para o Exportar. */
   private readonly companyRows = signal<readonly AdminCompanyListItem[]>([]);
 
-  // ---------------------------------------------------------------- Lançar custo
+  // ---------------------------------------------------------------- Custos
 
-  protected readonly sheetIntent = signal<CostSheetIntent | null>(null);
-  protected readonly sheetVendorId = signal<string | null>(null);
-  protected readonly upcomingReloadKey = signal(0);
-
-  protected readonly vendors = computed<PlatformVendor[]>(() =>
-    (this.home()?.costs.vendors ?? this.homeRaw()?.res.costs.vendors ?? []).map((v) => ({
-      id: v.vendorId,
-      name: v.name,
-      category: v.category as PlatformVendorCategory,
-      categoryLabel: v.categoryLabel,
-      billingDay: v.billingDay,
-      active: v.active,
-    })),
-  );
+  /** "Lançar custo" no ⋮ do topo abre a página já na folha do avulso. O cartão de fornecedores vazio só avisa. */
+  protected readonly launchCostParams = { [COSTS_ACTION_PARAM]: 'avulso' };
 
   // ---------------------------------------------------------------- Visão geral antiga (cartões mantidos)
 
@@ -379,26 +372,16 @@ export class AdminHome implements OnInit {
 
   // ---------------------------------------------------------------- cabeçalho
 
-  protected openCostSheet(intent: CostSheetIntent = 'cost', vendorId: string | null = null): void {
+  /** Atalho de um cartão sem custo: a página de Custos, na folha do que falta. */
+  protected openCosts(shortcut: CostsShortcut): void {
     if (!this.canManageCosts()) return;
-    this.sheetVendorId.set(vendorId);
-    this.sheetIntent.set(intent);
+    void this.router.navigate([COSTS_ROUTE], { queryParams: costsShortcutParams(shortcut) });
   }
 
-  /** O primeiro fornecedor ativo sem dia de cobrança. */
-  protected askBillingDay(): void {
-    const vendor = this.vendors().find((v) => v.active && v.billingDay === null);
-    this.openCostSheet('billing-day', vendor?.id ?? null);
-  }
-
-  protected onCostSaved(): void {
-    this.reloadHome();
-    this.upcomingReloadKey.update((n) => n + 1);
-  }
-
-  protected closeSheet(): void {
-    this.sheetIntent.set(null);
-    this.sheetVendorId.set(null);
+  /** ⋮ do topo › Lançar custo: a página de Custos, já na folha do avulso. */
+  protected launchCost(): void {
+    if (!this.canManageCosts()) return;
+    void this.router.navigate([COSTS_ROUTE], { queryParams: this.launchCostParams });
   }
 
   protected onCompanyRows(rows: readonly AdminCompanyListItem[]): void {
@@ -427,8 +410,15 @@ export class AdminHome implements OnInit {
       {
         key: 'trials',
         n: c.trialsEndingIn7Days,
-        label: plural(c.trialsEndingIn7Days, 'trial vence em 7 dias', 'trials vencem em 7 dias'),
-        route: '/admin/companies/converter-testes',
+        label: plural(
+          c.trialsEndingIn7Days,
+          `trial vence em ${TRIAL_ENDING_CHIP_DAYS} dias`,
+          `trials vencem em ${TRIAL_ENDING_CHIP_DAYS} dias`,
+        ),
+        // Empresas filtrada por "vence em 7 dias", quem vence primeiro no topo: o servidor conta o
+        // chip e filtra a lista com a MESMA regra, então a lista mostra exatamente estas empresas.
+        route: '/admin/companies',
+        queryParams: trialEndingQueryParams(TRIAL_ENDING_CHIP_DAYS),
       },
       {
         key: 'feedback',
@@ -480,7 +470,7 @@ export class AdminHome implements OnInit {
   }
 
   /** Card nulo por falta de custo vira atalho para lançar (quem pode). */
-  private costAction(kpi: HomeKpi | undefined, intent: CostSheetIntent = 'cost'): CostSheetIntent | null {
+  private costAction(kpi: HomeKpi | undefined, intent: CostsShortcut = 'cost'): CostsShortcut | null {
     if (!kpi || kpi.value !== null || !this.canManageCosts()) return null;
     if (kpi.nullReason === 'NO_COSTS' && intent === 'cost') return 'cost';
     if (kpi.nullReason === 'NO_ACQUISITION_COST' && intent === 'acquisition') return 'acquisition';
@@ -788,7 +778,7 @@ export class AdminHome implements OnInit {
       kpi: HomeKpi | undefined,
       format: KpiNumberFormat,
       extra: string | null = null,
-      action: CostSheetIntent | null = null,
+      action: CostsShortcut | null = null,
       nullOverride: string | null = null,
     ): KpiView => ({
       key,
