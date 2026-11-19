@@ -96,7 +96,7 @@ import { ContractIcon } from '../contract-icon';
         <h4 id="contract-esign-title" class="m-0 flex items-start gap-2.5 text-[15px] font-semibold leading-snug">
           <app-contract-icon name="info" [size]="16" class="mt-0.5" />{{ noticeTitle }}
         </h4>
-        <p data-testid="esignature-clause" class="m-0 rounded-xl bg-surface/70 dark:bg-black/20 px-3.5 py-3 text-sm leading-relaxed [overflow-wrap:anywhere]">{{ clauseText }}</p>
+        <p data-testid="esignature-clause" class="m-0 rounded-xl bg-surface/70 dark:bg-transparent px-3.5 py-3 text-sm leading-relaxed [overflow-wrap:anywhere]">{{ clauseText }}</p>
         <button type="button" data-testid="esignature-copy" (click)="copyClause()"
           class="press inline-flex min-h-[48px] w-full items-center justify-center gap-2 self-start rounded-xl bg-amber-600 px-5 text-base font-semibold text-white hover:bg-amber-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:w-auto">
           @if (copied()) {

@@ -99,7 +99,8 @@ export function formatDateRangePtBr(range: { from: string | null; to: string | n
     return from && to ? `${from} a ${to}` : null;
 }
 
-function rangeForPreset(preset: DateRangePresetKey, end: DateRangePeriodEnd = 'calendar'): DateRange | null {
+/** The dates a chip emits. Exported so a screen that repeats another's request can pin parity in a spec. */
+export function rangeForPreset(preset: DateRangePresetKey, end: DateRangePeriodEnd = 'calendar'): DateRange | null {
     const today = businessToday();
     const year = today.getUTCFullYear();
     const month = today.getUTCMonth();

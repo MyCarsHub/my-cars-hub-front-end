@@ -53,8 +53,8 @@ type LoadState = 'loading' | 'ready' | 'error';
         @switch (state()) {
           @case ('loading') {
             <div aria-hidden="true" class="flex flex-col gap-6">
-              <div class="h-[200px] rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
-              <div class="h-[420px] rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
+              <div class="h-[200px] rounded-2xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
+              <div class="h-[420px] rounded-2xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
             </div>
           }
           @case ('error') {

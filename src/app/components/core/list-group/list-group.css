@@ -16,11 +16,17 @@
   background: transparent;
   font: inherit;
 }
-a[appListRow], button[appListRow] { cursor: pointer; transition: background-color 0.15s; }
+a[appListRow], button[appListRow] { cursor: pointer; transition: background-color 0.15s, opacity 0.15s; }
 a[appListRow]:not([aria-disabled='true']):hover,
 button[appListRow]:hover:not(:disabled) { background: color-mix(in srgb, var(--color-fg) 3%, transparent); }
 a[appListRow]:not([aria-disabled='true']):active,
 button[appListRow]:active:not(:disabled) { background: color-mix(in srgb, var(--color-fg) 6%, transparent); }
+/* Escuro: dois tons só (página e cartão, regra do dono de 19/11/2026). A linha não pinta
+   cinza no hover nem no toque: o toque esmaece a linha, e a seta já diz que ela abre. */
+.dark a[appListRow]:not([aria-disabled='true']):hover,
+.dark button[appListRow]:hover:not(:disabled) { background: transparent; }
+.dark a[appListRow]:not([aria-disabled='true']):active,
+.dark button[appListRow]:active:not(:disabled) { background: transparent; opacity: 0.7; }
 a[appListRow]:focus-visible, button[appListRow]:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: -2px; }
 button[appListRow]:disabled, a[appListRow][aria-disabled='true'] { cursor: default; }
 [appListRow].list-row-inset { padding-left: 62px; }

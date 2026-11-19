@@ -114,11 +114,11 @@
         <app-alert-banner variant="error" [message]="message" />
       }
     } @else if (state() !== 'error') {
-      <div data-driver-hero-skeleton aria-hidden="true" class="h-40 rounded-2xl bg-surface-strong animate-pulse"></div>
+      <div data-driver-hero-skeleton aria-hidden="true" class="h-40 rounded-2xl bg-surface-strong dark:bg-placeholder-fill animate-pulse"></div>
     }
 
     @if (state() === 'loading') {
-      <div data-driver-skeleton aria-hidden="true" class="h-32 rounded-2xl bg-surface-strong animate-pulse"></div>
+      <div data-driver-skeleton aria-hidden="true" class="h-32 rounded-2xl bg-surface-strong dark:bg-placeholder-fill animate-pulse"></div>
     }
 
     @if (state() === 'ready') {

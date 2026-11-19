@@ -43,7 +43,7 @@
                 <span class="flex flex-wrap items-center gap-1.5 font-semibold text-fg">
                   <span class="break-words">{{ (m.name | personName) || 'Sem nome' }}</span>
                   @if (isMe(m)) {
-                    <span class="rounded-md bg-surface-sunken px-1.5 py-0.5 text-[11px] font-semibold text-fg-muted">Você</span>
+                    <span class="rounded-md bg-surface-sunken dark:bg-surface-strong px-1.5 py-0.5 text-[11px] font-semibold text-fg-muted">Você</span>
                   }
                 </span>
                 <span class="block truncate text-sm font-normal text-fg-subtle">{{ m.email }}</span>
@@ -159,7 +159,7 @@
 
           @if (picked(); as p) {
             <div class="flex items-center gap-3 rounded-xl bg-primary-50 px-3 py-2.5 dark:bg-primary-500/10" data-testid="grant-picked">
-              <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-sunken text-xs font-semibold text-fg-soft" aria-hidden="true">{{ initials(p.name) }}</span>
+              <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-sunken dark:bg-surface-strong text-xs font-semibold text-fg-soft" aria-hidden="true">{{ initials(p.name) }}</span>
               <span class="min-w-0 grow">
                 <span class="block truncate font-semibold text-fg">{{ (p.name | personName) || 'Sem nome' }}</span>
                 <span class="block truncate text-sm text-fg-subtle">{{ p.email }}</span>

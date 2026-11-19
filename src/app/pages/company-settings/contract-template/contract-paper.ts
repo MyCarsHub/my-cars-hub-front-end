@@ -132,9 +132,9 @@ export type PaperMode = 'example' | 'names';
         class="mx-auto box-border flex w-full max-w-[760px] flex-1 flex-col gap-3 theme-paper rounded-[3px] bg-surface px-5 py-8 shadow-lg sm:px-12 sm:py-12"
         [class]="split() ? 'min-h-[520px]' : 'min-h-[320px]'"
       >
-        <div class="mx-auto mb-3 h-4 w-3/5 rounded bg-surface-strong motion-safe:animate-pulse"></div>
+        <div class="mx-auto mb-3 h-4 w-3/5 rounded bg-surface-strong dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
         @for (w of skeleton; track $index) {
-          <div class="h-3 rounded bg-surface-sunken motion-safe:animate-pulse" [style.width]="w"></div>
+          <div class="h-3 rounded bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse" [style.width]="w"></div>
         }
       </div>
     } @else if (paragraphs().length === 0) {

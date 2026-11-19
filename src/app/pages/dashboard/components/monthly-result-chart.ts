@@ -85,7 +85,7 @@ export function shortBrl(cents: number): string {
                         data-month-bar
                         class="flex-1 min-w-0 flex flex-col justify-end items-center gap-1.5 rounded-xl px-1 pt-1.5 pb-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                         [class.bg-gray-100]="bar.month === active()"
-                        [class.dark:bg-white/10]="bar.month === active()"
+                        [class.dark:bg-transparent]="bar.month === active()"
                         [attr.aria-label]="bar.aria"
                         [attr.aria-pressed]="bar.month === active()"
                         (click)="monthSelect.emit(bar.month)"

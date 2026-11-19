@@ -119,7 +119,7 @@ function heightOf(it: RankingItem, all: readonly RankingItem[]): number {
               <ol class="grid grid-cols-2 gap-2 min-w-0">
                 @for (row of rows().slice(1); track row.id) {
                   <li data-rank-row data-rank-chip class="flex items-center gap-2 min-w-0 h-12 rounded-xl bg-surface-muted px-2.5 text-xs">
-                    <span class="size-6 shrink-0 grid place-items-center rounded-full bg-surface-sunken text-[10px] font-bold text-fg-body" aria-hidden="true">{{ row.initials }}</span>
+                    <span class="size-6 shrink-0 grid place-items-center rounded-full bg-surface-sunken dark:bg-surface-strong text-[10px] font-bold text-fg-body" aria-hidden="true">{{ row.initials }}</span>
                     <span class="flex flex-col min-w-0 flex-1">
                       <span class="truncate font-medium text-fg" [title]="row.name">{{ row.name }}</span>
                       <span class="truncate text-fg-muted tabular-nums">{{ row.value }}</span>

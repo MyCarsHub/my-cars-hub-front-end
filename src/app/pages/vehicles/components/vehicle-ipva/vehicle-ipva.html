@@ -10,8 +10,8 @@
 
   @if (loading()) {
     <div class="space-y-3" role="status" aria-label="Carregando o IPVA">
-      <div class="h-11 w-48 rounded-full bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+      <div class="h-11 w-48 rounded-full bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
+      <div class="h-40 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
     </div>
   } @else if (loadError(); as failure) {
     <app-alert-banner variant="error" data-ipva-load-error>

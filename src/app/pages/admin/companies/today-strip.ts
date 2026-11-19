@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
@@ -26,7 +26,6 @@ export interface CompanyActionTarget {
 }
 
 interface TodayTile extends CompanyActionTarget {
-  rank: number;
   title: string;
   deadline: string;
   chipLabel: string | null;
@@ -35,6 +34,9 @@ interface TodayTile extends CompanyActionTarget {
   trial: boolean;
   trialLabel: string;
 }
+
+/** Cartões visíveis com a faixa fechada (pedido do dono, 19/11: curta e acionável). */
+export const TODAY_STRIP_TOP = 5;
 
 interface SnoozedRow extends CompanyActionTarget {
   contact: string | null;
@@ -55,7 +57,20 @@ interface SnoozedRow extends CompanyActionTarget {
   template: `
     <app-page-card title="Hoje, para agir" class="enter-up">
       <div class="p-3 sm:p-4 flex flex-col gap-4" data-testid="today-strip">
-        <p class="m-0 text-sm text-fg-subtle" data-testid="today-summary">{{ summary() }}</p>
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <p class="m-0 text-sm text-fg-subtle" data-testid="today-summary">{{ summary() }}</p>
+          @if (tiles().length > top) {
+            <button
+              type="button"
+              class="inline-flex min-h-11 items-center rounded-sm text-sm font-semibold text-fg-soft underline-offset-4
+                     hover:text-fg hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              [attr.aria-expanded]="expanded()"
+              aria-controls="today-row"
+              (click)="expanded.set(!expanded())"
+              data-testid="today-toggle"
+            >{{ expanded() ? 'Ver só as ' + top + ' primeiras' : 'Ver todas (' + tiles().length + ')' }}</button>
+          }
+        </div>
 
         @if (error(); as err) {
           <app-alert-banner variant="error" [message]="err" />
@@ -64,26 +79,28 @@ interface SnoozedRow extends CompanyActionTarget {
         @if (loading() && !data()) {
           <div class="flex gap-2.5 overflow-hidden" aria-hidden="true">
             @for (n of skeleton; track n) {
-              <div class="h-24 w-[236px] shrink-0 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-24 w-[272px] shrink-0 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
             }
           </div>
         } @else if (tiles().length > 0) {
           <ol
             class="-mx-3 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none]
-                   sm:-mx-4 sm:px-4 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0"
+                   sm:-mx-4 sm:px-4 lg:[scrollbar-width:thin]"
+            id="today-row"
             aria-label="Empresas para agir hoje"
+            data-testid="today-row"
           >
-            @for (t of tiles(); track t.companyId) {
+            @for (t of shownTiles(); track t.companyId) {
               <li
-                class="enter-up relative flex w-[236px] shrink-0 snap-start items-start gap-2.5 rounded-2xl bg-surface-muted p-3 lg:w-auto"
+                class="enter-up relative flex w-[272px] shrink-0 snap-start items-start gap-2.5 rounded-2xl bg-surface-muted p-3"
                 [style.--stagger-i]="$index"
                 data-testid="today-tile"
               >
-                <span class="grid size-[26px] shrink-0 place-items-center rounded-full bg-surface-strong text-xs font-bold text-fg tabular-nums">{{ t.rank }}</span>
+                <span class="grid size-[26px] shrink-0 place-items-center rounded-full bg-surface-strong text-xs font-bold text-fg tabular-nums">{{ $index + 1 }}</span>
                 <span class="flex min-w-0 flex-1 flex-col items-start gap-1">
                   <a
                     [routerLink]="['/admin/companies', t.companyId]"
-                    class="text-sm font-semibold text-fg break-words hover:underline rounded-sm
+                    class="max-w-full text-sm font-semibold text-fg [overflow-wrap:anywhere] hover:underline rounded-sm
                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                   >{{ t.name }}</a>
                   <span class="text-xs text-fg-subtle">{{ t.title }}</span>
@@ -91,7 +108,7 @@ interface SnoozedRow extends CompanyActionTarget {
                     <span class="text-xs text-fg-subtle">{{ t.deadline }}</span>
                   }
                   @if (t.chipLabel) {
-                    <app-status-chip size="sm" [tone]="t.chipTone">{{ t.chipLabel }}</app-status-chip>
+                    <app-status-chip size="sm" class="whitespace-nowrap" [tone]="t.chipTone">{{ t.chipLabel }}</app-status-chip>
                   }
                 </span>
                 <span class="-mr-2 -mt-2 shrink-0">
@@ -147,6 +164,10 @@ interface SnoozedRow extends CompanyActionTarget {
           </div>
         }
 
+        @if (optedOut() > 0) {
+          <p class="m-0 text-xs text-fg-subtle" data-testid="today-opted-out">{{ optedOutText() }}</p>
+        }
+
         @if ((data()?.notInterestedCount ?? 0) > 0) {
           <p class="m-0 text-xs text-fg-subtle" data-testid="today-not-interested">
             {{ notInterestedText() }}
@@ -172,16 +193,31 @@ export class TodayStrip {
   readonly extend = output<CompanyActionTarget>();
 
   protected readonly skeleton = [1, 2, 3, 4, 5];
+  /** Quantos cartões a faixa mostra fechada; "Ver todas (N)" abre o resto na mesma fileira. */
+  protected readonly top = TODAY_STRIP_TOP;
+  protected readonly expanded = signal(false);
 
+  /**
+   * Quem pediu para não receber mensagem de retenção (`retentionEmailOptOut`, FEAT-0078) não é
+   * sugestão de contato: sai da faixa e vira só um número, como "não tem interesse". Conta interna
+   * (de teste) já não vem do servidor (`today.status = INTERNAL`); marcar como interna é o caminho.
+   */
+  private readonly suggested = computed(() =>
+    (this.data()?.items ?? []).filter((item) => !item.engagement?.retentionEmailOptOut),
+  );
+  protected readonly optedOut = computed(
+    () => (this.data()?.items.length ?? 0) - this.suggested().length,
+  );
+
+  /** Na ordem do servidor; o número do cartão é a posição na faixa (sem buraco de quem saiu). */
   protected readonly tiles = computed<TodayTile[]>(() =>
-    (this.data()?.items ?? []).map((item) => {
+    this.suggested().map((item) => {
       const chip = segmentChip(item.engagement?.segment);
       return {
         companyId: item.companyId,
         name: item.name,
         ownerName: item.ownerName,
         engagement: item.engagement,
-        rank: item.rank,
         title: nextActionTitle(item.engagement) ?? '—',
         deadline: deadlineText(item.engagement, this.now()),
         chipLabel: chip?.label ?? null,
@@ -191,6 +227,10 @@ export class TodayStrip {
         trialLabel: trialActionLabel(item.engagement?.segment),
       };
     }),
+  );
+
+  protected readonly shownTiles = computed(() =>
+    this.expanded() ? this.tiles() : this.tiles().slice(0, TODAY_STRIP_TOP),
   );
 
   protected readonly snoozed = computed<SnoozedRow[]>(() =>
@@ -212,6 +252,13 @@ export class TodayStrip {
     if (!this.data()) return 'Quem chamar hoje, prazo e dinheiro primeiro.';
     if (n === 0) return 'Nenhuma empresa na fila hoje.';
     return `${n} ${n === 1 ? 'empresa' : 'empresas'}, prazo e dinheiro primeiro.`;
+  });
+
+  protected readonly optedOutText = computed(() => {
+    const n = this.optedOut();
+    return n === 1
+      ? '1 empresa pediu para não receber mensagens de retenção e ficou fora das sugestões.'
+      : `${n} empresas pediram para não receber mensagens de retenção e ficaram fora das sugestões.`;
   });
 
   protected readonly notInterestedText = computed(() => {

@@ -266,7 +266,7 @@ interface RenderedBar {
                         <p class="text-[10px] text-gray-500 dark:text-fg-subtle mb-1 truncate">{{ bar.hint }}</p>
                     }
                     <div
-                        class="h-2 rounded-full bg-gray-100 dark:bg-surface-sunken overflow-hidden"
+                        class="h-2 rounded-full bg-gray-100 dark:bg-placeholder-fill overflow-hidden"
                         [attr.aria-label]="bar.label + ': ' + bar.primaryValue"
                     >
                         <div
@@ -281,7 +281,7 @@ interface RenderedBar {
                                 {{ bar.secondaryValue }}
                             </span>
                         </div>
-                        <div class="h-2 rounded-full bg-gray-100 dark:bg-surface-sunken overflow-hidden mt-1">
+                        <div class="h-2 rounded-full bg-gray-100 dark:bg-placeholder-fill overflow-hidden mt-1">
                             <div
                                 class="draw-in h-full rounded-full bg-emerald-500 transition-all duration-500"
                                 [style.width.%]="bar.secondaryPct"

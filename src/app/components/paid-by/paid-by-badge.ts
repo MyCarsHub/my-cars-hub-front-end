@@ -12,7 +12,7 @@ import { EXPENSE_PAID_BY_BADGES, ExpensePaidBy } from '../../types/expense-paid-
   template: `
     @if (label(); as text) {
       <span
-        class="inline-flex items-center rounded-full font-semibold bg-surface-sunken text-fg-soft ring-1 ring-inset ring-edge"
+        class="inline-flex items-center rounded-full font-semibold bg-surface-sunken dark:bg-surface-strong text-fg-soft ring-1 ring-inset ring-edge"
         [class]="size() === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'"
       >{{ text }}</span>
     }

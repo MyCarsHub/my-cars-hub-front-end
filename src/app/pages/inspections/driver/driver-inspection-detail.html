@@ -27,8 +27,8 @@
   <div class="flex flex-col gap-4">
     @if (loading()) {
       <div data-driver-detail-skeleton aria-hidden="true" class="flex flex-col gap-4">
-        <div class="h-36 rounded-2xl bg-surface-strong animate-pulse"></div>
-        <div class="h-64 rounded-2xl bg-surface-strong animate-pulse"></div>
+        <div class="h-36 rounded-2xl bg-surface-strong dark:bg-placeholder-fill animate-pulse"></div>
+        <div class="h-64 rounded-2xl bg-surface-strong dark:bg-placeholder-fill animate-pulse"></div>
       </div>
       <p class="sr-only" role="status">Carregando vistoria…</p>
     } @else if (loadError(); as message) {
@@ -132,7 +132,7 @@
         @if (photosLoading() && frames().length === 0) {
           <div aria-hidden="true" class="grid grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2.5">
             @for (n of [1, 2, 3, 4, 5, 6]; track n) {
-              <div class="aspect-square rounded-xl bg-surface-sunken animate-pulse"></div>
+              <div class="aspect-square rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
             }
           </div>
         } @else if (photosError(); as message) {

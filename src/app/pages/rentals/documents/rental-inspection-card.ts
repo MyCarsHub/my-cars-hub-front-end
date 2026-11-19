@@ -179,7 +179,7 @@ interface Slot {
                   <p class="text-xs font-medium text-fg-body">
                     {{ slot.progress ?? 0 }}%
                   </p>
-                  <div class="w-3/4 h-1 rounded-full bg-surface-strong overflow-hidden">
+                  <div class="w-3/4 h-1 rounded-full bg-surface-strong dark:bg-placeholder-fill overflow-hidden">
                     <div class="h-full bg-primary-500 transition-all"
                          [style.width.%]="slot.progress ?? 0"></div>
                   </div>

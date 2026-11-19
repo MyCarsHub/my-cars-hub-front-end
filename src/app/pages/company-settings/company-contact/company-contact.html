@@ -23,8 +23,8 @@
       </p>
     } @else if (loading()) {
       <div class="space-y-3" aria-hidden="true">
-        <div class="h-32 rounded-xl bg-surface-sunken animate-pulse"></div>
-        <div class="h-64 rounded-xl bg-surface-sunken animate-pulse"></div>
+        <div class="h-32 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+        <div class="h-64 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
       </div>
       <p class="sr-only" role="status" aria-live="polite">Carregando os dados de contato…</p>
     } @else if (loadError(); as message) {

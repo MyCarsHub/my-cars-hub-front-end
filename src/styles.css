@@ -72,6 +72,11 @@
   /* Borda de CAMPO (input/select/textarea): mesmo valor claro do `edge`; no escuro ela
      identifica o controle e precisa de 3:1 (WCAG 1.4.11) — ver o bloco `.dark`. */
   --color-edge-field: var(--color-neutral-200);
+  /* PREENCHIMENTO DE MARCADOR — NÃO é superfície. Só para o que precisa continuar visível
+     sobre o cartão sem ser fundo de nada: esqueleto de carregamento, trilho vazio de barra de
+     progresso e célula de nível 0 do heatmap. Nunca fundo de seção, linha, poço ou painel.
+     No claro é o mesmo degrau do `surface-sunken` (o claro não muda); no escuro, ver `.dark`. */
+  --color-placeholder-fill: var(--color-neutral-100);
   --color-fg-strong: var(--color-neutral-950);
   --color-fg: var(--color-neutral-900);
   --color-fg-body: var(--color-neutral-800);
@@ -370,34 +375,41 @@ body {
 
 /* ==========================================================
    VALORES ESCUROS DOS TOKENS (ver `@custom-variant dark` no topo).
-   Medidos contra a superfície onde o par realmente aparece (WCAG AA):
-     fg #F4F4F5 16,13:1 · fg-body 14,37 · fg-soft 12,00 · fg-muted 8,99 ·
-     fg-subtle #A1A1AA 6,92 (5,88 sobre surface-sunken, 4,97 sobre
-     surface-strong) — todos sobre surface #18181A.
-     fg-faint #8E8E97: 5,46:1 sobre surface, 4,64 sobre surface-sunken — passa como texto.
-     rule-contrast #75757E: 3,89 surface · 4,20 canvas · 3,30 sunken.
-     edge-field #75757E (borda de campo): os mesmos 3,89 / 3,30 — passa 3:1.
-     edge-strong #6E6E78: 3,52:1 sobre surface (borda que identifica componente).
-     edge #2E2E33 é só divisória/moldura de card (decorativa).
-   Laranja: `text-primary-700` (#C22F00) cai para 3,0:1 no escuro; o gêmeo
-   `dark:text-primary-400` (#FA602E) dá 5,72:1 sobre surface e 4,98:1 sobre a
+   Medidos contra o cartão #0E0E0E, que é onde quase todo texto mora (WCAG AA;
+   sobre a página #000000 todos sobem um pouco):
+     fg #F4F4F5 17,56:1 · fg-body 15,64 · fg-soft 13,06 · fg-muted 9,79 ·
+     fg-subtle #A1A1AA 7,53 · fg-faint #8E8E97 5,94 — todos passam como texto.
+     rule-contrast / edge-field #75757E: 4,23:1 — passa 3:1 (borda que identifica o campo).
+     edge-strong #6E6E78: 3,83:1 (borda que identifica componente).
+     edge é transparente: o cartão não tem moldura no escuro (só #0E0E0E contra #000000).
+   Laranja: `text-primary-700` (#C22F00) cai para ~3:1 no escuro; o gêmeo
+   `dark:text-primary-400` (#FA602E) dá 6,23:1 sobre o cartão e 5,45:1 sobre a
    tinta `primary-500/15`. O preenchimento `bg-primary-500` com texto branco
    não muda entre temas.
    ========================================================== */
 .dark {
   color-scheme: dark;
-  /* Página preta de verdade (decisão do dono, 2026-10-29); cartões #0E0E0F com
-     moldura #1F1F1F. A sidebar mantém a paleta anterior — ver `.app-sidebar`. */
+  /* DOIS TONS, E SÓ DOIS (regra do dono, 19/11/2026): a página é #000000 e todo cartão é
+     #0E0E0E. Tudo o que mora dentro de um cartão (poço de lista, fundo de linha, faixa de
+     cabeçalho, seção interna, painel aninhado) fica NA COR DO CARTÃO — por isso
+     `surface-muted` e `surface-sunken` resolvem para o próprio cartão, e hover/press que
+     pintavam com eles viram no-op no escuro. Nenhuma linha em lugar nenhum: `edge-faint`,
+     `edge-soft`, `edge` (a antiga moldura #1F1F1F do cartão) e `rule` ficam transparentes — o
+     cartão se separa da página só por #0E0E0E contra #000000. `surface-strong` NÃO é
+     superfície: é interruptor, chip neutro e avatar — controle, não fundo — e fica.
+     `placeholder-fill` (branco 7% ≈ #1F1F1F sobre o cartão) é só para esqueleto, trilho de
+     progresso e nível 0 do heatmap: o que tem de continuar visível sem virar fundo. */
   --color-canvas: #000000;
-  --color-surface: #0E0E0F;
-  --color-surface-muted: #141416;
-  --color-surface-sunken: #1A1A1C;
+  --color-surface: #0E0E0E;
+  --color-surface-muted: #0E0E0E;
+  --color-surface-sunken: #0E0E0E;
   --color-surface-strong: #323237;
-  --color-edge-faint: #141416;
-  --color-edge-soft: #1A1A1A;
-  --color-edge: #1F1F1F;
+  --color-edge-faint: transparent;
+  --color-edge-soft: transparent;
+  --color-edge: transparent;
   --color-edge-strong: #6E6E78;
   --color-edge-field: #75757E;
+  --color-placeholder-fill: rgba(255, 255, 255, 0.07);
   --color-fg-strong: #FAFAFA;
   --color-fg: #F4F4F5;
   --color-fg-body: #E7E7EA;
@@ -407,11 +419,12 @@ body {
   --color-fg-faint: #8E8E97;
 
   /* Tokens neutros da landing / blog / legais, expostos como utilities
-     (`bg-paper`, `text-ink`, `border-rule`…): mesmo papel, valor escuro. */
-  --color-paper: #0E0E0F;
-  --color-paper-alt: #141416;
-  --color-paper-2: #1A1A1C;
-  --color-rule: #1F1F1F;
+     (`bg-paper`, `text-ink`, `border-rule`…): mesmo papel, valor escuro — e a mesma
+     regra dos dois tons (o "alt" e o "2" eram o terceiro e o quarto tom). */
+  --color-paper: #0E0E0E;
+  --color-paper-alt: #0E0E0E;
+  --color-paper-2: #0E0E0E;
+  --color-rule: transparent;
   --color-rule-strong: #3A3A40;
   --color-rule-contrast: #75757E;
   --color-line: #3A3A40;
@@ -421,18 +434,9 @@ body {
   --color-border: #2E2E33;
 }
 
-/* A sidebar continua na superfície anterior (#18181A) sobre a página preta: o
-   menu se destaca do conteúdo sem precisar de sombra. Os tokens são redeclarados
-   no escopo dela, então nenhuma classe do template muda. */
-.dark .app-sidebar {
-  --color-canvas: #0F0F10;
-  --color-surface: #18181A;
-  --color-surface-muted: #1E1E21;
-  --color-surface-sunken: #26262A;
-  --color-edge-faint: #1E1E21;
-  --color-edge-soft: #242428;
-  --color-edge: #2E2E33;
-}
+/* A sidebar segue a mesma regra: é um cartão (#0E0E0E) sobre a página preta, sem paleta
+   própria. O item ativo mantém o realce laranja translúcido (`.active-link` em sidebar.css),
+   que é o indicador de "você está aqui" desde sempre. */
 
 /* `border` sem cor herda `currentColor` (padrão do Tailwind v4). No claro isso dá a borda
    escura que alguns campos sempre tiveram; no escuro, o texto claro viraria uma moldura
@@ -451,9 +455,9 @@ body {
 .dark .landing-root,
 .dark .pricing-scope {
   --paper: #000000;
-  --paper-alt: #0E0E0F;
-  --paper-2: #141416;
-  --rule: #1F1F1F;
+  --paper-alt: #0E0E0E;
+  --paper-2: #0E0E0E;
+  --rule: transparent;
   --rule-strong: #3A3A40;
   --ink: #F4F4F5;
   --ink-80: rgba(244, 244, 245, 0.85);
@@ -496,6 +500,7 @@ body {
   --color-edge: var(--color-neutral-200);
   --color-edge-strong: var(--color-neutral-300);
   --color-edge-field: var(--color-neutral-200);
+  --color-placeholder-fill: var(--color-neutral-100);
   --color-fg-strong: var(--color-neutral-950);
   --color-fg: var(--color-neutral-900);
   --color-fg-body: var(--color-neutral-800);

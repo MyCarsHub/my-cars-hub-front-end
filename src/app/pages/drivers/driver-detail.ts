@@ -158,7 +158,7 @@ export class DriverDetail implements OnInit {
 
   protected readonly statusInfo = computed(() => {
     const s = this.driver()?.status;
-    if (!s) return { label: '—', chip: 'bg-surface-sunken text-fg-soft' };
+    if (!s) return { label: '—', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' };
     const meta = driverStatusMeta(s);
     return { label: meta.label, chip: meta.chip };
   });

@@ -33,7 +33,7 @@
   --b-danger: #F87171;
   --b-primary-text: #FA602E;
   --b-primary-low: rgba(246, 59, 4, 0.15);
-  --b-plan-surface: #0A0A0A;
+  --b-plan-surface: var(--color-surface); /* o cartão (#0E0E0E): dois tons no escuro */
   --b-shadow: none;
 }
 
@@ -71,7 +71,7 @@
 .link { color: var(--b-primary-text); font-weight: 600; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-weight: 600; text-decoration: none; }
 .link:hover { text-decoration: underline; }
 
-.bar { height: 6px; border-radius: 9px; background: var(--color-surface-sunken); overflow: hidden; }
+.bar { height: 6px; border-radius: 9px; background: var(--color-placeholder-fill); overflow: hidden; }
 .bar > i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg, #FA602E, #F63B04); transform-origin: left center; }
 .bar.drain > i { animation: b-drain 900ms var(--b-ease) both; }
 @keyframes b-drain { from { transform: scaleX(0); } }

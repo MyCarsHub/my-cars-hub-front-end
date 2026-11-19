@@ -4,9 +4,9 @@
 >
   @if (loading() && !rental()) {
     <div class="space-y-3">
-      <div class="h-24 rounded-xl bg-surface-sunken animate-pulse"></div>
-      <div class="h-40 rounded-xl bg-surface-sunken animate-pulse"></div>
-      <div class="h-40 rounded-xl bg-surface-sunken animate-pulse"></div>
+      <div class="h-24 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+      <div class="h-40 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+      <div class="h-40 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
     </div>
   }
 
@@ -269,7 +269,7 @@
         <div class="rounded-2xl border border-edge bg-surface p-4">
           <p class="text-xs uppercase tracking-wide text-fg-faint">Progresso</p>
           <p class="mt-1 text-lg font-semibold text-fg tabular-nums">{{ progressPct() }}%</p>
-          <div class="mt-2 h-1.5 rounded-full bg-surface-sunken overflow-hidden">
+          <div class="mt-2 h-1.5 rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden">
             <div
               class="h-full bg-primary-500"
               [style.width.%]="progressPct()"
@@ -824,8 +824,8 @@
           <div>
             @if (historyLoading()) {
               <div class="space-y-3">
-                <div class="h-14 rounded-xl bg-surface-sunken animate-pulse"></div>
-                <div class="h-14 rounded-xl bg-surface-sunken animate-pulse"></div>
+                <div class="h-14 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+                <div class="h-14 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
               </div>
             } @else if (history().length === 0) {
               <p class="text-sm text-fg-subtle text-center py-6">

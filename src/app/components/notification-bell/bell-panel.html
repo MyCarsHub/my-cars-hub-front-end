@@ -86,8 +86,8 @@
     >
       @if (loading() && items().length === 0) {
         <div class="flex flex-col gap-2 p-2">
-          <div class="h-14 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
-          <div class="h-14 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
+          <div class="h-14 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
+          <div class="h-14 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
         </div>
       }
 
@@ -154,8 +154,8 @@
         </div>
       } @else {
         <div class="flex flex-col gap-2 p-4" aria-hidden="true">
-          <div class="h-16 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
-          <div class="h-16 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
+          <div class="h-16 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
+          <div class="h-16 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
         </div>
       }
     </div>

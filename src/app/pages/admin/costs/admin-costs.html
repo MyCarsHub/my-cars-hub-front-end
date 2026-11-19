@@ -42,7 +42,7 @@
            [label]="'Custos de ' + thisMonthWord" numberFormat="brl-cents" placeholder="dash" [anchored]="true"
            [stagger]="0" [loading]="current() === null && monthLoading()" [value]="costsKpi().value"
            [detail]="costsKpi().detail"></div>
-      <div app-kpi-card data-kpi="mrr" variant="white" label="Receita real (MRR)" numberFormat="brl-cents"
+      <div app-kpi-card data-kpi="mrr" variant="white" label="MRR real" numberFormat="brl-cents"
            placeholder="dash" [anchored]="true" [stagger]="1" [loading]="homeLoading()" [value]="mrrKpi().value"
            [detail]="mrrKpi().detail"></div>
       <div app-kpi-card data-kpi="fixed" variant="white" label="Fixos ativos" numberFormat="integer" [anchored]="true"
@@ -56,14 +56,14 @@
     <p class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-fg-muted" data-costs-flow>
       <span>Como chega no Painel:</span>
       @if (flow(); as f) {
-        <b class="font-semibold text-fg tabular-nums">Receita {{ f.mrr }}</b>
+        <b class="font-semibold text-fg tabular-nums">MRR real {{ f.mrr }}</b>
         <span aria-hidden="true">−</span><span class="sr-only">menos</span>
         <b class="font-semibold text-fg tabular-nums">Custos {{ f.costs }}</b>
         <span aria-hidden="true">=</span><span class="sr-only">igual a</span>
         <b class="font-semibold text-fg tabular-nums">Lucro {{ f.profit }}</b>
         <span>em “Lucro do mês” e no gráfico MRR × custos × lucro.</span>
       } @else {
-        <span>Receita real menos os custos lançados em {{ thisMonthWord }} é o “Lucro do mês”. Sem custo lançado,
+        <span>MRR real menos os custos lançados em {{ thisMonthWord }} é o “Lucro do mês”. Sem custo lançado,
           o Lucro fica sem número, nunca R$ 0.</span>
       }
     </p>

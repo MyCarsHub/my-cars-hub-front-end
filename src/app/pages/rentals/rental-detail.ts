@@ -1737,7 +1737,7 @@ export class RentalDetail implements OnInit {
     color: string;
   } {
     if (!status) {
-      return { label: 'Criado', chip: 'bg-surface-sunken text-fg-soft', color: '#6b7280' };
+      return { label: 'Criado', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft', color: '#6b7280' };
     }
     return RENTAL_STATUS_META[status];
   }

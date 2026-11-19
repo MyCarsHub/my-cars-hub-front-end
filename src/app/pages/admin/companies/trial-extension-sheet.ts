@@ -148,7 +148,7 @@ const QUICK_PICKS = [7, 14, 30] as const;
           <button
             type="button"
             class="w-full sm:w-auto min-h-12 px-4 rounded-xl text-base font-medium text-fg-muted
-                   bg-surface-sunken hover:bg-surface-strong transition-colors"
+                   bg-surface-sunken hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong transition-colors"
             (click)="cancel()"
             [disabled]="saving()"
           >

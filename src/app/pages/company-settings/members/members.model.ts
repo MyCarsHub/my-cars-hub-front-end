@@ -15,7 +15,7 @@ export const CHIP_TONE = {
   ok: 'bg-success-100 dark:bg-success-500/15 text-success-900 dark:text-emerald-300',
   amber: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200',
   rose: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  neutral: 'bg-surface-sunken text-fg-soft',
+  neutral: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft',
 } as const;
 
 export type ChipTone = keyof typeof CHIP_TONE;

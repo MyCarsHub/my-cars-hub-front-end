@@ -14,7 +14,7 @@ import { PageCard } from '../../../components/core/page-card/page-card';
   template: `
     <app-page-card [title]="title()" [fill]="true" [truncateTitle]="!reserveTitle()" [reserveTitleLines]="reserveTitle()">
       <div class="px-4 pb-5 sm:px-6 min-w-0 flex-1 flex flex-col">
-        <div data-skeleton-body class="w-full flex-1 rounded-xl bg-surface-sunken animate-pulse" [class]="bodyClass()"></div>
+        <div data-skeleton-body class="w-full flex-1 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse" [class]="bodyClass()"></div>
       </div>
     </app-page-card>
   `,
