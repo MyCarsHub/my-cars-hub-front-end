@@ -95,6 +95,8 @@ const LAYOUT: Record<DataListBreakpoint, { table: string; cards: string }> = {
  */
 const AREA = 'bg-surface-muted rounded-2xl p-2';
 const ROW_FILL = 'bg-surface';
+/** Loading rows: the plain row in light; the shared placeholder fill in dark, so they stay visible. */
+const SKELETON_FILL = 'bg-surface dark:bg-placeholder-fill';
 const CARD_PRESS = 'active:bg-surface-sunken dark:active:opacity-70';
 
 /** Each table cell paints its slice of the row's box; the ends round the row. */
@@ -109,7 +111,7 @@ const CARD_BOX =
 
 const PAGER_BUTTON =
   'inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-surface-sunken ' +
-  'text-sm font-semibold text-fg-body hover:bg-surface-strong transition-colors ' +
+  'text-sm font-semibold text-fg-body hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong transition-colors ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ' +
   'disabled:opacity-40 disabled:cursor-not-allowed';
 
@@ -141,7 +143,7 @@ const PAGER_BUTTON =
         <button
           type="button"
           data-export
-          class="inline-flex items-center min-h-[44px] sm:min-h-[36px] px-4 rounded-xl bg-surface-sunken text-fg-body text-sm font-semibold hover:bg-surface-strong transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50"
+          class="inline-flex items-center min-h-[44px] sm:min-h-[36px] px-4 rounded-xl bg-surface-sunken text-fg-body text-sm font-semibold hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50"
           [disabled]="loading() || !rows().length"
           (click)="exportCsv()"
         >
@@ -424,7 +426,7 @@ export class DataList<T = unknown> {
   protected readonly actions = contentChild(DataListActions);
   protected readonly skeletons = [0, 1, 2, 3];
   protected readonly area = AREA;
-  protected readonly rowFill = ROW_FILL;
+  protected readonly rowFill = SKELETON_FILL;
   protected readonly pagerButton = PAGER_BUTTON;
   protected readonly cellClass = computed(() =>
     this.rowTarget() ? `${CELL_BOX} ${CELL_HOVER}` : CELL_BOX,

@@ -93,7 +93,7 @@ import { AdminContactService, mailtoLink, withWhatsAppText } from './admin-conta
             type="button"
             data-testid="bar-call"
             class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl bg-surface-sunken press
-                   text-fg-body hover:bg-surface-strong text-xs sm:text-sm font-medium disabled:opacity-40
+                   text-fg-body hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong text-xs sm:text-sm font-medium disabled:opacity-40
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             [disabled]="!hasPhone() || busy()"
             (click)="call()"
@@ -103,7 +103,7 @@ import { AdminContactService, mailtoLink, withWhatsAppText } from './admin-conta
               [href]="mail"
               data-testid="bar-email"
               class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl bg-surface-sunken press
-                     text-fg-body hover:bg-surface-strong text-xs sm:text-sm font-medium
+                     text-fg-body hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong text-xs sm:text-sm font-medium
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             >E-mail</a>
           } @else {
@@ -114,7 +114,7 @@ import { AdminContactService, mailtoLink, withWhatsAppText } from './admin-conta
             type="button"
             data-testid="bar-copy"
             class="inline-flex items-center justify-center min-h-[48px] px-3 rounded-xl bg-surface-sunken press
-                   text-fg-body hover:bg-surface-strong text-xs sm:text-sm font-medium disabled:opacity-40
+                   text-fg-body hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong text-xs sm:text-sm font-medium disabled:opacity-40
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             [disabled]="!hasPhone() || busy()"
             (click)="copy()"

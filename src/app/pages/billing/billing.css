@@ -13,7 +13,7 @@
   --v-g-text: var(--color-success-100);
   --v-o-bg: rgba(246, 59, 4, 0.14);
   --v-g-bg: rgba(16, 185, 129, 0.14);
-  --v-track: #232326;
+  --v-track: var(--color-placeholder-fill);
   --v-wash-o: radial-gradient(ellipse 55% 90% at 100% 0%, rgba(246, 59, 4, 0.16), transparent 70%);
   --v-wash-g: radial-gradient(ellipse 55% 90% at 100% 0%, rgba(16, 185, 129, 0.14), transparent 70%);
 }
@@ -245,7 +245,7 @@ app-list-group[flat] + * { margin-top: 0; }
 .skeleton { display: grid; gap: 16px; }
 .sk-hero { height: 220px; }
 .sk-row { height: 120px; }
-.skeleton .card { background: linear-gradient(90deg, var(--color-surface) 0%, var(--color-surface-sunken) 50%, var(--color-surface) 100%); background-size: 200% 100%; animation: sk 1.4s ease-in-out infinite; }
+.skeleton .card { background: linear-gradient(90deg, var(--color-surface) 0%, var(--color-placeholder-fill) 50%, var(--color-surface) 100%); background-size: 200% 100%; animation: sk 1.4s ease-in-out infinite; }
 @keyframes sk { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 
 @media (prefers-reduced-motion: reduce) {

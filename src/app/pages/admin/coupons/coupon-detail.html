@@ -51,7 +51,7 @@
           <div class="col-span-2" data-testid="detail-uses">
             <dt>Usos</dt>
             <dd class="text-sm font-semibold text-fg tabular-nums">{{ usesText() }}</dd>
-            <span class="block h-1.5 w-full rounded-full bg-surface-sunken overflow-hidden mt-1.5" aria-hidden="true" [attr.title]="usesHint()">
+            <span class="block h-1.5 w-full rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden mt-1.5" aria-hidden="true" [attr.title]="usesHint()">
               <span class="bar-fill block h-full w-full rounded-full bg-emerald-500" [style.--p]="progress()"></span>
             </span>
           </div>
@@ -100,7 +100,7 @@
       @if (loading()) {
         <div class="space-y-3" role="status" aria-label="Carregando usos" data-testid="detail-skeleton">
           @for (i of skeletonRows; track i) {
-            <div class="h-[68px] rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-[68px] rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
           }
         </div>
       } @else if (error(); as message) {

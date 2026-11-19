@@ -74,7 +74,7 @@ export function dueRows(data: AdminUpcoming, scope: AdminHomeScope): DueRow[] {
         @if (loading() && !data()) {
           <div class="space-y-1.5">
             @for (n of [0, 1, 2]; track n) {
-              <div class="h-9 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-9 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
             }
           </div>
         } @else if (error(); as e) {

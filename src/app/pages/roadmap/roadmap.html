@@ -56,7 +56,7 @@
         <div class="p-4 space-y-3 min-h-[200px]">
           @if (loading() && columnTasksFor(column.key).length === 0) {
             @for (s of skeletons; track trackByIndex($index)) {
-              <div class="bg-surface-muted border border-edge-soft rounded-xl p-4 animate-pulse">
+              <div class="bg-surface-muted dark:bg-placeholder-fill border border-edge-soft rounded-xl p-4 animate-pulse">
                 <div class="h-4 bg-surface-strong rounded w-3/4 mb-3"></div>
                 <div class="h-3 bg-surface-strong rounded w-full mb-1.5"></div>
                 <div class="h-3 bg-surface-strong rounded w-5/6"></div>
@@ -122,7 +122,7 @@
 
                 @if (isAdmin() && task.authorName) {
                 <div class="flex items-center gap-1.5 mb-2">
-                  <div class="w-5 h-5 rounded-full bg-surface-sunken flex items-center justify-center text-[10px] font-bold text-fg-muted">
+                  <div class="w-5 h-5 rounded-full bg-surface-sunken dark:bg-surface-strong flex items-center justify-center text-[10px] font-bold text-fg-muted">
                     {{ authorInitial(task) }}
                   </div>
                   <span class="text-[10px] font-semibold text-fg-subtle uppercase tracking-wider truncate">

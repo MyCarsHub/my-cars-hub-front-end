@@ -50,7 +50,7 @@ import { DRIVER_RENTAL_TODAY, buildHero, dayMonth, weekday } from './driver-rent
             </button>
           </p>
         } @else if (!loaded()) {
-          <div class="h-11 rounded-xl bg-surface-sunken animate-pulse" aria-hidden="true"></div>
+          <div class="h-11 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse" aria-hidden="true"></div>
         } @else {
           <div class="flex items-center justify-between gap-3">
             <span class="flex flex-col gap-0.5 min-w-0">

@@ -250,7 +250,7 @@
   --ink-50: rgba(244, 244, 245, 0.56);
   --paper: #000000;
   --paper-alt: #0E0E0E;
-  --rule: #1F1F1F;
+  --rule: transparent;
   --rule-strong: #3A3A40;
 }
 

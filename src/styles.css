@@ -72,6 +72,11 @@
   /* Borda de CAMPO (input/select/textarea): mesmo valor claro do `edge`; no escuro ela
      identifica o controle e precisa de 3:1 (WCAG 1.4.11) — ver o bloco `.dark`. */
   --color-edge-field: var(--color-neutral-200);
+  /* PREENCHIMENTO DE MARCADOR — NÃO é superfície. Só para o que precisa continuar visível
+     sobre o cartão sem ser fundo de nada: esqueleto de carregamento, trilho vazio de barra de
+     progresso e célula de nível 0 do heatmap. Nunca fundo de seção, linha, poço ou painel.
+     No claro é o mesmo degrau do `surface-sunken` (o claro não muda); no escuro, ver `.dark`. */
+  --color-placeholder-fill: var(--color-neutral-100);
   --color-fg-strong: var(--color-neutral-950);
   --color-fg: var(--color-neutral-900);
   --color-fg-body: var(--color-neutral-800);
@@ -376,7 +381,7 @@ body {
      fg-subtle #A1A1AA 7,53 · fg-faint #8E8E97 5,94 — todos passam como texto.
      rule-contrast / edge-field #75757E: 4,23:1 — passa 3:1 (borda que identifica o campo).
      edge-strong #6E6E78: 3,83:1 (borda que identifica componente).
-     edge #1F1F1F é só a moldura do cartão (decorativa).
+     edge é transparente: o cartão não tem moldura no escuro (só #0E0E0E contra #000000).
    Laranja: `text-primary-700` (#C22F00) cai para ~3:1 no escuro; o gêmeo
    `dark:text-primary-400` (#FA602E) dá 6,23:1 sobre o cartão e 5,45:1 sobre a
    tinta `primary-500/15`. O preenchimento `bg-primary-500` com texto branco
@@ -388,10 +393,12 @@ body {
      #0E0E0E. Tudo o que mora dentro de um cartão (poço de lista, fundo de linha, faixa de
      cabeçalho, seção interna, painel aninhado) fica NA COR DO CARTÃO — por isso
      `surface-muted` e `surface-sunken` resolvem para o próprio cartão, e hover/press que
-     pintavam com eles viram no-op no escuro. A separação é por espaço: `edge-faint` e
-     `edge-soft` (os tokens das linhas divisórias) ficam transparentes. `edge` continua sendo a
-     moldura do cartão. `surface-strong` NÃO é superfície: é trilho de interruptor/progresso,
-     chip neutro, avatar e esqueleto de carregamento — controle, não fundo — e fica. */
+     pintavam com eles viram no-op no escuro. Nenhuma linha em lugar nenhum: `edge-faint`,
+     `edge-soft`, `edge` (a antiga moldura #1F1F1F do cartão) e `rule` ficam transparentes — o
+     cartão se separa da página só por #0E0E0E contra #000000. `surface-strong` NÃO é
+     superfície: é interruptor, chip neutro e avatar — controle, não fundo — e fica.
+     `placeholder-fill` (branco 7% ≈ #1F1F1F sobre o cartão) é só para esqueleto, trilho de
+     progresso e nível 0 do heatmap: o que tem de continuar visível sem virar fundo. */
   --color-canvas: #000000;
   --color-surface: #0E0E0E;
   --color-surface-muted: #0E0E0E;
@@ -399,9 +406,10 @@ body {
   --color-surface-strong: #323237;
   --color-edge-faint: transparent;
   --color-edge-soft: transparent;
-  --color-edge: #1F1F1F;
+  --color-edge: transparent;
   --color-edge-strong: #6E6E78;
   --color-edge-field: #75757E;
+  --color-placeholder-fill: rgba(255, 255, 255, 0.07);
   --color-fg-strong: #FAFAFA;
   --color-fg: #F4F4F5;
   --color-fg-body: #E7E7EA;
@@ -416,7 +424,7 @@ body {
   --color-paper: #0E0E0E;
   --color-paper-alt: #0E0E0E;
   --color-paper-2: #0E0E0E;
-  --color-rule: #1F1F1F;
+  --color-rule: transparent;
   --color-rule-strong: #3A3A40;
   --color-rule-contrast: #75757E;
   --color-line: #3A3A40;
@@ -449,7 +457,7 @@ body {
   --paper: #000000;
   --paper-alt: #0E0E0E;
   --paper-2: #0E0E0E;
-  --rule: #1F1F1F;
+  --rule: transparent;
   --rule-strong: #3A3A40;
   --ink: #F4F4F5;
   --ink-80: rgba(244, 244, 245, 0.85);
@@ -492,6 +500,7 @@ body {
   --color-edge: var(--color-neutral-200);
   --color-edge-strong: var(--color-neutral-300);
   --color-edge-field: var(--color-neutral-200);
+  --color-placeholder-fill: var(--color-neutral-100);
   --color-fg-strong: var(--color-neutral-950);
   --color-fg: var(--color-neutral-900);
   --color-fg-body: var(--color-neutral-800);

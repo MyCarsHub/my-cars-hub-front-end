@@ -154,7 +154,7 @@
                   data-clear-filters
                   (click)="clearFilters()"
                   class="press min-h-[44px] w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
-                         justify-center bg-surface-sunken text-fg-body hover:bg-surface-strong
+                         justify-center bg-surface-sunken text-fg-body hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong
                          focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
                 >
                   Limpar filtros
@@ -236,7 +236,7 @@
                     }
                     <span class="text-fg tabular-nums whitespace-nowrap" [attr.aria-hidden]="row.isCode ? 'true' : null">{{ row.uses }}</span>
                     @if (row.isCode) {
-                      <span class="block h-1.5 w-[70px] rounded-full bg-surface-sunken overflow-hidden mt-1.5"
+                      <span class="block h-1.5 w-[70px] rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden mt-1.5"
                             aria-hidden="true" [attr.title]="row.usesHint">
                         <span class="bar-fill block h-full w-full rounded-full bg-emerald-500" [style.--p]="row.progress"></span>
                       </span>

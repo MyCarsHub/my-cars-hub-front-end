@@ -121,7 +121,7 @@ export class FinancingDetail implements OnInit {
 
   protected readonly statusBadge = computed<{ label: string; chip: string }>(() => {
     const f = this.financing();
-    if (!f) return { label: '—', chip: 'bg-surface-sunken text-fg-soft' };
+    if (!f) return { label: '—', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' };
     if (f.status === 'PAID_OFF') {
       return { label: 'Quitado', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' };
     }
@@ -275,7 +275,7 @@ export class FinancingDetail implements OnInit {
       case 'OVERDUE':
         return { label: 'Atrasada', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
       default:
-        return { label: 'Prevista', chip: 'bg-surface-sunken text-fg-muted' };
+        return { label: 'Prevista', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-muted' };
     }
   }
 

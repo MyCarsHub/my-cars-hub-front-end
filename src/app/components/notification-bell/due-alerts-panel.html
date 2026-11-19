@@ -58,8 +58,8 @@
 
   @if (firstLoad()) {
     <div class="flex flex-col gap-2 px-2 pt-3" aria-hidden="true" data-due-loading>
-      <div class="h-16 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
-      <div class="h-16 rounded-2xl bg-surface-sunken motion-safe:animate-pulse"></div>
+      <div class="h-16 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
+      <div class="h-16 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
     </div>
   } @else {
     @if (isEmpty()) {

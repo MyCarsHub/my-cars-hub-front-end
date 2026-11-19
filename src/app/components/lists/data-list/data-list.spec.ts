@@ -164,6 +164,9 @@ describe('DataList', () => {
     fixture.componentInstance.loading.set(true);
     fixture.detectChanges();
     expect(el.querySelector('[data-loading]')).not.toBeNull();
+    // Skeleton rows stay visible on the dark card through the shared placeholder fill.
+    const skeleton = el.querySelector('[data-loading] .animate-pulse')!;
+    expect(skeleton.className).toContain('dark:bg-placeholder-fill');
     expect(el.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(el.querySelector('[data-row]')).toBeNull();
     expect(el.querySelector<HTMLButtonElement>('[data-export]')!.disabled).toBe(true);

@@ -221,11 +221,11 @@
 
   <div sheetFooter class="flex flex-col-reverse lg:flex-row lg:justify-end gap-2 lg:gap-3">
     @if (mode() !== 'menu' && initialMode() === 'menu') {
-      <button type="button" class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-back" [disabled]="busy()" (click)="go('menu')">
+      <button type="button" class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-back" [disabled]="busy()" (click)="go('menu')">
         Voltar
       </button>
     } @else {
-      <button type="button" class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" (click)="close()">Fechar</button>
+      <button type="button" class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" (click)="close()">Fechar</button>
     }
     @if (mode() === 'compare' && comparison()) {
       <button type="button" class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-semibold text-white bg-primary-500 hover:bg-primary-600 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 press" data-testid="compare-again" [disabled]="busy()" (click)="compare()">

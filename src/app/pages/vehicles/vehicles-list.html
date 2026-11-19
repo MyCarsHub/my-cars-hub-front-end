@@ -234,11 +234,11 @@
           <div data-vehicles-skeleton aria-hidden="true" class="grid grid-cols-1 @min-[820px]:grid-cols-2 gap-3">
             @for (n of skeletonSlots; track n) {
               <div class="rounded-2xl border border-edge bg-surface p-3 flex gap-3">
-                <div class="shrink-0 aspect-square size-[104px] @min-[592px]:size-[148px] rounded-xl bg-surface-sunken animate-pulse"></div>
+                <div class="shrink-0 aspect-square size-[104px] @min-[592px]:size-[148px] rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
                 <div class="flex-1 flex flex-col gap-2 pt-1">
-                  <div class="h-4 w-24 rounded bg-surface-sunken animate-pulse"></div>
-                  <div class="h-3 w-36 rounded bg-surface-sunken animate-pulse"></div>
-                  <div class="h-3 w-28 rounded bg-surface-sunken animate-pulse"></div>
+                  <div class="h-4 w-24 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+                  <div class="h-3 w-36 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+                  <div class="h-3 w-28 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
                 </div>
               </div>
             }

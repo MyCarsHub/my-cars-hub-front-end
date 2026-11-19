@@ -180,7 +180,7 @@ const MAX_INSTALLMENTS = 120;
               <p class="mt-1 text-base font-semibold text-fg tabular-nums">
                 {{ paidCount() }}/{{ totalCount() }}
               </p>
-              <div class="mt-2 h-1.5 rounded-full bg-surface-sunken overflow-hidden">
+              <div class="mt-2 h-1.5 rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden">
                 <div
                   class="h-full bg-primary-600"
                   [style.width.%]="progressPct()"
@@ -715,7 +715,7 @@ export class InsuranceInstallmentsCard {
   protected chipFor(row: InsuranceInstallment): { label: string; chip: string } {
     if (row.paid) return { label: 'Paga', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' };
     if (row.dueDate < this.today) return { label: 'Atrasada', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
-    return { label: 'Prevista', chip: 'bg-surface-sunken text-fg-soft' };
+    return { label: 'Prevista', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' };
   }
 
   protected formatDate(iso: string | null | undefined): string {

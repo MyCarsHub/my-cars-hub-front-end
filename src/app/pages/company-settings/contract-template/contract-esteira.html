@@ -55,7 +55,7 @@
           [style.grid-template-columns]="'repeat(' + steps().length + ',minmax(0,1fr))'">
           @for (s of steps(); track s; let i = $index) {
             <li class="flex min-w-0 flex-col gap-1.5" [attr.aria-current]="i === stepIndex() ? 'step' : null">
-              <span aria-hidden="true" class="h-2 overflow-hidden rounded-full bg-surface-strong">
+              <span aria-hidden="true" class="h-2 overflow-hidden rounded-full bg-surface-strong dark:bg-placeholder-fill">
                 <span class="block h-full rounded-full transition-all duration-500"
                   [class]="i < stepIndex() ? 'w-full bg-emerald-500' : i === stepIndex() ? 'w-1/2 bg-primary-500' : 'w-0 bg-surface-strong'"></span>
               </span>
@@ -106,7 +106,7 @@
                       <app-contract-icon name="sparkles" [size]="12" [stroke]="2.5" />Com IA
                     </span>
                   } @else if (aiPending()) {
-                    <span class="h-5 w-16 rounded-full bg-surface-sunken motion-safe:animate-pulse" aria-hidden="true"></span>
+                    <span class="h-5 w-16 rounded-full bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse" aria-hidden="true"></span>
                   } @else {
                     <span id="path-mine-soon" class="rounded-full bg-surface-sunken px-2 py-0.5 text-[13px] font-semibold text-fg-soft">Em breve</span>
                   }
@@ -224,7 +224,7 @@
               <span class="text-[15px] text-fg-muted">Leva até 1 minuto. Pode deixar esta tela aberta.</span>
               <span id="contract-cancel-wait" class="text-[13px] text-fg-muted">Dá para cancelar assim que a leitura terminar.</span>
             </div>
-            <div class="h-2 overflow-hidden rounded-full bg-surface-sunken">
+            <div class="h-2 overflow-hidden rounded-full bg-surface-sunken dark:bg-placeholder-fill">
               <div class="h-2 rounded-full bg-primary-500 transition-[width] duration-700" [style.width]="readingPct()"></div>
             </div>
             <ul class="m-0 flex list-none flex-col gap-2 p-0">
@@ -318,9 +318,9 @@
             </button>
           } @else {
             <div class="flex flex-col gap-3" aria-hidden="true">
-              <div class="h-9 w-2/3 rounded-xl bg-surface-sunken motion-safe:animate-pulse"></div>
-              <div class="h-16 rounded-xl bg-surface-sunken motion-safe:animate-pulse"></div>
-              <div class="h-16 rounded-xl bg-surface-sunken motion-safe:animate-pulse"></div>
+              <div class="h-9 w-2/3 rounded-xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
+              <div class="h-16 rounded-xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
+              <div class="h-16 rounded-xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
             </div>
           }
         }

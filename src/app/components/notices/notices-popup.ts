@@ -107,7 +107,7 @@ export class NoticeDiscard {
                 </p>
                 <ul class="mt-1 flex flex-wrap gap-2" data-testid="notice-items">
                   @for (item of n.items; track item) {
-                    <li class="rounded-full bg-surface-muted px-3 py-1 text-sm text-fg-body">{{ item }}</li>
+                    <li class="rounded-full bg-surface-muted dark:bg-surface-strong px-3 py-1 text-sm text-fg-body">{{ item }}</li>
                   }
                 </ul>
               </div>
@@ -129,7 +129,7 @@ export class NoticeDiscard {
             }
             <button
               type="button"
-              class="press min-h-[48px] w-full rounded-xl bg-surface-muted px-5 text-base font-semibold text-fg-body hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              class="press min-h-[48px] w-full rounded-xl bg-surface-muted px-5 text-base font-semibold text-fg-body hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
               data-testid="notice-dismiss"
               (click)="onDismiss()"
             >

@@ -121,7 +121,7 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                       @if (step.badge; as badge) {
                         <span
                           class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
-                          [class.bg-surface-sunken]="badge.tone === 'neutral'"
+                          [class.bg-surface-sunken]="badge.tone === 'neutral'" [class.dark:bg-surface-strong]="badge.tone === 'neutral'"
                           [class.text-fg-soft]="badge.tone === 'neutral'"
                           [class.bg-amber-100]="badge.tone === 'amber'" [class.dark:bg-amber-500/15]="badge.tone === 'amber'"
                           [class.text-amber-800]="badge.tone === 'amber'" [class.dark:text-amber-200]="badge.tone === 'amber'"

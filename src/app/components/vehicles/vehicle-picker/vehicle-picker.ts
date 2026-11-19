@@ -70,7 +70,7 @@ type Load = { readonly state: 'loading' } | { readonly state: 'error'; readonly 
         @case ('loading') {
           <div class="space-y-2" role="status" aria-label="Carregando veículos" data-testid="picker-loading">
             @for (i of [1, 2, 3]; track i) {
-              <div class="h-14 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-14 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
             }
           </div>
         }

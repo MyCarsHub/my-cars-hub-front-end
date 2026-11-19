@@ -50,7 +50,7 @@
         </div>
       } @else {
         <div
-          class="w-full rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"
+          class="w-full rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"
           [class]="format() === 'STORY' ? 'aspect-[9/16]' : 'aspect-square'"
           role="status"
           aria-label="Gerando a imagem"
@@ -99,7 +99,7 @@
       <button
         type="button"
         class="press min-h-12 w-full rounded-xl bg-surface-sunken px-4 text-base font-semibold text-fg-soft
-               hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+               hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
         data-testid="share-copy-message"
         (click)="copyMessage()"
       >
@@ -108,7 +108,7 @@
       <button
         type="button"
         class="press min-h-12 w-full rounded-xl bg-surface-sunken px-4 text-base font-semibold text-fg-soft
-               hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+               hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
         data-testid="share-copy-code"
         (click)="copyCode()"
       >

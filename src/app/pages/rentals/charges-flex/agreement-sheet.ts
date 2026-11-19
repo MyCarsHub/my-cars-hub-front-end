@@ -36,9 +36,9 @@ const ROLE_LABELS: Record<string, string> = { OWNER: 'dono', MANAGER: 'gerente' 
       <div class="flex flex-col gap-4" data-testid="agreement-sheet">
         @if (loading()) {
           <div class="flex flex-col gap-2" aria-busy="true">
-            <div class="h-14 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-            <div class="h-14 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-            <div class="h-14 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-14 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-14 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-14 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
           </div>
         } @else if (error(); as err) {
           <app-alert-banner variant="error" [message]="err" />
@@ -107,7 +107,7 @@ const ROLE_LABELS: Record<string, string> = { OWNER: 'dono', MANAGER: 'gerente' 
 
       <div sheetFooter class="flex flex-col-reverse gap-2 lg:flex-row lg:justify-end lg:gap-3">
         <button type="button" (click)="close()"
-          class="press min-h-12 w-full rounded-xl bg-surface-sunken px-5 text-base font-medium text-fg-muted transition-colors hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:w-auto">
+          class="press min-h-12 w-full rounded-xl bg-surface-sunken px-5 text-base font-medium text-fg-muted transition-colors hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:w-auto">
           Fechar
         </button>
       </div>

@@ -114,8 +114,8 @@ const PAINTED_FILL = 'h-full rounded-full bg-white';
 
 const PLAIN_LABEL = 'text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate';
 const PLAIN_DETAIL = 'text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 break-words';
-const PLAIN_SKELETON = 'h-8 mt-2 w-16 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse';
-const PLAIN_BAR = 'mt-2 h-1.5 bg-gray-100 dark:bg-surface-sunken rounded-full overflow-hidden';
+const PLAIN_SKELETON = 'h-8 mt-2 w-16 rounded bg-gray-100 dark:bg-placeholder-fill animate-pulse';
+const PLAIN_BAR = 'mt-2 h-1.5 bg-gray-100 dark:bg-placeholder-fill rounded-full overflow-hidden';
 const PLAIN_FILL = 'h-full rounded-full bg-primary-500';
 
 /*

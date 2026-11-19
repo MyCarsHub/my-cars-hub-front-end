@@ -99,9 +99,9 @@
 
       @if (loading() && items().length === 0) {
         <div class="space-y-2" aria-busy="true">
-          <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
-          <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
-          <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
+          <div class="h-16 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+          <div class="h-16 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+          <div class="h-16 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
         </div>
       }
 
@@ -203,7 +203,7 @@
                   </div>
                   <div class="min-w-0">
                     <span class="lg:hidden block text-[10px] uppercase tracking-wider text-fg-faint">Categoria</span>
-                    <span class="inline-flex items-center h-[26px] px-2.5 rounded-full text-[12.5px] font-semibold whitespace-nowrap bg-surface-sunken text-fg-muted" data-expense-category>{{ e.categoryLabel }}</span>
+                    <span class="inline-flex items-center h-[26px] px-2.5 rounded-full text-[12.5px] font-semibold whitespace-nowrap bg-surface-sunken dark:bg-surface-strong text-fg-muted" data-expense-category>{{ e.categoryLabel }}</span>
                   </div>
                   <div class="min-w-0">
                     <span class="lg:hidden block text-[10px] uppercase tracking-wider text-fg-faint">Data</span>

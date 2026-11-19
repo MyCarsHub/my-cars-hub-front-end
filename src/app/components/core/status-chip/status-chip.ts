@@ -7,7 +7,7 @@ const TONE: Record<StatusChipTone, string> = {
   green: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
   orange: 'bg-primary-50 dark:bg-primary-500/15 text-primary-700 dark:text-primary-300',
   amber: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200',
-  neutral: 'bg-surface-sunken text-fg-muted',
+  neutral: 'bg-surface-sunken dark:bg-surface-strong text-fg-muted',
   blue: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
   red: 'bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-200',
   white: 'bg-white/15 text-white',
