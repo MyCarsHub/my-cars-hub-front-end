@@ -15,6 +15,7 @@ import {
   FormBuilder,
   ReactiveFormsModule,
   ValidationErrors,
+  ValidatorFn,
   Validators,
 } from '@angular/forms';
 import {
@@ -98,6 +99,8 @@ import { VehicleBrandPipe } from '../../pipes/vehicle-brand.pipe';
 import { VehicleModelPipe } from '../../pipes/vehicle-model.pipe';
 
 const PLATE_PATTERN = /^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/;
+const CHASSIS_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
+const RENAVAM_PATTERN = /^\d{9,11}$/;
 
 /**
  * Complemento do banner quando um bloco filho falha sem mensagem do servidor.
@@ -274,6 +277,15 @@ export class VehicleForm implements OnInit {
   protected readonly renavamMessages: Readonly<Record<string, string>> = {
     pattern: 'RENAVAM deve ter entre 9 e 11 dígitos.',
   };
+
+  /**
+   * Chassi/RENAVAM como estão gravados no servidor (`''` = sem valor). O PUT só os carrega
+   * quando o usuário MUDOU o campo nesta edição; e o formato só é cobrado do que mudou — um
+   * valor antigo fora do padrão nunca trava o salvar de outra alteração. Declarados ANTES de
+   * `form`: os validadores abaixo leem estes campos já na construção dos controles.
+   */
+  private storedChassis = '';
+  private storedRenavam = '';
 
   protected readonly plateDisplay = signal('');
 
@@ -472,10 +484,10 @@ export class VehicleForm implements OnInit {
         new Date().getFullYear(),
         [Validators.required, Validators.min(1900), Validators.max(2100)],
       ],
-      chassis: ['', [Validators.pattern(/^[A-HJ-NPR-Z0-9]{17}$/)]],
+      chassis: ['', [this.unlessStored(() => this.storedChassis, CHASSIS_PATTERN)]],
       hodometer: [0, [Validators.required, Validators.min(0)]],
       licensingExpiration: [''],
-      renavam: ['', [Validators.pattern(/^\d{9,11}$/)]],
+      renavam: ['', [this.unlessStored(() => this.storedRenavam, RENAVAM_PATTERN)]],
       color: [''],
       purchaseDate: [''],
       // TEXTO pt-BR no form (máscara de milhar ao digitar), centavos no payload.
@@ -543,8 +555,6 @@ export class VehicleForm implements OnInit {
       this.editingId.set(id);
       this.documentsEnabled.set(false);
       this.loadVehicle(id);
-      this.form.controls.chassis.disable();
-      this.form.controls.renavam.disable();
     } else if (this.lookups.fipeCatalog) {
       // Cadastro abre no catálogo FIPE; se as marcas falharem, o próprio
       // enterFipeMode devolve o modo manual em silêncio. Com a chave
@@ -852,6 +862,9 @@ export class VehicleForm implements OnInit {
           // Só depois de saber se o carro foi vendido: vendido não abre bloco nenhum.
           this.openBlockFromQuery(this.route.snapshot.queryParamMap.get(OPEN_BLOCK_PARAM));
         }
+        // Antes do patchValue: a validação que ele dispara já compara com o gravado.
+        this.storedChassis = v.chassis ?? '';
+        this.storedRenavam = v.renavam ?? '';
         this.form.patchValue({
           plate: v.plate,
           type: v.type,
@@ -1198,7 +1211,15 @@ export class VehicleForm implements OnInit {
     };
 
     if (this.isEdit()) {
-      const payload: UpdateVehicleRequest = commonPayload;
+      // Chassi/RENAVAM só vão no PUT quando mudaram nesta edição (ausente = manter):
+      // o valor novo, ou `""` quando o usuário apagou um valor gravado.
+      const chassis = raw.chassis?.trim() ?? '';
+      const renavam = raw.renavam?.trim() ?? '';
+      const payload: UpdateVehicleRequest = {
+        ...commonPayload,
+        ...(chassis !== this.storedChassis ? { chassis } : {}),
+        ...(renavam !== this.storedRenavam ? { renavam } : {}),
+      };
       const vehicleId = this.editingId()!; // isEdit() === true garante o id.
       this.saveChildren(this.vehiclesService.update(vehicleId, payload));
     } else {
@@ -1264,7 +1285,13 @@ export class VehicleForm implements OnInit {
   private saveChildren(save$: Observable<Vehicle>): void {
     save$
       .pipe(
-        tap((v) => this.editingId.set(v.id)),
+        tap((v) => {
+          this.editingId.set(v.id);
+          // O que o servidor acabou de gravar vira a base: um retry (filho que falhou)
+          // não reenvia chassi/RENAVAM que não mudaram desde então.
+          this.storedChassis = v.chassis ?? '';
+          this.storedRenavam = v.renavam ?? '';
+        }),
         switchMap((v) => this.financingStep(v)),
         switchMap((v) => this.insuranceStep(v)),
         switchMap((v) => this.ipvaStep(v)),
@@ -1579,6 +1606,18 @@ export class VehicleForm implements OnInit {
   protected formatDate(iso: string | null): string {
     if (!iso) return '—';
     return new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('pt-BR');
+  }
+
+  /**
+   * `Validators.pattern` que não cobra o valor gravado no servidor: só o que o usuário digitou
+   * nesta tela precisa estar no formato (vazio sempre passa, como no `pattern`).
+   */
+  private unlessStored(stored: () => string, pattern: RegExp): ValidatorFn {
+    const check = Validators.pattern(pattern);
+    return (control) => {
+      const value = (control.value as string | null)?.trim() ?? '';
+      return value !== '' && value === stored() ? null : check(control);
+    };
   }
 
   protected hasYearRangeError(): boolean {

@@ -1,3 +1,4 @@
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
@@ -70,5 +71,65 @@ describe('RingLegendCard header', () => {
     const h2 = render(SLICES).querySelector('h2')!;
     expect(h2.className).toContain('truncate');
     expect(h2.getAttribute('title')).toBeTruthy();
+  });
+});
+
+/** The admin home puts three of these in a `lg:grid-cols-3` row: each card is ~287px wide. */
+@Component({
+  imports: [RingLegendCard],
+  template: `<div style="width: 287px">
+    <app-ring-legend-card title="Aluguéis por status" totalLabel="aluguéis" [slices]="slices" />
+  </div>`,
+})
+class NarrowHost {
+  readonly slices: RingSlice[] = [
+    { label: 'Ativa', value: 12, color: '#0a9b62' },
+    { label: 'Reservado', value: 2, color: '#3b82f6' },
+    { label: 'Inadimplente', value: 1, color: '#fb7185' },
+  ];
+}
+
+describe('RingLegendCard in a narrow (~287px) card', () => {
+  // jsdom has no layout engine, so the spec pins the CSS contract that makes the layout follow
+  // the CARD's width: a size container around the body, a stacked default and the side-by-side
+  // row only behind a container-size variant, and legend labels kept on one line.
+  function narrow(): HTMLElement {
+    const fixture = TestBed.createComponent(NarrowHost);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('decides the layout by the card width: the body sits inside a size container', () => {
+    const body = narrow().querySelector('[data-ring-body]')!;
+    expect(body).toBeTruthy();
+    expect(body.parentElement!.classList).toContain('@container');
+  });
+
+  it('stacks by default (ring on top, legend below) and only goes side by side at a container size', () => {
+    const body = narrow().querySelector('[data-ring-body]')!;
+    const classes = Array.from(body.classList);
+    expect(classes).toContain('flex-col');
+    expect(classes).not.toContain('flex-row');
+    expect(classes.some((c) => /^@\[[\d.]+rem\]:flex-row$/.test(c))).toBe(true);
+    // the ring comes first, so stacked means "ring on top"
+    expect(body.firstElementChild!.hasAttribute('data-ring')).toBe(true);
+  });
+
+  it('keeps each label on one line (ellipsis, full text in the title), never one letter a line', () => {
+    const labels = Array.from(narrow().querySelectorAll('[data-legend-label]'));
+    expect(labels).toHaveLength(3);
+    for (const label of labels) {
+      expect(label.classList).toContain('truncate');
+      expect(label.classList).not.toContain('break-words');
+      expect(label.getAttribute('title')).toBe(label.textContent!.trim());
+    }
+  });
+
+  it('gives the label the free width of the row, so the percent never sits on the swatch', () => {
+    const row = narrow().querySelector('[data-legend-row]')!;
+    const [left, right] = Array.from(row.children);
+    expect(left.classList).toContain('flex-1');
+    expect(left.classList).toContain('min-w-0');
+    expect(right.classList).toContain('shrink-0');
   });
 });
