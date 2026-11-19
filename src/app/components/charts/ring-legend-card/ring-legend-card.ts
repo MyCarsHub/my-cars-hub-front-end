@@ -17,10 +17,13 @@ interface LegendRow extends RingSlice {
 /**
  * Ring body classes. Mobile-first: stacked (ring on top, legend below in full-width rows) by
  * default; ring beside the legend only from the container size in the `@[...]` variant, measured
- * on the card's content box. That size is picked so a full-width phone card keeps the row while a
- * card in a three-column desktop grid stacks instead of squeezing the legend to one letter a line.
+ * on the card's content box. That size is the sum of the fixed columns of the side-by-side row
+ * (the ring at its largest size, the gap, the swatch, the percent and the value) plus a label
+ * column wide enough to show a status or vendor name whole. Any card narrower than that, which
+ * includes a full-width card on every phone and a card in a three-column desktop grid, stacks,
+ * so the legend gets the whole card width instead of ellipsis-cut names.
  */
-const RING_BODY = 'flex flex-1 min-w-0 flex-col items-center gap-4 @[19rem]:flex-row @[19rem]:gap-5';
+const RING_BODY = 'flex flex-1 min-w-0 flex-col items-center gap-4 @[26rem]:flex-row @[26rem]:gap-5';
 const BAR_BODY = 'flex flex-1 min-w-0 flex-col gap-4';
 
 /** Gap between slices, in degrees, so neighbours do not touch. */
