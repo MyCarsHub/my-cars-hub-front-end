@@ -221,6 +221,13 @@ export interface UpdateVehicleRequest {
   ipvaDueDate?: string | null;
   ipvaStatus?: IpvaStatus | null;
   fuel?: VehicleFuel | null;
+  /**
+   * Ao contrário do resto do PUT, chassi e RENAVAM NÃO são full-replace:
+   * ausente/null mantém o gravado, `""` apaga, valor é normalizado e validado
+   * como no cadastro (duplicado na empresa → 409 no próprio campo).
+   */
+  chassis?: string | null;
+  renavam?: string | null;
 }
 
 export interface CreateFinancingRequest {
