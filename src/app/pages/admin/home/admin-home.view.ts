@@ -9,11 +9,13 @@ import {
   type AdminHome,
   type AdminHomeGranularity,
   type AdminHomeRange,
+  type AdminHomeScope,
   type CompanyHealth,
   type CompanyHealthReason,
   type HeatCell,
   type HomeKpi,
 } from '../../../types/admin-home.types';
+import { todayInBusinessTz } from '../../../utils/business-clock';
 import { companyRoleLabel } from '../../../utils/role-labels';
 
 /**
@@ -37,6 +39,25 @@ export function shortDay(iso: string): string {
 }
 
 // ------------------------------------------------------------------ período
+
+/** O escopo com que o Painel abre: só clientes (contas internas fora). */
+export const ADMIN_HOME_DEFAULT_SCOPE: AdminHomeScope = 'clients';
+
+/**
+ * "Mês atual" do Painel (a pílula com que ele abre, até hoje em São Paulo). Custos repete este
+ * pedido com {@link ADMIN_HOME_DEFAULT_SCOPE} para "MRR real" e "Lucro" serem o MESMO número nas
+ * duas telas; o spec prende a igualdade com o que o seletor emite.
+ */
+export function adminMonthToDate(today: string = todayInBusinessTz()): AdminHomeRange {
+  return { from: `${today.slice(0, 7)}-01`, to: today };
+}
+
+/** Legenda do "MRR real" com número, a mesma no Painel e em Custos. */
+export function mrrRealCaption(kpi: HomeKpi): string {
+  const without = kpi.parts['withoutChargedAmount'] ?? 0;
+  return without ? `cobrado de fato; ${without} pelo preço de tabela` : 'cobrado de fato, com cupons';
+}
+
 
 const DAY_MS = 86_400_000;
 

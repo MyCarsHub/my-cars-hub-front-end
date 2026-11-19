@@ -81,7 +81,7 @@ export function ringGradient(slices: readonly RingSlice[], gap: string): string 
           <div
             data-split-bar
             role="img"
-            class="flex h-3 w-full overflow-hidden rounded-full bg-surface-sunken"
+            class="flex h-3 w-full overflow-hidden rounded-full bg-surface-sunken dark:bg-placeholder-fill"
             [attr.aria-label]="title() + ': ' + summary()"
           >
             @for (row of rows(); track row.label) {

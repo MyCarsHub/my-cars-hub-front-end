@@ -16,7 +16,7 @@
   } @else if (loading() && prefs() === null) {
     <div aria-busy="true" data-skeleton>
       <span class="sr-only">Carregando suas configurações…</span>
-      <div class="h-[21.25rem] rounded-2xl bg-surface-strong animate-pulse" aria-hidden="true"></div>
+      <div class="h-[21.25rem] rounded-2xl bg-surface-strong dark:bg-placeholder-fill animate-pulse" aria-hidden="true"></div>
     </div>
   } @else {
     <section

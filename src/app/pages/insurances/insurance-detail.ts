@@ -105,11 +105,11 @@ export class InsuranceDetail implements OnInit {
 
   protected readonly statusBadge = computed<{ label: string; chip: string }>(() => {
     const i = this.insurance();
-    if (!i) return { label: '—', chip: 'bg-surface-sunken text-fg-soft' };
+    if (!i) return { label: '—', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' };
     const meta = INSURANCE_STATUS_META[i.status];
     return meta
       ? { label: meta.label, chip: meta.chip }
-      : { label: i.status, chip: 'bg-surface-sunken text-fg-soft' };
+      : { label: i.status, chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' };
   });
 
   /** Badge de vencimento derivado de `daysToExpiry` (calculado no backend). */

@@ -47,7 +47,7 @@ import { VehiclePhotoSource } from '../../../../types/vehicle.types';
       @if (!loaded()) {
         <span
           data-vehicle-detail-photo-skeleton
-          class="absolute inset-0 bg-surface-sunken animate-pulse"
+          class="absolute inset-0 bg-surface-sunken dark:bg-placeholder-fill animate-pulse"
           aria-hidden="true"
         ></span>
       }

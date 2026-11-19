@@ -125,7 +125,7 @@
           }
           @if (rentalLoading()) {
             <div
-              class="h-48 rounded-2xl bg-surface-sunken animate-pulse"
+              class="h-48 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"
               role="status"
               aria-label="Carregando o aluguel"
             ></div>
@@ -274,7 +274,7 @@
             <app-vehicle-money-hero [finance]="s.finance" [vehicleId]="v.id" [sold]="sold()" />
           } @else {
             <div
-              class="h-64 rounded-2xl bg-surface-sunken animate-pulse"
+              class="h-64 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"
               role="status"
               aria-label="Carregando os números do carro"
             ></div>
@@ -297,7 +297,7 @@
             <app-vehicle-pendencias [items]="pendencias()" />
           } @else {
             <app-list-group heading="Pendências">
-              <div class="h-40 bg-surface-sunken animate-pulse" aria-hidden="true"></div>
+              <div class="h-40 bg-surface-sunken dark:bg-placeholder-fill animate-pulse" aria-hidden="true"></div>
             </app-list-group>
           }
         </div>

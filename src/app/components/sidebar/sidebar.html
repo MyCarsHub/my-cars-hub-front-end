@@ -196,10 +196,11 @@
       @if (accountMenuOpen() && !collapsedDesk()) {
       <div #accountMenu role="menu" aria-label="Conta" appClickOutside (appClickOutside)="onAccountMenuOutside($event)"
         (keydown)="onAccountMenuKeydown($event)"
-        class="account-menu absolute right-0 bottom-full z-10 mb-1 w-[210px] rounded-2xl bg-surface-sunken p-1.5 shadow-xl flex flex-col">
+        class="account-menu absolute right-0 bottom-full z-10 mb-1 w-[210px] rounded-2xl bg-surface-sunken p-1.5 shadow-xl flex flex-col
+               dark:border dark:border-edge">
         @for (item of accountItems(); track trackByKey($index, item)) {
         <a role="menuitem" [routerLink]="item.route" (click)="onAccountItem()"
-          class="min-h-11 flex items-center gap-3 px-3 rounded-xl text-[15px] text-fg-body hover:bg-surface-strong
+          class="min-h-11 flex items-center gap-3 px-3 rounded-xl text-[15px] text-fg-body hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
           [attr.data-account-item]="item.route">
           <span class="nav-icon shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
@@ -207,7 +208,7 @@
         </a>
         }
         <button type="button" role="menuitem" (click)="logout()"
-          class="min-h-11 flex items-center gap-3 px-3 rounded-xl text-[15px] text-fg-body text-left hover:bg-surface-strong
+          class="min-h-11 flex items-center gap-3 px-3 rounded-xl text-[15px] text-fg-body text-left hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
           data-account-logout>
           <span class="nav-icon shrink-0 flex items-center justify-center w-5 h-5">

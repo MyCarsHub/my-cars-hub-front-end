@@ -41,9 +41,9 @@
             role="status"
             aria-label="Carregando"
           >
-            <div class="h-24 rounded-xl bg-surface dark:bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-            <div class="h-24 rounded-xl bg-surface dark:bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-            <div class="h-24 rounded-xl bg-surface dark:bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-24 rounded-xl bg-surface dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-24 rounded-xl bg-surface dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-24 rounded-xl bg-surface dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
           </div>
         } @else if (items().length === 0) {
           <div class="text-center py-10 space-y-3" data-testid="support-empty">
@@ -342,7 +342,7 @@
                 (click)="prevPage()"
                 [disabled]="!hasPrev() || loading()"
                 class="press inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-surface-sunken
-                       text-sm font-semibold text-fg-body hover:bg-surface-strong transition-colors
+                       text-sm font-semibold text-fg-body hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong transition-colors
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                        disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -353,7 +353,7 @@
                 (click)="nextPage()"
                 [disabled]="!hasNext() || loading()"
                 class="press inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-surface-sunken
-                       text-sm font-semibold text-fg-body hover:bg-surface-strong transition-colors
+                       text-sm font-semibold text-fg-body hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong transition-colors
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                        disabled:opacity-40 disabled:cursor-not-allowed"
               >

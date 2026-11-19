@@ -183,7 +183,7 @@ interface LegendItem {
           @if (row.hint) {
             <p class="text-[10px] text-fg-subtle mb-1 truncate">{{ row.hint }}</p>
           }
-          <div class="flex h-2.5 gap-0.5 rounded-full bg-surface-sunken overflow-hidden" aria-hidden="true">
+          <div class="flex h-2.5 gap-0.5 rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden" aria-hidden="true">
             @for (seg of row.segments; track seg.key) {
               <div
                 data-segment

@@ -34,6 +34,12 @@ describe('StatusChip', () => {
     expect(chip.textContent).toBe('Em dia');
   });
 
+  it('neutro mantém o fundo de chip no escuro (o cartão e o poço têm a mesma cor)', () => {
+    const { chip } = render();
+    expect(chip.className).toContain('bg-surface-sunken');
+    expect(chip.className).toContain('dark:bg-surface-strong');
+  });
+
   it('cada tom troca as classes do fundo', () => {
     const { fixture, chip } = render();
     fixture.componentInstance.tone.set('amber');

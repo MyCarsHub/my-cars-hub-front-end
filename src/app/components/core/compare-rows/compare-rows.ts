@@ -37,11 +37,11 @@ export interface CompareRow {
       @if (loading()) {
         @for (n of skeleton; track n) {
           <div class="px-4 py-3 border-t border-edge-soft" data-testid="compare-skeleton">
-            <div class="h-3 w-24 rounded bg-surface-sunken animate-pulse sm:hidden"></div>
+            <div class="h-3 w-24 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse sm:hidden"></div>
             <div class="mt-2 sm:mt-0 grid grid-cols-2 sm:grid-cols-[minmax(8rem,1fr)_1fr_1fr] gap-3">
-              <div class="hidden sm:block h-4 rounded bg-surface-sunken animate-pulse"></div>
-              <div class="h-4 rounded bg-surface-sunken animate-pulse"></div>
-              <div class="h-4 rounded bg-surface-sunken animate-pulse"></div>
+              <div class="hidden sm:block h-4 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+              <div class="h-4 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+              <div class="h-4 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
             </div>
           </div>
         }

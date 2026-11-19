@@ -154,7 +154,7 @@ const hasValue = (values: readonly (number | null)[]): boolean => values.some((v
                 }
               </p>
               @if (pending()) {
-                <div class="h-40 rounded bg-surface-sunken animate-pulse"></div>
+                <div class="h-40 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
               } @else if (hasMrr()) {
                 <app-growth-chart
                   [series]="mrrChart()"
@@ -181,7 +181,7 @@ const hasValue = (values: readonly (number | null)[]): boolean => values.some((v
               }
             </p>
             @if (pending()) {
-              <div class="h-40 rounded bg-surface-sunken animate-pulse"></div>
+              <div class="h-40 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
             } @else if (hasCumulative()) {
               <app-growth-chart
                 [series]="cumulativeChart()"
@@ -206,7 +206,7 @@ const hasValue = (values: readonly (number | null)[]): boolean => values.some((v
               Pagamentos de assinatura confirmados, no {{ bucketWord() }} em que entraram.
             </p>
             @if (pending()) {
-              <div class="h-32 rounded bg-surface-sunken animate-pulse"></div>
+              <div class="h-32 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
             } @else if (hasReceived()) {
               <app-bar-chart
                 [series]="receivedSeries()"
@@ -233,7 +233,7 @@ const hasValue = (values: readonly (number | null)[]): boolean => values.some((v
               Quanto os cupons tiraram das faturas pagas, no {{ bucketWord() }} do pagamento. Fatura devolvida não conta.
             </p>
             @if (pending()) {
-              <div class="h-32 rounded bg-surface-sunken animate-pulse"></div>
+              <div class="h-32 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
             } @else if (!discountsAvailable()) {
               <p data-empty class="text-sm text-fg-subtle py-2">
                 Indisponível agora: a Stripe não respondeu a tempo. Os outros números seguem valendo.

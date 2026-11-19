@@ -48,7 +48,7 @@ export interface MediaFieldError {
 
       @if (upload(); as up) {
         <div class="flex items-center gap-3 rounded-2xl bg-surface-sunken p-3.5" data-testid="media-uploading">
-          <span aria-hidden="true" class="h-10 w-[72px] shrink-0 rounded-lg bg-surface-strong motion-safe:animate-pulse"></span>
+          <span aria-hidden="true" class="h-10 w-[72px] shrink-0 rounded-lg bg-surface-strong dark:bg-placeholder-fill motion-safe:animate-pulse"></span>
           <div class="flex min-w-0 flex-1 flex-col gap-2">
             <div class="flex justify-between gap-2 text-sm text-fg">
               <span class="truncate">{{ up.name }}</span>
@@ -60,7 +60,7 @@ export interface MediaFieldError {
               aria-valuemin="0"
               aria-valuemax="100"
               [attr.aria-valuenow]="up.progress"
-              class="h-1.5 overflow-hidden rounded-full bg-surface-strong"
+              class="h-1.5 overflow-hidden rounded-full bg-surface-strong dark:bg-placeholder-fill"
               data-testid="media-progress"
             >
               <div class="h-full rounded-full bg-primary-500 transition-[width]" [style.width.%]="up.progress"></div>

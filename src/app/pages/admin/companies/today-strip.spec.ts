@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 
-import { TodayStrip } from './today-strip';
+import { TODAY_STRIP_TOP, TodayStrip } from './today-strip';
 import type { CompanyEngagement, TodayList } from '../../../types/admin-segments.types';
 
 const NOW = new Date('2026-11-18T19:40:00Z');
@@ -68,7 +68,7 @@ const TODAY: TodayList = {
 };
 
 describe('TodayStrip — "Hoje, para agir"', () => {
-  function render(data: TodayList | null, canContact = true) {
+  function renderFixture(data: TodayList | null, canContact = true) {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({ imports: [TodayStrip], providers: [provideRouter([])] });
     const fixture = TestBed.createComponent(TodayStrip);
@@ -77,7 +77,24 @@ describe('TodayStrip — "Hoje, para agir"', () => {
     fixture.componentRef.setInput('canContact', canContact);
     fixture.componentRef.setInput('canExtend', true);
     fixture.detectChanges();
-    return fixture.nativeElement as HTMLElement;
+    return fixture;
+  }
+
+  function render(data: TodayList | null, canContact = true) {
+    return renderFixture(data, canContact).nativeElement as HTMLElement;
+  }
+
+  function many(n: number, optOut: number[] = []): TodayList {
+    return {
+      ...TODAY,
+      items: Array.from({ length: n }, (_, i) => ({
+        rank: i + 1,
+        companyId: `co-${i + 1}`,
+        name: `Empresa ${i + 1}`,
+        ownerName: null,
+        engagement: engagement({ retentionEmailOptOut: optOut.includes(i + 1) }),
+      })),
+    };
   }
 
   it('mostra a fila na ordem do servidor, com a próxima ação, o prazo e o chip do segmento', () => {
@@ -115,5 +132,56 @@ describe('TodayStrip — "Hoje, para agir"', () => {
   it('fila vazia diz isso em vez de sumir', () => {
     const host = render({ ...TODAY, items: [], snoozed: [], notInterestedCount: 0 });
     expect(host.querySelector('[data-testid="today-empty"]')).not.toBeNull();
+  });
+  it('curta: só as 5 primeiras na ordem do servidor; "Ver todas (N)" abre o resto na mesma fileira', () => {
+    const fixture = renderFixture(many(18));
+    const host = fixture.nativeElement as HTMLElement;
+    const names = () => Array.from(host.querySelectorAll('[data-testid="today-tile"] a')).map((a) => text(a));
+    expect(TODAY_STRIP_TOP).toBe(5);
+    expect(names()).toEqual(['Empresa 1', 'Empresa 2', 'Empresa 3', 'Empresa 4', 'Empresa 5']);
+    const toggle = host.querySelector('[data-testid="today-toggle"]') as HTMLButtonElement;
+    expect(text(toggle)).toBe('Ver todas (18)');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    fixture.detectChanges();
+    expect(names().length).toBe(18);
+    expect(text(toggle)).toBe('Ver só as 5 primeiras');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    toggle.click();
+    fixture.detectChanges();
+    expect(names().length).toBe(5);
+  });
+
+  it('até 5 empresas: sem "Ver todas"', () => {
+    const host = render(many(5));
+    expect(host.querySelectorAll('[data-testid="today-tile"]').length).toBe(5);
+    expect(host.querySelector('[data-testid="today-toggle"]')).toBeNull();
+  });
+
+  it('uma fileira que rola de lado em toda largura, com cartão de largura fixa (texto e chip cabem)', () => {
+    const host = render(many(8));
+    const row = host.querySelector('[data-testid="today-row"]') as HTMLElement;
+    expect(row.className).toContain('overflow-x-auto');
+    expect(row.className).not.toMatch(/(^|\s)lg:grid/);
+    const tile = host.querySelector('[data-testid="today-tile"]') as HTMLElement;
+    expect(tile.className).toContain('w-[272px]');
+    expect(tile.className).toContain('shrink-0');
+    expect(tile.className).not.toContain('lg:w-auto');
+    expect(host.querySelector('[data-testid="today-tile"] app-status-chip')?.className).toContain('whitespace-nowrap');
+  });
+
+  it('quem pediu para não receber mensagem de retenção sai das sugestões e vira só um número', () => {
+    const host = render(many(7, [2]));
+    const names = Array.from(host.querySelectorAll('[data-testid="today-tile"] a')).map((a) => text(a));
+    expect(names).not.toContain('Empresa 2');
+    expect(names[1]).toBe('Empresa 3');
+    // O número do cartão é a posição na faixa, sem buraco de quem saiu.
+    const ranks = Array.from(host.querySelectorAll('[data-testid="today-tile"]')).map((t) => text(t.querySelector('span')));
+    expect(ranks).toEqual(['1', '2', '3', '4', '5']);
+    expect(text(host.querySelector('[data-testid="today-toggle"]'))).toBe('Ver todas (6)');
+    expect(text(host.querySelector('[data-testid="today-summary"]'))).toBe('6 empresas, prazo e dinheiro primeiro.');
+    expect(text(host.querySelector('[data-testid="today-opted-out"]'))).toBe(
+      '1 empresa pediu para não receber mensagens de retenção e ficou fora das sugestões.',
+    );
   });
 });

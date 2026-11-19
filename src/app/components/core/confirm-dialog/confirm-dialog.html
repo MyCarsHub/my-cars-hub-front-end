@@ -83,7 +83,7 @@
     <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 p-4 sm:p-6 pt-3 sm:pt-4 shrink-0">
       @if (cancelLabel()) {
       <button #cancelBtn type="button" (click)="onCancel()" [disabled]="busy()"
-        class="w-full sm:w-auto min-h-[44px] px-4 py-2.5 text-sm font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-edge-strong disabled:opacity-60 cursor-pointer">
+        class="w-full sm:w-auto min-h-[44px] px-4 py-2.5 text-sm font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-edge-strong disabled:opacity-60 cursor-pointer">
         {{ cancelLabel() }}
       </button>
       }

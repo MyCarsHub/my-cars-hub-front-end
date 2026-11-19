@@ -17,12 +17,12 @@
       <div class="flex items-center gap-2">
         <div class="size-11 shrink-0 rounded-xl bg-surface-sunken"></div>
         <div class="flex-1 mr-11 flex justify-center">
-          <div class="h-4 w-36 rounded bg-surface-strong animate-pulse"></div>
+          <div class="h-4 w-36 rounded bg-surface-strong dark:bg-placeholder-fill animate-pulse"></div>
         </div>
       </div>
-      <div class="h-1 rounded-full bg-surface-strong"></div>
-      <div class="h-7 w-2/3 rounded-lg bg-surface-strong animate-pulse"></div>
-      <div class="w-full aspect-[4/3] max-h-[46vh] rounded-2xl bg-surface-strong animate-pulse"></div>
+      <div class="h-1 rounded-full bg-surface-strong dark:bg-placeholder-fill"></div>
+      <div class="h-7 w-2/3 rounded-lg bg-surface-strong dark:bg-placeholder-fill animate-pulse"></div>
+      <div class="w-full aspect-[4/3] max-h-[46vh] rounded-2xl bg-surface-strong dark:bg-placeholder-fill animate-pulse"></div>
     </div>
     <p class="sr-only" role="status">Abrindo vistoria…</p>
   </section>
@@ -294,7 +294,7 @@
                       <p class="text-xs font-medium text-fg-body">
                         {{ slot.phase === 'compressing' ? 'Preparando…' : 'Enviando…' }}
                       </p>
-                      <div class="w-3/4 h-1 rounded-full bg-surface-strong overflow-hidden">
+                      <div class="w-3/4 h-1 rounded-full bg-surface-strong dark:bg-placeholder-fill overflow-hidden">
                         <div class="h-full w-1/2 bg-primary-500 animate-pulse"></div>
                       </div>
                     </div>

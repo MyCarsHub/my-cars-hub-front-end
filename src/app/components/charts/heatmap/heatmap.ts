@@ -257,7 +257,8 @@ export class Heatmap {
 
   protected cellColor(level: number | null): string {
     if (level === null) return 'transparent';
-    if (level === 0) return 'var(--color-surface-sunken)';
+    // Placeholder fill, not a surface: the empty cell stays visible on the dark card too.
+    if (level === 0) return 'var(--color-placeholder-fill)';
     return `color-mix(in srgb, ${this.color()} ${Math.round(level * 85)}%, transparent)`;
   }
 }

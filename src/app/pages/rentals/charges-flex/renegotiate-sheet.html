@@ -225,8 +225,8 @@
         <div class="enter-up flex flex-col gap-4" data-testid="renegotiate-review">
           @if (loadingPreview()) {
             <div class="flex flex-col gap-2" aria-busy="true">
-              <div class="h-16 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
-              <div class="h-16 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-16 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-16 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
             </div>
           } @else if (preview(); as p) {
             @if (p.blocker; as b) {
@@ -299,7 +299,7 @@
 
   <div sheetFooter class="flex flex-col-reverse gap-2 lg:flex-row lg:justify-end lg:gap-3">
     <button type="button" data-testid="renegotiate-back" [disabled]="busy()" (click)="back()"
-      class="press min-h-12 w-full rounded-xl bg-surface-sunken px-5 text-base font-medium text-fg-muted transition-colors hover:bg-surface-strong disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:w-auto">
+      class="press min-h-12 w-full rounded-xl bg-surface-sunken px-5 text-base font-medium text-fg-muted transition-colors hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:w-auto">
       {{ step() === 1 ? 'Cancelar' : 'Voltar' }}
     </button>
     @if (step() < 4) {

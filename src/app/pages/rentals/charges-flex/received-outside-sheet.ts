@@ -81,7 +81,7 @@ import { brl } from './charges-flex';
 
       <div sheetFooter class="flex flex-col-reverse gap-2 lg:flex-row lg:justify-end lg:gap-3">
         <button type="button" (click)="cancel()"
-          class="press min-h-12 w-full rounded-xl bg-surface-sunken px-5 text-base font-medium text-fg-muted transition-colors hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:w-auto">
+          class="press min-h-12 w-full rounded-xl bg-surface-sunken px-5 text-base font-medium text-fg-muted transition-colors hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:w-auto">
           Cancelar
         </button>
         <button type="button" data-testid="received-outside-submit" [disabled]="!valid()" (click)="submit()"
