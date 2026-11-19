@@ -56,10 +56,10 @@ interface Row {
 
 const COLUMNS: readonly DataListColumn<Row>[] = [
   { key: 'title', header: 'Novidade', primary: true, value: (r) => r.a.title },
-  { key: 'audience', header: 'Público', value: (r) => r.aud },
+  { key: 'audience', header: 'Público', optional: true, value: (r) => r.aud },
   { key: 'period', header: 'Período', value: (r) => `${r.period} (${r.periodSub})` },
   { key: 'status', header: 'Situação', kind: 'status', value: (r) => r.status },
-  { key: 'reads', header: 'Leituras', kind: 'integer', end: true, value: (r) => r.a.readCount ?? 0 },
+  { key: 'reads', header: 'Leituras', optional: true, kind: 'integer', end: true, value: (r) => r.a.readCount ?? 0 },
 ];
 
 /** Busca sem acento e sem caixa. */

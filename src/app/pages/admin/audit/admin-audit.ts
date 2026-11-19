@@ -146,6 +146,7 @@ export class AdminAudit implements OnInit {
     {
       key: 'target',
       header: 'Alvo',
+      optional: true,
       value: (r) => [auditTargetLabel(r.targetType), r.targetId].filter(Boolean).join(' '),
     },
   ];

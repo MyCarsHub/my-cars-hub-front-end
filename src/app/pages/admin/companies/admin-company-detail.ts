@@ -255,7 +255,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
    */
   protected readonly memberColumns: readonly DataListColumn<AdminCompanyMember>[] = [
     { key: 'name', header: 'Nome', primary: true, value: (m) => m.name },
-    { key: 'phone', header: 'Telefone', value: (m) => m.phoneMasked, noExport: true },
+    { key: 'phone', header: 'Telefone', optional: true, value: (m) => m.phoneMasked, noExport: true },
     { key: 'role', header: 'Papel', kind: 'status', value: (m) => this.roleLabel(m.role) },
     {
       key: 'status',

@@ -63,6 +63,7 @@
       @if (mrr()) {
         <h3 class="text-sm font-semibold text-fg pt-2">Composição por plano</h3>
         <app-data-list
+          [fit]="true"
           data-testid="mrr-plans"
           [columns]="planColumns"
           [rows]="byPlan()"
@@ -111,6 +112,7 @@
           <app-alert-banner variant="error" [message]="err" />
         } @else {
           <app-data-list
+            [fit]="true"
             data-testid="billing-issues"
             [columns]="issueColumns"
             [rows]="issues()"
@@ -213,6 +215,7 @@
           <app-alert-banner variant="error" [message]="err" />
         } @else {
           <app-data-list
+            [fit]="true"
             data-testid="subscriptions"
             [columns]="subscriptionColumns"
             [rows]="subscriptions()"

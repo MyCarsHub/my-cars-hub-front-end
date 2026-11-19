@@ -137,7 +137,7 @@ export class AdminCharges implements OnInit {
    */
   protected readonly columns: readonly DataListColumn<AdminChargeListItem>[] = [
     { key: 'company', header: 'Empresa · motorista', primary: true, value: (c) => c.companyName },
-    { key: 'kind', header: 'Tipo', value: (c) => this.kindLabel(c.kind) },
+    { key: 'kind', header: 'Tipo', optional: true, value: (c) => this.kindLabel(c.kind) },
     { key: 'amount', header: 'Valor', kind: 'money-cents', end: true, value: (c) => c.amountCents },
     { key: 'due', header: 'Vencimento', value: (c) => this.dueDate(c.dueDate) },
     {
