@@ -7,32 +7,60 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AdminCompanies } from './admin-companies';
 import { AdminCompaniesService } from '../admin-companies.service';
+import { AdminSegmentsService } from '../segments/admin-segments.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import type { AdminCompanyListItem } from '../../../types/admin-company.types';
+import type { CompanyEngagement } from '../../../types/admin-segments.types';
 
-/** FEAT-0483 — campos novos da lista: cidade/UF, valor gerenciado e MRR (centavos). */
-describe('AdminCompanies — campos financeiros da lista', () => {
+const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+
+/** Empresas, 18/11/2026: cada linha diz segmento, último sinal real, prazo, frota e próxima ação. */
+describe('AdminCompanies — campos da linha', () => {
+  const ENGAGEMENT: CompanyEngagement = {
+    segment: 'PAYING_ACTIVE',
+    segmentReasons: [],
+    recent: null,
+    progress: 'RENTAL',
+    lastAction: { kind: 'CHARGE_CANCELED', at: '2026-11-05T18:41:00Z' },
+    lastAccessAt: '2026-11-16T13:20:00Z',
+    lastSignalAt: '2026-11-16T13:20:00Z',
+    deadline: { kind: 'RENEWAL', at: '2026-11-30T12:00:00Z' },
+    fleet: { vehicles: 6, drivers: 7, rentals: 5, activeRentals: 5 },
+    openSupportTickets: 0,
+    retentionEmailOptOut: false,
+    nextAction: { key: 'CHECK_IN', reason: 'NONE' },
+    lastContact: {
+      id: 'k',
+      contactedAt: '2026-11-13T14:00:00Z',
+      channel: 'WHATSAPP',
+      result: 'NO_ANSWER',
+      followUpDate: '2026-11-20',
+      createdByName: 'Lorran',
+    },
+    today: { status: 'HIDDEN_UNTIL_DATE', listedReason: null, hiddenUntil: '2026-11-20' },
+  };
+
   const BASE: AdminCompanyListItem = {
     id: 'co-1',
-    name: 'Locadora Alpha',
+    name: 'Facilita Locadora',
     documentMasked: null,
-    planCode: 'PRO_MONTHLY',
-    planName: 'Pro',
+    planCode: 'STARTER_MONTHLY',
+    planName: 'Starter',
     subscriptionStatus: 'ACTIVE',
     billingCycle: 'MONTHLY',
     status: 'ACTIVE',
     active: true,
-    memberCount: 3,
+    memberCount: 8,
     createdAt: null,
     internal: false,
-    city: 'Campinas',
-    uf: 'SP',
-    managedMonthCents: 8_640_000,
-    mrrCents: 29_900,
+    engagement: ENGAGEMENT,
   };
 
-  function render(companies: AdminCompanyListItem[]) {
+  let rows: ReturnType<typeof signal<AdminCompanyListItem[]>>;
+
+  function render() {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [AdminCompanies],
@@ -43,14 +71,16 @@ describe('AdminCompanies — campos financeiros da lista', () => {
         {
           provide: AdminCompaniesService,
           useValue: {
-            companies: signal(companies),
+            companies: rows,
             loading: signal(false),
-            total: signal(companies.length),
-            load: vi.fn().mockReturnValue(of({ content: companies, total: companies.length })),
-            updateStatus: vi.fn().mockReturnValue(of(void 0)),
-            updateInternal: vi.fn().mockReturnValue(of({})),
+            total: signal(rows().length),
+            segmentCounts: signal({}),
+            load: vi.fn().mockReturnValue(of({})),
+            patchEngagement: vi.fn(),
           },
         },
+        { provide: AdminSegmentsService, useValue: { today: () => of(null) } },
+        { provide: AdminCapabilitiesService, useValue: { ensureLoaded: () => of(null), can: () => true } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
       ],
     });
@@ -59,25 +89,40 @@ describe('AdminCompanies — campos financeiros da lista', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-
-  it('mostra cidade/UF, valor gerenciado e MRR formatados', () => {
-    const host = render([BASE]);
-    expect(text(host.querySelector('[data-testid="company-place"]'))).toBe('Campinas, SP');
-    const row = text(host.querySelector('[data-row]'));
-    expect(row).toContain('86.400,00');
-    expect(row).toContain('299,00');
+  beforeEach(() => {
+    rows = signal([BASE]);
   });
 
-  it('cadastro sem cidade/UF mostra "—" e valor ausente nunca vira R$ 0', () => {
-    const host = render([{ ...BASE, city: null, uf: null, managedMonthCents: null, mrrCents: undefined }]);
-    expect(text(host.querySelector('[data-testid="company-place"]'))).toBe('—');
-    const row = text(host.querySelector('[data-row]'));
-    expect(row).not.toContain('0,00');
+  it('segmento em chip, sinal real, prazo, frota e próxima ação com o último contato', () => {
+    const host = render();
+    expect(text(host.querySelector('[data-testid="segment-chip"]'))).toBe('Pagante ativo');
+    expect(text(host.querySelector('[data-testid="cell-signal"]'))).toContain('Cancelou cobrança');
+    expect(text(host.querySelector('[data-testid="cell-signal"]'))).toContain('último acesso 16/11');
+    expect(text(host.querySelector('[data-testid="cell-deadline"]'))).toMatch(/^Renova (em 30\/11|hoje|amanhã)$/);
+    expect(text(host.querySelector('[data-testid="cell-fleet"]'))).toBe('6 veíc. · 7 mot. · 5 aluguéis');
+    expect(text(host.querySelector('[data-testid="cell-next"] b'))).toBe('Nada urgente: perguntar como está indo');
+    expect(text(host.querySelector('[data-testid="cell-contact"]'))).toBe(
+      'Contato em 13/11, WhatsApp, sem resposta · retorno em 20/11',
+    );
   });
 
-  it('explica a definição de "gerenciado" no texto de ajuda', () => {
-    const host = render([BASE]);
-    expect(text(host.querySelector('[data-testid="managed-help"]'))).toContain('vencimento');
+  it('backend sem `engagement` não quebra a linha: "—" onde falta', () => {
+    rows.set([{ ...BASE, engagement: undefined }]);
+    const host = render();
+    expect(host.querySelector('[data-testid="segment-chip"]')).toBeNull();
+    expect(text(host.querySelector('[data-testid="cell-fleet"]'))).toBe('—');
+    expect(text(host.querySelector('[data-testid="cell-next"] b'))).toBe('—');
+  });
+
+  it('suspensa ganha chip vermelho ao lado do segmento (cor só no chip)', () => {
+    rows.set([{ ...BASE, active: false, status: 'SUSPENDED' }]);
+    const host = render();
+    const chip = host.querySelector('[data-testid="suspended-chip"]') as HTMLElement;
+    expect(text(chip)).toBe('Suspensa');
+    expect(chip.className).toContain('rose');
+  });
+
+  it('explica que o último sinal não conta ações da equipe', () => {
+    expect(text(render().querySelector('[data-testid="signal-help"]'))).toContain('não conta as ações da equipe');
   });
 });

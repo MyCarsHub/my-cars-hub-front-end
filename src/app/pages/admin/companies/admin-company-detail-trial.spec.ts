@@ -6,6 +6,7 @@ import { of } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AdminCompanyDetail } from './admin-company-detail';
+import { revealDetail } from './company-detail.testing';
 import { AdminCompaniesService } from '../admin-companies.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -88,6 +89,7 @@ describe('AdminCompanyDetail — Estender teste', () => {
             detail,
             detailLoading: signal(false),
             statusUpdating: signal(false),
+            internalUpdating: signal(false),
             loadDetail,
             updateStatus: vi.fn(),
             clearDetail: vi.fn(),
@@ -103,6 +105,7 @@ describe('AdminCompanyDetail — Estender teste', () => {
     });
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
     return fixture;
   }
 
@@ -126,17 +129,21 @@ describe('AdminCompanyDetail — Estender teste', () => {
     );
   });
 
-  it('mostra o botão para teste vencido e para teste em andamento', () => {
-    expect(render(COMPANY).querySelector('[data-testid="extend-trial-button"]')).not.toBeNull();
+  const extendItem = (host: HTMLElement) => host.querySelector('[data-testid="extend-trial-button"]') as HTMLButtonElement | null;
+
+  it('no ⋮: habilitado para teste vencido e para teste em andamento', () => {
+    expect(extendItem(render(COMPANY))?.disabled).toBe(false);
     const running = { ...COMPANY, subscription: { ...SUB, status: 'TRIALING' } } as AdminCompanyDetailDto;
-    expect(render(running).querySelector('[data-testid="extend-trial-button"]')).not.toBeNull();
+    expect(extendItem(render(running))?.disabled).toBe(false);
   });
 
-  it('não mostra o botão para assinatura paga nem sem assinatura', () => {
+  it('assinatura paga ou sem assinatura: o item fica apagado com o motivo (não some)', () => {
     const paying = { ...COMPANY, subscription: { ...SUB, status: 'ACTIVE' } } as AdminCompanyDetailDto;
-    expect(render(paying).querySelector('[data-testid="extend-trial-button"]')).toBeNull();
+    const item = extendItem(render(paying));
+    expect(item?.disabled).toBe(true);
+    expect(item?.textContent).toContain('Só para empresas em teste');
     const none = { ...COMPANY, subscription: null } as AdminCompanyDetailDto;
-    expect(render(none).querySelector('[data-testid="extend-trial-button"]')).toBeNull();
+    expect(extendItem(render(none))?.disabled).toBe(true);
   });
 
   it('plano, gateway, telefone e CEP legíveis (visual 18/11): nada de código cru', () => {

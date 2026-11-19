@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AdminCompanies } from './admin-companies';
 import { AdminCompanyDetail } from './admin-company-detail';
+import { revealDetail } from './company-detail.testing';
 import { AdminTrialConversion } from './admin-trial-conversion';
 import { AdminCompaniesService } from '../admin-companies.service';
 import { AdminChargesService } from '../charges/admin-charges.service';
@@ -15,6 +16,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { ImpersonationService } from '../../../services/impersonation.service';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
+import { AdminSegmentsService } from '../segments/admin-segments.service';
 import type {
   AdminCompanyDetail as AdminCompanyDetailDto,
   AdminCompanyListItem,
@@ -62,11 +64,13 @@ describe('Empresas (lista) — padrão da plataforma', () => {
             companies: signal([COMPANY]),
             loading: signal(false),
             total,
+            segmentCounts: signal({ ALL: 42, PAYING_ACTIVE: 3, EX_CLIENT: 0 }),
             load,
-            updateStatus: vi.fn().mockReturnValue(of(void 0)),
-            updateInternal: vi.fn().mockReturnValue(of({})),
+            patchEngagement: vi.fn(),
           },
         },
+        { provide: AdminSegmentsService, useValue: { today: () => of(null) } },
+        { provide: AdminCapabilitiesService, useValue: { ensureLoaded: () => of(null), can: () => true } },
         { provide: NotificationService, useValue: NOTIFY },
       ],
     });
@@ -80,57 +84,40 @@ describe('Empresas (lista) — padrão da plataforma', () => {
     total = signal(1);
   });
 
-  it('cartão "Lista", abas em pílula e contagem de resultados', () => {
+  it('cartão "Lista", pílulas de segmento no lugar das abas, "Todas" marcada, contagem de resultados', () => {
     const host = render().nativeElement as HTMLElement;
     expect(host.textContent).toContain('Lista');
-    expect(host.textContent).not.toContain('Contas');
-    const all = host.querySelector('[data-testid="tab-all"]');
-    expect(all?.getAttribute('role')).toBe('radio');
-    expect(all?.getAttribute('aria-checked')).toBe('true');
+    expect(host.querySelector('[data-testid="tab-convert"]')).toBeNull();
+    const pills = Array.from(host.querySelectorAll('app-list-toolbar [role="radio"]'));
+    expect(text(pills[0])).toBe('Todas 42');
+    expect(pills[0].getAttribute('aria-checked')).toBe('true');
+    // Zero continua visível.
+    expect(pills.map(text)).toContain('Ex-cliente 0');
     expect(text(host.querySelector('[data-list-results]'))).toBe('1 empresa');
   });
 
-  it('a aba "Converter testes" troca de rota', () => {
-    const fixture = render();
-    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
-    (fixture.nativeElement.querySelector('[data-testid="tab-convert"]') as HTMLButtonElement).click();
-    expect(navigate).toHaveBeenCalledWith('/admin/companies/converter-testes');
-  });
-
-  it('plano é um select de 16px na linha da busca; "Limpar filtros" volta ao padrão', () => {
+  it('a pílula filtra no servidor; "Limpar filtros" volta para "Todas"', () => {
     const fixture = render();
     const host = fixture.nativeElement as HTMLElement;
-    const select = host.querySelector('[data-testid="plan-filter"]') as HTMLSelectElement;
-    expect(select.className).toContain('text-base');
-    expect(Array.from(select.options).map((o) => o.textContent?.trim())).toEqual([
-      'Plano: Todos',
-      'Plano: Em teste',
-      'Plano: Pro (mensal)',
-    ]);
-    // Uma fileira de pílulas só: situação.
-    expect(host.querySelectorAll('app-filter-chip-group').length).toBe(1);
-
-    select.value = 'PRO_MONTHLY';
-    select.dispatchEvent(new Event('change'));
+    expect(load).toHaveBeenLastCalledWith(expect.objectContaining({ segment: null, internal: false, page: 0 }));
+    const pill = Array.from(host.querySelectorAll('app-list-toolbar [role="radio"]')).find((b) =>
+      text(b).startsWith('Pagante ativo'),
+    ) as HTMLButtonElement;
+    pill.click();
     fixture.detectChanges();
-    expect(load).toHaveBeenLastCalledWith(expect.objectContaining({ planCode: 'PRO_MONTHLY', page: 0 }));
+    expect(load).toHaveBeenLastCalledWith(expect.objectContaining({ segment: 'PAYING_ACTIVE', page: 0 }));
 
-    const clear = host.querySelector('[data-list-clear]') as HTMLButtonElement;
-    expect(clear).not.toBeNull();
-    clear.click();
+    (host.querySelector('[data-list-clear]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(load).toHaveBeenLastCalledWith(
-      expect.objectContaining({ planCode: null, status: 'ALL', search: '' }),
-    );
+    expect(load).toHaveBeenLastCalledWith(expect.objectContaining({ segment: null, search: '' }));
   });
 
-  it('chip "Interna" é neutro; situação tem cor só no chip', () => {
+  it('chip "Interna" é neutro; nenhuma bolinha', () => {
     const host = render().nativeElement as HTMLElement;
     const badge = host.querySelector('[data-testid="internal-badge"]') as HTMLElement;
     expect(badge.className).toContain('bg-surface-sunken');
     expect(badge.className).not.toContain('blue');
-    const status = host.querySelector('[data-testid="cell-status"] app-status-chip') as HTMLElement;
-    expect(status.className).toContain('emerald');
+    expect(host.querySelector('[class*="rounded-full"][class*="size-2"], [class*="w-2 h-2"]')).toBeNull();
   });
 
   it('paginação no rodapé da lista, com o total de empresas', () => {
@@ -305,6 +292,7 @@ describe('Detalhe da empresa — padrão da plataforma', () => {
             detail: signal(COMPANY),
             detailLoading: signal(false),
             statusUpdating: signal(false),
+            internalUpdating: signal(false),
             loadDetail: vi.fn().mockReturnValue(of(COMPANY)),
             updateStatus,
             clearDetail: vi.fn(),
@@ -315,12 +303,14 @@ describe('Detalhe da empresa — padrão da plataforma', () => {
           useValue: { ensureLoaded: () => of(void 0), can: () => true },
         },
         { provide: AdminContactService, useValue: { reveal: vi.fn() } },
+        { provide: AdminSegmentsService, useValue: { activity: vi.fn() } },
         { provide: NotificationService, useValue: NOTIFY },
         { provide: ImpersonationService, useValue: { start: vi.fn(), active: () => false } },
       ],
     });
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
     return fixture;
   }
 
@@ -331,7 +321,9 @@ describe('Detalhe da empresa — padrão da plataforma', () => {
   it('sem caixa alta e sem linha entre informações', () => {
     const host = render().nativeElement as HTMLElement;
     // O rótulo pequeno em caixa alta do KPI é do próprio componente (padrão do tenant).
-    const upper = Array.from(host.querySelectorAll('.uppercase')).filter((el) => !el.closest('[app-kpi-card]'));
+    const upper = Array.from(host.querySelectorAll('.uppercase')).filter(
+      (el) => !el.closest('[data-tile]') && !el.closest('[role="menu"]'),
+    );
     expect(upper).toEqual([]);
     expect(host.querySelector('[class*="divide-"]')).toBeNull();
     expect(host.querySelector('[class*="border-b"], [class*="border-t"]')).toBeNull();
@@ -340,7 +332,8 @@ describe('Detalhe da empresa — padrão da plataforma', () => {
 
   it('situação e período legíveis: chip da plataforma e "dd/mm/aaaa a dd/mm/aaaa"', () => {
     const host = render().nativeElement as HTMLElement;
-    expect(text(host.querySelector('[data-testid="company-status"]'))).toBe('Ativa');
+    // Empresa ativa não ganha chip de situação no topo (só suspensa/cancelada); a assinatura tem o dela.
+    expect(host.querySelector('[data-testid="company-status"]')).toBeNull();
     expect(text(host.querySelector('[data-testid="subscription-status"]'))).toBe('Ativa');
     expect(text(host.querySelector('[data-testid="current-period"]'))).toBe('01/11/2026 a 30/11/2026');
   });
@@ -362,10 +355,8 @@ describe('Detalhe da empresa — padrão da plataforma', () => {
   it('suspender usa o diálogo da plataforma, campo de 16px, e exige a palavra', () => {
     const fixture = render();
     const host = fixture.nativeElement as HTMLElement;
-    const open = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Suspender empresa'),
-    )!;
-    open.click();
+    // Toda ação mora no ⋮ do topo (o ajudante já o abriu).
+    (host.querySelector('[data-testid="action-suspend"]') as HTMLButtonElement).click();
     fixture.detectChanges();
 
     const dialog = host.querySelector('app-confirm-dialog [role="dialog"]');

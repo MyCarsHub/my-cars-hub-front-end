@@ -1,165 +1,189 @@
 <app-default-page-layout
   title="Empresas"
-  description="Listar, buscar, suspender/reativar os tenants cadastrados na plataforma."
+  description="Quem paga, quem está testando e o que fazer hoje com cada uma."
 >
-  <app-admin-companies-tabs active="all" />
-
-  <app-page-card title="Lista" class="enter-up">
-    <div class="p-3 sm:p-4 space-y-4">
-      <app-list-toolbar
-        searchLabel="Buscar empresa"
-        searchPlaceholder="Nome, CPF ou CNPJ (com ou sem pontuação)"
-        [query]="search()"
-        [searchDebounce]="300"
-        [statusOptions]="statusOptions"
-        [status]="statusFilter()"
-        [resultCount]="loading() && companies().length === 0 ? null : total()"
-        [resultNoun]="['empresa', 'empresas']"
-        [filtersActive]="filtersActive()"
-        (queryChange)="setSearch($event)"
-        (statusChange)="setStatusFilter($event)"
-        (clearFilters)="clearFilters()"
-      >
-        <select
-          listFilterSelect
-          aria-label="Filtrar por plano"
-          data-testid="plan-filter"
-          (change)="onPlanChange($event)"
-        >
-          @for (p of planOptions; track p.value) {
-            <option [value]="p.value" [selected]="p.value === planFilter()">Plano: {{ p.label }}</option>
-          }
-        </select>
-      </app-list-toolbar>
-
-      <!-- Falha ao carregar a lista -->
-      @if (error(); as err) {
-        <app-alert-banner variant="error" [message]="err" />
-      }
-
-      <!-- Falha de uma ação (suspender/reativar) -->
-      @if (actionError(); as err) {
-        <app-alert-banner variant="error" [message]="err" />
-      }
-
-      <!-- Lista (kit app-data-list): tabela a partir de lg, cartões abaixo. Sem linhas, ação na kebab. -->
-      <app-data-list
-        ariaLabel="Empresas"
-        [actionsLabel]="kebabLabel"
-        emptyText="Nenhuma empresa encontrada com esses filtros."
-        exportFilename="empresas"
-        cardsBelow="lg"
-        [rowTarget]="true"
-        (rowActivate)="openCompany($event)"
-        [columns]="columns"
-        [rows]="companies()"
-        [rowId]="rowId"
-        [loading]="loading() && companies().length === 0"
-        [page]="currentPage()"
-        [totalPages]="totalPages()"
-        [total]="total()"
-        [itemNoun]="['empresa', 'empresas']"
-        (pageChange)="goToPage($event)"
-      >
-        <ng-template dataListCell="name" let-row>
-          <a
-            [routerLink]="['/admin/companies', row.id]"
-            class="inline-flex flex-col min-h-[44px] justify-center hover:text-primary-700 dark:hover:text-primary-400
-                   hover:underline outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-            [attr.aria-label]="'Abrir ' + row.name"
-            data-testid="company-link"
-          >
-            <span class="break-words whitespace-normal">{{ row.name }}</span>
-            <span class="text-xs font-normal text-fg-subtle" data-testid="company-place">{{ place(row) }}</span>
-          </a>
-          <!-- FEAT-0141: empresa interna CONTINUA na lista; só sai da conta das métricas. Chip neutro. -->
-          @if (row.internal) {
-            <app-status-chip size="sm" class="ml-2" data-testid="internal-badge">
-              Interna · fora das métricas
-            </app-status-chip>
-          }
-        </ng-template>
-
-        <ng-template dataListCell="plan" let-row>
-          <span class="whitespace-nowrap">{{ row.planName ?? '—' }}</span>
-        </ng-template>
-
-        <ng-template dataListCell="status" let-row>
-          <span class="inline-flex flex-wrap items-center gap-1" data-testid="cell-status">
-            <app-status-chip size="sm" [tone]="companyChip(row.status).tone">
-              {{ companyChip(row.status).label }}
-            </app-status-chip>
-            @if (subChip(row); as chip) {
-              <app-status-chip size="sm" [tone]="chip.tone" data-testid="cell-sub">
-                {{ chip.label }}
-              </app-status-chip>
-            }
-          </span>
-        </ng-template>
-
-        <!-- Admin v2 (D1): dono + contato (telefone só mascarado; revelação auditada). -->
-        <ng-template dataListCell="owner" let-row>
-          <span class="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0" data-testid="cell-owner">
-            <span class="truncate text-fg-soft">{{ (row.ownerName | personName) || '—' }}</span>
-            <app-contact-actions
-              subjectType="COMPANY"
-              [subjectId]="row.id"
-              [phoneMasked]="row.ownerPhoneMasked"
-              [label]="row.ownerName ?? row.name"
-            />
-          </span>
-        </ng-template>
-
-        <ng-template dataListActions let-row>
-          <a dataListMenuItem [routerLink]="['/admin/companies', row.id]" data-testid="menu-open">Abrir</a>
-          <!-- FEAT-0141: nenhum verbo de exclusão — a empresa não sai da lista. -->
-          <button
-            type="button"
-            dataListMenuItem
-            data-testid="internal-menu-item"
-            [disabled]="isPending(row.id)"
-            (click)="toggleInternal(row)"
-          >
-            {{ row.internal ? 'Desmarcar como interna' : 'Marcar como interna (fora das métricas)' }}
-          </button>
-          @if (row.active) {
-            <button
-              type="button"
-              dataListMenuItem="danger"
-              [disabled]="isPending(row.id)"
-              (click)="requestToggleStatus(row)"
-            >
-              Suspender
-            </button>
+  <!-- ⋮ do topo: exportar e contas internas. Nenhum botão solto na tela. -->
+  <div pageActions class="flex justify-end">
+    <app-actions-menu label="Ações da página" [menuWidth]="300">
+      <button type="button" dataListMenuItem data-testid="menu-export" [disabled]="companies().length === 0" (click)="exportList()">
+        <span class="flex flex-col">
+          <span class="font-semibold text-fg">Exportar lista</span>
+          <small class="text-xs text-fg-subtle">CSV do que está na tela</small>
+        </span>
+      </button>
+      <button type="button" dataListMenuItem data-testid="menu-internal-view" (click)="toggleInternalView()">
+        <span class="flex flex-col">
+          @if (internalView()) {
+            <span class="font-semibold text-fg">Voltar aos clientes</span>
+            <small class="text-xs text-fg-subtle">Lista com segmentos e contagens</small>
           } @else {
-            <button
-              type="button"
-              dataListMenuItem="success"
-              [disabled]="isPending(row.id)"
-              (click)="requestToggleStatus(row)"
-            >
-              Reativar
-            </button>
+            <span class="font-semibold text-fg">Ver contas internas</span>
+            <small class="text-xs text-fg-subtle">As suas contas, fora da contagem</small>
           }
-        </ng-template>
-      </app-data-list>
+        </span>
+      </button>
+    </app-actions-menu>
+  </div>
 
-      <p class="text-xs text-fg-subtle" data-testid="managed-help">
-        Gerenciado = volume das cobranças de aluguel que vencem no mês corrente (mês pelo
-        vencimento, sem canceladas nem estornadas). MRR = preço de tabela do plano vigente.
-      </p>
-    </div>
-  </app-page-card>
+  <div class="flex flex-col gap-4 sm:gap-6">
+    @if (!internalView()) {
+      <app-today-strip
+        [data]="today()"
+        [loading]="todayLoading()"
+        [error]="todayError()"
+        [canContact]="canContact()"
+        [canExtend]="canExtend()"
+        (whatsApp)="whatsApp($event)"
+        (contact)="openContact($event)"
+        (extend)="openTrial($event)"
+      />
+    }
 
-  <app-back-link link="/admin" label="Voltar para o painel admin" />
+    <app-page-card [title]="internalView() ? 'Contas internas' : 'Lista'" class="enter-up">
+      <div class="p-3 sm:p-4 space-y-4">
+        <app-list-toolbar
+          searchLabel="Buscar empresa"
+          searchPlaceholder="Empresa, CPF/CNPJ ou dono"
+          [query]="search()"
+          [searchDebounce]="300"
+          [statusOptions]="internalView() ? null : segmentOptions()"
+          [status]="segment()"
+          statusLabel="Segmento"
+          [resultCount]="loading() && companies().length === 0 ? null : total()"
+          [resultNoun]="['empresa', 'empresas']"
+          [filtersActive]="filtersActive()"
+          (queryChange)="setSearch($event)"
+          (statusChange)="setSegment($event)"
+          (clearFilters)="clearFilters()"
+        />
+
+        @if (internalView()) {
+          <p class="m-0 text-xs text-fg-subtle" data-testid="internal-note">
+            Contas internas ficam fora dos segmentos, das contagens e de “Hoje, para agir”.
+          </p>
+        }
+
+        @if (error(); as err) {
+          <app-alert-banner variant="error" [message]="err" />
+        }
+
+        <!-- Lista (kit app-data-list): tabela a partir de lg, cartões abaixo. Sem linhas; ação no ⋮. -->
+        <app-data-list
+          ariaLabel="Empresas"
+          [actionsLabel]="kebabLabel"
+          [emptyText]="emptyText()"
+          cardsBelow="lg"
+          [rowTarget]="true"
+          (rowActivate)="openCompany($event)"
+          [columns]="visibleColumns"
+          [rows]="companies()"
+          [rowId]="rowId"
+          [loading]="loading() && companies().length === 0"
+          [page]="currentPage()"
+          [totalPages]="totalPages()"
+          [total]="total()"
+          [itemNoun]="['empresa', 'empresas']"
+          (pageChange)="goToPage($event)"
+        >
+          <ng-template dataListCell="name" let-row>
+            <span class="flex min-w-0 flex-col items-start gap-1.5 font-normal" data-testid="cell-name">
+              <a
+                [routerLink]="['/admin/companies', row.id]"
+                class="inline-flex min-h-[44px] lg:min-h-0 items-center font-semibold text-fg hover:text-primary-700
+                       dark:hover:text-primary-400 hover:underline break-words whitespace-normal rounded-sm
+                       outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                [attr.aria-label]="'Abrir ' + row.name"
+                data-testid="company-link"
+              >{{ row.name }}</a>
+              <span class="flex flex-wrap gap-1">
+                @if (chip(row); as c) {
+                  <app-status-chip size="sm" [tone]="c.tone" data-testid="segment-chip">{{ c.label }}</app-status-chip>
+                }
+                @if (row.internal) {
+                  <app-status-chip size="sm" data-testid="internal-badge">Interna</app-status-chip>
+                }
+                @if (!row.active) {
+                  <app-status-chip size="sm" tone="red" data-testid="suspended-chip">Suspensa</app-status-chip>
+                }
+              </span>
+            </span>
+          </ng-template>
+
+          <ng-template dataListCell="signal" let-row>
+            <span class="whitespace-normal text-fg-soft" data-testid="cell-signal">{{ signalText(row) }}</span>
+          </ng-template>
+
+          <ng-template dataListCell="deadline" let-row>
+            <span class="whitespace-normal text-fg-soft" data-testid="cell-deadline">{{ deadline(row) }}</span>
+          </ng-template>
+
+          <ng-template dataListCell="fleet" let-row>
+            <span class="whitespace-normal tabular-nums text-fg-soft" data-testid="cell-fleet">{{ fleet(row) }}</span>
+          </ng-template>
+
+          <ng-template dataListCell="next" let-row>
+            <span class="flex flex-col gap-0.5 whitespace-normal" data-testid="cell-next">
+              <b class="font-semibold text-fg">{{ nextAction(row) }}</b>
+              @if (contactLine(row); as line) {
+                <span class="text-xs text-fg-subtle" data-testid="cell-contact">{{ line }}</span>
+              }
+            </span>
+          </ng-template>
+
+          <ng-template dataListActions let-row>
+            @if (canContact() && !row.internal) {
+              <button type="button" dataListMenuItem data-testid="menu-whatsapp" (click)="whatsApp(targetOf(row))">
+                <span class="flex min-w-0 flex-col">
+                  <span class="font-semibold text-fg">WhatsApp com mensagem pronta</span>
+                  <small class="line-clamp-2 text-xs text-fg-subtle">{{ message(row) ?? 'Sem mensagem pronta' }}</small>
+                </span>
+              </button>
+              <button type="button" dataListMenuItem data-testid="menu-contact" (click)="openContact(targetOf(row))">
+                <span class="flex flex-col">
+                  <span class="font-semibold text-fg">Registrar contato</span>
+                  <small class="text-xs text-fg-subtle">Tira de “Hoje, para agir” até o retorno</small>
+                </span>
+              </button>
+            }
+            @if (isTrial(row) && canExtend()) {
+              <button type="button" dataListMenuItem data-testid="menu-extend" (click)="openTrial(targetOf(row), row.trialEndsAt ?? null)">
+                <span class="font-semibold text-fg">{{ trialLabel(row) }}</span>
+              </button>
+            }
+            <a dataListMenuItem [routerLink]="['/admin/companies', row.id]" data-testid="menu-open">
+              <span class="flex flex-col">
+                <span class="font-semibold text-fg">Ver detalhe</span>
+                <small class="text-xs text-fg-subtle">Atividade, valores, contatos e membros</small>
+              </span>
+            </a>
+          </ng-template>
+        </app-data-list>
+
+        <p class="text-xs text-fg-subtle" data-testid="signal-help">
+          Último sinal real não conta as ações da equipe (modo edição, cobranças canceladas pelo admin).
+        </p>
+      </div>
+    </app-page-card>
+  </div>
 </app-default-page-layout>
 
-<app-confirm-dialog
-  [open]="pendingAction() !== null"
-  [title]="confirmTitle()"
-  [message]="confirmMessage()"
-  [confirmLabel]="confirmLabel()"
-  [variant]="confirmVariant()"
-  (confirmed)="confirmPending()"
-  (cancelled)="cancelPending()"
-/>
+@if (contactTarget(); as target) {
+  <app-register-contact-sheet
+    [companyId]="target.companyId"
+    [companyName]="target.name"
+    [engagement]="target.engagement"
+    [canExtend]="canExtend() && isTrialTarget(target)"
+    (saved)="onContactSaved(target, $event)"
+    (closed)="closeContact()"
+  />
+}
+
+@if (trialTarget(); as target) {
+  <app-trial-extension-sheet
+    [companyId]="target.companyId"
+    [companyName]="target.name"
+    [trialEndsAt]="target.trialEndsAt"
+    (closed)="closeTrial()"
+    (extended)="onTrialExtended($event)"
+  />
+}

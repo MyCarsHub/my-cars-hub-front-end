@@ -7,49 +7,64 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AdminCompanies } from './admin-companies';
 import { AdminCompaniesService } from '../admin-companies.service';
+import { AdminSegmentsService } from '../segments/admin-segments.service';
+import { ContactRevealActions } from '../contact/contact-reveal-actions';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import type { AdminCompanyListItem } from '../../../types/admin-company.types';
+import type { AdminCapabilityCode } from '../../../types/admin-roles.types';
+import type { CompanyEngagement } from '../../../types/admin-segments.types';
+
+const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
 /**
- * Padrão de listagem: a coluna de ações é o menu de três pontos
- * (`app-actions-menu`), com as MESMAS ações em mobile (cards) e desktop
- * (tabela), e a ação destrutiva só chama o service depois da confirmação.
+ * Empresas, 18/11/2026: o ⋮ da linha tem WhatsApp com mensagem pronta, Registrar contato,
+ * Estender/Reabrir teste (só em teste) e Ver detalhe — e mais nada. Cada item obedece à
+ * capacidade do admin (falha fechada).
  */
-describe('AdminCompanies — menu de ações', () => {
+describe('AdminCompanies — ⋮ da linha', () => {
+  const ENGAGEMENT: CompanyEngagement = {
+    segment: 'TRIAL_STALLED',
+    segmentReasons: ['NO_RECENT_SIGNAL'],
+    recent: null,
+    progress: 'SIGNUP_ONLY',
+    lastAction: null,
+    lastAccessAt: null,
+    lastSignalAt: null,
+    deadline: { kind: 'TRIAL_ENDS', at: '2030-01-10T12:00:00Z' },
+    fleet: { vehicles: 0, drivers: 0, rentals: 0, activeRentals: 0 },
+    openSupportTickets: 0,
+    retentionEmailOptOut: false,
+    nextAction: { key: 'HELP_FIRST_VEHICLE', reason: 'NO_RECENT_SIGNAL' },
+    lastContact: null,
+    today: { status: 'LISTED', listedReason: 'SEGMENT', hiddenUntil: null },
+  };
+
   const COMPANY: AdminCompanyListItem = {
     id: 'co-1',
     name: 'Locadora Alpha',
-    documentMasked: '12.***.***/0001-**',
-    planCode: 'PRO_MONTHLY',
-    planName: 'Pro (mensal)',
-    subscriptionStatus: 'ACTIVE',
+    documentMasked: null,
+    planCode: 'TRIAL_MONTHLY',
+    planName: 'Teste',
+    subscriptionStatus: 'TRIALING',
     billingCycle: 'MONTHLY',
     status: 'ACTIVE',
     active: true,
-    memberCount: 3,
-    createdAt: '2025-01-01T00:00:00Z',
+    memberCount: 1,
+    createdAt: null,
     internal: false,
+    ownerName: 'Ana Souza',
+    trialEndsAt: '2030-01-10T12:00:00',
+    engagement: ENGAGEMENT,
   };
 
-  let updateStatus: ReturnType<typeof vi.fn>;
+  let caps: Set<AdminCapabilityCode>;
+  let whatsApp: ReturnType<typeof vi.fn>;
+  let rows: ReturnType<typeof signal<AdminCompanyListItem[]>>;
 
-  function openMenuItems(
-    fixture: { nativeElement: unknown; detectChanges: () => void },
-    scope: 'mobile' | 'desktop',
-  ): HTMLElement[] {
-    const host = fixture.nativeElement as HTMLElement;
-    const containers = Array.from(host.querySelectorAll('app-actions-menu'));
-    // app-data-list: a tabela (desktop) vem antes dos cartões (mobile)
-    const container = scope === 'desktop' ? containers[0] : containers[containers.length - 1];
-    container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')?.click();
-    fixture.detectChanges();
-    return Array.from(container.querySelectorAll<HTMLElement>('[role="menuitem"]'));
-  }
-
-  beforeEach(() => {
+  function render() {
     TestBed.resetTestingModule();
-    updateStatus = vi.fn().mockReturnValue(of(void 0));
     TestBed.configureTestingModule({
       imports: [AdminCompanies],
       providers: [
@@ -59,54 +74,82 @@ describe('AdminCompanies — menu de ações', () => {
         {
           provide: AdminCompaniesService,
           useValue: {
-            companies: signal<AdminCompanyListItem[]>([COMPANY]),
+            companies: rows,
             loading: signal(false),
             total: signal(1),
-            load: vi.fn().mockReturnValue(of({ content: [COMPANY], total: 1 })),
-            updateStatus,
+            segmentCounts: signal({}),
+            load: vi.fn().mockReturnValue(of({})),
+            patchEngagement: vi.fn(),
           },
         },
-        {
-          provide: NotificationService,
-          useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
-        },
+        { provide: AdminSegmentsService, useValue: { today: () => of(null), registerContact: vi.fn() } },
+        { provide: ContactRevealActions, useValue: { whatsApp, call: vi.fn(), copy: vi.fn() } },
+        { provide: AdminCapabilitiesService, useValue: { ensureLoaded: () => of(null), can: (c: AdminCapabilityCode) => caps.has(c) } },
+        { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
       ],
     });
-  });
-
-  it.each(['mobile', 'desktop'] as const)(
-    'expõe Abrir e Suspender no menu (%s)',
-    (scope) => {
-      const fixture = TestBed.createComponent(AdminCompanies);
-      fixture.detectChanges();
-
-      const labels = openMenuItems(fixture, scope).map((el) => el.textContent?.trim());
-
-      expect(labels).toContain('Abrir');
-      expect(labels).toContain('Suspender');
-      // "Suspender" é a última (destrutiva) do menu
-      expect(labels[labels.length - 1]).toBe('Suspender');
-    },
-  );
-
-  it('"Suspender" abre a confirmação e NÃO chama o service antes de confirmar', () => {
     const fixture = TestBed.createComponent(AdminCompanies);
     fixture.detectChanges();
+    return fixture;
+  }
 
-    const suspend = openMenuItems(fixture, 'mobile').find(
-      (el) => el.textContent?.trim() === 'Suspender',
-    );
-    suspend?.click();
+  function openRowMenu(fixture: ReturnType<typeof render>): HTMLElement {
+    const host = fixture.nativeElement as HTMLElement;
+    const trigger = host.querySelector('button[aria-label="Ações da empresa Locadora Alpha"]') as HTMLButtonElement;
+    trigger.click();
     fixture.detectChanges();
+    return host.querySelector('[role="menu"]') as HTMLElement;
+  }
 
-    const component = fixture.componentInstance as unknown as {
-      confirmMessage: () => string;
-      confirmPending: () => void;
-    };
-    expect(component.confirmMessage()).toContain('Locadora Alpha');
-    expect(updateStatus).not.toHaveBeenCalled();
+  beforeEach(() => {
+    caps = new Set<AdminCapabilityCode>(['ver', 'contato.ver', 'empresa.teste']);
+    whatsApp = vi.fn().mockResolvedValue(undefined);
+    rows = signal([COMPANY]);
+  });
 
-    component.confirmPending();
-    expect(updateStatus).toHaveBeenCalledWith('co-1', false);
+  it('em teste: WhatsApp, Registrar contato, Estender teste e Ver detalhe, nessa ordem', () => {
+    const menu = openRowMenu(render());
+    const items = Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => text(i));
+    expect(items).toHaveLength(4);
+    expect(items[0]).toContain('WhatsApp com mensagem pronta');
+    expect(items[0]).toContain('Posso te mostrar em 5 minutos');
+    expect(items[1]).toContain('Registrar contato');
+    expect(items[2]).toBe('Estender teste');
+    expect(items[3]).toContain('Ver detalhe');
+    expect(menu.textContent).not.toContain('Suspender');
+  });
+
+  it('vencido sem ativação: "Reabrir teste"; pagante não tem a opção', () => {
+    rows.set([{ ...COMPANY, engagement: { ...ENGAGEMENT, segment: 'NO_ACTIVATION' } }]);
+    expect(text(openRowMenu(render()))).toContain('Reabrir teste');
+    rows.set([{ ...COMPANY, engagement: { ...ENGAGEMENT, segment: 'PAYING_ACTIVE' } }]);
+    expect(text(openRowMenu(render()))).not.toContain('teste');
+  });
+
+  it('WhatsApp revela o telefone do dono (auditado) com a mensagem pronta do segmento', () => {
+    const fixture = render();
+    const menu = openRowMenu(fixture);
+    (menu.querySelector('[data-testid="menu-whatsapp"]') as HTMLButtonElement).click();
+    expect(whatsApp).toHaveBeenCalledWith(
+      'COMPANY',
+      'co-1',
+      'Olá, Ana! Aqui é da equipe MyCarsHub. Posso te mostrar em 5 minutos como cadastrar o primeiro carro?',
+    );
+  });
+
+  it('Registrar contato abre a folha da empresa', () => {
+    const fixture = render();
+    (openRowMenu(fixture).querySelector('[data-testid="menu-contact"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const sheet = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="register-contact-sheet"]');
+    expect(sheet).not.toBeNull();
+    expect(sheet?.textContent).toContain('Locadora Alpha');
+  });
+
+  it('sem contato.ver nem empresa.teste: só Ver detalhe', () => {
+    caps = new Set<AdminCapabilityCode>(['ver']);
+    const items = Array.from(openRowMenu(render()).querySelectorAll('[role="menuitem"]'));
+    expect(items).toHaveLength(1);
+    expect(text(items[0])).toContain('Ver detalhe');
   });
 });
