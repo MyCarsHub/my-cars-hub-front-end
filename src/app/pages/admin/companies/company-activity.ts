@@ -77,7 +77,9 @@ const FILTERS: readonly FilterChipOption<ActivityFilter>[] = [
                   @if (line.note) {
                     <span class="rounded-xl bg-surface-muted px-3 py-2 text-xs text-fg-soft" data-testid="activity-note">“{{ line.note }}”</span>
                   }
-                  <app-status-chip size="sm" [tone]="line.chip.tone">{{ line.chip.label }}</app-status-chip>
+                  @if (line.chip; as chip) {
+                    <app-status-chip size="sm" [tone]="chip.tone">{{ chip.label }}</app-status-chip>
+                  }
                 </span>
               </li>
             }

@@ -41,9 +41,9 @@ import type {
   PlatformVendorCategory,
 } from '../../../types/admin-finance.types';
 import type { AdminHome } from '../../../types/admin-home.types';
-import { todayInBusinessTz } from '../../../utils/business-clock';
 import { AdminFinanceService } from '../finance/admin-finance.service';
 import { AdminHomeService } from '../home/admin-home.service';
+import { ADMIN_HOME_DEFAULT_SCOPE, adminMonthToDate, mrrRealCaption, nullText } from '../home/admin-home.view';
 import { CostEntrySheet } from './cost-entry-sheet';
 import {
   addMonths,
@@ -279,14 +279,11 @@ export class AdminCosts implements OnInit {
     return { value: c.totalCents, detail: `fixos ${brl(split.fixedCents)} · avulsos ${brl(split.oneOffCents)}` };
   });
 
+  /** O "MRR real" do Painel: mesmo pedido, mesmo campo, mesmo nome e mesma legenda. */
   protected readonly mrrKpi = computed(() => {
     const k = this.home()?.kpis.mrrReal;
     if (!k) return { value: null as number | null, detail: null as string | null };
-    const paying = k.parts['payingCompanies'];
-    return {
-      value: k.value,
-      detail: paying == null ? 'cobrado de fato' : paying === 1 ? '1 empresa pagando' : `${paying} empresas pagando`,
-    };
+    return { value: k.value, detail: k.value === null ? nullText(k, this.thisMonth) : mrrRealCaption(k) };
   });
 
   protected readonly profitKpi = computed(() => {
@@ -403,12 +400,11 @@ export class AdminCosts implements OnInit {
       .subscribe({ next: (res) => this.current.set(res), error: (err: unknown) => this.apiErrors.claim(err) });
   }
 
-  /** MRR real e Lucro do mês corrente: o mesmo pedido que o Painel faz em "Mês atual". */
+  /** MRR real e Lucro do mês corrente: o mesmo pedido que o Painel abre ("Mês atual", só clientes). */
   private loadHome(): void {
     this.homeLoading.set(true);
-    const range = { from: `${this.thisMonth}-01`, to: todayInBusinessTz() };
     this.homeService
-      .home(range, 'clients')
+      .home(adminMonthToDate(), ADMIN_HOME_DEFAULT_SCOPE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
