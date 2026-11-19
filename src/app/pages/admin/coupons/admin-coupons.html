@@ -88,6 +88,7 @@
             </div>
           } @else if (!hasAny()) {
             <app-data-list
+              [fit]="true"
               data-testid="empty"
               [columns]="columns"
               [rows]="[]"
@@ -133,6 +134,7 @@
             <!-- The epoch changes with type/situation: the list is rebuilt and the rise-in cascade replays. -->
             @for (epoch of epochs(); track epoch.id) {
               <app-data-list
+                [fit]="true"
                 class="coupon-list"
                 [animateRows]="true"
                 data-testid="coupons-list"

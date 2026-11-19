@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { environment } from '../../../../environments/environment';
 import type { AdminHomeRange } from '../../../types/admin-home.types';
 import type { AdminRevenue, AdminRevenueMonth, AdminRevenuePoint } from '../../../types/admin-revenue.types';
-import { AdminRevenueSection, rangeKey, revenuePoints } from './admin-revenue-section';
+import { AdminRevenueSection, periodTotalText, rangeKey, revenuePoints } from './admin-revenue-section';
 import { dateLabel, monthBars, monthLabel, presentSeries, receivedShare } from './admin-revenue.series';
 
 const URL = `${environment.apiUrl}/admin/billing/revenue`;
@@ -227,6 +227,40 @@ describe('AdminRevenueSection', () => {
       'Nenhum pagamento de assinatura registrado ainda.',
     );
     expect(norm(host.querySelector('[data-received-card]'))).toContain('—');
+  });
+
+  /*
+   * Dono, 19/11, sobre "Recebido por dia" e "Desconto dado em cupons": sem escala, sem total e
+   * sem como ler o valor. Os dois agora têm o eixo Y dos gráficos de linha e o total do período.
+   */
+  it('the day charts carry the y axis and the period total under the title', () => {
+    const { host, detect } = render();
+    http.expectOne(() => true).flush(REVENUE);
+    detect();
+    expect(norm(host.querySelector('[data-received-total]'))).toBe('R$ 489,20 no período');
+    expect(norm(host.querySelector('[data-discount-total]'))).toBe('R$ 199,40 em descontos');
+    expect(host.querySelector('[data-received-chart] [data-y-axis]')).not.toBeNull();
+    expect(host.querySelector('[data-discount-chart] [data-y-axis]')).not.toBeNull();
+  });
+
+  it('a period of zeros shows the empty copy and no total, never an empty frame', () => {
+    const { host, detect } = render();
+    http.expectOne(() => true).flush({
+      ...REVENUE,
+      points: REVENUE.points!.map((p) => ({ ...p, receivedCents: 0, couponDiscountCents: 0 })),
+    });
+    detect();
+    expect(host.querySelector('[data-received-total]')).toBeNull();
+    expect(host.querySelector('[data-received-chart] [data-bar-control]')).toBeNull();
+    expect(norm(host.querySelector('[data-received-chart] [data-empty]'))).toContain('Nenhum pagamento neste período');
+    expect(host.querySelector('[data-discount-total]')).toBeNull();
+    expect(norm(host.querySelector('[data-discount-chart] [data-empty]'))).toBe('Nenhum desconto de cupom no período.');
+  });
+
+  it('periodTotalText sums the measured buckets; zero or nothing is no total', () => {
+    expect(norm({ textContent: periodTotalText([48_920, null, 1_080]) } as unknown as Element)).toBe('R$ 500,00');
+    expect(periodTotalText([0, null])).toBeNull();
+    expect(periodTotalText([])).toBeNull();
   });
 
   it('keeps every other number when Stripe could not be read', () => {

@@ -4,10 +4,12 @@ import {
   DestroyRef,
   ElementRef,
   afterNextRender,
+  afterRenderEffect,
   computed,
   inject,
   input,
   signal,
+  untracked,
   type Signal,
 } from '@angular/core';
 import { formatKpiNumber, type KpiNumberFormat } from '../../kpi-card/kpi-card';
@@ -151,6 +153,79 @@ export function labelsFit(count: number, maxChars: number, width: number | null)
   if (count <= 0) return false;
   if (width === null) return count <= LABELS_FIT_UNMEASURED_MAX;
   return width / count >= Math.max(24, maxChars * LABEL_CHAR_PX + 4);
+}
+
+/**
+ * Pure: {@link labelsFit} for numbers printed only on SOME slots (the non-zero columns): the room
+ * a number has is the distance to the nearest other labelled slot, not one slot. `positions` are
+ * the labelled slot indexes in ascending order, out of `slots` columns in all.
+ */
+export function sparseLabelsFit(
+  positions: readonly number[],
+  slots: number,
+  maxChars: number,
+  width: number | null,
+): boolean {
+  if (positions.length === 0 || slots <= 0) return false;
+  let closest = slots;
+  for (let i = 1; i < positions.length; i++) closest = Math.min(closest, positions[i] - positions[i - 1]);
+  return labelsFit(slots / Math.max(1, closest), maxChars, width);
+}
+
+/** Width of one character of an x-axis label (11px), in px, before the labels are measured. */
+const AXIS_CHAR_PX = 6.2;
+/** Least air between two printed x-axis labels, px. */
+export const AXIS_LABEL_GAP_PX = 6;
+/** Labels printed before the chart is measured (SSR, first paint, tests): a year of months. */
+export const AXIS_UNMEASURED_MAX_LABELS = 12;
+
+/**
+ * Pure: how many slots apart two printed x-axis labels must be so they never run into each other.
+ * `width` is the plot width and `labelPx` the widest label (both measured; `labelPx` null falls back
+ * to `maxChars` x an average glyph). Unmeasured: by count, at most a year of labels.
+ */
+export function axisLabelStep(
+  count: number,
+  width: number | null,
+  labelPx: number | null,
+  maxChars: number,
+): number {
+  if (count <= 1) return 1;
+  if (width === null || !(width > 0)) return Math.max(1, Math.ceil(count / AXIS_UNMEASURED_MAX_LABELS));
+  const need = (labelPx && labelPx > 0 ? labelPx : maxChars * AXIS_CHAR_PX) + AXIS_LABEL_GAP_PX;
+  return Math.max(1, Math.ceil(need / (width / count)));
+}
+
+/**
+ * Pure: the label indexes the x axis prints, at least `step` slots apart: always the first and the
+ * last, the rest evenly spread between them (the line chart's "pick N evenly" rule, with N taken
+ * from the room instead of fixed). When even two do not fit, only the newest is printed.
+ */
+export function axisLabelIndices(count: number, step: number): number[] {
+  if (count <= 0) return [];
+  if (step <= 1) return Array.from({ length: count }, (_, i) => i);
+  const intervals = Math.floor((count - 1) / step);
+  if (intervals < 1) return [count - 1];
+  return Array.from({ length: intervals + 1 }, (_, i) => Math.round((i * (count - 1)) / intervals));
+}
+
+/**
+ * The widest of the host's elements matching `selector` (the x-axis labels), re-measured after a
+ * render whenever `track` changes; null until measured (SSR, jsdom). Call in an injection context.
+ */
+export function injectLabelWidth(selector: string, track: () => unknown): Signal<number | null> {
+  const host = inject<ElementRef<HTMLElement>>(ElementRef);
+  const width = signal<number | null>(null);
+  afterRenderEffect(() => {
+    track();
+    let max = 0;
+    host.nativeElement.querySelectorAll<HTMLElement>(selector).forEach((el) => {
+      max = Math.max(max, el.getBoundingClientRect().width);
+    });
+    const current = untracked(width);
+    if (max > 0 && (current === null || Math.abs(current - max) > 0.5)) width.set(max);
+  });
+  return width.asReadonly();
 }
 
 /**

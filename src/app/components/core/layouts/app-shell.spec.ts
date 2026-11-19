@@ -1,11 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { signal } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { of } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { AppShell } from './app-shell';
+import { AppShell, isPageChange } from './app-shell';
 import { LayoutStore } from './layout.store';
 import { SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_EXPANDED } from '../../sidebar/sidebar-width';
 import { BillingAccessService } from '../../../services/billing-access.service';
@@ -444,3 +444,73 @@ describe('AppShell — barra de topo do motorista', () => {
   });
 });
 
+
+/*
+ * O conteúdo rola num scroller próprio (o body fica travado), então a restauração de rolagem do
+ * roteador não o alcança: abrir Empresas do fim da Visão geral caía no fim de Empresas (19/11).
+ */
+describe('AppShell — rolagem ao trocar de página', () => {
+  it('isPageChange: só o caminho conta; query e âncora mantêm a posição', () => {
+    expect(isPageChange('/admin', '/admin/companies')).toBe(true);
+    expect(isPageChange('/admin/companies?segmento=trial', '/admin/companies/7')).toBe(true);
+    expect(isPageChange('/admin/companies', '/admin/companies?segmento=trial')).toBe(false);
+    expect(isPageChange('/admin/companies?segmento=trial', '/admin/companies?segmento=pagante')).toBe(false);
+    expect(isPageChange('/ajuda', '/ajuda#pagamentos')).toBe(false);
+    expect(isPageChange(null, '/admin')).toBe(false);
+  });
+
+  @Component({ template: '<p>página</p>' })
+  class Blank {}
+
+  function setup() {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [AppShell],
+      providers: [
+        provideRouter([
+          { path: 'a', component: Blank },
+          { path: 'b', component: Blank },
+        ]),
+        provideNoopAnimations(),
+        {
+          provide: SessionService,
+          useValue: {
+            getItem: () => null,
+            setItem: () => void 0,
+            isOnboardingCompleted: () => false,
+            isPlatformAdmin: () => false,
+            getCompanyRoleFromToken: () => null,
+          },
+        },
+        { provide: ImpersonationService, useValue: { active: signal(false) } },
+        {
+          provide: BillingAccessService,
+          useValue: { load: () => of(null), isBlocked: signal(false), status: signal(null), reason: signal<string | null>(null) },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(AppShell);
+    fixture.detectChanges();
+    const scroller = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('main [data-main-scroller]')!;
+    // jsdom não rola: um scrollTop gravável faz o papel da posição.
+    Object.defineProperty(scroller, 'scrollTop', { value: 0, writable: true });
+    return { fixture, scroller, router: TestBed.inject(Router) };
+  }
+
+  it('outra página começa no topo; a mesma página com outra query mantém a rolagem', async () => {
+    const { fixture, scroller, router } = setup();
+    await router.navigateByUrl('/a');
+    fixture.detectChanges();
+
+    scroller.scrollTop = 800;
+    await router.navigateByUrl('/a?filtro=1');
+    expect(scroller.scrollTop).toBe(800);
+
+    await router.navigateByUrl('/b');
+    expect(scroller.scrollTop).toBe(0);
+
+    scroller.scrollTop = 500;
+    await router.navigateByUrl('/b#fim');
+    expect(scroller.scrollTop).toBe(500);
+  });
+});

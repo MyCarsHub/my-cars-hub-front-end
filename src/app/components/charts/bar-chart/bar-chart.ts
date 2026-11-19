@@ -3,15 +3,35 @@ import { formatBRL } from '../../../types/dashboard.types';
 import { formatKpiNumber, type KpiNumberFormat } from '../../kpi-card/kpi-card';
 import {
   ChartTooltip,
+  axisLabelIndices,
+  axisLabelStep,
   barLabelFormat,
   injectHostWidth,
-  labelsFit,
+  injectLabelWidth,
   pointerFraction,
   slotAt,
+  sparseLabelsFit,
   stepIndex,
   tooltipText,
   type ChartTooltipRow,
 } from '../chart-tooltip/chart-tooltip';
+import { niceAxisTop } from '../growth-chart/growth-chart';
+
+/** Room the y-axis column takes from the plot (its `min-w-9` + the `gap-2`), px. */
+const Y_AXIS_RESERVE_PX = 48;
+/** More groups than this: the columns sit closer (2px), so a month of days is not a row of hairlines. */
+export const BAR_DENSE_GROUPS = 14;
+/** More groups than this: 1px apart. */
+export const BAR_VERY_DENSE_GROUPS = 24;
+/*
+ * Whole class strings (Tailwind finds a utility by scanning for it). Not `[class.gap-1.5]`: a
+ * class binding cuts the name at the dot and applied `gap-1`.
+ */
+const COLUMNS_CLASS = {
+    normal: 'flex items-stretch min-w-0 gap-1.5 sm:gap-2',
+    dense: 'flex items-stretch min-w-0 gap-0.5',
+    'very-dense': 'flex items-stretch min-w-0 gap-px',
+} as const;
 
 export interface BarDatum {
     label: string;
@@ -43,6 +63,8 @@ interface RenderedColumn {
     /** Height in % of the positive (or negative) band; null = not measured. */
     readonly pct: number | null;
     readonly negative: boolean;
+    /** Measured zero: no column to read, so no number printed on it. */
+    readonly zero: boolean;
     /** Short number printed on the column (money compact). */
     readonly short: string;
 }
@@ -134,9 +156,28 @@ interface RenderedBar {
                 </ul>
             }
             @if (groups().length) {
+                <div class="flex gap-2 min-w-0" data-bar-plot>
+                @if (showYAxis()) {
+                    <!--
+                      The line charts' y axis (same size, colour and tick count), no grid lines. Ticks
+                      sit on the column band: above it the room for the numbers (sm:pt-4), below it
+                      the x label row (gap 6px + h-5 = 26px).
+                    -->
+                    <div
+                        data-y-axis
+                        class="flex flex-col justify-between text-right text-[10px] sm:text-[11px] leading-none text-fg-muted tabular-nums min-w-9 shrink-0 pb-[26px]"
+                        [class.sm:pt-4]="showLabels()"
+                        aria-hidden="true"
+                        [style.height.px]="heightPx()"
+                    >
+                        @for (tick of yTicks(); track $index) {
+                            <span>{{ tick }}</span>
+                        }
+                    </div>
+                }
                 <div
                     data-bar-control
-                    class="relative rounded-lg touch-pan-y select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                    class="relative flex-1 min-w-0 rounded-lg touch-pan-y select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                     tabindex="0"
                     role="slider"
                     [attr.aria-label]="ariaLabel()"
@@ -153,7 +194,7 @@ interface RenderedBar {
                 >
                 <div
                     data-bar-columns
-                    class="flex items-stretch gap-1.5 sm:gap-2 min-w-0"
+                    [class]="columnsClass()"
                     aria-hidden="true"
                     [style.height.px]="heightPx()"
                 >
@@ -175,7 +216,7 @@ interface RenderedBar {
                                                 [style.height.%]="c.negative || c.pct === null ? 0 : c.pct"
                                                 [style.background-color]="c.color"
                                             ></span>
-                                            @if (showLabels() && !c.negative && c.pct !== null) {
+                                            @if (showLabels() && !c.negative && !c.zero && c.pct !== null) {
                                                 <span
                                                     data-bar-value
                                                     class="label-in absolute left-1/2 -translate-x-1/2 mb-0.5 hidden sm:block text-[10px] leading-none text-fg-muted tabular-nums whitespace-nowrap"
@@ -215,8 +256,11 @@ interface RenderedBar {
                                     </div>
                                 }
                             </div>
+                            <!-- Thinned when the labels would run into each other: the hidden ones keep their box. -->
                             <span
-                                class="text-[10px] sm:text-[11px] text-fg-muted whitespace-nowrap"
+                                data-x-label
+                                class="h-5 leading-5 text-[10px] sm:text-[11px] text-fg-muted whitespace-nowrap"
+                                [class.invisible]="!xShown()[gi]"
                                 [class.text-fg]="gi === active()"
                                 [class.font-semibold]="gi === active()"
                                 >{{ g.label }}</span
@@ -227,6 +271,7 @@ interface RenderedBar {
                 @if (activeTip(); as tip) {
                     <app-chart-tooltip [title]="tip.title" [rows]="tip.rows" [x]="tip.x" [y]="tip.y" [below]="tip.below" />
                 }
+                </div>
                 </div>
                 <table class="sr-only">
                     <caption>{{ ariaLabel() }}</caption>
@@ -321,8 +366,43 @@ export class BarChart {
     readonly ariaLabel = input('Gráfico de barras');
     readonly legend = input(true);
     readonly emptyText = input('Sem dados no período.');
+    /**
+     * Columns layout: a y axis on the left (the line charts' one: compact ticks, no grid lines), with
+     * the columns scaled to its round top instead of the tallest column. Ignored when a value is
+     * negative (the zero line is not at the bottom then).
+     */
+    readonly yAxis = input(false);
+    /** Least axis top with `yAxis` (same unit as the values): money callers pass `MONEY_AXIS_FLOOR_CENTS`. */
+    readonly axisFloor = input(0);
+    /** Gaps between y ticks with `yAxis` (4 = five ticks, the line charts' default). */
+    readonly yDivisions = input(4);
 
     protected readonly split = computed(() => zeroSplit(this.series() ?? []));
+
+    protected readonly showYAxis = computed(() => this.yAxis() && this.split().down === 0);
+
+    /** The round top the columns are scaled to with the y axis (`niceAxisTop`, like the line charts). */
+    private readonly axisTop = computed(() =>
+        niceAxisTop(
+            Math.max(this.axisFloor(), this.split().top),
+            Math.max(1, this.yDivisions()),
+            this.valueFormat() === 'integer',
+        ),
+    );
+
+    protected readonly yTicks = computed(() => {
+        const top = this.axisTop();
+        const n = Math.max(1, this.yDivisions());
+        const fmt = barLabelFormat(this.valueFormat());
+        return Array.from({ length: n + 1 }, (_, i) => formatKpiNumber(fmt, (top * (n - i)) / n));
+    });
+
+    /** Gap between groups: a month of days keeps its columns readable instead of 4px hairlines. */
+    protected readonly density = computed<'normal' | 'dense' | 'very-dense'>(() => {
+        const n = this.groups().length;
+        return n > BAR_VERY_DENSE_GROUPS ? 'very-dense' : n > BAR_DENSE_GROUPS ? 'dense' : 'normal';
+    });
+    protected readonly columnsClass = computed(() => COLUMNS_CLASS[this.density()]);
 
     /** Text of a value in the tooltip / reading / table: full (money with cents) unless overridden. */
     readonly formatTooltip = input<((v: number) => string) | null>(null);
@@ -334,10 +414,12 @@ export class BarChart {
     protected readonly groups = computed<RenderedGroup[]>(() => {
         const series = this.series() ?? [];
         const labels = this.labels();
-        const { top, bottom } = this.split();
+        const { bottom } = this.split();
+        const top = this.showYAxis() ? this.axisTop() : this.split().top;
         const fmt = this.valueFormat();
         const short = barLabelFormat(fmt);
-        const anyValue = series.some((s) => s.values.some((v) => v !== null && v !== undefined));
+        // All zero (or nothing measured) is the empty copy, never an empty frame.
+        const anyValue = series.some((s) => s.values.some((v) => v !== null && v !== undefined && v !== 0));
         if (!anyValue) return [];
         return labels.map((label, i) => {
             const columns = series.map((s) => {
@@ -349,6 +431,7 @@ export class BarChart {
                     key: s.key,
                     color: s.color,
                     negative,
+                    zero: !missing && v === 0,
                     pct: missing ? null : band > 0 ? (Math.abs(v) / band) * 100 : 0,
                     short: missing ? '' : formatKpiNumber(short, v),
                 };
@@ -369,12 +452,37 @@ export class BarChart {
         });
     });
 
-    /** Numbers on the columns (sm and up) only when every label has room. */
+    /** Width the columns get: the host minus the y axis column. */
+    private readonly plotWidth = computed(() => {
+        const w = this.width();
+        return w === null ? null : Math.max(1, w - (this.showYAxis() ? Y_AXIS_RESERVE_PX : 0));
+    });
+
+    /**
+     * Numbers on the columns (sm and up) only when every printed one has room. A zero column prints
+     * nothing, so a sparse month of days (most of them empty) still gets its numbers.
+     */
     protected readonly showLabels = computed(() => {
+        const columns = this.groups().flatMap((g) => g.columns);
+        const positions: number[] = [];
+        columns.forEach((c, i) => {
+            if (c.pct !== null && !c.zero) positions.push(i);
+        });
+        const maxChars = Math.max(0, ...columns.map((c) => (c.zero ? 0 : c.short.length)));
+        return sparseLabelsFit(positions, columns.length, maxChars, this.plotWidth());
+    });
+
+    /** Widest x label as drawn (the bold active one left out, so reading a column never re-thins). */
+    private readonly labelPx = injectLabelWidth('[data-x-label]:not(.font-semibold)', () => this.groups());
+
+    /** Which x labels print: first, last and evenly between, never close enough to touch. */
+    protected readonly xShown = computed<boolean[]>(() => {
         const groups = this.groups();
-        const count = groups.reduce((n, g) => n + g.columns.length, 0);
-        const maxChars = Math.max(0, ...groups.flatMap((g) => g.columns.map((c) => c.short.length)));
-        return labelsFit(count, maxChars, this.width());
+        const maxChars = Math.max(0, ...groups.map((g) => g.label.length));
+        const step = axisLabelStep(groups.length, this.plotWidth(), this.labelPx(), maxChars);
+        const shown = new Array<boolean>(groups.length).fill(false);
+        for (const i of axisLabelIndices(groups.length, step)) shown[i] = true;
+        return shown;
     });
 
     protected readonly activeTip = computed(() => {

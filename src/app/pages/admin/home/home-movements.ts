@@ -62,6 +62,7 @@ interface Query {
           [rows]="rows()"
           [rowId]="rowId"
           [loading]="loading()"
+          [fit]="true"
           ariaLabel="Movimentações da plataforma"
           emptyText="Nada registrado neste filtro e período."
         >
@@ -117,7 +118,7 @@ export class HomeMovements {
     { key: 'when', header: 'Quando', value: (m) => relativeTime(m.occurredAt, this.now()) },
     { key: 'who', header: 'Quem', value: (m) => m.actorName },
     { key: 'company', header: 'Empresa', value: (m) => m.companyName },
-    { key: 'origin', header: 'Origem', value: (m) => ORIGIN_LABEL[m.origin] ?? m.origin },
+    { key: 'origin', header: 'Origem', optional: true, value: (m) => ORIGIN_LABEL[m.origin] ?? m.origin },
     { key: 'result', header: 'Resultado', end: true, value: (m) => RESULT_LABEL[m.result] ?? m.result },
   ];
 
