@@ -1,20 +1,22 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
+  OnInit,
   computed,
   effect,
   inject,
   signal,
 } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { BackLink } from '../../../components/core/back-link/back-link';
 import type { FilterChipOption } from '../../../components/filter-chip-group/filter-chip-group';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
-import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import {
   DataList,
   DataListActions,
@@ -22,203 +24,204 @@ import {
   type DataListColumn,
 } from '../../../components/lists/data-list/data-list';
 import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
-import { ListFilterSelect, ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
-import { StatusChip, type StatusChipTone } from '../../../components/core/status-chip/status-chip';
+import { buildCsv, downloadCsv } from '../../../components/lists/data-list/data-list-csv';
+import { ListToolbar } from '../../../components/lists/list-toolbar/list-toolbar';
+import { StatusChip } from '../../../components/core/status-chip/status-chip';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
+import { TrialExtensionResponse } from '../../../services/admin-trial.service';
 import { AdminCompaniesService } from '../admin-companies.service';
-import { ContactActions } from '../contact/contact-actions';
-import { AdminCompaniesTabs } from './admin-companies-tabs';
+import { AdminSegmentsService } from '../segments/admin-segments.service';
+import { ContactRevealActions } from '../contact/contact-reveal-actions';
+import { RegisterContactSheet } from '../contact/register-contact-sheet';
+import { TrialExtensionSheet } from './trial-extension-sheet';
+import { TodayStrip, type CompanyActionTarget } from './today-strip';
+import type { AdminCompanyListItem } from '../../../types/admin-company.types';
 import {
-  AdminCompanyListItem,
-  AdminCompanyStatus,
-} from '../../../types/admin-company.types';
-import { subscriptionChip, type SubscriptionChip } from './subscription-status-chip';
-import { PersonNamePipe } from '../../../pipes/person-name.pipe';
+  COMPANY_SEGMENTS,
+  type CompanySegment,
+  type RegisterContactResponse,
+  type TodayList,
+} from '../../../types/admin-segments.types';
+import {
+  SEGMENT_CHIPS,
+  deadlineText,
+  fleetText,
+  isTrialSegment,
+  lastContactText,
+  lastSignalText,
+  nextActionTitle,
+  segmentChip,
+  trialActionLabel,
+  whatsAppMessage,
+} from '../segments/segment-copy';
 
-type StatusFilter = 'ALL' | 'ACTIVE' | 'SUSPENDED';
-type PlanFilter = 'ALL' | 'TRIAL_MONTHLY' | 'PRO_MONTHLY';
-
-interface PendingAction {
-  kind: 'SUSPEND' | 'REACTIVATE';
-  company: AdminCompanyListItem;
-}
-
-interface ChipStyle {
-  label: string;
-  tone: StatusChipTone;
-}
-
-/** Situação da empresa: cor só no chip (verde ativa, vermelho suspensa, neutro cancelada). */
-const COMPANY_STATUS_CHIPS: Record<AdminCompanyStatus, ChipStyle> = {
-  ACTIVE: { label: 'Ativa', tone: 'green' },
-  SUSPENDED: { label: 'Suspensa', tone: 'red' },
-  CANCELLED: { label: 'Cancelada', tone: 'neutral' },
-};
+type SegmentFilter = 'ALL' | CompanySegment;
 
 const PAGE_SIZE = 20;
 
-/**
- * Colunas da lista (kit `app-data-list`). Valor gerenciado e MRR vêm do backend em
- * centavos e saem com centavos ("R$ 1.234,56"); valor ausente (backend antigo) vira "—" —
- * o 0 só aparece quando o servidor o manda.
- */
-const COLUMNS: readonly DataListColumn<AdminCompanyListItem>[] = [
-  { key: 'name', header: 'Empresa', primary: true, value: (c) => c.name },
-  { key: 'plan', header: 'Plano', value: (c) => c.planName },
-  { key: 'status', header: 'Situação', value: (c) => COMPANY_STATUS_CHIPS[c.status]?.label ?? c.status },
-  { key: 'owner', header: 'Dono', value: (c) => c.ownerName, noExport: true },
-  { key: 'managed', header: 'Gerenciado', kind: 'money-cents', end: true, value: (c) => c.managedMonthCents },
-  { key: 'mrr', header: 'MRR', kind: 'money-cents', end: true, value: (c) => c.mrrCents },
-];
+/** Rótulos das pílulas, na ordem do desenho de 18/11 ("Todas" é a padrão). */
+const SEGMENT_FILTERS: readonly SegmentFilter[] = ['ALL', ...COMPANY_SEGMENTS];
 
 /**
- * Situação = UMA fileira de pílulas (`app-list-toolbar`); plano = select "Plano: X" na linha da
- * busca, como Membros (padrão de lista, 18/11/2026). Ficam fora do template porque `options` é
- * `input` de componente OnPush: um literal inline viraria um array novo a cada ciclo.
- */
-const STATUS_OPTIONS: readonly FilterChipOption<StatusFilter>[] = [
-  { value: 'ALL', label: 'Todas' },
-  { value: 'ACTIVE', label: 'Ativas' },
-  { value: 'SUSPENDED', label: 'Suspensas' },
-];
-
-const PLAN_OPTIONS: readonly { value: PlanFilter; label: string }[] = [
-  { value: 'ALL', label: 'Todos' },
-  { value: 'TRIAL_MONTHLY', label: 'Em teste' },
-  { value: 'PRO_MONTHLY', label: 'Pro (mensal)' },
-];
-
-/**
- * Empresas (padrão de lista da plataforma, 18/11/2026): abas em `app-pill-tabs`,
- * `app-page-card "Lista"`, `app-list-toolbar` (busca no servidor + pílulas de situação + select de
- * plano + contagem + "Limpar filtros") e `app-data-list` (tabela a partir de 1024px, cartões
- * abaixo, kebab por linha, paginação do servidor no rodapé do componente).
+ * Empresas (rodada de 18/11/2026, desenho `Adm18Empresas`): "Hoje, para agir" no topo, pílulas de
+ * segmento com contagem no lugar das abas "Todas | Converter testes", e a lista no `app-data-list`
+ * (tabela a partir de 1024px, cartões abaixo). Cada linha mostra o segmento, o último sinal REAL
+ * (ações do admin não contam), o prazo, a frota e a próxima ação sugerida; toda ação mora no ⋮:
+ * WhatsApp com mensagem pronta, Registrar contato, Estender/Reabrir teste e Ver detalhe.
+ *
+ * As oito contas internas ficam fora das pílulas (o servidor não as conta); o ⋮ do topo troca a
+ * lista para elas e exporta o que está na tela.
  */
 @Component({
   selector: 'app-admin-companies',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    PersonNamePipe,
-    AdminCompaniesTabs,
-    ContactActions,
-    BackLink,
     DefaultPageLayout,
     PageCard,
-    ConfirmDialog,
     AlertBanner,
+    ActionsMenu,
     DataList,
     DataListCell,
     DataListActions,
     DataListMenuItem,
     ListToolbar,
-    ListFilterSelect,
     StatusChip,
     RouterLink,
+    TodayStrip,
+    RegisterContactSheet,
+    TrialExtensionSheet,
   ],
   templateUrl: './admin-companies.html',
 })
-export class AdminCompanies {
+export class AdminCompanies implements OnInit {
   private readonly companiesService = inject(AdminCompaniesService);
+  private readonly segmentsService = inject(AdminSegmentsService);
+  private readonly reveal = inject(ContactRevealActions);
   private readonly notify = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+  protected readonly caps = inject(AdminCapabilitiesService);
 
   protected readonly companies = this.companiesService.companies;
   protected readonly loading = this.companiesService.loading;
+  protected readonly total = this.companiesService.total;
+  protected readonly segmentCounts = this.companiesService.segmentCounts;
   /** Falha ao CARREGAR a lista — banner inline, nunca toast. */
   protected readonly error = signal<string | null>(null);
-  /**
-   * Falha de uma OPERACAO da tela (suspender/reativar). Banner inline: o
-   * interceptor nao toasta 4xx e `messageFor()` reivindica o erro.
-   */
-  protected readonly actionError = signal<string | null>(null);
-  protected readonly total = this.companiesService.total;
 
   protected readonly search = signal<string>('');
-  protected readonly columns = COLUMNS;
-
-  /** A linha inteira abre o detalhe (alvo de mouse e toque); o teclado usa o link do nome. */
-  protected openCompany(company: AdminCompanyListItem): void {
-    void this.router.navigate(['/admin/companies', company.id]);
-  }
-
-  protected readonly rowId = (company: AdminCompanyListItem): string => company.id;
-  /** Each kebab is named after its row, so a screen reader can tell them apart. */
-  protected readonly kebabLabel = (company: AdminCompanyListItem): string => `Ações da empresa ${company.name}`;
-  protected readonly statusOptions = STATUS_OPTIONS;
-  protected readonly planOptions = PLAN_OPTIONS;
-
-  protected readonly statusFilter = signal<StatusFilter>('ALL');
-  protected readonly planFilter = signal<PlanFilter>('ALL');
+  protected readonly segment = signal<SegmentFilter>('ALL');
+  /** `true`: a lista mostra só as contas internas (fora das pílulas e da contagem). */
+  protected readonly internalView = signal(false);
   protected readonly currentPage = signal(0);
 
-  protected readonly pendingAction = signal<PendingAction | null>(null);
-  protected readonly rowPending = signal<Record<string, boolean>>({});
+  protected readonly today = signal<TodayList | null>(null);
+  protected readonly todayLoading = signal(false);
+  protected readonly todayError = signal<string | null>(null);
+
+  /** Empresa do "Registrar contato" aberto; nulo = folha fechada. */
+  protected readonly contactTarget = signal<CompanyActionTarget | null>(null);
+  /** Empresa do "Estender teste" aberto. */
+  protected readonly trialTarget = signal<(CompanyActionTarget & { trialEndsAt: string | null }) | null>(null);
+
+  protected readonly canContact = computed(() => this.caps.can('contato.ver'));
+  protected readonly canExtend = computed(() => this.caps.can('empresa.teste'));
+
+  protected readonly columns: readonly DataListColumn<AdminCompanyListItem>[] = [
+    { key: 'name', header: 'Empresa', primary: true, value: (c) => c.name },
+    { key: 'segment', header: 'Segmento', value: (c) => segmentChip(c.engagement?.segment)?.label ?? '' },
+    { key: 'signal', header: 'Último sinal real', value: (c) => lastSignalText(c.engagement) },
+    { key: 'deadline', header: 'Prazo', value: (c) => deadlineText(c.engagement) },
+    { key: 'fleet', header: 'Frota', value: (c) => fleetText(c.engagement) },
+    { key: 'next', header: 'Próxima ação sugerida', value: (c) => nextActionTitle(c.engagement) ?? '—' },
+  ];
+
+  /** Sem a coluna "Segmento" na tela: o chip já mora embaixo do nome. Ela existe só no CSV. */
+  protected readonly visibleColumns = this.columns.filter((c) => c.key !== 'segment');
+
+  protected readonly rowId = (company: AdminCompanyListItem): string => company.id;
+  protected readonly kebabLabel = (company: AdminCompanyListItem): string => `Ações da empresa ${company.name}`;
+
+  /** Pílulas com a contagem do servidor; zero continua visível. */
+  protected readonly segmentOptions = computed<readonly FilterChipOption<SegmentFilter>[]>(() => {
+    const counts = this.segmentCounts();
+    return SEGMENT_FILTERS.map((value) => ({
+      value,
+      label: value === 'ALL' ? 'Todas' : SEGMENT_CHIPS[value].label,
+      count: counts[value] ?? null,
+    }));
+  });
 
   protected readonly totalPages = computed(() => {
     const t = this.total();
-    if (t <= 0) return 1;
-    return Math.max(1, Math.ceil(t / PAGE_SIZE));
+    return t <= 0 ? 1 : Math.max(1, Math.ceil(t / PAGE_SIZE));
   });
 
-  /** Algum filtro fora do padrão: o toolbar mostra "Limpar filtros". */
-  protected readonly filtersActive = computed(
-    () => this.search() !== '' || this.statusFilter() !== 'ALL' || this.planFilter() !== 'ALL',
-  );
+  protected readonly filtersActive = computed(() => this.search() !== '' || this.segment() !== 'ALL');
 
-  protected readonly confirmVariant = computed<'info' | 'warning' | 'danger'>(() => {
-    const a = this.pendingAction();
-    if (!a) return 'info';
-    return a.kind === 'SUSPEND' ? 'danger' : 'warning';
-  });
-
-  protected readonly confirmTitle = computed(() => {
-    const a = this.pendingAction();
-    if (!a) return '';
-    return a.kind === 'SUSPEND' ? 'Suspender empresa' : 'Reativar empresa';
-  });
-
-  protected readonly confirmMessage = computed(() => {
-    const a = this.pendingAction();
-    if (!a) return '';
-    const label = a.company.name;
-    return a.kind === 'SUSPEND'
-      ? `«${label}» perderá acesso imediatamente à plataforma. Continuar?`
-      : `«${label}» voltará a ter acesso normal à plataforma.`;
-  });
-
-  protected readonly confirmLabel = computed(() => {
-    const a = this.pendingAction();
-    if (!a) return 'Confirmar';
-    return a.kind === 'SUSPEND' ? 'Suspender' : 'Reativar';
+  protected readonly emptyText = computed(() => {
+    if (this.internalView()) return 'Nenhuma conta interna.';
+    if (this.search()) return 'Nenhuma empresa com essa busca.';
+    const s = this.segment();
+    if (s === 'EX_CLIENT') return 'Nenhum ex-cliente até hoje.';
+    return s === 'ALL' ? 'Nenhuma empresa encontrada.' : `Nenhuma empresa em “${SEGMENT_CHIPS[s].label}”.`;
   });
 
   constructor() {
     effect(() => {
       const search = this.search();
-      const status = this.statusFilter();
-      const plan = this.planFilter();
+      const segment = this.segment();
+      const internal = this.internalView();
       const page = this.currentPage();
       this.error.set(null);
       this.companiesService
         .load({
           search,
-          status,
-          planCode: plan === 'ALL' ? null : plan,
+          segment: internal || segment === 'ALL' ? null : segment,
+          internal,
           page,
           size: PAGE_SIZE,
         })
         .subscribe({
           error: (err: HttpErrorResponse) =>
-            this.error.set(
-              this.apiErrors.messageFor(
-                err,
-                'Não foi possível carregar as empresas. Tente novamente.',
-              ),
-            ),
+            this.error.set(this.apiErrors.messageFor(err, 'Não foi possível carregar as empresas. Tente novamente.')),
         });
     });
+  }
+
+  ngOnInit(): void {
+    this.caps.ensureLoaded().subscribe();
+    const fromUrl = this.route.snapshot?.queryParamMap?.get('segmento');
+    if (fromUrl && (COMPANY_SEGMENTS as readonly string[]).includes(fromUrl)) {
+      this.segment.set(fromUrl as CompanySegment);
+    }
+    this.loadToday();
+  }
+
+  protected loadToday(): void {
+    this.todayLoading.set(true);
+    this.todayError.set(null);
+    this.segmentsService
+      .today()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.today.set(res);
+          this.todayLoading.set(false);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.todayLoading.set(false);
+          this.todayError.set(this.apiErrors.messageFor(err, 'Não foi possível carregar a lista de hoje.'));
+        },
+      });
+  }
+
+  protected openCompany(company: AdminCompanyListItem): void {
+    void this.router.navigate(['/admin/companies', company.id]);
   }
 
   /** Busca no servidor (o toolbar já espera 300ms depois da última tecla). */
@@ -229,25 +232,20 @@ export class AdminCompanies {
     this.search.set(next);
   }
 
-  protected setStatusFilter(value: StatusFilter): void {
+  protected setSegment(value: SegmentFilter): void {
     this.currentPage.set(0);
-    this.statusFilter.set(value);
-  }
-
-  protected setPlanFilter(value: PlanFilter): void {
-    this.currentPage.set(0);
-    this.planFilter.set(value);
-  }
-
-  protected onPlanChange(event: Event): void {
-    this.setPlanFilter((event.target as HTMLSelectElement).value as PlanFilter);
+    this.segment.set(value);
   }
 
   protected clearFilters(): void {
     this.currentPage.set(0);
     this.search.set('');
-    this.statusFilter.set('ALL');
-    this.planFilter.set('ALL');
+    this.segment.set('ALL');
+  }
+
+  protected toggleInternalView(): void {
+    this.currentPage.set(0);
+    this.internalView.update((v) => !v);
   }
 
   protected goToPage(page: number): void {
@@ -255,91 +253,129 @@ export class AdminCompanies {
     this.currentPage.set(page);
   }
 
-  protected requestToggleStatus(company: AdminCompanyListItem): void {
-    if (company.active) {
-      this.pendingAction.set({ kind: 'SUSPEND', company });
-    } else {
-      // reactivate is safe — apply direct
-      this.applyStatus(company, true);
-    }
+  /** CSV do que está na tela (o segmento escolhido), com o segmento numa coluna própria. */
+  protected exportList(): void {
+    const name = this.internalView()
+      ? 'empresas-internas'
+      : this.segment() === 'ALL'
+        ? 'empresas'
+        : `empresas-${SEGMENT_CHIPS[this.segment() as CompanySegment].label.toLowerCase().replace(/\s+/g, '-')}`;
+    downloadCsv(
+      name,
+      buildCsv(
+        this.columns.map((c) => ({ key: c.key, header: c.header, kind: c.kind, value: c.value })),
+        this.companies(),
+      ),
+    );
   }
 
-  protected cancelPending(): void {
-    this.pendingAction.set(null);
+  // ---- Linha ---------------------------------------------------------------------------
+
+  protected chip(company: AdminCompanyListItem) {
+    return segmentChip(company.engagement?.segment);
   }
 
-  protected confirmPending(): void {
-    const a = this.pendingAction();
-    if (!a) return;
-    this.applyStatus(a.company, a.kind !== 'SUSPEND');
-    this.pendingAction.set(null);
+  protected signalText(company: AdminCompanyListItem): string {
+    return lastSignalText(company.engagement);
   }
 
-  protected isPending(id: string): boolean {
-    return !!this.rowPending()[id];
+  protected deadline(company: AdminCompanyListItem): string {
+    return deadlineText(company.engagement);
   }
 
-  protected companyChip(status: AdminCompanyStatus): ChipStyle {
-    return COMPANY_STATUS_CHIPS[status] ?? { label: status, tone: 'neutral' };
+  protected fleet(company: AdminCompanyListItem): string {
+    return fleetText(company.engagement);
   }
 
-  protected subChip(company: AdminCompanyListItem): SubscriptionChip | null {
-    return subscriptionChip(company.subscriptionStatus, company.trialEndsAt);
+  protected nextAction(company: AdminCompanyListItem): string {
+    return nextActionTitle(company.engagement) ?? '—';
   }
 
-  /** "Campinas, SP" / "Campinas" / "SP" / "—" — cadastro parcial é estado normal. */
-  protected place(company: AdminCompanyListItem): string {
-    const parts = [company.city, company.uf].map((p) => (p ?? '').trim()).filter((p) => p !== '');
-    return parts.length > 0 ? parts.join(', ') : '—';
+  protected contactLine(company: AdminCompanyListItem): string | null {
+    return lastContactText(company.engagement);
   }
 
-  /**
-   * FEAT-0141 — liga/desliga a marca de empresa INTERNA (backend: FEAT-0138).
-   *
-   * Sem dialogo de confirmacao de proposito: a acao e reversivel no mesmo menu
-   * e nao tira a empresa de lugar nenhum — ela SO sai da conta das metricas,
-   * e continua na listagem.
-   */
-  protected toggleInternal(company: AdminCompanyListItem): void {
-    const target = !company.internal;
-    this.actionError.set(null);
-    this.setRowPending(company.id, true);
-    this.companiesService.updateInternal(company.id, target).subscribe({
-      next: () => {
-        this.setRowPending(company.id, false);
-        this.notify.success(
-          target
-            ? 'Empresa marcada como interna. Fica fora das métricas.'
-            : 'Marca de interna desfeita. Empresa volta a contar nas métricas.',
-        );
-      },
-      error: (err: HttpErrorResponse) => {
-        this.setRowPending(company.id, false);
-        this.actionError.set(
-          this.apiErrors.messageFor(err, 'Não foi possível atualizar a marca de empresa interna.'),
-        );
-      },
-    });
+  protected message(company: AdminCompanyListItem): string | null {
+    return whatsAppMessage(company.engagement, company.name, company.ownerName);
   }
 
-  private setRowPending(id: string, value: boolean): void {
-    this.rowPending.update((state) => ({ ...state, [id]: value }));
+  protected isTrial(company: AdminCompanyListItem): boolean {
+    return isTrialSegment(company.engagement?.segment);
   }
 
-  private applyStatus(company: AdminCompanyListItem, active: boolean): void {
-    this.actionError.set(null);
-    this.setRowPending(company.id, true);
-    this.companiesService.updateStatus(company.id, active).subscribe({
-      next: () => {
-        this.setRowPending(company.id, false);
-        this.notify.success(active ? 'Empresa reativada.' : 'Empresa suspensa.');
-      },
-      error: (err: HttpErrorResponse) => {
-        this.setRowPending(company.id, false);
-        this.actionError.set(
-          this.apiErrors.messageFor(err, 'Não foi possível atualizar o status da empresa.'),
-        );
-      },
-    });
+  protected trialLabel(company: AdminCompanyListItem): string {
+    return trialActionLabel(company.engagement?.segment);
+  }
+
+  protected isTrialTarget(target: CompanyActionTarget): boolean {
+    return isTrialSegment(target.engagement?.segment);
+  }
+
+  protected targetOf(company: AdminCompanyListItem): CompanyActionTarget {
+    return {
+      companyId: company.id,
+      name: company.name,
+      ownerName: company.ownerName ?? null,
+      engagement: company.engagement ?? null,
+    };
+  }
+
+  // ---- Ações (⋮) -----------------------------------------------------------------------
+
+  protected whatsApp(target: CompanyActionTarget): void {
+    void this.reveal.whatsApp(
+      'COMPANY',
+      target.companyId,
+      whatsAppMessage(target.engagement, target.name, target.ownerName),
+    );
+  }
+
+  protected openContact(target: CompanyActionTarget): void {
+    this.contactTarget.set(target);
+  }
+
+  protected closeContact(): void {
+    this.contactTarget.set(null);
+  }
+
+  /** O contato tira a empresa de "Hoje, para agir": a linha troca o bloco e a fila recarrega. */
+  protected onContactSaved(target: CompanyActionTarget, res: RegisterContactResponse): void {
+    this.companiesService.patchEngagement(target.companyId, res.engagement);
+    const ext = res.trialExtension;
+    const extra = ext ? ` Teste estendido em ${ext.days} dias.` : '';
+    this.notify.success(`Contato registrado.${extra}`);
+    this.loadToday();
+  }
+
+  protected openTrial(target: CompanyActionTarget, trialEndsAt: string | null = null): void {
+    const deadline = target.engagement?.deadline;
+    const fallback = deadline && deadline.kind !== 'RENEWAL' ? deadline.at : null;
+    this.trialTarget.set({ ...target, trialEndsAt: trialEndsAt ?? fallback });
+  }
+
+  protected closeTrial(): void {
+    this.trialTarget.set(null);
+  }
+
+  protected onTrialExtended(res: TrialExtensionResponse): void {
+    this.trialTarget.set(null);
+    const email = res.emailRecipients > 0
+      ? ' A empresa foi avisada por e-mail.'
+      : ' A empresa não tem e-mail cadastrado para o aviso.';
+    this.notify.success(`Teste estendido em ${res.days} dias.${email}`);
+    this.reloadList();
+    this.loadToday();
+  }
+
+  private reloadList(): void {
+    this.companiesService
+      .load({
+        search: this.search(),
+        segment: this.internalView() || this.segment() === 'ALL' ? null : (this.segment() as CompanySegment),
+        internal: this.internalView(),
+        page: this.currentPage(),
+        size: PAGE_SIZE,
+      })
+      .subscribe({ error: () => undefined });
   }
 }

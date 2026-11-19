@@ -51,21 +51,26 @@ function el(f: ComponentFixture<SupportEditEntry>): HTMLElement {
 }
 
 describe('SupportEditEntry', () => {
-  it('chave desligada: botão desabilitado COM a explicação visível', async () => {
+  it('chave desligada: o item do ⋮ fica apagado COM a explicação; abrir não faz nada', async () => {
     const { fixture } = await mount({ enabled: false, ttlMinutes: 30 });
 
-    const button = el(fixture).querySelector('button') as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    expect(el(fixture).textContent).toContain('desligado na plataforma');
+    expect(fixture.componentInstance.canOpen()).toBe(false);
+    expect(fixture.componentInstance.hint()).toContain('desligado na plataforma');
+    fixture.componentInstance.openDialog();
+    fixture.detectChanges();
+    expect(el(fixture).querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('sem botão próprio: o gatilho é o item do ⋮ do detalhe', async () => {
+    const { fixture } = await mount({ enabled: true, ttlMinutes: 30 });
+    expect(el(fixture).querySelector('button')).toBeNull();
   });
 
   it('chave ligada: abre o dialog com empresa e o aviso de registro, e só então inicia', async () => {
     const { fixture, startEdit, navigate } = await mount({ enabled: true, ttlMinutes: 30 });
-    const button = el(fixture).querySelector('button') as HTMLButtonElement;
-    expect(button.disabled).toBe(false);
-    expect(button.className).toContain('min-h-11');
+    expect(fixture.componentInstance.canOpen()).toBe(true);
 
-    button.click();
+    fixture.componentInstance.openDialog();
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -93,7 +98,7 @@ describe('SupportEditEntry', () => {
       ),
     );
     const { fixture } = await mount({ enabled: true, ttlMinutes: 30 }, startEdit as never);
-    (el(fixture).querySelector('button') as HTMLButtonElement).click();
+    fixture.componentInstance.openDialog();
     fixture.detectChanges();
     await fixture.whenStable();
     const confirm = Array.from(el(fixture).querySelectorAll('[role="dialog"] button')).find((b) =>

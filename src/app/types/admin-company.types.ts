@@ -1,4 +1,6 @@
 import type { CompanyHealth, CompanyHealthReason } from './admin-home.types';
+import type { ActivityItem, CompanyEngagement } from './admin-segments.types';
+import type { PagedResponse } from './paged.types';
 /**
  * DTO shapes for the /admin/companies endpoints.
  *
@@ -72,6 +74,8 @@ export interface AdminCompanyListItem {
   /** Admin home v2 (B6) — saúde pela definição <D-DEFS>. */
   health?: CompanyHealth;
   healthReason?: CompanyHealthReason;
+  /** Segmentos (18/11/2026): segmento, sinais, prazo e próxima ação. Opcional: backend anterior não manda. */
+  engagement?: CompanyEngagement | null;
 }
 
 export interface AdminCompanySubscriptionSnapshot {
@@ -296,4 +300,8 @@ export interface AdminCompanyDetail {
   /** Empresa INTERNA — fora das metricas da plataforma. */
   internal: boolean;
   finance?: AdminCompanyFinance | null;
+  /** Segmentos (18/11/2026): o mesmo `engagement` da lista. */
+  engagement?: CompanyEngagement | null;
+  /** Segmentos (18/11/2026): primeira página da atividade (`category=ALL`, 20 itens). */
+  activity?: PagedResponse<ActivityItem> | null;
 }

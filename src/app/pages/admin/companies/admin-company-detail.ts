@@ -7,6 +7,7 @@ import {
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -31,8 +32,26 @@ import {
 import { SupportEditEntry } from './support-edit-entry';
 import { TrialExtensionSheet } from './trial-extension-sheet';
 import { TrialExtensionResponse } from '../../../services/admin-trial.service';
-import { ContactBar } from '../contact/contact-bar';
-import { ContactActions } from '../contact/contact-actions';
+import { ContactRevealActions } from '../contact/contact-reveal-actions';
+import { RegisterContactSheet } from '../contact/register-contact-sheet';
+import { CompanyActivity } from './company-activity';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
+import { DataListActions } from '../../../components/lists/data-list/data-list';
+import { DataListMenuItem } from '../../../components/lists/data-list/data-list-menu-item';
+import type { RegisterContactResponse } from '../../../types/admin-segments.types';
+import {
+  businessDay,
+  dayMonth,
+  fullDay,
+  relativePast,
+  deadlineText,
+  lastContactText,
+  nextActionTitle,
+  segmentChip,
+  trialActionLabel,
+  whatsAppMessage,
+  whyLines,
+} from '../segments/segment-copy';
 import { subscriptionChip, type SubscriptionChip } from './subscription-status-chip';
 import { formatBrl, BrlPipe } from '../../../pipes/brl.pipe';
 import { BarChart, type BarSeries } from '../../../components/charts/bar-chart/bar-chart';
@@ -46,6 +65,8 @@ import {
   type DataListColumn,
 } from '../../../components/lists/data-list/data-list';
 import { KpiCard } from '../../../components/kpi-card/kpi-card';
+import { todayInBusinessTz } from '../../../utils/business-clock';
+import { formatFullDate, formatTime, parseServerTime } from '../../../utils/server-time';
 import { companyRoleLabel } from '../../../utils/role-labels';
 import { PlatePipe } from '../../../pipes/plate.pipe';
 import { PersonNamePipe } from '../../../pipes/person-name.pipe';
@@ -151,14 +172,6 @@ function monthLabel(month: string, withYear = true): string {
   return withYear ? `${name}/${match[1].slice(2)}` : name;
 }
 
-export interface FinanceTile {
-  key: string;
-  label: string;
-  value: string;
-  /** Cor do número: só vermelho (atraso) e verde (recebido) carregam sentido. */
-  tone: 'default' | 'good' | 'bad';
-}
-
 export interface SubscriptionRow {
   label: string;
   value: string;
@@ -178,9 +191,12 @@ export interface SubscriptionRow {
     SupportEditEntry,
     TrialExtensionSheet,
     RouterLink,
-    ContactBar,
-    ContactActions,
     BarChart,
+    ActionsMenu,
+    DataListActions,
+    DataListMenuItem,
+    CompanyActivity,
+    RegisterContactSheet,
     KpiCard,
     BrlPipe,
     ConfirmDialog,
@@ -190,6 +206,12 @@ export interface SubscriptionRow {
     DataListCell,
   ],
   templateUrl: './admin-company-detail.html',
+  // O único degradê da tela (regra do dono: "degradê só na Assinatura").
+  styles: `
+    .subscription-card {
+      background: linear-gradient(135deg, #f63b04 0%, #c22f00 55%, #6e1b00 100%);
+    }
+  `,
 })
 export class AdminCompanyDetail implements OnInit, OnDestroy {
   protected readonly caps = inject(AdminCapabilitiesService);
@@ -200,6 +222,9 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly impersonation = inject(ImpersonationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly reveal = inject(ContactRevealActions);
+  /** Entrada do modo edição: o item do ⋮ lê a chave e abre o diálogo dele. */
+  protected readonly editEntry = viewChild(SupportEditEntry);
 
   private companyId: string | null = null;
 
@@ -300,15 +325,6 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     () => this.detail()?.members.find((m) => m.role === 'OWNER' && m.status === 'ACTIVE') ?? null,
   );
 
-  /**
-   * Se ha telefone a revelar: o do dono (mascarado) ou, na falta, o cadastral
-   * da empresa — a mesma ordem que o servidor usa no sujeito COMPANY. Nulo =
-   * nada a revelar, e a barra nem chama o endpoint (nada a auditar).
-   */
-  protected readonly ownerContactHint = computed<string | null>(
-    () => this.owner()?.phoneMasked ?? this.detail()?.registration?.phone ?? null,
-  );
-
   /** "Campinas, SP" a partir do cadastro; vazio vira "—". */
   protected readonly place = computed(() => {
     const reg = this.detail()?.registration;
@@ -316,23 +332,113 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     return parts.length > 0 ? parts.join(', ') : '—';
   });
 
-  /**
-   * Financeiro do mês (FEAT-0480). Gerenciado = volume das cobranças de ALUGUEL por mês de
-   * vencimento; recebido = dinheiro pago no mês (pelo mês do pagamento, não do vencimento); atraso = vencida e não paga. Sem bloco: "—".
-   */
-  protected readonly financeTiles = computed<FinanceTile[]>(() => {
-    const detail = this.detail();
-    if (!detail) return [];
-    const fin = detail.finance;
-    const ops = detail.operations;
-    return [
-      { key: 'managed', label: 'Valor gerenciado no mês', value: moneyOrDash(fin?.managedMonthCents), tone: 'default' },
-      { key: 'received', label: 'Recebido no mês', value: moneyOrDash(fin?.receivedMonthCents), tone: 'good' },
-      { key: 'overdue', label: 'Em atraso', value: moneyOrDash(fin?.overdueMonthCents), tone: 'bad' },
-      { key: 'vehicles', label: 'Veículos ativos', value: ops ? COUNT_FORMATTER.format(ops.vehicles.activeTotal) : '—', tone: 'default' },
-      { key: 'drivers', label: 'Motoristas', value: ops ? COUNT_FORMATTER.format(ops.drivers.total) : '—', tone: 'default' },
-    ];
+  protected readonly engagement = computed(() => this.detail()?.engagement ?? null);
+
+  protected readonly segment = computed(() => segmentChip(this.engagement()?.segment));
+
+  /** Plano em chip NEUTRO (quem a empresa é); a cor fica para a situação. */
+  protected readonly planChipLabel = computed(() => {
+    const sub = this.detail()?.subscription;
+    return sub ? this.planLabel(sub.planName, sub.planCode) : null;
   });
+
+  /** "Cliente desde 24/09/2026 · renova em 30/11 · Campinas, SP". */
+  protected readonly headerLine = computed(() => {
+    const company = this.detail();
+    if (!company) return '';
+    const since = company.createdAt ? `Cliente desde ${this.formatDate(company.createdAt)}` : null;
+    const deadline = deadlineText(this.engagement(), this.now());
+    const place = this.place();
+    return [since, deadline !== '—' ? deadline.charAt(0).toLowerCase() + deadline.slice(1) : null, place !== '—' ? place : null]
+      .filter(Boolean)
+      .join(' · ');
+  });
+
+  /** Relógio da tela (os testes trocam). */
+  protected now(): Date {
+    return new Date();
+  }
+
+  // ---- Cartões pintados (estilo do painel do dono) ----------------------------------------
+
+  protected readonly managedCents = computed(() => this.detail()?.finance?.managedMonthCents ?? null);
+  protected readonly receivedCents = computed(() => this.detail()?.finance?.receivedMonthCents ?? null);
+  protected readonly overdueCents = computed(() => this.detail()?.finance?.overdueMonthCents ?? null);
+
+  protected readonly managedDetail = computed(() => {
+    const ops = this.detail()?.operations;
+    if (!ops) return null;
+    const n = ops.rentals.activeTotal;
+    return n === 1 ? '1 aluguel ativo' : `${COUNT_FORMATTER.format(n)} aluguéis ativos`;
+  });
+
+  protected readonly receivedDetail = computed(() => {
+    const managed = this.managedCents();
+    const received = this.receivedCents();
+    if (managed === null || received === null || managed <= 0) return 'dinheiro que entrou no mês';
+    return `${Math.round((received / managed) * 100)}% do gerenciado`;
+  });
+
+  /** Cartão Assinatura (o único em degradê): "Pro · R$ 79,90" e o ciclo. */
+  protected readonly subscriptionValue = computed(() => {
+    const sub = this.detail()?.subscription;
+    if (!sub) return 'Sem assinatura';
+    const plan = this.planLabel(sub.planName, sub.planCode);
+    return sub.listPriceCents ? `${plan} · ${formatBrl(sub.listPriceCents)}` : plan;
+  });
+
+  protected readonly subscriptionDetail = computed(() => {
+    const sub = this.detail()?.subscription;
+    if (!sub) return 'nenhum plano registrado';
+    const deadline = deadlineText(this.engagement(), this.now());
+    const cycle = sub.billingCycle === 'YEARLY' ? 'por ano' : sub.billingCycle === 'WEEKLY' ? 'por semana' : 'por mês';
+    const parts = [sub.status === 'TRIALING' || sub.status === 'EXPIRED' ? null : cycle];
+    if (deadline !== '—') parts.push(deadline.charAt(0).toLowerCase() + deadline.slice(1));
+    else if (sub.nextBillingDate) parts.push(`próximo pagamento ${this.formatDate(sub.nextBillingDate)}`);
+    if (sub.cancelAtPeriodEnd) parts.push('cancela no fim do ciclo');
+    return parts.filter(Boolean).join(' · ') || '—';
+  });
+
+  // ---- Próxima ação ------------------------------------------------------------------
+
+  protected readonly nextTitle = computed(() => nextActionTitle(this.engagement()));
+  protected readonly why = computed(() => whyLines(this.engagement()));
+  protected readonly message = computed(() => {
+    const company = this.detail();
+    if (!company) return null;
+    return whatsAppMessage(this.engagement(), company.name, this.owner()?.name ?? null, this.now());
+  });
+
+  /** Chip "até 30/11": o prazo que a próxima ação tem (fim do teste ou renovação). */
+  protected readonly nextUntil = computed(() => {
+    const d = this.engagement()?.deadline;
+    if (!d || d.kind === 'TRIAL_ENDED') return null;
+    const day = businessDay(d.at);
+    return day && day >= todayInBusinessTz(this.now()) ? `até ${dayMonth(day)}` : null;
+  });
+
+  /** O que o último contato fez com a empresa em "Hoje, para agir". */
+  protected readonly contactNote = computed(() => {
+    const e = this.engagement();
+    if (!e) return null;
+    const line = lastContactText(e);
+    switch (e.today?.status) {
+      case 'HIDDEN_UNTIL_DATE':
+        return `${line}. Até ${dayMonth(e.today.hiddenUntil)} ela fica fora de “Hoje, para agir”.`;
+      case 'HIDDEN_UNTIL_SEGMENT_CHANGES':
+        return `${line}. Fica fora de “Hoje, para agir” até o segmento mudar.`;
+      case 'NOT_INTERESTED':
+        return 'Disse que não tem interesse: fora de “Hoje, para agir” e das sugestões até alguém registrar um contato novo.';
+      case 'LISTED':
+        return e.today.listedReason === 'FOLLOW_UP_DUE'
+          ? `${line}. O retorno chegou: ela está em “Hoje, para agir”.`
+          : 'Está em “Hoje, para agir” hoje.';
+      default:
+        return line;
+    }
+  });
+
+  protected readonly trialLabel = computed(() => trialActionLabel(this.engagement()?.segment));
 
   /** Meses da série, do mais antigo ao corrente (o servidor já manda nessa ordem). */
   private readonly managedPoints = computed(() => this.detail()?.finance?.managedSeries ?? []);
@@ -516,6 +622,35 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     ];
   });
 
+  /** Os quatro números da operação que sempre importam, em blocos compactos. */
+  protected readonly operationTiles = computed(() => {
+    const ops = this.detail()?.operations;
+    if (!ops) return [];
+    return [
+      { key: 'vehicles', label: 'Veículos ativos', value: COUNT_FORMATTER.format(ops.vehicles.activeTotal) },
+      { key: 'drivers', label: 'Motoristas', value: COUNT_FORMATTER.format(ops.drivers.total) },
+      { key: 'rentals', label: 'Aluguéis ativos', value: COUNT_FORMATTER.format(ops.rentals.activeTotal) },
+      { key: 'contracts', label: 'Contratos', value: COUNT_FORMATTER.format(ops.contracts.total) },
+    ];
+  });
+
+  /** Grupos sem nenhum número: ficam recolhidos atrás de "ver tudo", em vez de meia tela de zeros. */
+  protected readonly zeroGroupNames = computed(() =>
+    this.operationGroups()
+      .filter((g) => g.metrics.every((m) => m.zero))
+      .map((g) => g.title.toLowerCase()),
+  );
+
+  protected readonly operationsOpen = signal(false);
+
+  protected readonly operationsToggleLabel = computed(() => {
+    const zero = this.zeroGroupNames();
+    if (this.operationsOpen()) return 'Recolher os detalhes';
+    if (zero.length === 0) return 'Ver tudo';
+    const list = zero.length === 1 ? zero[0] : `${zero.slice(0, -1).join(', ')} e ${zero[zero.length - 1]}`;
+    return `Sem registro: ${list} · ver tudo`;
+  });
+
   ngOnInit(): void {
     this.caps.ensureLoaded().subscribe();
     this.route.paramMap
@@ -537,6 +672,72 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
 
   protected reload(): void {
     if (this.companyId) this.loadDetail(this.companyId);
+  }
+
+  // ---- Conversa (⋮) -----------------------------------------------------------------
+
+  protected readonly contactOpen = signal(false);
+
+  protected whatsApp(): void {
+    const company = this.detail();
+    if (!company) return;
+    void this.reveal.whatsApp('COMPANY', company.id, this.message());
+  }
+
+  protected openContact(): void {
+    this.contactOpen.set(true);
+  }
+
+  protected closeContact(): void {
+    this.contactOpen.set(false);
+  }
+
+  /** O cartão "Próxima ação" troca já com a resposta; a atividade vem no recarregamento. */
+  protected onContactSaved(res: RegisterContactResponse): void {
+    const company = this.detail();
+    if (company) this.companiesService.patchEngagement(company.id, res.engagement);
+    const ext = res.trialExtension;
+    this.notifications.success(`Contato registrado.${ext ? ` Teste estendido em ${ext.days} dias.` : ''}`);
+    this.reload();
+  }
+
+  // ---- Membros (⋮ da linha) ------------------------------------------------------------
+
+  protected memberWhatsApp(member: AdminCompanyMember): void {
+    void this.reveal.whatsApp('USER', member.userId, null, this.companyId);
+  }
+
+  protected memberCall(member: AdminCompanyMember): void {
+    void this.reveal.call('USER', member.userId, this.companyId);
+  }
+
+  protected memberCopy(member: AdminCompanyMember): void {
+    void this.reveal.copy('USER', member.userId, this.companyId);
+  }
+
+  protected readonly memberKebabLabel = (m: AdminCompanyMember): string => `Ações de ${m.name}`;
+
+  // ---- Conta (⋮) ---------------------------------------------------------------------
+
+  protected readonly internalUpdating = this.companiesService.internalUpdating;
+
+  /** Empresa interna sai das métricas e dos segmentos; reversível no mesmo menu, sem confirmação. */
+  protected toggleInternal(): void {
+    const company = this.detail();
+    if (!company) return;
+    const target = !company.internal;
+    this.companiesService.updateInternal(company.id, target).subscribe({
+      next: () =>
+        this.notifications.success(
+          target
+            ? 'Empresa marcada como interna. Fica fora das métricas e dos segmentos.'
+            : 'Marca de interna desfeita. Empresa volta a contar nas métricas.',
+        ),
+      error: (err: HttpErrorResponse) =>
+        this.notifications.error(
+          this.apiErrors.messageFor(err, 'Não foi possível atualizar a marca de empresa interna.'),
+        ),
+    });
   }
 
   // ---- [trilha A] Estender teste -------------------------------------------
@@ -655,40 +856,22 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
    * `drivers-list`, `financings-list`, `alerts-page` e `admin-home`; aqui ela é
    * seguida localmente (unificar as 6+ cópias é nó próprio).
    */
-  protected formatDate(value: string | null): string {
+  protected formatDate(value: string | null | undefined): string {
     if (!value) return '—';
-    const parsed = new Date(value.length === 10 ? `${value}T00:00:00` : value);
-    if (Number.isNaN(parsed.getTime())) return '—';
-    return parsed.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+    if (value.length === 10) return fullDay(value);
+    return formatFullDate(parseServerTime(value));
   }
 
   /** "hoje" / "ontem" / "há N dias" / data; nulo = "—" (a coluna é esparsa, não é "nunca acessou"). */
   protected lastSeenLabel(value: string | null | undefined): string {
     if (!value) return '—';
-    const seen = new Date(value);
-    if (Number.isNaN(seen.getTime())) return '—';
-    const days = Math.floor((Date.now() - seen.getTime()) / 86_400_000);
-    if (days <= 0) return 'hoje';
-    if (days === 1) return 'ontem';
-    if (days < 30) return `há ${days} dias`;
-    return this.formatDate(value);
+    return relativePast(value, this.now()) ?? '—';
   }
 
   protected formatDateTime(value: string | null): string {
-    if (!value) return '—';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '—';
-    return parsed.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const date = parseServerTime(value);
+    if (!date) return '—';
+    return `${formatFullDate(date)}, ${formatTime(date)}`;
   }
 
   /**

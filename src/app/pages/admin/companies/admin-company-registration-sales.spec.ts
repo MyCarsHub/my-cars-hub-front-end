@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AdminCompanyDetail } from './admin-company-detail';
+import { revealDetail } from './company-detail.testing';
 import { AdminCompaniesService } from '../admin-companies.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -148,6 +149,7 @@ describe('AdminCompanyDetail — cadastro e vendas (FEAT-0076)', () => {
             detail: signal<AdminCompanyDetailDto | null>(detailValue),
             detailLoading: signal(false),
             statusUpdating: signal(false),
+            internalUpdating: signal(false),
             loadDetail: vi.fn().mockReturnValue(of(detailValue)),
             updateStatus: vi.fn(),
             clearDetail: vi.fn(),
@@ -166,6 +168,7 @@ describe('AdminCompanyDetail — cadastro e vendas (FEAT-0076)', () => {
 
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
     return fixture.nativeElement as HTMLElement;
   }
 

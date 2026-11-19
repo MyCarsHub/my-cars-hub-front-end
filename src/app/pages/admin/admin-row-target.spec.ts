@@ -9,6 +9,7 @@ import { AdminUsers } from './users/admin-users';
 import { AdminUsersService } from './admin-users.service';
 import { AdminCompanies } from './companies/admin-companies';
 import { AdminCompaniesService } from './admin-companies.service';
+import { AdminSegmentsService } from './segments/admin-segments.service';
 import { AdminCapabilitiesService } from '../../services/admin-capabilities.service';
 import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
@@ -233,38 +234,41 @@ describe('FIX-0422 — clicar FORA do nome navega (/admin/companies)', () => {
             companies: signal<AdminCompanyListItem[]>([COMPANY]),
             loading: signal(false),
             total: signal(1),
+            segmentCounts: signal({}),
             load: vi.fn().mockReturnValue(of({ content: [COMPANY], total: 1 })),
-            updateStatus: vi.fn(),
-            updateInternal: vi.fn().mockReturnValue(of(COMPANY)),
+            patchEngagement: vi.fn(),
           },
         },
+        // Empresas (18/11/2026): "Hoje, para agir" e o ⋮ de conversa dependem destes dois.
+        { provide: AdminSegmentsService, useValue: { today: () => of(null), registerContact: vi.fn() } },
+        { provide: AdminCapabilitiesService, useValue: { ensureLoaded: () => of(null), can: () => true } },
         { provide: NotificationService, useValue: NOTIFY },
       ],
     });
   });
 
-  it('desktop: clicar na celula de SITUACAO navega para o detalhe', async () => {
+  it('desktop: clicar na celula de PRAZO navega para o detalhe', async () => {
     const f = await render(AdminCompanies);
-    const cell = desktopCell(f.nativeElement, 'Situação');
-    expect(await clickAndUrl(f, cell, 'celula Situacao')).toBe('/admin/companies/co-1');
+    const cell = desktopCell(f.nativeElement, 'Prazo');
+    expect(await clickAndUrl(f, cell, 'celula Prazo')).toBe('/admin/companies/co-1');
   });
 
-  it('desktop: clicar na celula de PLANO navega para o detalhe', async () => {
+  it('desktop: clicar na celula de FROTA navega para o detalhe', async () => {
     const f = await render(AdminCompanies);
-    const cell = desktopCell(f.nativeElement, 'Plano');
-    expect(await clickAndUrl(f, cell, 'celula Plano')).toBe('/admin/companies/co-1');
+    const cell = desktopCell(f.nativeElement, 'Frota');
+    expect(await clickAndUrl(f, cell, 'celula Frota')).toBe('/admin/companies/co-1');
   });
 
-  it('desktop: clicar na celula de VALOR (MRR) navega para o detalhe', async () => {
+  it('desktop: clicar na celula de PROXIMA ACAO navega para o detalhe', async () => {
     const f = await render(AdminCompanies);
-    const cell = desktopCell(f.nativeElement, 'MRR');
-    expect(await clickAndUrl(f, cell, 'celula MRR')).toBe('/admin/companies/co-1');
+    const cell = desktopCell(f.nativeElement, 'Próxima ação sugerida');
+    expect(await clickAndUrl(f, cell, 'celula Proxima acao')).toBe('/admin/companies/co-1');
   });
 
   it('celular: clicar num valor do cartao navega para o detalhe', async () => {
     const f = await render(AdminCompanies);
-    const cell = mobileCell(f.nativeElement, 'Situação');
-    expect(await clickAndUrl(f, cell, 'valor Situacao do cartao')).toBe('/admin/companies/co-1');
+    const cell = mobileCell(f.nativeElement, 'Prazo');
+    expect(await clickAndUrl(f, cell, 'valor Prazo do cartao')).toBe('/admin/companies/co-1');
   });
 
   it('celular: clicar no cartao (fora de link e botao) navega para o detalhe', async () => {
@@ -275,7 +279,7 @@ describe('FIX-0422 — clicar FORA do nome navega (/admin/companies)', () => {
 
   it('a kebab nao navega — nem abrir o menu, nem um item de acao', async () => {
     const f = await render(AdminCompanies);
-    await expectKebabDoesNotNavigate(f, 'internal-menu-item');
+    await expectKebabDoesNotNavigate(f, 'menu-contact');
   });
 
   it('um tab stop por linha (o nome), alvos de 44px, nada interativo dentro de <a>', async () => {

@@ -23,12 +23,13 @@ import { SupportEditStatus } from '../../../types/impersonation.types';
 const STATUS_URL = `${environment.apiUrl}/admin/impersonation/edit/status`;
 
 /**
- * Entrada do modo edição de suporte, ao lado de "Ver como dono".
+ * Entrada do modo edição de suporte. Desde 18/11/2026 o gatilho é um item do ⋮ do detalhe da
+ * empresa (nenhum botão solto): este componente guarda a chave do servidor, o diálogo de
+ * confirmação e o erro; o item do menu lê `canOpen()`/`hint()` e chama `openDialog()`.
  *
- * Botão SEPARADO e confirmado: abrir uma sessão que ESCREVE nos dados do
- * cliente nunca é um clique só. A chave do servidor (`GET /status`) decide se o
- * botão está habilitado — desligada, ele fica desabilitado COM a explicação
- * visível, não escondido sem aviso.
+ * Confirmado: abrir uma sessão que ESCREVE nos dados do cliente nunca é um clique só. A chave
+ * do servidor (`GET /status`) decide se o item está habilitado — desligada, ele fica apagado COM
+ * a explicação, não escondido sem aviso.
  *
  * Importado estaticamente pela página de detalhe, que já é rota preguiçosa: o
  * custo fica no chunk dela, nunca no bundle inicial.
@@ -38,26 +39,9 @@ const STATUS_URL = `${environment.apiUrl}/admin/impersonation/edit/status`;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [AlertBanner, ConfirmDialog],
   template: `
-    <div class="flex w-full flex-col gap-1 sm:w-auto">
-      <button
-        type="button"
-        class="min-h-11 w-full rounded-xl border border-rose-200 dark:border-rose-500/30 bg-surface px-4 py-2.5 text-sm
-               font-semibold text-rose-700 dark:text-rose-300 transition-colors hover:bg-rose-50 dark:hover:bg-rose-500/10 focus:outline-none
-               focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
-               disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-        [disabled]="!canOpen()"
-        [attr.aria-describedby]="hint() ? 'support-edit-hint' : null"
-        (click)="openDialog()"
-      >
-        {{ starting() ? 'Abrindo sessão…' : 'Editar como empresa' }}
-      </button>
-      @if (hint(); as text) {
-        <p id="support-edit-hint" class="text-xs text-fg-subtle">{{ text }}</p>
-      }
-      @if (error(); as message) {
-        <app-alert-banner variant="error" [message]="message" />
-      }
-    </div>
+    @if (error(); as message) {
+      <app-alert-banner variant="error" [message]="message" />
+    }
 
     <app-confirm-dialog
       [open]="dialogOpen()"
@@ -86,14 +70,14 @@ export class SupportEditEntry implements OnInit {
   /** `true` quando o `GET /status` falhou — a chave fica desconhecida, não "ligada". */
   protected readonly statusFailed = signal(false);
   protected readonly dialogOpen = signal(false);
-  protected readonly starting = signal(false);
+  readonly starting = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  protected readonly canOpen = computed(
+  readonly canOpen = computed(
     () => this.status()?.enabled === true && !this.starting() && !this.impersonation.active(),
   );
 
-  protected readonly hint = computed(() => {
+  readonly hint = computed(() => {
     if (this.statusFailed()) {
       return 'Não foi possível verificar se o modo edição está liberado.';
     }
@@ -121,7 +105,7 @@ export class SupportEditEntry implements OnInit {
     });
   }
 
-  protected openDialog(): void {
+  openDialog(): void {
     if (!this.canOpen()) return;
     this.error.set(null);
     this.dialogOpen.set(true);
