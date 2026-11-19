@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AdminCompanyDetail } from './admin-company-detail';
+import { revealDetail } from './company-detail.testing';
 import { AdminCompaniesService } from '../admin-companies.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -73,6 +74,7 @@ describe('AdminCompanyDetail — financeiro, assinatura e equipe', () => {
             detail: signal<Dto | null>(dto),
             detailLoading: signal(false),
             statusUpdating: signal(false),
+            internalUpdating: signal(false),
             loadDetail: vi.fn().mockReturnValue(of(dto)),
             updateStatus: vi.fn(),
             clearDetail: vi.fn(),
@@ -84,6 +86,7 @@ describe('AdminCompanyDetail — financeiro, assinatura e equipe', () => {
     });
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
     return fixture.nativeElement as HTMLElement;
   }
 
@@ -97,7 +100,13 @@ describe('AdminCompanyDetail — financeiro, assinatura e equipe', () => {
     expect(tile(host, 'managed')).toContain('86.400,00');
     expect(tile(host, 'received')).toContain('71.200,00');
     expect(tile(host, 'overdue')).toContain('4.800,00');
-    expect(tile(host, 'vehicles')).toContain('48');
+    // Pintados como no painel do dono: gerenciado laranja, recebido verde, atraso neutro.
+    expect(host.querySelector('[data-tile="managed"]')?.className).toContain('bg-primary-500');
+    expect(host.querySelector('[data-tile="received"]')?.className).toContain('bg-emerald');
+    expect(host.querySelector('[data-tile="overdue"]')?.className).not.toContain('bg-primary');
+    // Degradê só na Assinatura.
+    expect(host.querySelector('[data-tile="subscription"]')?.className).toContain('subscription-card');
+    expect(host.querySelector('[data-op-tile="vehicles"]')?.textContent).toContain('48');
     const series = text(host.querySelector('[data-testid="managed-series"]'));
     expect(series).toContain('jun/26');
     expect(series).toContain('nov/26');
@@ -109,7 +118,7 @@ describe('AdminCompanyDetail — financeiro, assinatura e equipe', () => {
     const card = host.querySelector('[data-testid="managed-series"]')!;
     const plot = card.querySelector('[data-bar-columns]') as HTMLElement | null;
     expect(plot).not.toBeNull();
-    expect(plot!.style.height).toBe('180px');
+    expect(plot!.style.height).toBe('200px');
     const groups = axis(card);
     expect(groups).toEqual(['jun/26', 'nov/26']);
     expect(card.querySelectorAll('[data-bar-column]').length).toBe(2);
@@ -128,7 +137,7 @@ describe('AdminCompanyDetail — financeiro, assinatura e equipe', () => {
     });
     const host = render({ ...BASE, finance: { ...BASE.finance!, managedSeries: months } });
     const card = host.querySelector('[data-testid="managed-series"]')!;
-    expect((card.querySelector('[data-bar-columns]') as HTMLElement).style.height).toBe('180px');
+    expect((card.querySelector('[data-bar-columns]') as HTMLElement).style.height).toBe('200px');
     const groups = axis(card);
     expect(groups).toEqual(['dez', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov']);
     expect(text(card.querySelector('table'))).toContain('R$ 1.200,00');
@@ -169,7 +178,7 @@ describe('AdminCompanyDetail — financeiro, assinatura e equipe', () => {
     expect(text(recent.querySelector('[data-testid="last-seen"]'))).toBe('hoje');
   });
 
-  it('mostra cidade e UF do cadastro no cabeçalho', () => {
-    expect(text(render(BASE).querySelector('[data-testid="company-place"]'))).toBe('Campinas, SP');
+  it('mostra cidade e UF do cadastro na linha do cabeçalho', () => {
+    expect(text(render(BASE).querySelector('header p'))).toContain('Campinas, SP');
   });
 });

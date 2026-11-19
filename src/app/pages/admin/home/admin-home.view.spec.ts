@@ -251,6 +251,28 @@ describe('admin-home.view', () => {
     expect(rows[1].note).toBe('preço de tabela');
   });
 
+  it('dueRows: dois custos do mesmo fornecedor no mesmo dia viram duas linhas com chaves distintas', () => {
+    const payable = (description: string, costId: string | null, scheduleId: string) => ({
+      vendorId: 'v-vercel', vendorName: 'Vercel', category: 'FRONTEND', dueDate: '2026-12-12', amountCents: 1_200,
+      amountMonth: '2026-12', costId, scheduleId, kind: 'FIXED' as const, description,
+    });
+    const rows = dueRows(
+      {
+        from: '2026-11-18',
+        until: '2026-12-17',
+        receivables: [],
+        payables: [payable('Plano Pro', null, 's1'), payable('Domínio', 'c2', 's2')],
+        vendorsWithoutBillingDay: 0,
+        receivablesTotalCents: 0,
+        payablesTotalCents: 2_400,
+      },
+      'clients',
+    );
+    expect(rows.map((r) => r.label)).toEqual(['Pagar: Vercel · Plano Pro', 'Pagar: Vercel · Domínio']);
+    expect(new Set(rows.map((r) => r.key)).size).toBe(2);
+    expect(rows[0].note).toBe('previsto pelo custo fixo');
+  });
+
   it('topPeople: sem captura de acessos, o ranking é de ações e diz isso', () => {
     const r = topPeople({
       meta: { period: '30d', scope: 'clients', from: '', to: '', generatedAt: '', actionsSince: '2026-11-16', accessSince: null },

@@ -8,6 +8,7 @@ import { of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { AdminCompanyDetail } from './admin-company-detail';
+import { revealDetail } from './company-detail.testing';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AdminCompaniesService } from '../admin-companies.service';
 import { NotificationService } from '../../../services/notification.service';
@@ -100,6 +101,7 @@ describe('AdminCompanyDetail — erros do backend', () => {
             detail,
             detailLoading: signal(false),
             statusUpdating: signal(false),
+            internalUpdating: signal(false),
             loadDetail,
             updateStatus,
             clearDetail: vi.fn(),
@@ -147,6 +149,7 @@ describe('AdminCompanyDetail — erros do backend', () => {
 
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
 
     const banner = fixture.nativeElement.querySelector('app-alert-banner');
     expect(banner).not.toBeNull();
@@ -169,6 +172,7 @@ describe('AdminCompanyDetail — erros do backend', () => {
 
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
 
     const component = fixture.componentInstance as unknown as {
       openStatusDialog: () => void;
@@ -197,6 +201,7 @@ describe('AdminCompanyDetail — erros do backend', () => {
 
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
     (fixture.componentInstance as unknown as { openStatusDialog: () => void }).openStatusDialog();
     fixture.detectChanges();
 
@@ -323,6 +328,7 @@ describe('AdminCompanyDetail — bloco de operação', () => {
             detail: signal<AdminCompanyDetailDto | null>({ ...BASE, operations }),
             detailLoading: signal(false),
             statusUpdating: signal(false),
+            internalUpdating: signal(false),
             loadDetail: vi.fn().mockReturnValue(of({ ...BASE, operations })),
             updateStatus: vi.fn(),
             clearDetail: vi.fn(),
@@ -343,6 +349,7 @@ describe('AdminCompanyDetail — bloco de operação', () => {
 
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
     return fixture.nativeElement as HTMLElement;
   }
 

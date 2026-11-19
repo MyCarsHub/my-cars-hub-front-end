@@ -13,6 +13,7 @@ import type { AdminCompanyDetail as AdminCompanyDetailDto } from '../../../types
 import type { AdminCapabilityCode } from '../../../types/admin-roles.types';
 import { AdminCompaniesService } from '../admin-companies.service';
 import { AdminCompanyDetail } from './admin-company-detail';
+import { revealDetail } from './company-detail.testing';
 
 const COMPANY = {
   id: 'co-1',
@@ -64,6 +65,7 @@ describe('AdminCompanyDetail: atalho "Criar cupom"', () => {
             detail: signal(COMPANY),
             detailLoading: signal(false),
             statusUpdating: signal(false),
+            internalUpdating: signal(false),
             loadDetail: vi.fn(() => of(COMPANY)),
             clearDetail: vi.fn(),
           },
@@ -75,6 +77,7 @@ describe('AdminCompanyDetail: atalho "Criar cupom"', () => {
     });
     const fixture = TestBed.createComponent(AdminCompanyDetail);
     fixture.detectChanges();
+    revealDetail(fixture);
     return fixture.nativeElement as HTMLElement;
   };
 

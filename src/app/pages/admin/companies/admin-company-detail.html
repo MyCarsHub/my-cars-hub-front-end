@@ -1,7 +1,135 @@
-<app-default-page-layout
-  title="Detalhes da empresa"
-  description="Assinatura, operação, membros e integrações do tenant."
->
+<!--
+  Detalhe da empresa (rodada de 18/11/2026, desenho `Adm18Detalhe`): cartões pintados no estilo do
+  painel do dono (gerenciado laranja, recebido verde, atraso neutro, Assinatura em degradê), segmento
+  e próxima ação, atividade, colunas do valor gerenciado, operação compacta, membros e três blocos
+  recolhidos. TODA ação mora no ⋮ do topo (conversa primeiro, depois conta); nenhum botão solto.
+-->
+<app-default-page-layout [title]="detail()?.name ?? 'Empresa'" [description]="headerLine()">
+  <app-back-link pageBack link="/admin/companies" label="Empresas" placement="none" />
+
+  @if (detail(); as company) {
+    <span pageBadge class="flex flex-wrap items-center gap-1.5" data-testid="header-chips">
+      @if (segment(); as seg) {
+        <app-status-chip [tone]="seg.tone" data-testid="segment-chip">{{ seg.label }}</app-status-chip>
+      }
+      @if (planChipLabel(); as plan) {
+        <app-status-chip data-testid="plan-chip">{{ plan }}</app-status-chip>
+      }
+      @if (companyChip(); as chip) {
+        @if (company.status !== 'ACTIVE') {
+          <app-status-chip [tone]="chip.tone" data-testid="company-status">{{ chip.label }}</app-status-chip>
+        }
+      }
+      @if (company.internal) {
+        <app-status-chip data-testid="internal-chip">Interna</app-status-chip>
+      }
+    </span>
+  }
+
+  <!-- ⋮ do topo: conversa, depois conta. Estender teste fica apagado fora de teste.
+       Um nó por bloco condicional: com dois, o Angular não projeta no slot. -->
+  @if (detail(); as company) {
+    <div pageActions class="flex justify-end" data-testid="detail-actions">
+      <app-actions-menu label="Ações da empresa" [menuWidth]="320">
+        @if (caps.can('contato.ver')) {
+          <span class="px-4 pt-2 pb-1 text-[11px] uppercase tracking-wide text-fg-faint" role="presentation">Conversa</span>
+          <button type="button" dataListMenuItem data-testid="action-whatsapp" (click)="whatsApp()">
+            <span class="flex min-w-0 flex-col">
+              <span class="font-semibold text-fg">WhatsApp com mensagem pronta</span>
+              <small class="line-clamp-2 text-xs text-fg-subtle">{{ message() ?? 'Sem mensagem pronta' }}</small>
+            </span>
+          </button>
+          <button type="button" dataListMenuItem data-testid="action-contact" (click)="openContact()">
+            <span class="flex flex-col">
+              <span class="font-semibold text-fg">Registrar contato</span>
+              <small class="text-xs text-fg-subtle">Tira de “Hoje, para agir” até o retorno</small>
+            </span>
+          </button>
+        }
+        @if (caps.can('empresa.teste')) {
+          <button
+            type="button"
+            dataListMenuItem
+            data-testid="extend-trial-button"
+            [disabled]="!canExtendTrial()"
+            (click)="openTrialExtension()"
+          >
+            <span class="flex flex-col">
+              <span class="font-semibold">{{ trialLabel() }}</span>
+              <small class="text-xs text-fg-subtle">{{ canExtendTrial() ? 'Mais dias de teste, com aviso por e-mail' : 'Só para empresas em teste' }}</small>
+            </span>
+          </button>
+        }
+        <span class="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wide text-fg-faint" role="presentation">Conta</span>
+        @if (caps.can('ver_como')) {
+          <button
+            type="button"
+            dataListMenuItem
+            data-testid="action-view-as"
+            [disabled]="impersonationStarting()"
+            (click)="startImpersonation()"
+          >
+            <span class="flex flex-col">
+              <span class="font-semibold text-fg">{{ impersonationStarting() ? 'Abrindo sessão…' : 'Ver como dono' }}</span>
+              <small class="text-xs text-fg-subtle">Só leitura, por 15 minutos</small>
+            </span>
+          </button>
+        }
+        @if (caps.can('modo_edicao')) {
+          <button
+            type="button"
+            dataListMenuItem
+            data-testid="action-edit-mode"
+            [disabled]="!editEntry()?.canOpen()"
+            (click)="editEntry()?.openDialog()"
+          >
+            <span class="flex flex-col">
+              <span class="font-semibold">{{ editEntry()?.starting() ? 'Abrindo sessão…' : 'Editar como empresa' }}</span>
+              <small class="text-xs text-fg-subtle">{{ editEntry()?.hint() ?? 'Tudo fica na auditoria, sem aviso ao cliente' }}</small>
+            </span>
+          </button>
+        }
+        @if (caps.can('cupom.gerir')) {
+          <a
+            dataListMenuItem
+            routerLink="/admin/cupons"
+            [queryParams]="{ empresa: company.id }"
+            data-testid="create-coupon-link"
+          ><span class="font-semibold text-fg">Criar cupom</span></a>
+        }
+        <button
+          type="button"
+          dataListMenuItem
+          data-testid="internal-menu-item"
+          [disabled]="internalUpdating()"
+          (click)="toggleInternal()"
+        >
+          <span class="flex flex-col">
+            <span class="font-semibold text-fg">{{ company.internal ? 'Desmarcar como interna' : 'Marcar como interna' }}</span>
+            <small class="text-xs text-fg-subtle">{{ company.internal ? 'Volta a contar nas métricas' : 'Fica fora das métricas e dos segmentos' }}</small>
+          </span>
+        </button>
+        @if (caps.can('empresa.gerir')) {
+          @if (company.active) {
+            <button type="button" dataListMenuItem="danger" data-testid="action-suspend" [disabled]="updating()" (click)="openStatusDialog()">
+              <span class="flex flex-col">
+                <span class="font-semibold">Suspender empresa</span>
+                <small class="text-xs text-fg-subtle">Pede confirmação</small>
+              </span>
+            </button>
+          } @else {
+            <button type="button" dataListMenuItem="success" data-testid="action-reactivate" [disabled]="updating()" (click)="openStatusDialog()">
+              <span class="flex flex-col">
+                <span class="font-semibold">Reativar empresa</span>
+                <small class="text-xs text-fg-subtle">Pede confirmação</small>
+              </span>
+            </button>
+          }
+        }
+      </app-actions-menu>
+    </div>
+  }
+
   <!-- Falha ao carregar a empresa -->
   @if (error(); as err) {
     <div class="mb-4">
@@ -20,434 +148,197 @@
   }
 
   @if (loading() && !detail()) {
-    <div class="space-y-4">
+    <div class="space-y-4" data-testid="detail-skeleton">
       <div class="h-32 rounded-2xl bg-surface-sunken animate-pulse"></div>
       <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse"></div>
       <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse"></div>
     </div>
   } @else if (detail(); as company) {
-    <!-- Header card -->
-    <section class="enter-up mb-4 rounded-2xl border border-edge bg-surface p-4 sm:p-6">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-3 flex-wrap">
-            <h2 class="text-xl sm:text-2xl font-semibold text-fg break-words">
-              {{ company.name }}
-            </h2>
-            @if (companyChip(); as chip) {
-              <app-status-chip [tone]="chip.tone" data-testid="company-status">{{ chip.label }}</app-status-chip>
-            }
-          </div>
-          <p class="mt-1 text-sm text-fg-subtle" data-testid="company-place">{{ place() }}</p>
-          <p class="mt-1 text-sm text-fg-subtle tabular-nums">
-            CNPJ {{ company.documentMasked ?? '—' }}
-          </p>
-          <p class="mt-1 text-xs text-fg-faint tabular-nums">
-            ID {{ company.id }}
-          </p>
-          <p class="mt-2 text-xs text-fg-subtle">
-            Criada em {{ formatDate(company.createdAt) }}
-          </p>
-        </div>
-        <div class="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
-@if (caps.can('ver_como')) {
-          <button
-            type="button"
-            class="w-full sm:w-auto min-h-11 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10
-                   px-4 py-2.5 text-sm font-semibold text-amber-900 dark:text-amber-200 transition-colors
-                   hover:bg-amber-100 dark:hover:bg-amber-500/15 focus:outline-none focus-visible:ring-2
-                   focus-visible:ring-amber-500 disabled:opacity-60"
-            (click)="startImpersonation()"
-            [disabled]="impersonationStarting()"
-          >
-            {{ impersonationStarting() ? 'Abrindo sessão…' : 'Ver como dono' }}
-          </button>
-}
-@if (caps.can('modo_edicao')) {
-          <app-support-edit-entry [companyId]="company.id" [companyName]="company.name" />
-}
-          <!-- [trilha A] Estender teste — só em teste (TRIALING ou EXPIRED); pagante é recusado no backend. -->
-          @if (canExtendTrial() && caps.can('empresa.teste')) {
-            <button
-              type="button"
-              class="w-full sm:w-auto min-h-11 rounded-xl border border-primary-300 dark:border-primary-500/40
-                     bg-surface px-4 py-2.5 text-sm font-semibold text-primary-700 dark:text-primary-300
-                     transition-colors hover:bg-primary-50 dark:hover:bg-primary-500/10
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-              data-testid="extend-trial-button"
-              (click)="openTrialExtension()"
-            >
-              Estender teste
-            </button>
-          }
-          @if (caps.can('cupom.gerir')) {
-            <a
-              routerLink="/admin/cupons"
-              [queryParams]="{ empresa: company.id }"
-              class="inline-flex w-full sm:w-auto min-h-11 items-center justify-center rounded-xl border border-primary-300 dark:border-primary-500/40
-                     bg-surface px-4 py-2.5 text-sm font-semibold text-primary-700 dark:text-primary-300
-                     transition-colors hover:bg-primary-50 dark:hover:bg-primary-500/10
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-              data-testid="create-coupon-link"
-            >
-              Criar cupom
-            </a>
-          }
-@if (caps.can('empresa.gerir')) {
-          @if (company.active) {
-            <button
-              type="button"
-              class="w-full sm:w-auto min-h-11 rounded-xl bg-red-500 text-white px-4 py-2.5
-                     text-sm font-semibold hover:bg-red-600 transition-colors
-                     focus:outline-none focus:ring-2 focus:ring-red-400
-                     disabled:opacity-60"
-              (click)="openStatusDialog()"
-              [disabled]="updating()"
-            >
-              Suspender empresa
-            </button>
-          } @else {
-            <button
-              type="button"
-              class="w-full sm:w-auto min-h-11 rounded-xl bg-emerald-500 text-white px-4 py-2.5
-                     text-sm font-semibold hover:bg-emerald-600 transition-colors
-                     focus:outline-none focus:ring-2 focus:ring-emerald-400
-                     disabled:opacity-60"
-              (click)="openStatusDialog()"
-              [disabled]="updating()"
-            >
-              Reativar empresa
-            </button>
-          }
-}
-        </div>
-      </div>
-
-      <p class="mt-3 text-xs text-fg-subtle">
-        "Ver como dono" abre uma sessão de <strong>somente leitura</strong> de 15 minutos:
-        você navega pelas telas desta empresa sem poder alterar nada, e encerra pelo aviso
-        no topo da tela.
+    <div class="flex flex-col gap-4 sm:gap-5">
+      <p class="m-0 rounded-2xl bg-surface px-4 py-2.5 text-xs text-fg-subtle" data-testid="view-as-note">
+        “Ver como dono” abre só leitura por 15 minutos. Tudo que você mudar em “Editar como empresa” fica no
+        registro de auditoria, sem aviso ao cliente.
       </p>
 
-      @if (caps.can('modo_edicao')) {
-        <p
-          class="mt-3 rounded-xl bg-primary-50 dark:bg-primary-500/10 px-3 py-2.5 text-xs text-primary-800 dark:text-primary-200"
-          data-testid="edit-mode-note"
-        >
-          Modo edição: tudo que você mudar fica no registro de auditoria, sem e-mail ao cliente.
-        </p>
-      }
-
       @if (impersonationError(); as impErr) {
-        <div class="mt-3">
-          <app-alert-banner variant="error" [message]="impErr" />
-        </div>
+        <app-alert-banner variant="error" [message]="impErr" />
       }
-    </section>
+      @if (caps.can('modo_edicao')) {
+        <app-support-edit-entry [companyId]="company.id" [companyName]="company.name" />
+      }
 
-    <!-- Admin v2 (D1) — barra de contato do DONO. Regiao propria (trilha B);
-         as acoes do cabecalho acima sao da trilha A. Numero inteiro so pela
-         revelacao auditada, so no toque do admin (nunca ao abrir). -->
-@if (caps.can('contato.ver')) {
-    <div class="mb-4" data-testid="owner-contact">
-      <app-contact-bar
-        subjectType="COMPANY"
-        [subjectId]="company.id"
-        [phoneMasked]="ownerContactHint()"
-        [fallbackEmail]="owner()?.email ?? company.registration.email"
-        [heading]="owner() ? 'Contato do dono · ' + owner()!.name : 'Contato da empresa'"
-      />
-    </div>
-}
-
-    <!-- Financeiro (FEAT-0480): valor gerenciado = volume das cobranças de aluguel por mês de vencimento. -->
-    <section class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" aria-label="Financeiro do mês" data-testid="finance-tiles">
-      @for (tile of financeTiles(); track tile.key) {
+      <!-- Cartões pintados: gerenciado laranja, recebido verde, atraso neutro, Assinatura em degradê. -->
+      <section class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Dinheiro do mês" data-testid="finance-tiles">
+        <div
+          app-kpi-card
+          variant="primary"
+          label="Valor gerenciado no mês"
+          numberFormat="brl-cents"
+          placeholder="dash"
+          [stagger]="0"
+          [value]="managedCents()"
+          [detail]="managedDetail()"
+          data-tile="managed"
+        ></div>
+        <div
+          app-kpi-card
+          variant="emerald"
+          label="Recebido no mês"
+          numberFormat="brl-cents"
+          placeholder="dash"
+          [stagger]="1"
+          [value]="receivedCents()"
+          [detail]="receivedDetail()"
+          data-tile="received"
+        ></div>
         <div
           app-kpi-card
           variant="white"
-          size="compact"
-          [label]="tile.label"
-          [value]="tile.value"
-          [tone]="tile.tone === 'good' ? 'success' : tile.tone === 'bad' ? 'danger' : 'default'"
-          [attr.data-tile]="tile.key"
+          label="Em atraso"
+          numberFormat="brl-cents"
+          placeholder="dash"
+          [stagger]="2"
+          [value]="overdueCents()"
+          detail="cobranças de aluguel vencidas"
+          data-tile="overdue"
         ></div>
-      }
-    </section>
-
-    <div class="mb-4">
-      <app-page-card title="Valor gerenciado por mês">
-        <div class="p-4 sm:p-6" data-testid="managed-series">
-          <p class="mb-3 text-xs text-fg-subtle" title="Soma das cobranças de aluguel pelo mês de vencimento, sem canceladas, estornadas ou liberadas; não inclui caução.">
-            Dinheiro de aluguel que passou pela empresa, pelo mês de vencimento das cobranças.
-          </p>
-          @if (managedLabels().length > 0) {
-            <app-bar-chart
-              [series]="managedSeries()"
-              [labels]="managedLabels()"
-              valueFormat="brl-cents"
-              [legend]="false"
-              [heightPx]="180"
-              ariaLabel="Valor gerenciado por mês"
-            />
-          } @else {
-            <p class="text-sm text-fg-subtle" data-testid="managed-series-empty">—</p>
-          }
+        <div
+          class="subscription-card enter-up flex min-w-0 flex-col gap-1 rounded-2xl p-4 text-white"
+          style="--stagger-i: 3"
+          data-tile="subscription"
+        >
+          <span class="text-[11px] sm:text-xs uppercase tracking-wide text-white/80">Assinatura</span>
+          <b class="mt-1 break-words text-lg font-semibold sm:text-xl" data-testid="subscription-value">{{ subscriptionValue() }}</b>
+          <span class="text-[11px] sm:text-xs text-white/80">{{ subscriptionDetail() }}</span>
         </div>
-      </app-page-card>
-    </div>
+      </section>
 
-    <!-- Assinatura -->
-    <app-page-card title="Assinatura">
-      <div class="p-4 sm:p-6">
-        @if (company.subscription; as sub) {
-          <!-- Pares de rótulo e valor sem linhas (dl[appKvList]); duas colunas a partir de lg. -->
-          <div class="grid lg:grid-cols-2 lg:gap-x-8">
-            <dl appKvList flush>
-              <div>
-                <dt>Plano</dt>
-                <dd data-testid="subscription-plan">{{ planLabel(sub.planName, sub.planCode) }}</dd>
+      <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
+        <!-- Próxima ação: a regra do segmento vira uma frase, com o motivo à vista. -->
+        <app-page-card title="Próxima ação" [fill]="true">
+          <div class="p-4 sm:p-5 flex flex-col gap-4" data-testid="next-action">
+            @if (engagement(); as e) {
+              <div class="flex flex-wrap items-start justify-between gap-2">
+                <p class="m-0 text-lg sm:text-xl font-bold tracking-tight text-fg" data-testid="next-action-title">
+                  {{ nextTitle() ?? 'Sem próxima ação' }}
+                </p>
+                @if (nextUntil(); as until) {
+                  <app-status-chip tone="amber">{{ until }}</app-status-chip>
+                }
               </div>
-              <div>
-                <dt>Ciclo</dt>
-                <dd>{{ billingCycleLabel(sub.billingCycle) }}</dd>
-              </div>
-              <div>
-                <dt>Situação</dt>
-                <dd>
-                  @if (subscriptionChip(); as chip) {
-                    <app-status-chip size="sm" [tone]="chip.tone" data-testid="subscription-status">{{ chip.label }}</app-status-chip>
-                  } @else {
-                    —
-                  }
-                </dd>
-              </div>
-              <div>
-                <dt>Próximo pagamento</dt>
-                <dd class="tabular-nums">{{ formatDate(sub.nextBillingDate) }}</dd>
-              </div>
-              @if (sub.trialEndsAt) {
+              @if (why().length > 0) {
                 <div>
-                  <dt>Fim do teste</dt>
-                  <dd class="tabular-nums">{{ formatDate(sub.trialEndsAt) }}</dd>
+                  <span class="text-xs text-fg-subtle">Por quê</span>
+                  <ul class="mt-1.5 flex list-disc flex-col gap-1.5 pl-5 text-sm text-fg" data-testid="next-action-why">
+                    @for (line of why(); track line) {
+                      <li>{{ line }}</li>
+                    }
+                  </ul>
                 </div>
               }
-              @if (sub.currentPeriodStart) {
-                <div>
-                  <dt>Período atual</dt>
-                  <dd class="tabular-nums" data-testid="current-period">{{ formatDate(sub.currentPeriodStart) }} a {{ formatDate(sub.currentPeriodEnd) }}</dd>
+              @if (message(); as text) {
+                <div class="flex flex-col gap-1 rounded-xl bg-surface-muted px-3.5 py-3">
+                  <span class="text-xs text-fg-subtle">Mensagem pronta (WhatsApp, no ⋮ do topo)</span>
+                  <p class="m-0 text-sm text-fg" data-testid="next-action-message">“{{ text }}”</p>
                 </div>
               }
-              @if (sub.cancelAtPeriodEnd) {
-                <div>
-                  <dt>Cancelamento</dt>
-                  <dd><app-status-chip size="sm" tone="amber">Programado para o fim do período</app-status-chip></dd>
-                </div>
+              @if (contactNote(); as note) {
+                <p class="m-0 text-xs text-fg-subtle" data-testid="next-action-contact">{{ note }}</p>
               }
-            </dl>
-            <dl appKvList flush>
-              @for (row of subscriptionRows(); track row.label) {
-                <div data-testid="sub-row"><dt>{{ row.label }}</dt><dd class="tabular-nums">{{ row.value }}</dd></div>
+              @if (e.retentionEmailOptOut) {
+                <p class="m-0 text-xs text-fg-subtle">Pediu para não receber e-mail de retenção.</p>
               }
-              <div>
-                <dt>Gateway</dt>
-                <dd data-testid="subscription-gateway">{{ gatewayName(sub.gateway) }}</dd>
-              </div>
-              <div>
-                <dt>ID externo</dt>
-                <dd class="tabular-nums font-normal! text-fg-soft!">{{ sub.externalIdMasked ?? '—' }}</dd>
-              </div>
-            </dl>
-          </div>
-        } @else {
-          <p class="text-sm text-fg-subtle">Sem assinatura registrada.</p>
-        }
-      </div>
-    </app-page-card>
-
-    <!-- Dados cadastrais (FIX-0244). O bloco vem sempre do backend e cada
-         campo pode ser nulo: mostramos "—" linha a linha em vez de sumir com a
-         seção — preenchimento parcial é estado normal, não erro.
-         LGPD: telefone/e-mail/representante são exibidos AQUI e em lugar
-         nenhum além da tela (nada de console/log). -->
-    @if (registrationSections().length > 0) {
-      <div class="mt-4">
-        <app-page-card title="Dados cadastrais">
-          <div class="p-4 sm:p-6" data-testid="company-registration">
-            @if (registrationEmpty()) {
-              <p class="mb-3 text-sm text-fg-subtle" data-testid="registration-empty">
-                Esta empresa ainda não preencheu os dados cadastrais.
+            } @else {
+              <p class="m-0 text-sm text-fg-subtle" data-testid="next-action-empty">
+                {{ company.internal ? 'Conta interna: fora dos segmentos e das sugestões.' : 'Sem segmento calculado para esta empresa.' }}
               </p>
             }
-            <!-- Blocos em fundo cinza, sem contorno nem linha entre os pares (dl[appKvList]):
-                 uma coluna no celular, duas/três a partir de sm/xl. -->
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              @for (section of registrationSections(); track section.key) {
-                <section
-                  class="rounded-xl bg-surface-muted px-4 py-3"
-                  data-testid="registration-section"
-                >
-                  <h3 class="text-sm font-semibold text-fg">{{ section.title }}</h3>
-                  <dl appKvList flush>
-                    @for (row of section.rows; track row.label) {
-                      <div>
-                        <dt>{{ row.label }}</dt>
-                        <dd [class]="row.empty ? 'text-fg-subtle! font-normal!' : ''">{{ row.value }}</dd>
-                      </div>
-                    }
-                  </dl>
-                </section>
-              }
-            </div>
           </div>
         </app-page-card>
-      </div>
-    }
 
-    <!-- Operação -->
-    @if (operationGroups().length > 0) {
-      <div class="mt-4">
-        <app-page-card title="Operação">
-          <div class="p-4 sm:p-6" data-testid="company-operations">
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              @for (group of operationGroups(); track group.key) {
-                <section
-                  class="rounded-xl bg-surface-muted px-4 py-3"
-                  data-testid="operation-group"
-                >
-                  <h3 class="text-sm font-semibold text-fg">{{ group.title }}</h3>
-                  <dl appKvList flush>
-                    @for (metric of group.metrics; track metric.label) {
-                      <div>
-                        <dt>
-                          {{ metric.label }}
-                          @if (metric.hint) {
-                            <span class="block text-xs text-fg-subtle">{{ metric.hint }}</span>
-                          }
-                        </dt>
-                        <dd
-                          class="shrink-0 tabular-nums whitespace-nowrap"
-                          [class]="metric.zero ? 'text-fg-subtle! font-normal!' : ''"
-                        >
-                          {{ metric.value }}
-                        </dd>
-                      </div>
-                    }
-                  </dl>
-                </section>
-              }
-            </div>
-          </div>
-        </app-page-card>
+        <app-company-activity [companyId]="company.id" [initial]="company.activity" />
       </div>
-    }
 
-    <!-- Histórico de vendas (FEAT-0075). O consolidado acima traz os números;
-         aqui vêm as LINHAS, porque o suporte precisa saber qual veículo, para
-         quem e quando — e, no desfazimento, quem desfez e por quê.
-         Empresa sem venda: card presente com estado vazio, nunca erro.
-         LGPD: comprador e autor aparecem só aqui. Nada de log. -->
-    <div class="mt-4">
-      <app-page-card title="Vendas de veículo">
-        <div class="p-4 sm:p-6" data-testid="company-sales">
-          @if (!hasSalesHistory()) {
-            <p class="text-sm text-fg-subtle" data-testid="sales-empty">
-              Nenhuma venda registrada por esta empresa.
+      <div class="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
+        <app-page-card title="Valor gerenciado por mês" [fill]="true">
+          <div class="p-4 sm:p-5" data-testid="managed-series">
+            <p class="mb-3 text-xs text-fg-subtle" title="Soma das cobranças de aluguel pelo mês de vencimento, sem canceladas, estornadas ou liberadas; não inclui caução.">
+              Dinheiro de aluguel que passou pela empresa, pelo mês de vencimento das cobranças.
             </p>
-          } @else {
-            @if (sales().length > 0) {
-              <h3 class="text-sm font-semibold text-fg">
-                Vendas vigentes <span class="font-normal text-fg-subtle tabular-nums">{{ sales().length }}</span>
-              </h3>
-              <!-- Cards empilhados, não tabela: no mobile uma tabela com
-                   comprador + valor + data + autor viraria scroll horizontal. -->
-              <ul class="mt-2 flex flex-col gap-2">
-                @for (sale of sales(); track sale.vehicleId) {
-                  <li
-                    class="enter-up rounded-xl bg-surface-muted p-3"
-                    [style.--stagger-i]="$index"
-                    data-testid="sale-item"
-                  >
-                    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                      <p class="min-w-0 text-sm font-medium text-fg break-words">
-                        {{ sale.vehiclePlate | plate: false }}
-                      </p>
-                      <p class="shrink-0 text-sm font-semibold tabular-nums text-fg">
-                        {{ sale.saleValueCents | brl }}
-                      </p>
-                    </div>
-                    <dl class="mt-1 grid gap-x-3 gap-y-0.5 text-xs text-fg-muted sm:grid-cols-2">
-                      <div class="flex gap-1 min-w-0">
-                        <dt class="shrink-0">Comprador:</dt>
-                        <dd class="min-w-0 break-words text-fg">
-                          {{ (sale.buyerName | personName) || '—' }}
-                        </dd>
-                      </div>
-                      <div class="flex gap-1 min-w-0">
-                        <dt class="shrink-0">Data:</dt>
-                        <dd class="min-w-0 tabular-nums text-fg">
-                          {{ formatDate(sale.saleDate) }}
-                        </dd>
-                      </div>
-                      <div class="flex gap-1 min-w-0 sm:col-span-2">
-                        <dt class="shrink-0">Registrada por:</dt>
-                        <dd class="min-w-0 break-words text-fg">
-                          {{ (sale.authorName | personName) || '—' }}
-                          <span class="text-fg-subtle">· {{ formatDateTime(sale.createdAt) }}</span>
-                        </dd>
-                      </div>
-                    </dl>
-                  </li>
-                }
-              </ul>
+            @if (managedLabels().length > 0) {
+              <app-bar-chart
+                [series]="managedSeries()"
+                [labels]="managedLabels()"
+                valueFormat="brl-cents"
+                [legend]="false"
+                [heightPx]="200"
+                ariaLabel="Valor gerenciado por mês"
+              />
+            } @else {
+              <p class="text-sm text-fg-subtle" data-testid="managed-series-empty">—</p>
             }
+          </div>
+        </app-page-card>
 
-            @if (saleUndos().length > 0) {
-              <h3
-                class="text-sm font-semibold text-fg"
-                [class.mt-5]="sales().length > 0"
+        <!-- Operação: quatro números compactos; o resto (e os blocos zerados) atrás de "ver tudo". -->
+        @if (operationGroups().length > 0) {
+          <app-page-card title="Operação" [fill]="true">
+            <div class="p-4 sm:p-5 flex flex-col gap-3" data-testid="company-operations">
+              <div class="grid grid-cols-2 gap-2.5">
+                @for (tile of operationTiles(); track tile.key) {
+                  <div class="flex min-w-0 flex-col gap-0.5 rounded-xl bg-surface-muted px-3.5 py-3" [attr.data-op-tile]="tile.key">
+                    <span class="text-xs text-fg-subtle">{{ tile.label }}</span>
+                    <b class="text-xl font-bold tabular-nums text-fg">{{ tile.value }}</b>
+                  </div>
+                }
+              </div>
+              <button
+                type="button"
+                data-testid="operations-toggle"
+                class="press flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-surface-muted px-3.5 py-2
+                       text-left text-xs text-fg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                [attr.aria-expanded]="operationsOpen()"
+                aria-controls="operations-all"
+                (click)="operationsOpen.set(!operationsOpen())"
               >
-                Desfazimentos <span class="font-normal text-fg-subtle tabular-nums">{{ saleUndos().length }}</span>
-              </h3>
-              <ul class="mt-2 flex flex-col gap-2">
-                @for (undo of saleUndos(); track trackUndo($index, undo)) {
-                  <li
-                    class="enter-up rounded-xl bg-surface-muted p-3"
-                    [style.--stagger-i]="$index"
-                    data-testid="sale-undo-item"
-                  >
-                    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                      <p class="min-w-0 text-sm font-medium text-fg break-words">
-                        {{ undo.vehiclePlate ? (undo.vehiclePlate | plate: false) : 'Veículo excluído' }}
-                      </p>
-                      <app-status-chip size="sm" [tone]="undoStateChip(undo.state).tone">
-                        {{ undoStateChip(undo.state).label }}
-                      </app-status-chip>
-                    </div>
-                    <dl class="mt-1 grid gap-x-3 gap-y-0.5 text-xs text-fg-muted sm:grid-cols-2">
-                      <div class="flex gap-1 min-w-0 sm:col-span-2">
-                        <dt class="shrink-0">Motivo:</dt>
-                        <dd class="min-w-0 break-words text-fg">{{ undo.reason ?? '—' }}</dd>
-                      </div>
-                      <div class="flex gap-1 min-w-0 sm:col-span-2">
-                        <dt class="shrink-0">Por:</dt>
-                        <dd class="min-w-0 break-words text-fg">
-                          {{ (undo.authorName | personName) || '—' }}
-                          <span class="text-fg-subtle">· {{ formatDateTime(undo.createdAt) }}</span>
-                        </dd>
-                      </div>
-                    </dl>
-                  </li>
-                }
-              </ul>
-            }
-          }
-        </div>
-      </app-page-card>
-    </div>
+                <span>{{ operationsToggleLabel() }}</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                     class="shrink-0 transition-transform duration-300 ease-[cubic-bezier(.32,.72,0,1)] motion-reduce:transition-none"
+                     [class.rotate-180]="operationsOpen()">
+                  <path d="M6 9l6 6l6-6" />
+                </svg>
+              </button>
+              @if (operationsOpen()) {
+                <div id="operations-all" class="enter-up grid gap-3 sm:grid-cols-2">
+                  @for (group of operationGroups(); track group.key) {
+                    <section class="rounded-xl bg-surface-muted px-4 py-3" data-testid="operation-group">
+                      <h3 class="text-sm font-semibold text-fg">{{ group.title }}</h3>
+                      <dl appKvList flush>
+                        @for (metric of group.metrics; track metric.label) {
+                          <div>
+                            <dt>
+                              {{ metric.label }}
+                              @if (metric.hint) {
+                                <span class="block text-xs text-fg-subtle">{{ metric.hint }}</span>
+                              }
+                            </dt>
+                            <dd class="shrink-0 tabular-nums whitespace-nowrap" [class]="metric.zero ? 'text-fg-subtle! font-normal!' : ''">
+                              {{ metric.value }}
+                            </dd>
+                          </div>
+                        }
+                      </dl>
+                    </section>
+                  }
+                </div>
+              }
+            </div>
+          </app-page-card>
+        }
+      </div>
 
-    <!-- Membros -->
-    <div class="mt-4">
+      <!-- Membros: contato só no ⋮ da linha (revelação auditada); nada de telefone solto. -->
       <app-page-card title="Membros ({{ company.members.length }})">
         <div class="p-3 sm:p-4">
           <app-data-list
@@ -459,6 +350,7 @@
             [columns]="memberColumns"
             [rows]="company.members"
             [rowId]="memberId"
+            [actionsLabel]="memberKebabLabel"
           >
             <ng-template dataListCell="name" let-member>
               <div class="min-w-0 font-normal">
@@ -474,30 +366,98 @@
             </ng-template>
 
             <ng-template dataListCell="phone" let-member>
-              @if (caps.can('contato.ver')) {
-                <app-contact-actions
-                  subjectType="USER"
-                  [subjectId]="member.userId"
-                  [phoneMasked]="member.phoneMasked"
-                  [contextCompanyId]="company.id"
-                  [label]="member.name"
-                />
-              } @else {
-                —
-              }
+              <span class="tabular-nums text-fg-muted whitespace-nowrap" data-testid="member-phone">{{ member.phoneMasked ?? 'sem telefone' }}</span>
             </ng-template>
 
             <ng-template dataListCell="seen" let-member>
               <span class="whitespace-nowrap" data-testid="last-seen">{{ lastSeenLabel(member.lastSeenAt) }}</span>
             </ng-template>
+
+            <ng-template dataListActions let-member>
+              @if (caps.can('contato.ver') && member.phoneMasked) {
+                <button type="button" dataListMenuItem data-testid="member-whatsapp" (click)="memberWhatsApp(member)">WhatsApp</button>
+                <button type="button" dataListMenuItem data-testid="member-call" (click)="memberCall(member)">Ligar</button>
+                <button type="button" dataListMenuItem data-testid="member-copy" (click)="memberCopy(member)">
+                  <span class="flex flex-col">
+                    <span>Copiar contato</span>
+                    <small class="text-xs text-fg-subtle">Fica registrado na auditoria</small>
+                  </span>
+                </button>
+              }
+              <a dataListMenuItem [routerLink]="['/admin/users', member.userId]">Abrir usuário</a>
+            </ng-template>
           </app-data-list>
         </div>
       </app-page-card>
-    </div>
 
-    <!-- Integração de cobrança -->
-    <div class="mt-4">
-      <app-page-card title="Integração de cobranças">
+      <!-- Consulta rara: recolhidos por padrão, para a página abrir no que leva a ação. -->
+      <app-page-card title="Assinatura e pagamento" [collapsible]="true" [defaultOpen]="false">
+        <div class="p-4 sm:p-6" data-testid="subscription-block">
+          @if (company.subscription; as sub) {
+            <div class="grid lg:grid-cols-2 lg:gap-x-8">
+              <dl appKvList flush>
+                <div>
+                  <dt>Plano</dt>
+                  <dd data-testid="subscription-plan">{{ planLabel(sub.planName, sub.planCode) }}</dd>
+                </div>
+                <div>
+                  <dt>Ciclo</dt>
+                  <dd>{{ billingCycleLabel(sub.billingCycle) }}</dd>
+                </div>
+                <div>
+                  <dt>Situação</dt>
+                  <dd>
+                    @if (subscriptionChip(); as chip) {
+                      <app-status-chip size="sm" [tone]="chip.tone" data-testid="subscription-status">{{ chip.label }}</app-status-chip>
+                    } @else {
+                      —
+                    }
+                  </dd>
+                </div>
+                <div>
+                  <dt>Próximo pagamento</dt>
+                  <dd class="tabular-nums">{{ formatDate(sub.nextBillingDate) }}</dd>
+                </div>
+                @if (sub.trialEndsAt) {
+                  <div>
+                    <dt>Fim do teste</dt>
+                    <dd class="tabular-nums">{{ formatDate(sub.trialEndsAt) }}</dd>
+                  </div>
+                }
+                @if (sub.currentPeriodStart) {
+                  <div>
+                    <dt>Período atual</dt>
+                    <dd class="tabular-nums" data-testid="current-period">{{ formatDate(sub.currentPeriodStart) }} a {{ formatDate(sub.currentPeriodEnd) }}</dd>
+                  </div>
+                }
+                @if (sub.cancelAtPeriodEnd) {
+                  <div>
+                    <dt>Cancelamento</dt>
+                    <dd><app-status-chip size="sm" tone="amber">Programado para o fim do período</app-status-chip></dd>
+                  </div>
+                }
+              </dl>
+              <dl appKvList flush>
+                @for (row of subscriptionRows(); track row.label) {
+                  <div data-testid="sub-row"><dt>{{ row.label }}</dt><dd class="tabular-nums">{{ row.value }}</dd></div>
+                }
+                <div>
+                  <dt>Gateway</dt>
+                  <dd data-testid="subscription-gateway">{{ gatewayName(sub.gateway) }}</dd>
+                </div>
+                <div>
+                  <dt>ID externo</dt>
+                  <dd class="tabular-nums font-normal! text-fg-soft!">{{ sub.externalIdMasked ?? '—' }}</dd>
+                </div>
+              </dl>
+            </div>
+          } @else {
+            <p class="text-sm text-fg-subtle">Sem assinatura registrada.</p>
+          }
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Integração de cobranças" [collapsible]="true" [defaultOpen]="false">
         <div class="p-4 sm:p-6">
           @if (company.chargeIntegration && company.chargeIntegration.connected) {
             <dl appKvList flush class="lg:max-w-xl" data-testid="charge-integration">
@@ -527,10 +487,118 @@
           }
         </div>
       </app-page-card>
+
+      <!-- Dados cadastrais (FIX-0244): cada campo pode ser nulo; "—" linha a linha, nunca seção sumida.
+           LGPD: telefone/e-mail/representante só na tela, nada de console/log. -->
+      @if (registrationSections().length > 0) {
+        <app-page-card title="Dados cadastrais" [collapsible]="true" [defaultOpen]="false">
+          <div class="p-4 sm:p-6" data-testid="company-registration">
+            @if (registrationEmpty()) {
+              <p class="mb-3 text-sm text-fg-subtle" data-testid="registration-empty">
+                Esta empresa ainda não preencheu os dados cadastrais.
+              </p>
+            }
+            <p class="mb-3 text-xs text-fg-subtle tabular-nums">
+              CNPJ {{ company.documentMasked ?? '—' }} · ID {{ company.id }}
+            </p>
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              @for (section of registrationSections(); track section.key) {
+                <section class="rounded-xl bg-surface-muted px-4 py-3" data-testid="registration-section">
+                  <h3 class="text-sm font-semibold text-fg">{{ section.title }}</h3>
+                  <dl appKvList flush>
+                    @for (row of section.rows; track row.label) {
+                      <div>
+                        <dt>{{ row.label }}</dt>
+                        <dd [class]="row.empty ? 'text-fg-subtle! font-normal!' : ''">{{ row.value }}</dd>
+                      </div>
+                    }
+                  </dl>
+                </section>
+              }
+            </div>
+          </div>
+        </app-page-card>
+      }
+
+      <!-- Vendas (FEAT-0075): as LINHAS (qual veículo, para quem, quando; quem desfez e por quê). -->
+      <app-page-card title="Vendas de veículo" [collapsible]="true" [defaultOpen]="false">
+        <div class="p-4 sm:p-6" data-testid="company-sales">
+          @if (!hasSalesHistory()) {
+            <p class="text-sm text-fg-subtle" data-testid="sales-empty">
+              Nenhuma venda registrada por esta empresa.
+            </p>
+          } @else {
+            @if (sales().length > 0) {
+              <h3 class="text-sm font-semibold text-fg">
+                Vendas vigentes <span class="font-normal text-fg-subtle tabular-nums">{{ sales().length }}</span>
+              </h3>
+              <ul class="mt-2 flex flex-col gap-2">
+                @for (sale of sales(); track sale.vehicleId) {
+                  <li class="enter-up rounded-xl bg-surface-muted p-3" [style.--stagger-i]="$index" data-testid="sale-item">
+                    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                      <p class="min-w-0 text-sm font-medium text-fg break-words">{{ sale.vehiclePlate | plate: false }}</p>
+                      <p class="shrink-0 text-sm font-semibold tabular-nums text-fg">{{ sale.saleValueCents | brl }}</p>
+                    </div>
+                    <dl class="mt-1 grid gap-x-3 gap-y-0.5 text-xs text-fg-muted sm:grid-cols-2">
+                      <div class="flex gap-1 min-w-0">
+                        <dt class="shrink-0">Comprador:</dt>
+                        <dd class="min-w-0 break-words text-fg">{{ (sale.buyerName | personName) || '—' }}</dd>
+                      </div>
+                      <div class="flex gap-1 min-w-0">
+                        <dt class="shrink-0">Data:</dt>
+                        <dd class="min-w-0 tabular-nums text-fg">{{ formatDate(sale.saleDate) }}</dd>
+                      </div>
+                      <div class="flex gap-1 min-w-0 sm:col-span-2">
+                        <dt class="shrink-0">Registrada por:</dt>
+                        <dd class="min-w-0 break-words text-fg">
+                          {{ (sale.authorName | personName) || '—' }}
+                          <span class="text-fg-subtle">· {{ formatDateTime(sale.createdAt) }}</span>
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                }
+              </ul>
+            }
+
+            @if (saleUndos().length > 0) {
+              <h3 class="text-sm font-semibold text-fg" [class.mt-5]="sales().length > 0">
+                Desfazimentos <span class="font-normal text-fg-subtle tabular-nums">{{ saleUndos().length }}</span>
+              </h3>
+              <ul class="mt-2 flex flex-col gap-2">
+                @for (undo of saleUndos(); track trackUndo($index, undo)) {
+                  <li class="enter-up rounded-xl bg-surface-muted p-3" [style.--stagger-i]="$index" data-testid="sale-undo-item">
+                    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <p class="min-w-0 text-sm font-medium text-fg break-words">
+                        {{ undo.vehiclePlate ? (undo.vehiclePlate | plate: false) : 'Veículo excluído' }}
+                      </p>
+                      <app-status-chip size="sm" [tone]="undoStateChip(undo.state).tone">{{ undoStateChip(undo.state).label }}</app-status-chip>
+                    </div>
+                    <dl class="mt-1 grid gap-x-3 gap-y-0.5 text-xs text-fg-muted sm:grid-cols-2">
+                      <div class="flex gap-1 min-w-0 sm:col-span-2">
+                        <dt class="shrink-0">Motivo:</dt>
+                        <dd class="min-w-0 break-words text-fg">{{ undo.reason ?? '—' }}</dd>
+                      </div>
+                      <div class="flex gap-1 min-w-0 sm:col-span-2">
+                        <dt class="shrink-0">Por:</dt>
+                        <dd class="min-w-0 break-words text-fg">
+                          {{ (undo.authorName | personName) || '—' }}
+                          <span class="text-fg-subtle">· {{ formatDateTime(undo.createdAt) }}</span>
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        </div>
+      </app-page-card>
     </div>
   }
 
-  <!-- Suspender / reativar: app-confirm-dialog da plataforma. Suspender pede a palavra digitada. -->
+  <!-- Suspender / reativar: app-confirm-dialog da plataforma. Suspender pede a palavra digitada;
+       Reativar mantém o verde sólido (success). -->
   <app-confirm-dialog
     [open]="confirmDialogOpen()"
     [title]="targetActive() ? 'Reativar empresa' : 'Suspender empresa'"
@@ -568,7 +636,6 @@
     }
   </app-confirm-dialog>
 
-  <!-- [trilha A] Folha "Estender teste" -->
   @if (trialExtensionOpen() && detail(); as company) {
     <app-trial-extension-sheet
       [companyId]="company.id"
@@ -579,5 +646,14 @@
     />
   }
 
-  <app-back-link link="/admin/companies" label="Voltar para a lista" />
+  @if (contactOpen() && detail(); as company) {
+    <app-register-contact-sheet
+      [companyId]="company.id"
+      [companyName]="company.name"
+      [engagement]="engagement()"
+      [canExtend]="caps.can('empresa.teste') && canExtendTrial()"
+      (saved)="onContactSaved($event)"
+      (closed)="closeContact()"
+    />
+  }
 </app-default-page-layout>

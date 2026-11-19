@@ -260,6 +260,12 @@ export interface UpcomingPayable {
   dueDate: string;
   amountCents: number | null;
   amountMonth: string | null;
+  /** Lançamento do mês; nulo = custo fixo projetado (mês ainda não lançado). Ausente num servidor antigo. */
+  costId?: string | null;
+  scheduleId?: string | null;
+  kind?: 'FIXED' | 'ONE_OFF' | 'LEGACY' | null;
+  /** O serviço do custo fixo ou o que foi pago no avulso. */
+  description?: string | null;
 }
 
 export interface AdminUpcoming {
@@ -267,6 +273,7 @@ export interface AdminUpcoming {
   until: string;
   receivables: UpcomingReceivable[];
   payables: UpcomingPayable[];
+  /** Mantido por compatibilidade; sempre 0 desde que o dia de cobrança mora no custo fixo. */
   vendorsWithoutBillingDay: number;
   receivablesTotalCents: number;
   payablesTotalCents: number | null;

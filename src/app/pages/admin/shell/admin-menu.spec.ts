@@ -41,9 +41,18 @@ describe('Menu da administração — tabela de rotas', () => {
     }
     expect(adminMenuItemForUrl('/admin/feedback')?.id).toBe('feedback');
     expect(adminMenuItemForUrl('/admin/users/abc')?.id).toBe('users');
-    expect(adminMenuItemForUrl('/admin/companies/converter-testes')?.id).toBe('companies');
+    expect(adminMenuItemForUrl('/admin/companies?segmento=TRIAL_STALLED')?.id).toBe('companies');
     expect(adminMenuItemForUrl('/admin/blog/novo')?.id).toBe('blog');
     expect(adminMenuItemForUrl('/admin')?.id).toBe('home');
+  });
+
+  it('o endereço antigo de "Converter testes" só redireciona para a pílula "Teste parado"', () => {
+    const old = found.admin.children!.find((c) => c.path === 'companies/converter-testes');
+    expect(old?.redirectTo).toBe('/admin/companies?segmento=TRIAL_STALLED');
+    expect(old?.loadComponent).toBeUndefined();
+    const order = adminPaths.indexOf('companies/converter-testes');
+    expect(order).toBeGreaterThanOrEqual(0);
+    expect(order).toBeLessThan(adminPaths.indexOf('companies/:id'));
   });
 
   it('todo item de menu aponta para uma rota que existe', () => {
@@ -76,7 +85,7 @@ describe('Menu da administração — capacidades', () => {
   it('Leitura (só "ver") enxerga apenas itens de leitura', () => {
     const visible = ids((c) => c === 'ver');
     expect(visible).toEqual([
-      'home', 'users', 'companies', 'charges', 'billing', 'coupons', 'support', 'notifications', 'audit',
+      'home', 'users', 'companies', 'charges', 'billing', 'coupons', 'costs', 'support', 'notifications', 'audit',
     ]);
     expect(visible).not.toContain('admins');
     expect(visible).not.toContain('blog');
@@ -119,7 +128,7 @@ describe('Menu da administração — modelo da sidebar (FIX-0864)', () => {
       'Auditoria',
     ]);
     const dinheiro = items.find((i) => i.label === 'Dinheiro')!;
-    expect(dinheiro.children!.map((c) => c.label)).toEqual(['Cobranças', 'Assinaturas', 'Cupons']);
+    expect(dinheiro.children!.map((c) => c.label)).toEqual(['Cobranças', 'Assinaturas', 'Cupons', 'Custos']);
     expect(dinheiro.route).toBeUndefined();
     const operacao = items.find((i) => i.label === 'Operação')!;
     expect(operacao.children!.map((c) => c.label)).toEqual([

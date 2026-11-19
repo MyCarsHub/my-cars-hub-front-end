@@ -1048,13 +1048,11 @@ export const routes: Routes = [
                                 data: { pageTitle: 'Empresas' },
                             },
                             {
-                                // Admin v2 (D5) — antes de 'companies/:id', senao vira um id.
+                                // A aba "Converter testes" saiu (18/11/2026): as pilulas de segmento
+                                // a substituem. O endereco antigo (favoritos) cai na lista ja na
+                                // pilula "Teste parado". Antes de 'companies/:id', senao vira um id.
                                 path: 'companies/converter-testes',
-                                loadComponent: () =>
-                                    import(
-                                        './pages/admin/companies/admin-trial-conversion'
-                                    ).then((m) => m.AdminTrialConversion),
-                                data: { pageTitle: 'Converter testes' },
+                                redirectTo: '/admin/companies?segmento=TRIAL_STALLED',
                             },
                             {
                                 path: 'companies/:id',
@@ -1140,6 +1138,15 @@ export const routes: Routes = [
                                         (m) => m.AdminCoupons,
                                     ),
                                 data: { pageTitle: 'Cupons' },
+                            },
+                            {
+                                // Custos da plataforma: le com `ver`; escrever pede custo.gerir (o servidor confere).
+                                path: 'custos',
+                                loadComponent: () =>
+                                    import('./pages/admin/costs/admin-costs').then(
+                                        (m) => m.AdminCosts,
+                                    ),
+                                data: { pageTitle: 'Custos' },
                             },
                             {
                                 // Admin v2 P0 — so leitura ("atrasado e nossa prova").

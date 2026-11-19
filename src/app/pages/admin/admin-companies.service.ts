@@ -8,6 +8,7 @@ import {
   AdminCompanyListItem,
   AdminCompanyStatus,
 } from '../../types/admin-company.types';
+import type { CompanyEngagement, CompanySegment, SegmentCounts } from '../../types/admin-segments.types';
 
 const API_BASE = `${environment.apiUrl}/admin/companies`;
 
@@ -17,6 +18,20 @@ export interface LoadCompaniesOptions {
   planCode?: string | null;
   page?: number;
   size?: number;
+  /** Segmentos (18/11/2026): um código de segmento; nulo/ausente = todas. */
+  segment?: CompanySegment | null;
+  /** `true` só internas, `false` só clientes; ausente = todas (como antes). */
+  internal?: boolean | null;
+  /** Só testes em andamento que vencem em até N dias (a regra do chip do Painel); sem internas. */
+  trialEndsWithinDays?: number | null;
+  /** Ordenação do servidor (`createdAt` quando ausente); `trialEndsAt` = fim do teste. */
+  sort?: 'createdAt' | 'mrr' | 'mrrReal' | 'managed' | 'lastAccess' | 'name' | 'trialEndsAt' | null;
+  dir?: 'asc' | 'desc' | null;
+}
+
+/** Envelope da lista: o paginado de sempre mais as contagens por segmento. */
+export interface AdminCompanyPage extends PagedResponse<AdminCompanyListItem> {
+  segmentCounts?: SegmentCounts | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -29,6 +44,7 @@ export class AdminCompaniesService {
   private readonly _total = signal(0);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
+  private readonly _segmentCounts = signal<SegmentCounts>({});
 
   private readonly _detail = signal<AdminCompanyDetail | null>(null);
   private readonly _detailLoading = signal(false);
@@ -42,6 +58,8 @@ export class AdminCompaniesService {
   readonly total = this._total.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+  /** Contagens das pílulas de segmento (respeitam busca e "vence em N dias", não o segmento escolhido). */
+  readonly segmentCounts = this._segmentCounts.asReadonly();
 
   readonly detail = this._detail.asReadonly();
   readonly detailLoading = this._detailLoading.asReadonly();
@@ -49,7 +67,7 @@ export class AdminCompaniesService {
   readonly statusUpdating = this._statusUpdating.asReadonly();
   readonly internalUpdating = this._internalUpdating.asReadonly();
 
-  load(options: LoadCompaniesOptions = {}): Observable<PagedResponse<AdminCompanyListItem>> {
+  load(options: LoadCompaniesOptions = {}): Observable<AdminCompanyPage> {
     this._loading.set(true);
     this._error.set(null);
 
@@ -69,10 +87,26 @@ export class AdminCompaniesService {
     if (options.size !== undefined) {
       params = params.set('size', String(options.size));
     }
+    if (options.segment) {
+      params = params.set('segment', options.segment);
+    }
+    if (options.internal === true || options.internal === false) {
+      params = params.set('internal', String(options.internal));
+    }
+    if (options.trialEndsWithinDays) {
+      params = params.set('trialEndsWithinDays', String(options.trialEndsWithinDays));
+    }
+    if (options.sort) {
+      params = params.set('sort', options.sort);
+    }
+    if (options.dir) {
+      params = params.set('dir', options.dir);
+    }
 
-    return this.http.get<PagedResponse<AdminCompanyListItem>>(API_BASE, { params }).pipe(
+    return this.http.get<AdminCompanyPage>(API_BASE, { params }).pipe(
       tap((res) => {
         this._companies.set(res.content ?? []);
+        this._segmentCounts.set(res.segmentCounts ?? {});
         this._page.set(res.page ?? 0);
         this._size.set(res.size ?? 20);
         this._total.set(res.total ?? 0);
@@ -157,6 +191,16 @@ export class AdminCompaniesService {
         }),
         finalize(() => this._internalUpdating.set(false)),
       );
+  }
+
+  /**
+   * Depois de registrar um contato: a resposta já traz o `engagement` novo, então a linha e o
+   * detalhe abertos trocam o bloco sem recarregar a lista inteira.
+   */
+  patchEngagement(id: string, engagement: CompanyEngagement): void {
+    this._companies.update((list) => list.map((c) => (c.id === id ? { ...c, engagement } : c)));
+    const detail = this._detail();
+    if (detail?.id === id) this._detail.set({ ...detail, engagement });
   }
 
   clearDetail(): void {
