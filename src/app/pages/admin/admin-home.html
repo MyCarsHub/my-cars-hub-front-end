@@ -344,13 +344,18 @@
           Retenção, valor do cliente e custo para conquistá-lo. Sempre de hoje: não segue o período.
         </p>
       </div>
-      <div class="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+      <!--
+        Seis cartões: dois por linha no celular, três a partir do tablet e seis só quando a área
+        de conteúdo comporta seis títulos inteiros (antes a fileira de seis cortava os títulos).
+      -->
+      <div class="grid gap-3 grid-cols-2 md:grid-cols-3 min-[1600px]:grid-cols-6" data-health-grid>
         @for (t of health(); track t.key) {
           <div
             app-kpi-card
             [attr.data-health]="t.key"
             size="compact"
             variant="white"
+            [wrapLabel]="true"
             [label]="t.label"
             [numberFormat]="t.format"
             placeholder="dash"

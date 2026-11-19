@@ -49,6 +49,12 @@ const BUCKET_WORD: Record<AdminRevenueBucket, string> = { DAY: 'dia', WEEK: 'sem
 
 const hasValue = (values: readonly (number | null)[]): boolean => values.some((v) => v !== null);
 
+/** Pure: the period total of a chart in cents, as "R$ 1.234,56"; null when nothing above zero was measured. */
+export function periodTotalText(values: readonly (number | null | undefined)[]): string | null {
+  const total = values.reduce<number>((sum, v) => sum + (v ?? 0), 0);
+  return total > 0 ? formatBrl(total) : null;
+}
+
 /**
  * Receita DA PLATAFORMA na Visão geral do admin (assinaturas das locadoras ao MyCarsHub): esperado
  * do mês, recebido e desconto em cupons NO PERÍODO da tela, acumulado e o crescimento do MRR.
@@ -202,6 +208,11 @@ const hasValue = (values: readonly (number | null)[]): boolean => values.some((v
 
         <app-page-card [title]="'Recebido por ' + bucketWord()">
           <div class="p-4" data-received-chart>
+            @if (!pending() && receivedTotal(); as total) {
+              <p class="text-xl font-semibold text-fg tabular-nums leading-tight mb-1" data-received-total>
+                {{ total }} <span class="text-xs font-normal text-fg-subtle">no período</span>
+              </p>
+            }
             <p class="text-xs text-fg-subtle mb-3">
               Pagamentos de assinatura confirmados, no {{ bucketWord() }} em que entraram.
             </p>
@@ -213,7 +224,10 @@ const hasValue = (values: readonly (number | null)[]): boolean => values.some((v
                 [labels]="labels()"
                 valueFormat="brl-cents"
                 [legend]="false"
+                [yAxis]="true"
+                [axisFloor]="axisFloor"
                 [heightPx]="180"
+                [emptyText]="receivedEmpty()"
                 [ariaLabel]="'Recebido por ' + bucketWord() + ' no período'"
               />
               @if (revenue()?.received?.rowsWithoutAmount; as unknown) {
@@ -229,6 +243,11 @@ const hasValue = (values: readonly (number | null)[]): boolean => values.some((v
 
         <app-page-card title="Desconto dado em cupons">
           <div class="p-4" data-discount-chart>
+            @if (!pending() && discountTotal(); as total) {
+              <p class="text-xl font-semibold text-fg tabular-nums leading-tight mb-1" data-discount-total>
+                {{ total }} <span class="text-xs font-normal text-fg-subtle">em descontos</span>
+              </p>
+            }
             <p class="text-xs text-fg-subtle mb-3">
               Quanto os cupons tiraram das faturas pagas, no {{ bucketWord() }} do pagamento. Fatura devolvida não conta.
             </p>
@@ -244,6 +263,8 @@ const hasValue = (values: readonly (number | null)[]): boolean => values.some((v
                 [labels]="labels()"
                 valueFormat="brl-cents"
                 [legend]="false"
+                [yAxis]="true"
+                [axisFloor]="axisFloor"
                 [heightPx]="180"
                 emptyText="Nenhum desconto de cupom no período."
                 [ariaLabel]="'Desconto em cupons por ' + bucketWord() + ' no período'"
@@ -364,14 +385,16 @@ export class AdminRevenueSection {
   });
 
   protected readonly discountsAvailable = computed(() => this.revenue()?.discounts?.available ?? false);
+  private readonly discountValues = computed(() => this.points().map((p) => p.couponDiscountCents));
   protected readonly discountSeries = computed<BarSeries[]>(() => [
-    {
-      key: 'discount',
-      label: 'Desconto',
-      color: SINGLE_SERIES_COLOR,
-      values: this.points().map((p) => p.couponDiscountCents),
-    },
+    { key: 'discount', label: 'Desconto', color: SINGLE_SERIES_COLOR, values: this.discountValues() },
   ]);
+
+  /** The sum of the drawn columns, written under the card title; nothing when the period is zero. */
+  protected readonly receivedTotal = computed(() => periodTotalText(this.receivedValues()));
+  protected readonly discountTotal = computed(() =>
+    this.discountsAvailable() ? periodTotalText(this.discountValues()) : null,
+  );
 
   // ---------------------------------------------------------------- cartões
 

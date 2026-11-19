@@ -3,8 +3,11 @@ import { formatKpiNumber, type KpiNumberFormat } from '../../kpi-card/kpi-card';
 import { barPct } from '../bar-chart/bar-chart';
 import {
   ChartTooltip,
+  axisLabelIndices,
+  axisLabelStep,
   barLabelFormat,
   injectHostWidth,
+  injectLabelWidth,
   labelsFit,
   pointerFraction,
   slotAt,
@@ -145,8 +148,11 @@ interface LegendItem {
                   }
                 </div>
               </div>
+              <!-- Thinned when the labels would run into each other: the hidden ones keep their box. -->
               <span
+                data-x-label
                 class="text-[10px] sm:text-[11px] text-fg-muted whitespace-nowrap"
+                [class.invisible]="!xShown()[i]"
                 [class.text-fg]="i === active()"
                 [class.font-semibold]="i === active()"
                 aria-hidden="true"
@@ -271,6 +277,19 @@ export class StackedBarChart {
       };
     });
   }
+
+  /** Widest x label as drawn (the bold active one left out, so reading a column never re-thins). */
+  private readonly labelPx = injectLabelWidth('[data-x-label]:not(.font-semibold)', () => this.renderedRows());
+
+  /** Columns layout: which x labels print (first, last and evenly between, never touching). */
+  protected readonly xShown = computed<boolean[]>(() => {
+    const rows = this.renderedRows();
+    const maxChars = Math.max(0, ...rows.map((r) => r.label.length));
+    const step = axisLabelStep(rows.length, this.width(), this.labelPx(), maxChars);
+    const shown = new Array<boolean>(rows.length).fill(false);
+    for (const i of axisLabelIndices(rows.length, step)) shown[i] = true;
+    return shown;
+  });
 
   /** Totals on top of the columns (sm and up) only when every label has room. */
   protected readonly showLabels = computed(() => {

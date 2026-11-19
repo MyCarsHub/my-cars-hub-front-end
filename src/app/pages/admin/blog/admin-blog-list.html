@@ -29,6 +29,7 @@
           </div>
         } @else if (!hasAny()) {
           <app-data-list
+            [fit]="true"
             data-testid="empty"
             [columns]="columns"
             [rows]="[]"
@@ -74,6 +75,7 @@
           <!-- The epoch changes with situation/category: the list is rebuilt and the rise-in cascade replays. -->
           @for (epoch of epochs(); track epoch.id) {
             <app-data-list
+              [fit]="true"
               [animateRows]="true"
               data-testid="posts-list"
               [columns]="columns"

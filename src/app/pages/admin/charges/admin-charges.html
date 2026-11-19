@@ -47,6 +47,7 @@
 
       @if (!error() || items().length > 0) {
         <app-data-list
+          [fit]="true"
           data-testid="charges-list"
           [columns]="columns"
           [rows]="items()"

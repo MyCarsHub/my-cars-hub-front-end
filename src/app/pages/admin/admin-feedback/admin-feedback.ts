@@ -195,10 +195,10 @@ export class AdminFeedback implements OnInit {
       value: (t) => this.statusLabel(t.status),
       tone: (t) => this.statusTone(t.status),
     },
-    { key: 'author', header: 'Autor', value: (t) => t.authorName ?? 'Anônimo' },
-    { key: 'votes', header: 'Votos', kind: 'integer', end: true, value: (t) => t.fuelCount },
+    { key: 'author', header: 'Autor', optional: true, value: (t) => t.authorName ?? 'Anônimo' },
+    { key: 'votes', header: 'Votos', optional: true, kind: 'integer', end: true, value: (t) => t.fuelCount },
     { key: 'sent', header: 'Enviada', value: (t) => whenExact(t.createdDate) ?? '—' },
-    { key: 'note', header: 'Nota', value: (t) => t.adminNote ?? '—' },
+    { key: 'note', header: 'Nota', optional: true, value: (t) => t.adminNote ?? '—' },
   ];
 
   protected readonly rowId = (t: FeedbackTaskResponse): string => t.id;

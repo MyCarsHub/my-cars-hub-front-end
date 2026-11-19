@@ -150,6 +150,7 @@
 
         <!-- Lista: só a página atual vai para o DOM (o dia pode ter 2000 cobranças). -->
         <app-data-list
+          [fit]="true"
           data-testid="charge-list"
           [columns]="chargeColumns"
           [rows]="pageItems()"
@@ -324,6 +325,7 @@
             <div>
               <h3 class="text-sm font-semibold text-fg mb-2">Com falha ou pendentes</h3>
               <app-data-list
+                [fit]="true"
                 data-testid="asaas-failures"
                 [columns]="failureColumns"
                 [rows]="failuresPageItems()"
@@ -350,6 +352,7 @@
             <div>
               <h3 class="text-sm font-semibold text-fg mb-2">Sem WhatsApp no aviso</h3>
               <app-data-list
+                [fit]="true"
                 data-testid="asaas-without-whatsapp"
                 [columns]="withoutWhatsappColumns"
                 [rows]="withoutWhatsappPageItems()"

@@ -40,7 +40,7 @@ import {
 
 const COLUMNS: readonly DataListColumn<BlogRow>[] = [
   { key: 'title', header: 'Post', primary: true, value: (r) => r.post.title },
-  { key: 'category', header: 'Categoria', kind: 'status', value: (r) => r.category },
+  { key: 'category', header: 'Categoria', optional: true, kind: 'status', value: (r) => r.category },
   {
     key: 'status',
     header: 'Situação',
@@ -49,7 +49,7 @@ const COLUMNS: readonly DataListColumn<BlogRow>[] = [
     tone: (r) => r.status.tone,
   },
   { key: 'date', header: 'Data', value: (r) => r.dateExact },
-  { key: 'reading', header: 'Leitura', value: (r) => r.reading },
+  { key: 'reading', header: 'Leitura', optional: true, value: (r) => r.reading },
 ];
 
 const CATEGORY_OPTIONS: readonly { value: BlogCategoryFilter; label: string }[] = [

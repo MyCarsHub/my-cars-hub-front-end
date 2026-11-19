@@ -152,10 +152,10 @@ export class AdminUsers implements OnInit {
       primary: true,
       value: (u) => (u.name ? `${u.name} <${u.email}>` : u.email),
     },
-    { key: 'phone', header: 'Telefone', value: (u) => u.phoneMasked, noExport: true },
+    { key: 'phone', header: 'Telefone', optional: true, value: (u) => u.phoneMasked, noExport: true },
     // Papel e quem a pessoa e: chip neutro (cor so na situacao).
     { key: 'role', header: 'Papel', kind: 'status', value: (u) => userRole(u)?.label },
-    { key: 'companies', header: 'Empresas', value: (u) => companiesSummary(u) },
+    { key: 'companies', header: 'Empresas', optional: true, value: (u) => companiesSummary(u) },
     {
       key: 'last',
       header: 'Último acesso',

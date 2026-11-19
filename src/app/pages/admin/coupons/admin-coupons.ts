@@ -125,9 +125,9 @@ export interface CouponRow {
  */
 const COLUMNS: readonly DataListColumn<CouponRow>[] = [
   { key: 'title', header: 'Código ou empresa', primary: true, value: (r) => r.title },
-  { key: 'kind', header: 'Tipo', kind: 'status', value: (r) => r.kind },
+  { key: 'kind', header: 'Tipo', optional: true, kind: 'status', value: (r) => r.kind },
   { key: 'discount', header: 'Desconto', value: (r) => `${r.discount} ${r.durationText}` },
-  { key: 'uses', header: 'Usos', value: (r) => r.uses },
+  { key: 'uses', header: 'Usos', optional: true, value: (r) => r.uses },
   { key: 'validity', header: 'Validade', value: (r) => r.validity },
   {
     key: 'status',

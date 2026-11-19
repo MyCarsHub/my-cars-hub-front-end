@@ -221,18 +221,20 @@ export class AdminBilling implements OnInit {
 
   protected readonly planColumns: readonly DataListColumn<AdminMrrPlanBreakdown>[] = [
     { key: 'plan', header: 'Plano', primary: true, value: (p) => this.planName(p.planName, p.planCode) },
-    { key: 'gateway', header: 'Gateway', value: (p) => gatewayLabel(p.gateway) },
+    { key: 'gateway', header: 'Gateway', optional: true, value: (p) => gatewayLabel(p.gateway) },
     { key: 'price', header: 'Preço do plano', kind: 'money-cents', end: true, value: (p) => p.planPriceCents },
-    { key: 'subs', header: 'Assinaturas', kind: 'integer', end: true, value: (p) => p.subscriptionsTotal },
+    { key: 'subs', header: 'Assinaturas', optional: true, kind: 'integer', end: true, value: (p) => p.subscriptionsTotal },
     {
       key: 'activeTrial',
       header: 'Ativas / trial',
+      optional: true,
       end: true,
       value: (p) => `${p.activeTotal} / ${p.trialingTotal}`,
     },
     {
       key: 'pastDueCanceled',
       header: 'Atrasadas / canceladas',
+      optional: true,
       end: true,
       value: (p) => `${p.pastDueTotal} / ${p.canceledTotal}`,
     },
@@ -256,15 +258,15 @@ export class AdminBilling implements OnInit {
       tone: (i) => this.issueKind(i.kind).tone,
     },
     { key: 'occurredAt', header: 'Início', value: (i) => this.formatDateTime(i.occurredAt) },
-    { key: 'plan', header: 'Plano / gateway', value: (i) => this.planName(i.planName, i.planCode) },
+    { key: 'plan', header: 'Plano / gateway', optional: true, value: (i) => this.planName(i.planName, i.planCode) },
     { key: 'amount', header: 'Valor', end: true, value: (i) => this.issueAmount(i) },
-    { key: 'todo', header: 'O que fazer', value: (i) => this.issueKind(i.kind).guidance },
+    { key: 'todo', header: 'O que fazer', optional: true, value: (i) => this.issueKind(i.kind).guidance },
   ];
 
   protected readonly subscriptionColumns: readonly DataListColumn<AdminSubscriptionListItem>[] = [
     { key: 'company', header: 'Empresa', primary: true, value: (s) => s.companyName },
-    { key: 'plan', header: 'Plano', value: (s) => this.planName(s.planName, s.planCode) },
-    { key: 'gateway', header: 'Gateway', value: (s) => gatewayLabel(s.gateway) },
+    { key: 'plan', header: 'Plano', optional: true, value: (s) => this.planName(s.planName, s.planCode) },
+    { key: 'gateway', header: 'Gateway', optional: true, value: (s) => gatewayLabel(s.gateway) },
     { key: 'status', header: 'Situação', value: (s) => this.statusChip(s.status).label },
     {
       key: 'price',
