@@ -117,6 +117,16 @@ interface PendingDriverFile {
   sent: boolean;
 }
 
+/**
+ * Os `validators` não cobram o valor gravado no servidor: só o que o usuário mudou nesta tela.
+ * Sem valor gravado (contato novo), valem sempre.
+ */
+function unlessStored(stored: string | null | undefined, validators: ValidatorFn[]): ValidatorFn {
+  const check = Validators.compose(validators) ?? (() => null);
+  return (control) =>
+    stored !== null && stored !== undefined && control.value === stored ? null : check(control);
+}
+
 /** Bloco repetível de contato de terceiro (FEAT-0067) — máx. 3, ver types. */
 type ThirdPartyContactGroup = FormGroup<{
   fullName: FormControl<string>;
@@ -376,20 +386,31 @@ export class DriverForm implements OnInit {
    */
   protected readonly contactPhoneDisplays = signal<string[]>([]);
 
+  /** O usuário adicionou, removeu ou editou um contato desde a carga (ou o último save). */
+  private contactsChanged = false;
+
   /** Quantos blocos existem — dirige o botão "+ Adicionar contato" e o teto. */
   protected readonly contactCount = computed(() => this.contactPhoneDisplays().length);
 
+  /**
+   * Contato gravado entra EXATAMENTE como veio do servidor (nome e telefone sem corte nem
+   * reformatação — um telefone com DDI tem mais de 11 dígitos) e só é validado depois que o
+   * usuário mexe nele: um valor antigo fora da regra de hoje não trava o salvar de outra coisa.
+   */
   private contactGroup(existing?: ThirdPartyContact): ThirdPartyContactGroup {
     // Contato gravado antes do parentesco existir chega com `relationship` nulo. Intocado, ele
     // volta como veio (o servidor aceita ausente); exigir o campo já na carga travaria o salvar
     // de QUALQUER alteração do motorista. Passa a ser obrigatório quando o contato é editado.
     const legacy = existing !== undefined && !existing.relationship;
     const group = this.fb.nonNullable.group({
-      fullName: [existing?.fullName ?? '', [Validators.required, Validators.maxLength(180)]],
+      fullName: [
+        existing?.fullName ?? '',
+        [unlessStored(existing?.fullName, [Validators.required, Validators.maxLength(180)])],
+      ],
       // Validação idêntica ao telefone principal do form.
       phone: [
-        this.contactPhoneDigits(existing),
-        [Validators.required, Validators.pattern(/^\d{10,11}$/)],
+        existing?.phone ?? '',
+        [unlessStored(existing?.phone, [Validators.required, Validators.pattern(/^\d{10,11}$/)])],
       ],
       // Obrigatório para contato novo ou editado (decisão do dono, 16/11); o servidor aceita
       // ausente só por compatibilidade com cliente antigo.
@@ -410,16 +431,25 @@ export class DriverForm implements OnInit {
     return group;
   }
 
-  private contactPhoneDigits(contact?: ThirdPartyContact): string {
-    return (contact?.phone ?? '').replace(/\D/g, '').slice(0, 11);
+  /** Máscara quando os dígitos cabem nela (10 ou 11); senão o texto como está, sem cortar nada. */
+  private contactPhoneDisplay(value: string): string {
+    const digits = value.replace(/\D/g, '');
+    return digits.length === 10 || digits.length === 11 ? this.formatPhone(digits) : value;
   }
 
-  /** Edição: os contatos gravados viram blocos editáveis, na ordem do servidor. */
+  /**
+   * Edição: os contatos gravados viram blocos editáveis, na ordem do servidor — TODOS, sem
+   * cortar no teto (o PUT substitui o conjunto, então cortar apagaria o excedente). Sem
+   * `emitEvent`: carregar não é "mexer nos contatos".
+   */
   private loadContacts(contacts: readonly ThirdPartyContact[] | null | undefined): void {
     this.contactsArray.clear({ emitEvent: false });
-    const list = (contacts ?? []).slice(0, MAX_THIRD_PARTY_CONTACTS);
-    for (const contact of list) this.contactsArray.push(this.contactGroup(contact));
-    this.contactPhoneDisplays.set(list.map((c) => this.formatPhone(this.contactPhoneDigits(c))));
+    const list = contacts ?? [];
+    for (const contact of list) {
+      this.contactsArray.push(this.contactGroup(contact), { emitEvent: false });
+    }
+    this.contactPhoneDisplays.set(list.map((c) => this.contactPhoneDisplay(c.phone ?? '')));
+    this.contactsChanged = false;
   }
 
   protected addContact(): void {
@@ -436,17 +466,23 @@ export class DriverForm implements OnInit {
   }
 
   protected onContactPhoneInput(index: number, event: Event): void {
-    const raw = (event.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 11);
+    // Sem `slice`: dígito a mais (ex.: um DDI herdado) vira erro visível no campo, nunca um
+    // número cortado em silêncio.
+    const raw = (event.target as HTMLInputElement).value.replace(/\D/g, '');
     const ctrl = this.contactsArray.at(index).controls.phone;
     ctrl.setValue(raw);
     ctrl.markAsTouched();
-    const masked = this.formatPhone(raw);
+    const shown = raw.length <= 11 ? this.formatPhone(raw) : raw;
     this.contactPhoneDisplays.update((list) =>
-      list.map((v, i) => (i === index ? masked : v)),
+      list.map((v, i) => (i === index ? shown : v)),
     );
   }
 
   ngOnInit(): void {
+    // Qualquer mudança nos contatos (adicionar, remover, editar um campo) marca a lista para o
+    // PUT. `loadContacts` carrega sem emitir, então abrir a edição não conta como mudança.
+    this.contactsArray.valueChanges.subscribe(() => (this.contactsChanged = true));
+
     // Re-run CPF validation on document.value when type flips between CPF/CNPJ.
     this.form.controls.document.controls.type.valueChanges.subscribe(() => {
       this.form.controls.document.controls.value.updateValueAndValidity();
@@ -694,9 +730,9 @@ export class DriverForm implements OnInit {
         licenseCategory: raw.licenseCategory as LicenseCategory,
         licenseExpiry: raw.licenseExpiry,
         status: raw.status,
-        // Lista inteira, sempre: o PUT SUBSTITUI o conjunto (vazia apaga todos). Também cobre
-        // o retry de um cadastro com anexo falho — reenvia os mesmos contatos do POST.
-        thirdPartyContacts: contactsPayload,
+        // Só quando o usuário mexeu nos contatos nesta edição: a lista inteira SUBSTITUI o
+        // conjunto (vazia apaga todos). Intocados, ficam fora do PUT e o servidor os mantém.
+        ...(this.contactsChanged ? { thirdPartyContacts: contactsPayload } : {}),
       };
       this.saveChildren(this.driverService.update(this.editingId()!, payload));
     } else {
@@ -763,8 +799,9 @@ export class DriverForm implements OnInit {
           // `updateValueAndValidity()` sobe ao grupo enquanto `value` ainda
           // está habilitado — e reescreve o status do grupo para VALID.
           this.form.controls.document.disable({ emitEvent: false });
-          // Contatos de terceiros ficam editáveis: o PUT do retry carrega a
-          // lista inteira (`thirdPartyContacts`), então uma alteração não se perde.
+          // Contatos de terceiros ficam editáveis: o que foi salvo vira a base, e o
+          // PUT do retry só leva `thirdPartyContacts` se o usuário mexer neles depois.
+          this.contactsChanged = false;
         }),
         switchMap((driver) => this.documentsStep(driver)),
       )

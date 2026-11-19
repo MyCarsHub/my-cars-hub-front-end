@@ -1287,11 +1287,10 @@ export class VehicleForm implements OnInit {
       .pipe(
         tap((v) => {
           this.editingId.set(v.id);
-          // O que acabou de ser gravado vira o "gravado": um retry (filho que falhou)
+          // O que o servidor acabou de gravar vira a base: um retry (filho que falhou)
           // não reenvia chassi/RENAVAM que não mudaram desde então.
-          const saved = this.form.getRawValue();
-          this.storedChassis = saved.chassis?.trim() ?? '';
-          this.storedRenavam = saved.renavam?.trim() ?? '';
+          this.storedChassis = v.chassis ?? '';
+          this.storedRenavam = v.renavam ?? '';
         }),
         switchMap((v) => this.financingStep(v)),
         switchMap((v) => this.insuranceStep(v)),

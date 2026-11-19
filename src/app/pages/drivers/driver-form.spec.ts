@@ -483,7 +483,7 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
   let navigate: ReturnType<typeof vi.fn>;
   let fixture: ReturnType<typeof TestBed.createComponent<DriverForm>>;
 
-  function configure(routeId: string | null = null): void {
+  function configure(routeId: string | null = null, loaded: DriverResponse = editDriver): void {
     TestBed.resetTestingModule();
     create = vi.fn().mockReturnValue(of(savedDriver));
     update = vi.fn().mockReturnValue(of(savedDriver));
@@ -498,7 +498,7 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
           provide: DriverService,
           useValue: {
             // Na rota de edição o getOne EMITE — ver o comentário de `editDriver`.
-            getOne: vi.fn().mockReturnValue(routeId ? of(editDriver) : EMPTY),
+            getOne: vi.fn().mockReturnValue(routeId ? of(loaded) : EMPTY),
             create,
             update,
             uploadDocument: vi.fn().mockReturnValue(EMPTY),
@@ -592,6 +592,16 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
 
   function submit(): void {
     (fixture.componentInstance as unknown as { submit: () => void }).submit();
+    fixture.detectChanges();
+  }
+
+  /** Alteração fora dos contatos (nome do motorista). */
+  function renameDriver(name: string): void {
+    (
+      fixture.componentInstance as unknown as {
+        form: { controls: { name: { setValue: (v: string) => void } } };
+      }
+    ).form.controls.name.setValue(name);
     fixture.detectChanges();
   }
 
@@ -737,11 +747,20 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
       expect(remove?.disabled).toBe(false);
     });
 
-    it('salvar sem mexer manda a lista inteira em `thirdPartyContacts` — o legado sem parentesco não trava o PUT', () => {
+    it('salvar sem mexer nos contatos deixa `thirdPartyContacts` FORA do PUT (o servidor mantém)', () => {
+      renameDriver('Fulano de Tal');
+      submit();
+
+      expect(updatePayload().name).toBe('Fulano de Tal');
+      expect('thirdPartyContacts' in updatePayload()).toBe(false);
+    });
+
+    it('mexer só no parentesco já conta como mudança: a lista inteira vai no PUT', () => {
+      choose(relationshipSelect(0), 'MOTHER');
       submit();
 
       expect(updatePayload().thirdPartyContacts).toEqual([
-        { fullName: 'Maria da Silva', phone: '11987654321', relationship: null },
+        { fullName: 'Maria da Silva', phone: '11987654321', relationship: 'MOTHER' },
         { fullName: 'José Souza', phone: '1132654321', relationship: 'BROTHER' },
       ]);
     });
@@ -796,6 +815,83 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
         form: { get: (k: string) => { disabled: boolean } | null };
       };
       expect(component.form.get('document')?.disabled).toBe(true);
+    });
+  });
+
+  /**
+   * Telefone gravado fora da regra de hoje (com DDI = 13 dígitos, ou curto demais). A tela
+   * nunca corta nem reformata o que está gravado, e só valida o contato que o usuário tocou.
+   */
+  describe('na edição, telefone gravado fora da regra de hoje', () => {
+    const DDI_PHONE = '+55 (11) 98765-4321';
+
+    function withContacts(contacts: DriverResponse['thirdPartyContacts']): DriverResponse {
+      return { ...editDriver, thirdPartyContacts: contacts };
+    }
+
+    it('mostra o telefone com DDI como está e salvar outra coisa não manda os contatos', () => {
+      configure('drv-1', withContacts([{ id: 'ct-1', fullName: 'Carlos', phone: DDI_PHONE, relationship: 'UNCLE' }]));
+
+      expect(phoneInput(0).value).toBe(DDI_PHONE);
+      renameDriver('Fulano de Tal');
+      submit();
+
+      expect(update).toHaveBeenCalledTimes(1);
+      const payload = update.mock.calls[0][1] as UpdateDriverRequest;
+      expect('thirdPartyContacts' in payload).toBe(false);
+    });
+
+    it('editar outro campo do contato reenvia o telefone com DDI SEM corte', () => {
+      configure('drv-1', withContacts([{ id: 'ct-1', fullName: 'Carlos', phone: DDI_PHONE, relationship: 'UNCLE' }]));
+
+      typeInto(nameInput(0), 'Carlos Pereira');
+      submit();
+
+      expect(update).toHaveBeenCalledTimes(1);
+      expect((update.mock.calls[0][1] as UpdateDriverRequest).thirdPartyContacts).toEqual([
+        { fullName: 'Carlos Pereira', phone: DDI_PHONE, relationship: 'UNCLE' },
+      ]);
+    });
+
+    it('mexer no telefone com DDI cobra a regra: 13 dígitos viram erro, nunca um número cortado', () => {
+      configure('drv-1', withContacts([{ id: 'ct-1', fullName: 'Carlos', phone: DDI_PHONE, relationship: 'UNCLE' }]));
+
+      typeInto(phoneInput(0), '+55 (11) 98765-43210');
+      expect(phoneInput(0).value).toBe('55119876543210');
+      submit();
+
+      expect(update).not.toHaveBeenCalled();
+      expect(el().querySelector('#motorista-contato-terceiro-telefone-0-error')).not.toBeNull();
+    });
+
+    it('telefone curto gravado não trava salvar outra alteração', () => {
+      configure('drv-1', withContacts([{ id: 'ct-1', fullName: 'Carlos', phone: '98765432', relationship: 'UNCLE' }]));
+
+      expect(phoneInput(0).value).toBe('98765432');
+      renameDriver('Fulano de Tal');
+      submit();
+
+      expect(update).toHaveBeenCalledTimes(1);
+      expect('thirdPartyContacts' in (update.mock.calls[0][1] as UpdateDriverRequest)).toBe(false);
+    });
+
+    it('telefone curto gravado vai como está quando OUTRO contato muda', () => {
+      configure(
+        'drv-1',
+        withContacts([
+          { id: 'ct-1', fullName: 'Carlos', phone: '98765432', relationship: 'UNCLE' },
+          { id: 'ct-2', fullName: 'Ana', phone: '21988887777', relationship: 'SISTER' },
+        ]),
+      );
+
+      el().querySelector<HTMLButtonElement>('button[aria-label="Remover contato 2"]')?.click();
+      fixture.detectChanges();
+      submit();
+
+      expect(update).toHaveBeenCalledTimes(1);
+      expect((update.mock.calls[0][1] as UpdateDriverRequest).thirdPartyContacts).toEqual([
+        { fullName: 'Carlos', phone: '98765432', relationship: 'UNCLE' },
+      ]);
     });
   });
 });
