@@ -6,7 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { Observable } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { BackLink } from '../../../components/core/back-link/back-link';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
@@ -182,15 +182,26 @@ export class AdminAnnouncements implements OnInit {
       });
   });
 
-  protected readonly confirmTitle = computed(() =>
-    this.confirm()?.kind === 'delete' ? 'Excluir rascunho?' : 'Encerrar novidade agora?',
-  );
+  protected readonly confirmTitle = computed(() => {
+    const c = this.confirm();
+    if (c?.kind !== 'delete') return 'Encerrar novidade agora?';
+    return c.a.status === 'DRAFT' ? 'Excluir rascunho?' : 'Excluir a novidade?';
+  });
   protected readonly confirmMessage = computed(() => {
     const c = this.confirm();
     if (!c) return '';
-    return c.kind === 'delete'
-      ? `"${c.a.title}" some da lista. Ninguém viu este rascunho.`
-      : `"${c.a.title}" sai do ar agora para quem ainda não leu. Encerrada não volta; dá para duplicar como rascunho.`;
+    if (c.kind === 'unpublish') {
+      return `"${c.a.title}" sai do ar agora para quem ainda não leu. Encerrada não volta; dá para duplicar como rascunho.`;
+    }
+    switch (c.a.status) {
+      case 'DRAFT':
+        return `"${c.a.title}" some da lista. Ninguém viu este rascunho. Esta ação não pode ser desfeita.`;
+      case 'PUBLISHED':
+        // Publicada inclui a agendada (início no futuro): as duas já estão no feed do público.
+        return `"${c.a.title}" some do feed de todos os usuários agora, inclusive de quem ainda não leu. Esta ação não pode ser desfeita.`;
+      default:
+        return `"${c.a.title}" some da lista. Ela já saiu do ar. Esta ação não pode ser desfeita.`;
+    }
   });
 
   ngOnInit(): void {
@@ -291,28 +302,57 @@ export class AdminAnnouncements implements OnInit {
 
   protected doConfirm(): void {
     const c = this.confirm();
-    if (!c) return;
+    if (!c || this.confirmBusy()) return;
     this.confirmBusy.set(true);
     this.actionError.set(null);
-    const call: Observable<unknown> =
-      c.kind === 'delete' ? this.service.delete(c.a.id) : this.service.unpublish(c.a.id);
-    call.subscribe({
+    if (c.kind === 'delete') {
+      this.runDelete(c.a);
+      return;
+    }
+    this.service.unpublish(c.a.id).subscribe({
       next: () => {
         this.confirmBusy.set(false);
         this.confirm.set(null);
-        this.notify.push('success', c.kind === 'delete' ? 'Rascunho excluído.' : 'Novidade encerrada.');
+        this.notify.push('success', 'Novidade encerrada.');
         this.load();
       },
       error: (err: unknown) => {
         this.confirmBusy.set(false);
         this.confirm.set(null);
-        this.actionError.set(
-          this.apiErrors.messageFor(
-            err,
-            c.kind === 'delete' ? 'Não foi possível excluir o rascunho.' : 'Não foi possível encerrar a novidade.',
-          ),
-        );
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível encerrar a novidade.'));
       },
     });
+  }
+
+  /**
+   * Excluir em qualquer situação. Sucesso tira a linha da lista na hora (sem recarregar) e fecha
+   * a folha se ela estava aberta nessa novidade. 404 = alguém já excluiu: mesmo efeito, aviso
+   * neutro. Outra falha (ex.: 409 de servidor antigo para publicada) fica no toast e a linha fica.
+   */
+  private runDelete(a: AdminAnnouncement): void {
+    this.service.delete(a.id).subscribe({
+      next: () => {
+        this.dropFromList(a.id);
+        this.notify.push('success', 'Novidade excluída.');
+      },
+      error: (err: unknown) => {
+        if (err instanceof HttpErrorResponse && err.status === 404) {
+          this.apiErrors.messageFor(err); // reivindica o erro: o toast genérico não sai
+          this.dropFromList(a.id);
+          this.notify.push('info', 'Esta novidade já tinha sido excluída.');
+          return;
+        }
+        this.confirmBusy.set(false);
+        this.confirm.set(null);
+        this.notify.push('error', this.apiErrors.messageFor(err, 'Não foi possível excluir a novidade.'));
+      },
+    });
+  }
+
+  private dropFromList(id: string): void {
+    this.confirmBusy.set(false);
+    this.confirm.set(null);
+    this.items.update((list) => list.filter((x) => x.id !== id));
+    if (this.sheet()?.announcement?.id === id) this.sheet.set(null);
   }
 }

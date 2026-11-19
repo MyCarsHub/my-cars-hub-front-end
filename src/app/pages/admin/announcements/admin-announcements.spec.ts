@@ -1,9 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter, Router, Route } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../../../app.routes';
+import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { NotificationService } from '../../../services/notification.service';
 import { AdminAnnouncement, AnnouncementRequest } from '../../../types/announcement.types';
@@ -292,7 +295,7 @@ describe('AdminAnnouncements (F2)', () => {
   it('menu ⋮ muda com a situação; rascunho sem público abre a folha em vez de publicar', () => {
     const { f } = render();
     openMenu(0, f);
-    expect($$('[role="menuitem"]').map((b) => b.textContent?.trim())).toEqual(['Editar', 'Ver prévia', 'Encerrar agora']);
+    expect($$('[role="menuitem"]').map((b) => b.textContent?.trim())).toEqual(['Editar', 'Ver prévia', 'Encerrar agora', 'Excluir']);
     openMenu(0, f); // o gatilho fecha o próprio menu
     expect($$('[role="menuitem"]')).toHaveLength(0);
 
@@ -316,6 +319,133 @@ describe('AdminAnnouncements (F2)', () => {
     confirm.click();
     f.detectChanges();
     expect(service.unpublish).toHaveBeenCalledWith('a1');
+  });
+
+  describe('excluir (qualquer situação)', () => {
+    const dialog = () => $('app-confirm-dialog [role="dialog"]');
+    const confirmBtn = () =>
+      Array.from(dialog()!.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === 'Excluir')!;
+    const cancelBtn = () =>
+      Array.from(dialog()!.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === 'Voltar')!;
+    /** O diálogo sai com animação: o que conta é o `open` que a página passa. */
+    const dialogOpen = (f: ComponentFixture<unknown>): boolean =>
+      (f.debugElement.query(By.directive(ConfirmDialog)).componentInstance as ConfirmDialog).open();
+    const titles = (el: HTMLElement) =>
+      Array.from(el.querySelectorAll('[data-row] [data-testid="row-title"]')).map((e) => e.textContent?.trim());
+
+    function askDelete(row: number, f: ComponentFixture<unknown>): void {
+      openMenu(row, f);
+      const item = $('[data-testid="menu-delete"]')!;
+      expect(item.getAttribute('role')).toBe('menuitem');
+      item.click();
+      f.detectChanges();
+    }
+
+    it('o ⋮ de cada situação tem Excluir, com o tom de perigo do kebab compartilhado', () => {
+      const { f } = render();
+      for (const [row, label] of [
+        [0, 'Excluir'],
+        [1, 'Excluir rascunho'],
+        [2, 'Excluir'],
+      ] as const) {
+        openMenu(row, f);
+        const item = $('[data-testid="menu-delete"]')!;
+        expect(item.textContent?.trim()).toBe(label);
+        expect($$('[role="menuitem"]').at(-1)).toBe(item); // destrutivo por último
+        expect(item.className).toContain('text-rose');
+        openMenu(row, f);
+      }
+    });
+
+    it('confirma com texto conforme a situação; ao excluir tira a linha sem recarregar e avisa', () => {
+      const { f, el } = render();
+      askDelete(0, f);
+      expect(dialog()?.textContent).toContain('Excluir a novidade?');
+      expect(dialog()?.textContent).toContain('some do feed de todos os usuários agora, inclusive de quem ainda não leu');
+      expect(dialog()?.textContent).toContain('Esta ação não pode ser desfeita.');
+      confirmBtn().click();
+      f.detectChanges();
+      expect(service.delete).toHaveBeenCalledWith('a1');
+      expect(service.list).toHaveBeenCalledTimes(1);
+      expect(titles(el)).toEqual(['Rascunho X', 'Velha']);
+      expect(notify.push).toHaveBeenCalledWith('success', 'Novidade excluída.');
+      expect(dialogOpen(f)).toBe(false);
+    });
+
+    it('rascunho: título e texto do rascunho', () => {
+      const { f } = render();
+      askDelete(1, f);
+      expect(dialog()?.textContent).toContain('Excluir rascunho?');
+      expect(dialog()?.textContent).toContain('Esta ação não pode ser desfeita.');
+      expect(dialog()?.textContent).not.toContain('feed');
+    });
+
+    it('Voltar não chama o servidor e a linha fica', () => {
+      const { f, el } = render();
+      askDelete(2, f);
+      cancelBtn().click();
+      f.detectChanges();
+      expect(service.delete).not.toHaveBeenCalled();
+      expect(titles(el)).toHaveLength(3);
+    });
+
+    it('enquanto exclui, o botão trava (sem envio duplo)', () => {
+      const pending = new Subject<void>();
+      service.delete.mockReturnValue(pending.asObservable());
+      const { f } = render();
+      askDelete(0, f);
+      confirmBtn().click();
+      f.detectChanges();
+      expect(confirmBtn().disabled).toBe(true);
+      confirmBtn().click();
+      f.detectChanges();
+      expect(service.delete).toHaveBeenCalledTimes(1);
+      pending.next();
+      pending.complete();
+      f.detectChanges();
+      expect(dialogOpen(f)).toBe(false);
+    });
+
+    it('404 = já excluída: tira a linha e avisa sem erro', () => {
+      service.delete.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404, error: { message: 'x' } })));
+      const { f, el } = render();
+      askDelete(2, f);
+      confirmBtn().click();
+      f.detectChanges();
+      expect(titles(el)).toEqual(['Gastos da locadora no painel', 'Rascunho X']);
+      expect(notify.push).toHaveBeenCalledWith('info', 'Esta novidade já tinha sido excluída.');
+      expect(notify.push).not.toHaveBeenCalledWith('error', expect.anything());
+    });
+
+    it('409 (servidor antigo, publicada): mensagem do servidor no toast e a linha fica', () => {
+      const message = 'Só é possível excluir rascunho.';
+      service.delete.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 409, error: { code: 'ANNOUNCEMENT_NOT_DRAFT', message } })),
+      );
+      const { f, el } = render();
+      askDelete(0, f);
+      confirmBtn().click();
+      f.detectChanges();
+      expect(notify.push).toHaveBeenCalledWith('error', message);
+      expect(titles(el)).toHaveLength(3);
+      expect(dialogOpen(f)).toBe(false);
+    });
+
+    it('fecha a folha se ela estava aberta na novidade excluída', () => {
+      const { f } = render();
+      const cmp = f.componentInstance as unknown as {
+        open(a: AdminAnnouncement): void;
+        askDelete(a: AdminAnnouncement): void;
+        doConfirm(): void;
+      };
+      cmp.open(ann());
+      f.detectChanges();
+      expect($('[data-testid="announcement-sheet"]')).not.toBeNull();
+      cmp.askDelete(ann());
+      cmp.doConfirm();
+      f.detectChanges();
+      expect($('[data-testid="announcement-sheet"]')).toBeNull();
+    });
   });
 
   it('período sem data e só com início', () => {
