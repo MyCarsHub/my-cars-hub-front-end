@@ -1,16 +1,14 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AdminCompanies } from './admin-companies';
 import { AdminCompanyDetail } from './admin-company-detail';
 import { revealDetail } from './company-detail.testing';
-import { AdminTrialConversion } from './admin-trial-conversion';
 import { AdminCompaniesService } from '../admin-companies.service';
-import { AdminChargesService } from '../charges/admin-charges.service';
 import { AdminContactService } from '../contact/admin-contact.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -21,7 +19,6 @@ import type {
   AdminCompanyDetail as AdminCompanyDetailDto,
   AdminCompanyListItem,
 } from '../../../types/admin-company.types';
-import type { TrialConversionItem } from '../../../types/admin-charges.types';
 
 /**
  * Padrão de lista da plataforma (auditoria 18/11/2026 §2.4–§2.6): abas em pílula, cartão "Lista",
@@ -50,7 +47,7 @@ describe('Empresas (lista) — padrão da plataforma', () => {
   let load: ReturnType<typeof vi.fn>;
   let total: ReturnType<typeof signal<number>>;
 
-  function render() {
+  function render(query: Record<string, string> = {}) {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [AdminCompanies],
@@ -58,6 +55,7 @@ describe('Empresas (lista) — padrão da plataforma', () => {
         provideRouter([]),
         provideNoopAnimations(),
         ApiErrorService,
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
         {
           provide: AdminCompaniesService,
           useValue: {
@@ -96,6 +94,18 @@ describe('Empresas (lista) — padrão da plataforma', () => {
     expect(text(host.querySelector('[data-list-results]'))).toBe('1 empresa');
   });
 
+  it('?segmento= abre a lista já na pílula (o chip da Visão geral e o endereço antigo de Converter testes)', () => {
+    const host = render({ segmento: 'TRIAL_STALLED' }).nativeElement as HTMLElement;
+    expect(load).toHaveBeenLastCalledWith(expect.objectContaining({ segment: 'TRIAL_STALLED' }));
+    const checked = host.querySelector('app-list-toolbar [role="radio"][aria-checked="true"]');
+    expect(text(checked)).toContain('Teste parado');
+  });
+
+  it('?segmento= desconhecido é ignorado: abre em "Todas"', () => {
+    render({ segmento: 'CONVERTER' });
+    expect(load).toHaveBeenLastCalledWith(expect.objectContaining({ segment: null }));
+  });
+
   it('a pílula filtra no servidor; "Limpar filtros" volta para "Todas"', () => {
     const fixture = render();
     const host = fixture.nativeElement as HTMLElement;
@@ -128,106 +138,6 @@ describe('Empresas (lista) — padrão da plataforma', () => {
     (host.querySelector('[data-page-next]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(load).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1 }));
-  });
-});
-
-describe('Converter testes — padrão da plataforma', () => {
-  const ITEM: TrialConversionItem = {
-    companyId: 'co-9',
-    companyName: 'Frota Exemplo',
-    companyStatus: 'ACTIVE',
-    internal: false,
-    signupAt: '2026-09-01T10:00:00',
-    trialEndsAt: '2026-10-20T10:00:00',
-    daysSinceTrialEnd: 8,
-    subscriptionStatus: 'TRIALING',
-    planName: 'Pro',
-    vehicles: 2,
-    drivers: 1,
-    rentals: 0,
-    lastSeenAt: null,
-    lastLoginAt: '2026-10-25T09:00:00',
-    activationStage: 2,
-    ownerUserId: 'usr-9',
-    ownerName: 'Maria Dona Exemplo',
-    ownerPhoneMasked: '(21) •••••-1234',
-  };
-  const OTHER: TrialConversionItem = { ...ITEM, companyId: 'co-8', companyName: 'Auto Beta', ownerName: 'João' };
-
-  let trialConversion: ReturnType<typeof vi.fn>;
-
-  function render() {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({
-      imports: [AdminTrialConversion],
-      providers: [
-        provideRouter([]),
-        provideNoopAnimations(),
-        ApiErrorService,
-        { provide: AdminChargesService, useValue: { trialConversion } },
-        { provide: AdminContactService, useValue: { reveal: vi.fn() } },
-        { provide: NotificationService, useValue: NOTIFY },
-      ],
-    });
-    const fixture = TestBed.createComponent(AdminTrialConversion);
-    fixture.detectChanges();
-    return fixture;
-  }
-
-  beforeEach(() => {
-    trialConversion = vi.fn().mockReturnValue(of([ITEM, OTHER]));
-  });
-
-  it('lista no app-data-list, sinais em texto corrido, estágio em chip, explica a ordem', () => {
-    const host = render().nativeElement as HTMLElement;
-    expect(trialConversion).toHaveBeenCalledWith(false);
-    const row = host.querySelector('[data-row]') as HTMLElement;
-    expect(text(row)).toContain('Frota Exemplo');
-    expect(text(row)).toContain('Cadastrou motorista');
-    expect(text(row)).toContain('Teste acabou há 8 dias · cadastro em 01/09/2026');
-    expect(text(row)).toContain('(21) •••••-1234');
-    expect(text(row.querySelector('[data-testid="signals"]'))).toBe('2 veículos · 1 motorista · 0 aluguéis');
-    expect(text(host.querySelector('[data-testid="order-explainer"]'))).toContain('Até onde chegou');
-    // Sem contorno: nada de borda no explicador nem pílulas contornadas nos sinais.
-    expect(host.querySelector('[data-testid="order-explainer"]')?.className).not.toContain('border');
-    expect(host.querySelector('[data-testid="tab-convert"]')?.getAttribute('aria-checked')).toBe('true');
-    expect(text(host.querySelector('[data-list-results]'))).toBe('2 empresas');
-  });
-
-  it('busca local por empresa ou dono, sem acento, na ordem do servidor', () => {
-    const fixture = render();
-    const host = fixture.nativeElement as HTMLElement;
-    const input = host.querySelector('[data-list-search]') as HTMLInputElement;
-    input.value = 'joao';
-    input.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-    expect(host.querySelectorAll('[data-row]').length).toBe(1);
-    expect(text(host.querySelector('[data-row]'))).toContain('Auto Beta');
-    expect(trialConversion).toHaveBeenCalledTimes(1);
-
-    input.value = 'zzz';
-    input.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-    expect(text(host.querySelector('[data-empty-text]'))).toBe('Nenhuma empresa com essa busca.');
-  });
-
-  it('"Incluir empresas internas" recarrega do servidor', () => {
-    const fixture = render();
-    const toggle = fixture.nativeElement.querySelector('[data-testid="toggle-internal"]') as HTMLInputElement;
-    toggle.checked = true;
-    toggle.dispatchEvent(new Event('change'));
-    expect(trialConversion).toHaveBeenLastCalledWith(true);
-  });
-
-  it('a mensagem pré-preenchida é curta, em pt-BR, com o primeiro nome e a empresa', () => {
-    const fixture = render();
-    const msg = (fixture.componentInstance as unknown as { whatsAppText(i: TrialConversionItem): string })
-      .whatsAppText(ITEM);
-    expect(msg.startsWith('Olá, Maria!')).toBe(true);
-    expect(msg).toContain('Frota Exemplo');
-    expect(msg).toContain('terminou');
-    expect(msg).toContain('Posso te ajudar');
-    expect(msg.length).toBeLessThan(200);
   });
 });
 

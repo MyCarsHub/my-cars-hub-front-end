@@ -1,7 +1,8 @@
 import type { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -127,6 +128,33 @@ describe('FixedCostSheet — Novo custo fixo', () => {
     expect(q('fixed-error')!.textContent).toContain('1 a 31');
   });
 
+  it('409 LEGACY_COST_OVERLAP: a folha mostra a frase do servidor (fornecedor e mês) e fica aberta', () => {
+    const legacy =
+      'Já existe um custo lançado à mão para Render em 10/2026; apague-o antes de criar o custo fixo nesse período, senão o gasto conta duas vezes.';
+    const { fixture, type, click, svc, text } = mount(FixedCostSheet, { vendors: [RENDER], currentMonth: '2026-11' });
+    svc.createSchedule.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: { message: legacy, code: 'LEGACY_COST_OVERLAP', fieldErrors: { startMonth: legacy } },
+          }),
+      ),
+    );
+    const stale = vi.fn();
+    const saved = vi.fn();
+    fixture.componentInstance.stale.subscribe(stale);
+    fixture.componentInstance.saved.subscribe(saved);
+    type('fixed-service', 'Servidor da API');
+    type('fixed-amount', '108,00');
+    type('fixed-day', '5');
+    click('fixed-save');
+    fixture.detectChanges();
+    expect(text('fixed-error')).toBe(legacy);
+    expect(stale).not.toHaveBeenCalled();
+    expect(saved).not.toHaveBeenCalled();
+  });
+
   it('editar muda só serviço e dia (PUT), sem campo de valor', () => {
     const { type, click, svc, q } = mount(FixedCostSheet, {
       vendors: [RENDER],
@@ -164,6 +192,32 @@ describe('FixedCostChangeSheet — daqui para frente e encerrar', () => {
     click('change-save');
     expect(svc.changeAmount).not.toHaveBeenCalled();
     expect(q('change-error')!.textContent).toContain('mesmo');
+  });
+
+  it('409 SCHEDULE_NOT_LATEST: mostra qual mudança posterior existe e pede a recarga da lista', () => {
+    const later =
+      'Este custo fixo já tem uma mudança de valor depois dele: R$ 120,00 a partir de 12/2026. Edite essa mudança em vez deste valor antigo.';
+    const { fixture, type, click, svc, text } = mount(FixedCostChangeSheet, {
+      mode: 'amount',
+      schedule: schedule({ id: 's1', amountCents: 11_000 }),
+      currentMonth: '2026-11',
+    });
+    svc.changeAmount.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: { message: later, code: 'SCHEDULE_NOT_LATEST', fieldErrors: { id: later } },
+          }),
+      ),
+    );
+    const stale = vi.fn();
+    fixture.componentInstance.stale.subscribe(stale);
+    type('change-amount', '130,00');
+    click('change-save');
+    fixture.detectChanges();
+    expect(text('change-error')).toBe(later);
+    expect(stale).toHaveBeenCalledTimes(1);
   });
 
   it('encerrar manda o último mês', () => {

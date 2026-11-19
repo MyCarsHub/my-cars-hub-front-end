@@ -131,9 +131,29 @@ describe('costs-copy — erros', () => {
     expect(costErrorMessage(http(500, null))).toBe('Não foi possível salvar. Tente de novo.');
   });
 
-  it('404 e SCHEDULE_NOT_LATEST pedem recarga', () => {
+  it('409 mostra a frase do servidor: a mudança posterior, o custo lançado à mão, o lançamento que mudou', () => {
+    const later =
+      'Este custo fixo já tem uma mudança de valor depois dele: R$ 120,00 a partir de 12/2026. Edite essa mudança em vez deste valor antigo.';
+    expect(costErrorMessage(http(409, { code: 'SCHEDULE_NOT_LATEST', message: later, fieldErrors: { id: later } }))).toBe(
+      later,
+    );
+    const legacy =
+      'Já existe um custo lançado à mão para Render em 10/2026; apague-o antes de criar o custo fixo nesse período, senão o gasto conta duas vezes.';
+    expect(
+      costErrorMessage(http(409, { code: 'LEGACY_COST_OVERLAP', message: legacy, fieldErrors: { startMonth: 'outra' } })),
+    ).toBe(legacy);
+    expect(costErrorMessage(http(409, { code: 'COST_ROW_CHANGED', message: 'Recarregue a lista.' }))).toBe(
+      'Recarregue a lista.',
+    );
+    // Servidor sem mensagem: o texto daqui.
+    expect(costErrorMessage(http(409, { code: 'SCHEDULE_NOT_LATEST' }))).toContain('recarregada');
+  });
+
+  it('404, SCHEDULE_NOT_LATEST e COST_ROW_CHANGED pedem recarga; LEGACY_COST_OVERLAP não', () => {
     expect(isStale(http(404, null))).toBe(true);
     expect(isStale(http(409, { code: 'SCHEDULE_NOT_LATEST' }))).toBe(true);
+    expect(isStale(http(409, { code: 'COST_ROW_CHANGED' }))).toBe(true);
+    expect(isStale(http(409, { code: 'LEGACY_COST_OVERLAP' }))).toBe(false);
     expect(isStale(http(409, { code: 'VENDOR_INACTIVE' }))).toBe(false);
   });
 });

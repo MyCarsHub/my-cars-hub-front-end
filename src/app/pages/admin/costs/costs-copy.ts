@@ -221,24 +221,32 @@ export function costErrorMessage(err: unknown, fallback = 'Não foi possível sa
   const message = typeof body?.message === 'string' && body.message ? body.message : null;
   if (err.status === 403) return 'Só o Dono da plataforma mexe nos custos.';
   if (code === 'VENDOR_INACTIVE') return 'Esse fornecedor está desativado. Ative-o em Fornecedores para lançar.';
-  if (code === 'SCHEDULE_NOT_LATEST') return 'Esse custo fixo mudou enquanto a tela estava aberta. A lista foi recarregada.';
+  // O servidor diz QUAL mudança posterior já existe ("R$ 120,00 a partir de 12/2026"): a frase
+  // dele vai inteira para a folha; o texto daqui só cobre um servidor que não mande mensagem.
+  if (code === 'SCHEDULE_NOT_LATEST') {
+    return message ?? 'Esse custo fixo mudou enquanto a tela estava aberta. A lista foi recarregada.';
+  }
   if (code === 'VENDOR_HAS_RUNNING_FIXED_COSTS') {
     return 'Este fornecedor tem custo fixo rodando. Encerre os custos fixos dele antes de desativar.';
   }
   if (err.status === 404) return 'Este registro não existe mais. A lista foi recarregada.';
-  if (err.status === 400 || err.status === 409) {
-    const field = body?.fieldErrors ? Object.values(body.fieldErrors).find((v) => typeof v === 'string') : null;
-    if (typeof field === 'string' && field) return field;
-    if (message) return message;
-  }
+  // 409 (LEGACY_COST_OVERLAP nomeia fornecedor e mês; COST_ROW_CHANGED pede recarregar): a frase do
+  // servidor é a explicação. 400: a mensagem do campo é a mais precisa.
+  const field = body?.fieldErrors ? Object.values(body.fieldErrors).find((v) => typeof v === 'string') : null;
+  const fieldMessage = typeof field === 'string' && field ? field : null;
+  if (err.status === 409) return message ?? fieldMessage ?? fallback;
+  if (err.status === 400) return fieldMessage ?? message ?? fallback;
   return fallback;
 }
 
-/** A tela ficou velha (o registro sumiu ou o custo fixo mudou): a página recarrega as listas. */
+/**
+ * A tela ficou velha (o registro sumiu, o custo fixo ganhou mudança posterior ou o lançamento saiu
+ * do fixo antes do "Voltar ao fixo"): a página recarrega as listas.
+ */
 export function isStale(err: unknown): boolean {
   if (!(err instanceof HttpErrorResponse)) return false;
   const code = (err.error as { code?: unknown } | null)?.code;
-  return err.status === 404 || code === 'SCHEDULE_NOT_LATEST';
+  return err.status === 404 || code === 'SCHEDULE_NOT_LATEST' || code === 'COST_ROW_CHANGED';
 }
 
 /** O último custo fixo da cadeia de `scheduleId` (é nele que "mudar daqui para frente" age). */

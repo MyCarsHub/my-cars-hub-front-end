@@ -41,9 +41,18 @@ describe('Menu da administração — tabela de rotas', () => {
     }
     expect(adminMenuItemForUrl('/admin/feedback')?.id).toBe('feedback');
     expect(adminMenuItemForUrl('/admin/users/abc')?.id).toBe('users');
-    expect(adminMenuItemForUrl('/admin/companies/converter-testes')?.id).toBe('companies');
+    expect(adminMenuItemForUrl('/admin/companies?segmento=TRIAL_STALLED')?.id).toBe('companies');
     expect(adminMenuItemForUrl('/admin/blog/novo')?.id).toBe('blog');
     expect(adminMenuItemForUrl('/admin')?.id).toBe('home');
+  });
+
+  it('o endereço antigo de "Converter testes" só redireciona para a pílula "Teste parado"', () => {
+    const old = found.admin.children!.find((c) => c.path === 'companies/converter-testes');
+    expect(old?.redirectTo).toBe('/admin/companies?segmento=TRIAL_STALLED');
+    expect(old?.loadComponent).toBeUndefined();
+    const order = adminPaths.indexOf('companies/converter-testes');
+    expect(order).toBeGreaterThanOrEqual(0);
+    expect(order).toBeLessThan(adminPaths.indexOf('companies/:id'));
   });
 
   it('todo item de menu aponta para uma rota que existe', () => {

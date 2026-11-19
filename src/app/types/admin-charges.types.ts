@@ -36,30 +36,6 @@ export interface AdminChargesPage {
   overdueCount: number;
 }
 
-/** Uma empresa em "Converter testes" (D5). */
-export interface TrialConversionItem {
-  companyId: string;
-  companyName: string;
-  companyStatus: string;
-  internal: boolean;
-  signupAt: string | null;
-  trialEndsAt: string | null;
-  /** Negativo = o teste ainda acaba em N dias. */
-  daysSinceTrialEnd: number;
-  subscriptionStatus: string | null;
-  planName: string | null;
-  vehicles: number;
-  drivers: number;
-  rentals: number;
-  lastSeenAt: string | null;
-  lastLoginAt: string | null;
-  /** 3 aluguel · 2 motorista · 1 veículo · 0 nada. */
-  activationStage: number;
-  ownerUserId: string | null;
-  ownerName: string | null;
-  ownerPhoneMasked: string | null;
-}
-
 // ---------------------------------------------------------------- admin v2 P1
 
 /** Motivo FECHADO das ações de admin (o código vai para a trilha; a nota não). */

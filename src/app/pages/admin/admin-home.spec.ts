@@ -199,6 +199,20 @@ describe('AdminHome v2 — chips, período e escopo', () => {
     expect(host.querySelector('[data-chip="reconciliation"]')!.getAttribute('aria-label')).toBe('1 falha de conciliação');
   });
 
+  it('"trials vencem em 7 dias" abre Empresas na pílula "Teste parado" (a aba Converter testes saiu)', () => {
+    const { host } = setup({
+      home: (range: AdminHomeRange, scope: AdminHomeScope) =>
+        of({
+          ...HOME,
+          chips: { ...HOME.chips, trialsEndingIn7Days: 4 },
+          meta: { ...HOME.meta, period: 'custom', scope, from: range.from, to: range.to },
+        }),
+    });
+    const chip = host.querySelector('[data-chip="trials"]')!;
+    expect(chip.getAttribute('href')).toBe('/admin/companies?segmento=TRIAL_STALLED');
+    expect(chip.getAttribute('aria-label')).toBe('4 trials vencem em 7 dias');
+  });
+
   it('UM controle de período na tela: as pílulas do dashboard do dono, e a receita sem pílulas próprias', () => {
     const { host } = setup();
     expect(host.querySelectorAll('app-date-range-picker')).toHaveLength(1);

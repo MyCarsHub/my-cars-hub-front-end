@@ -46,6 +46,7 @@ import {
 } from '../../../types/admin-segments.types';
 import {
   SEGMENT_CHIPS,
+  SEGMENT_QUERY_PARAM,
   deadlineText,
   fleetText,
   isTrialSegment,
@@ -195,7 +196,7 @@ export class AdminCompanies implements OnInit {
 
   ngOnInit(): void {
     this.caps.ensureLoaded().subscribe();
-    const fromUrl = this.route.snapshot?.queryParamMap?.get('segmento');
+    const fromUrl = this.route.snapshot?.queryParamMap?.get(SEGMENT_QUERY_PARAM);
     if (fromUrl && (COMPANY_SEGMENTS as readonly string[]).includes(fromUrl)) {
       this.segment.set(fromUrl as CompanySegment);
     }

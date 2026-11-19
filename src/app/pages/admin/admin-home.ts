@@ -46,6 +46,7 @@ import type {
 } from '../../types/admin-home.types';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import { MONEY_AXIS_FLOOR_CENTS } from '../../utils/money-axis';
+import { segmentQueryParams } from './segments/segment-copy';
 import { COSTS_ACTION_PARAM, COSTS_ROUTE, costsShortcutParams, type CostsShortcut } from './costs/costs-link';
 import { AdminHomeService } from './home/admin-home.service';
 import {
@@ -150,6 +151,7 @@ interface Chip {
   readonly n: number;
   readonly label: string;
   readonly route: string;
+  readonly queryParams?: Record<string, string>;
 }
 
 interface FunnelStep {
@@ -403,7 +405,11 @@ export class AdminHome implements OnInit {
         key: 'trials',
         n: c.trialsEndingIn7Days,
         label: plural(c.trialsEndingIn7Days, 'trial vence em 7 dias', 'trials vencem em 7 dias'),
-        route: '/admin/companies/converter-testes',
+        // A pílula "Teste parado" de Empresas (a aba "Converter testes" saiu em 18/11/2026): o teste
+        // que acaba sem uso é o que pede contato. Os que estão ativando e acabam logo aparecem em
+        // "Hoje, para agir" (oferecer extensão), no topo da mesma página.
+        route: '/admin/companies',
+        queryParams: segmentQueryParams('TRIAL_STALLED'),
       },
       {
         key: 'feedback',

@@ -33,6 +33,7 @@
         @for (chip of chips(); track chip.key) {
           <a
             [routerLink]="chip.route"
+            [queryParams]="chip.queryParams"
             [attr.data-chip]="chip.key"
             [attr.aria-label]="chip.n + ' ' + chip.label"
             class="press inline-flex items-center gap-2 min-h-11 px-3.5 rounded-full bg-surface-muted text-fg hover:bg-surface-sunken

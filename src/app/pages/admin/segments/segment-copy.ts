@@ -39,6 +39,17 @@ export const SEGMENT_CHIPS: Record<CompanySegment, ChipStyle> = {
   EX_CLIENT: { label: 'Ex-cliente', tone: 'neutral' },
 };
 
+/**
+ * Deep link da lista de Empresas com uma pílula escolhida (`/admin/companies?segmento=CODIGO`).
+ * Quem leva para um segmento (o chip da Visão geral, o endereço antigo de "Converter testes")
+ * monta o parâmetro por aqui, e a lista lê o mesmo nome.
+ */
+export const SEGMENT_QUERY_PARAM = 'segmento';
+
+export function segmentQueryParams(segment: CompanySegment): Record<string, string> {
+  return { [SEGMENT_QUERY_PARAM]: segment };
+}
+
 export function segmentChip(segment: CompanySegment | null | undefined): ChipStyle | null {
   return segment ? (SEGMENT_CHIPS[segment] ?? { label: segment, tone: 'neutral' }) : null;
 }
