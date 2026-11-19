@@ -543,8 +543,6 @@ export class VehicleForm implements OnInit {
       this.editingId.set(id);
       this.documentsEnabled.set(false);
       this.loadVehicle(id);
-      this.form.controls.chassis.disable();
-      this.form.controls.renavam.disable();
     } else if (this.lookups.fipeCatalog) {
       // Cadastro abre no catálogo FIPE; se as marcas falharem, o próprio
       // enterFipeMode devolve o modo manual em silêncio. Com a chave
@@ -1198,7 +1196,14 @@ export class VehicleForm implements OnInit {
     };
 
     if (this.isEdit()) {
-      const payload: UpdateVehicleRequest = commonPayload;
+      // Chassi/RENAVAM sempre vão no PUT: `""` é o "apagar" do contrato e o
+      // valor carregado intocado regrava o mesmo — nunca omitidos, senão
+      // limpar o campo na tela não teria efeito nenhum.
+      const payload: UpdateVehicleRequest = {
+        ...commonPayload,
+        chassis: raw.chassis?.trim() ?? '',
+        renavam: raw.renavam?.trim() ?? '',
+      };
       const vehicleId = this.editingId()!; // isEdit() === true garante o id.
       this.saveChildren(this.vehiclesService.update(vehicleId, payload));
     } else {

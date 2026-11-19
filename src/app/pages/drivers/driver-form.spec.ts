@@ -17,6 +17,7 @@ import type {
   DriverDocument,
   DriverDocumentKind,
   DriverResponse,
+  UpdateDriverRequest,
 } from '../../types/driver.types';
 
 /**
@@ -448,10 +449,9 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
 
   /**
    * Motorista COMPLETO para a rota de edição. `getOne → EMPTY` deixaria
-   * `loading()` preso em `true` e a tela no "Carregando…" — e aí o teste da
-   * edição passaria VAZIO (a seção "não aparece" porque NADA aparece). Com um
-   * driver de verdade o form renderiza e a ausência da seção prova o guard.
-   * Tem um contato salvo DE PROPÓSITO: nem assim a seção pode aparecer.
+   * `loading()` preso em `true` e a tela no "Carregando…" — e aí os testes da
+   * edição passariam VAZIOS. O primeiro contato é LEGADO (sem parentesco, gravado
+   * antes do campo existir); o segundo já tem parentesco.
    */
   const editDriver: DriverResponse = {
     id: 'drv-1',
@@ -472,7 +472,10 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
     licenseExpiry: '2030-01-01',
     status: 'AVAILABLE',
     isAppDriver: false,
-    thirdPartyContacts: [{ fullName: 'Maria da Silva', phone: '11987654321' }],
+    thirdPartyContacts: [
+      { id: 'ct-1', fullName: 'Maria da Silva', phone: '11987654321' },
+      { id: 'ct-2', fullName: 'José Souza', phone: '1132654321', relationship: 'BROTHER' },
+    ],
   };
 
   let create: ReturnType<typeof vi.fn>;
@@ -702,18 +705,98 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
     expect(phoneInput(0).value).toBe('(11) 98765-4321');
   });
 
-  it('na rota de edição a seção não existe, mesmo com contato salvo no motorista', () => {
-    configure('drv-1');
+  describe('na edição', () => {
+    function updatePayload(): UpdateDriverRequest {
+      expect(update).toHaveBeenCalledTimes(1);
+      return update.mock.calls[0][1] as UpdateDriverRequest;
+    }
 
-    // O form de edição RENDERIZOU de verdade — sem isso a asserção de ausência
-    // passaria vazia com a tela presa no "Carregando…".
-    expect(el().textContent).not.toContain('Carregando…');
-    expect(el().textContent).toContain('Carteira de habilitação');
-    expect(el().textContent).toContain('Editar motorista');
+    beforeEach(() => {
+      configure('drv-1');
+      // O form de edição RENDERIZOU de verdade — não está preso no "Carregando…".
+      expect(el().textContent).toContain('Editar motorista');
+    });
 
-    // E a seção de contatos não aparece, embora `editDriver` tenha um contato.
-    expect(el().textContent).not.toContain('Contatos de terceiros');
-    expect(el().querySelector('[data-contact-block]')).toBeNull();
+    it('carrega os contatos gravados em blocos editáveis, na ordem do servidor', () => {
+      expect(el().textContent).toContain('Contatos de terceiros');
+      expect(blocks()).toHaveLength(2);
+      expect(nameInput(0).value).toBe('Maria da Silva');
+      expect(phoneInput(0).value).toBe('(11) 98765-4321');
+      expect(relationshipSelect(0).value).toBe('');
+      expect(nameInput(1).value).toBe('José Souza');
+      expect(phoneInput(1).value).toBe('(11) 3265-4321');
+      expect(relationshipSelect(1).value).toBe('BROTHER');
+
+      expect(nameInput(0).disabled).toBe(false);
+      expect(phoneInput(0).disabled).toBe(false);
+      expect(relationshipSelect(0).disabled).toBe(false);
+      expect(addButton().disabled).toBe(false);
+      const remove = blocks()[0].querySelector<HTMLButtonElement>(
+        'button[aria-label="Remover contato 1"]',
+      );
+      expect(remove?.disabled).toBe(false);
+    });
+
+    it('salvar sem mexer manda a lista inteira em `contacts` — o legado sem parentesco não trava o PUT', () => {
+      submit();
+
+      expect(updatePayload().contacts).toEqual([
+        { fullName: 'Maria da Silva', phone: '11987654321', relationship: null },
+        { fullName: 'José Souza', phone: '1132654321', relationship: 'BROTHER' },
+      ]);
+    });
+
+    it('contato legado EDITADO passa a exigir o parentesco, como o contato novo', () => {
+      typeInto(nameInput(0), 'Maria da Silva Santos');
+      submit();
+      expect(update).not.toHaveBeenCalled();
+
+      choose(relationshipSelect(0), 'MOTHER');
+      submit();
+      expect(updatePayload().contacts?.[0]).toEqual({
+        fullName: 'Maria da Silva Santos',
+        phone: '11987654321',
+        relationship: 'MOTHER',
+      });
+    });
+
+    it('adiciona, edita e remove: o PUT leva o conjunto final, na ordem dos blocos', () => {
+      blocks()[0]
+        .querySelector<HTMLButtonElement>('button[aria-label="Remover contato 1"]')
+        ?.click();
+      fixture.detectChanges();
+      typeInto(phoneInput(0), '(11) 99999-0000');
+      addContact();
+      typeInto(nameInput(1), 'Ana Lima');
+      typeInto(phoneInput(1), '21988887777');
+      choose(relationshipSelect(1), 'FEMALE_FRIEND');
+
+      submit();
+
+      expect(updatePayload().contacts).toEqual([
+        { fullName: 'José Souza', phone: '11999990000', relationship: 'BROTHER' },
+        { fullName: 'Ana Lima', phone: '21988887777', relationship: 'FEMALE_FRIEND' },
+      ]);
+    });
+
+    it('remover todos manda a lista vazia (apaga o conjunto), nunca omite', () => {
+      for (const label of ['Remover contato 2', 'Remover contato 1']) {
+        el().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)?.click();
+        fixture.detectChanges();
+      }
+      expect(blocks()).toHaveLength(0);
+
+      submit();
+
+      expect(updatePayload().contacts).toEqual([]);
+    });
+
+    it('o CPF/CNPJ continua travado na edição', () => {
+      const component = fixture.componentInstance as unknown as {
+        form: { get: (k: string) => { disabled: boolean } | null };
+      };
+      expect(component.form.get('document')?.disabled).toBe(true);
+    });
   });
 });
 

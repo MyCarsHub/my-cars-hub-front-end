@@ -2273,3 +2273,209 @@ describe('VehicleForm — máscara de milhar nos campos de dinheiro (FIX-0261)',
     expect(createInsurance.mock.calls[0][1]).toMatchObject({ premiumAmount: 240_050 });
   });
 });
+
+/**
+ * Edição depois do cadastro: um cliente salvou o veículo sem chassi/RENAVAM e
+ * não tinha como completar. Os dois campos agora são editáveis na edição (só a
+ * venda trava) e o PUT sempre os carrega: valor = grava, `""` = apaga. O 409 de
+ * duplicado cai inline no próprio campo, igual ao cadastro.
+ */
+describe('VehicleForm — chassi e RENAVAM editáveis depois do cadastro', () => {
+  const CHASSIS = '9BWZZZ377VT004251';
+  const RENAVAM = '12345678901';
+
+  let update: ReturnType<typeof vi.fn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<VehicleForm>>;
+
+  interface EditApi {
+    submit: () => void;
+  }
+
+  function host(): HTMLElement {
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  function input(id: string): HTMLInputElement {
+    const el = host().querySelector<HTMLInputElement>(`#${id}`);
+    if (!el) throw new Error(`#${id} não está na tela`);
+    return el;
+  }
+
+  function type(id: string, value: string): void {
+    const el = input(id);
+    el.value = value;
+    el.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function submit(): void {
+    (fixture.componentInstance as unknown as EditApi).submit();
+    fixture.detectChanges();
+  }
+
+  function vehicle(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id: 'veh-1',
+      plate: 'ABC1D23',
+      type: 'CAR',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      chassis: null,
+      hodometer: 1000,
+      licensingExpiration: null,
+      renavam: null,
+      color: null,
+      purchaseDate: null,
+      purchasePrice: null,
+      ipvaAmount: null,
+      ipvaDueDate: null,
+      ipvaStatus: null,
+      fuel: null,
+      activeFinancing: null,
+      ...overrides,
+    };
+  }
+
+  async function setup(loaded: Record<string, unknown>): Promise<void> {
+    TestBed.resetTestingModule();
+    update = vi.fn().mockReturnValue(of({ id: 'veh-1' }));
+
+    await TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: {
+            create: vi.fn(),
+            update,
+            getOne: vi.fn().mockReturnValue(of(loaded)),
+            createFinancing: vi.fn(),
+            plateLookupUnavailable: signal(false),
+          },
+        },
+        { provide: InsurancesService, useValue: { create: vi.fn() } },
+        { provide: FipeService, useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => 'veh-1' }, queryParamMap: { get: () => null } } },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+  }
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('libera os dois campos na edição, sem o aviso de "não pode ser alterado"', async () => {
+    await setup(vehicle({ chassis: CHASSIS, renavam: RENAVAM }));
+
+    expect(input('veiculo-chassis').disabled).toBe(false);
+    expect(input('veiculo-renavam').disabled).toBe(false);
+    expect(input('veiculo-chassis').value).toBe(CHASSIS);
+    expect(input('veiculo-renavam').value).toBe(RENAVAM);
+    expect(host().textContent).not.toContain('não pode ser alterado');
+  });
+
+  it('continua travando os dois campos quando o veículo foi vendido', async () => {
+    await setup(
+      vehicle({
+        chassis: CHASSIS,
+        sale: {
+          id: 'sale-1',
+          buyerName: 'Maria',
+          saleDate: '2026-08-20',
+          saleValueCents: 1,
+          createdDate: '2026-08-20T10:00:00',
+        },
+      }),
+    );
+
+    expect(input('veiculo-chassis').disabled).toBe(true);
+    expect(input('veiculo-renavam').disabled).toBe(true);
+  });
+
+  it('completa chassi e RENAVAM que ficaram em branco no cadastro, normalizados', async () => {
+    await setup(vehicle());
+
+    type('veiculo-chassis', '9bwzzz377vt004251');
+    type('veiculo-renavam', '123.456.789-01');
+    submit();
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][1]).toMatchObject({ chassis: CHASSIS, renavam: RENAVAM });
+  });
+
+  it('salvar sem tocar reenvia o valor carregado (mesmo resultado no backend)', async () => {
+    await setup(vehicle({ chassis: CHASSIS, renavam: RENAVAM }));
+
+    submit();
+
+    expect(update.mock.calls[0][1]).toMatchObject({ chassis: CHASSIS, renavam: RENAVAM });
+  });
+
+  it('apagar um valor já gravado manda "" — o "apagar" do contrato, nunca omitido', async () => {
+    await setup(vehicle({ chassis: CHASSIS, renavam: RENAVAM }));
+
+    type('veiculo-chassis', '');
+    type('veiculo-renavam', '');
+    submit();
+
+    const payload = update.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload['chassis']).toBe('');
+    expect(payload['renavam']).toBe('');
+  });
+
+  it('não envia o PUT com chassi inválido', async () => {
+    await setup(vehicle());
+
+    type('veiculo-chassis', 'ABC');
+    submit();
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('o 409 de duplicado no PUT cai inline no chassi e no RENAVAM, como no cadastro', async () => {
+    await setup(vehicle());
+    update.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: {
+              message: 'Dados duplicados.',
+              fieldErrors: {
+                chassis: 'Chassi já cadastrado para esta empresa.',
+                renavam: 'RENAVAM já cadastrado para esta empresa.',
+              },
+            },
+          }),
+      ),
+    );
+
+    type('veiculo-chassis', CHASSIS);
+    type('veiculo-renavam', RENAVAM);
+    submit();
+
+    expect(host().querySelector('#veiculo-chassis-error')?.textContent?.trim()).toBe(
+      'Chassi já cadastrado para esta empresa.',
+    );
+    expect(host().querySelector('#veiculo-renavam-error')?.textContent?.trim()).toBe(
+      'RENAVAM já cadastrado para esta empresa.',
+    );
+    expect(input('veiculo-chassis').getAttribute('aria-invalid')).toBe('true');
+    expect(host().querySelector('app-alert-banner')).toBeNull();
+  });
+});

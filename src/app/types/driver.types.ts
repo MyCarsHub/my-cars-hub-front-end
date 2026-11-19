@@ -217,6 +217,11 @@ export interface UpdateDriverRequest {
   licenseCategory: LicenseCategory;
   licenseExpiry: string;
   status: DriverStatus;
+  /**
+   * Contatos de terceiros (mesmo item do `thirdPartyContacts` do POST). Ausente/null mantém o
+   * conjunto gravado; uma lista (até vazia) SUBSTITUI o conjunto, na ordem enviada. Máx. 3.
+   */
+  contacts?: ThirdPartyContact[] | null;
 }
 
 export interface DriverFilters {
