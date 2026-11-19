@@ -33,7 +33,7 @@
   --b-danger: #F87171;
   --b-primary-text: #FA602E;
   --b-primary-low: rgba(246, 59, 4, 0.15);
-  --b-plan-surface: #0A0A0A;
+  --b-plan-surface: var(--color-surface); /* o cartão (#0E0E0E): dois tons no escuro */
   --b-shadow: none;
 }
 

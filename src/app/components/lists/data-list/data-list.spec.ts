@@ -210,8 +210,9 @@ describe('DataList', () => {
     expect(cells.length).toBeGreaterThan(0);
     for (const box of [...cells, ...Array.from(el.querySelectorAll('[data-card]'))]) {
       expect(box.className).toContain('bg-surface');
-      expect(box.className).toContain('dark:bg-surface-sunken');
       expect(box.className).not.toContain('bg-surface-muted');
+      // Two tones in dark (page + card): the record never repaints itself with a raised grey.
+      expect(box.className).not.toMatch(/dark:[\w:-]*bg-/);
     }
   });
 
@@ -220,8 +221,14 @@ describe('DataList', () => {
     const fixture = TestBed.createComponent(TargetHost);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('[data-row] td')!.className).toContain('group-hover:bg-surface-sunken');
-    expect(el.querySelector('[data-card]')!.className).toContain('active:bg-surface-sunken');
+    const cell = el.querySelector('[data-row] td')!.className;
+    const card = el.querySelector('[data-card]')!.className;
+    expect(cell).toContain('group-hover:bg-surface-sunken');
+    expect(card).toContain('active:bg-surface-sunken');
+    // Dark: no grey fill on hover/press — the text brightens and the pressed card dims.
+    expect(cell).toContain('dark:group-hover:text-fg-strong');
+    expect(card).toContain('dark:active:opacity-70');
+    expect(`${cell} ${card}`).not.toContain('surface-strong');
   });
 
   it('headers are normal case (no uppercase / tracking)', () => {

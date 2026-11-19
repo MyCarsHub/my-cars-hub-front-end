@@ -26,6 +26,10 @@ export interface SegmentedTabsOption<T extends string> {
  * só se troca de vista. O polegar anima por `transform`, e movimento reduzido o desliga.
  *
  * Com `idPrefix` os segmentos apontam para os painéis (`{prefix}-panel-{valor}`).
+ *
+ * No escuro há só dois tons (página e cartão, regra do dono de 19/11/2026): o trilho e o
+ * polegar não pintam cinza nenhum. A seleção fica no texto — o segmento ativo em `fg`, os
+ * outros em `fg-faint` (5,94:1 sobre o cartão) — e o polegar some.
  */
 @Component({
   selector: 'app-segmented-tabs',
@@ -36,14 +40,14 @@ export interface SegmentedTabsOption<T extends string> {
     <div
       role="tablist"
       [attr.aria-label]="ariaLabel()"
-      class="relative grid grid-flow-col auto-cols-fr p-[3px] rounded-xl bg-fg/[0.07]"
+      class="relative grid grid-flow-col auto-cols-fr p-[3px] rounded-xl bg-fg/[0.07] dark:bg-transparent"
       (keydown)="onKeydown($event)"
     >
       <span
         data-thumb
         aria-hidden="true"
         class="absolute top-[3px] bottom-[3px] left-[3px] rounded-[9px] bg-surface
-               dark:bg-surface-strong shadow-[0_1px_2px_rgb(0_0_0/0.1)]
+               dark:bg-transparent shadow-[0_1px_2px_rgb(0_0_0/0.1)] dark:shadow-none
                transition-transform duration-[280ms] ease-[cubic-bezier(0.32,0.72,0,1)]
                motion-reduce:transition-none"
         [style.width]="thumbWidth()"
@@ -65,6 +69,7 @@ export interface SegmentedTabsOption<T extends string> {
                  focus-visible:-outline-offset-2 focus-visible:outline-primary-400"
           [class.text-fg]="option.value === value()"
           [class.text-fg-muted]="option.value !== value()"
+          [class.dark:text-fg-faint]="option.value !== value()"
           (click)="choose(option.value)"
         >
           @if (iconTemplate(); as icon) {

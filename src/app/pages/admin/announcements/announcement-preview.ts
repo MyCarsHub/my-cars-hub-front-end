@@ -119,8 +119,8 @@ export class AnnouncementPreview {
         }
       : {
           bg: 'bg-black',
-          bar: 'bg-[#0b0b0b]',
-          card: 'bg-[#141414]',
+          bar: 'bg-[#0E0E0E]',
+          card: 'bg-[#0E0E0E]',
           scrim: 'bg-[rgba(0,0,0,0.66)]',
         },
   );

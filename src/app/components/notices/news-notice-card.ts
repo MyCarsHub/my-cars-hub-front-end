@@ -46,7 +46,7 @@ export type NewsCardLayout = 'responsive' | 'sheet' | 'dialog';
     }
   `,
   template: `
-    <article class="flex flex-col bg-white text-[#121212] dark:bg-[#151515] dark:text-[#FAFAFA]" data-testid="news-card">
+    <article class="flex flex-col bg-white text-[#121212] dark:bg-surface dark:text-[#FAFAFA]" data-testid="news-card">
       <div class="relative w-full shrink-0 overflow-hidden" data-testid="news-hero" [attr.data-hero]="showMedia() ? 'media' : 'brand'">
         @if (showMedia()) {
           <app-announcement-media
@@ -221,7 +221,7 @@ export class NewsNoticeCard {
       body: 'p-7',
       title: 'text-[28px]',
       actions: 'flex-row-reverse',
-      quiet: 'flex-none min-w-[132px] bg-[#F2F2F2] text-[#262626] dark:bg-[#242424] dark:text-[#F4F4F5]',
+      quiet: 'flex-none min-w-[132px] bg-[#F2F2F2] text-[#262626] dark:bg-surface dark:text-[#F4F4F5]',
     };
     switch (this.layout()) {
       case 'sheet':
@@ -236,7 +236,7 @@ export class NewsNoticeCard {
           title: 'text-[26px] lg:text-[28px]',
           actions: 'flex-col lg:flex-row-reverse',
           quiet:
-            'bg-transparent text-[#474747] dark:text-[#C9C9C9] lg:flex-none lg:min-w-[132px] lg:bg-[#F2F2F2] lg:text-[#262626] dark:lg:bg-[#242424] dark:lg:text-[#F4F4F5]',
+            'bg-transparent text-[#474747] dark:text-[#C9C9C9] lg:flex-none lg:min-w-[132px] lg:bg-[#F2F2F2] lg:text-[#262626] dark:lg:bg-surface dark:lg:text-[#F4F4F5]',
         };
     }
   });
