@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AdminCompanyDetail } from './admin-company-detail';
 import { openDetailMenu } from './company-detail.testing';
@@ -141,6 +141,9 @@ describe('AdminCompanyDetail — segmento, próxima ação e ⋮', () => {
   }
 
   beforeEach(() => {
+    // Relógio fixo: as datas da tela dependem do ano corrente (o ano só aparece fora dele).
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-18T19:40:00Z'));
     whatsApp = vi.fn().mockResolvedValue(undefined);
     activity = vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
   });
@@ -160,6 +163,20 @@ describe('AdminCompanyDetail — segmento, próxima ação e ⋮', () => {
         !b.closest('app-bar-chart'),
     );
     expect(loose.map((b) => text(b))).toEqual([]);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('renovação de outro ano leva o ano no topo e no chip "até" (sem ele, lê como passada)', () => {
+    const host = render().nativeElement as HTMLElement;
+    expect(text(host)).toContain('renova em 30/11/2099');
+    expect(text(host)).not.toMatch(/renova em 30\/11(?!\/)/);
+  });
+
+  it('a nota da Atividade não aponta para um "Ver na auditoria" que não existe', () => {
+    const host = render().nativeElement as HTMLElement;
+    expect(text(host)).toContain('Fora desta lista: o que a equipe fez na conta');
+    expect(text(host)).not.toContain('Ver na auditoria');
   });
 
   it('Próxima ação: frase, por quê, mensagem pronta e o efeito do último contato', () => {

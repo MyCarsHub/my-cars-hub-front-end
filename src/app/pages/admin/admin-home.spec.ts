@@ -122,6 +122,12 @@ function pill(host: HTMLElement, label: string): HTMLElement {
   return found as HTMLElement;
 }
 
+/** Abre o ⋮ do topo do Painel (o menu renderiza os itens só aberto). */
+function openTopMenu(fixture: { detectChanges(): void }, host: HTMLElement): void {
+  host.querySelector<HTMLButtonElement>('[data-testid="home-top-menu"] button[aria-haspopup="menu"]')!.click();
+  fixture.detectChanges();
+}
+
 /** O `Intl` escreve "R$" com espaço não quebrável. */
 const plain = (text: string): string => text.replace(/ /g, ' ');
 
@@ -347,16 +353,34 @@ describe('AdminHome v2 — cores e gráficos', () => {
 describe('AdminHome v2 — Lançar custo', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
-  it('o botão só existe para quem tem custo.gerir', () => {
-    expect(setup({ codes: ['ver'] }).host.querySelector('[data-testid="launch-cost"]')).toBeNull();
-    expect(setup({ codes: ['ver', 'custo.gerir'] }).host.querySelector('[data-testid="launch-cost"]')).not.toBeNull();
+  it('nenhum botão solto no topo: Lançar custo e Exportar moram no ⋮ do Painel', () => {
+    const { host, fixture } = setup({ codes: ['ver', 'custo.gerir'] });
+    const top = host.querySelector('[data-testid="home-top-menu"]')!;
+    expect(top.querySelector('[data-testid="launch-cost"]')).toBeNull();
+    expect(top.querySelector('[data-testid="export-home"]')).toBeNull();
+    openTopMenu(fixture, host);
+    expect(top.querySelector('[data-testid="launch-cost"]')).not.toBeNull();
+    expect(top.querySelector('[data-testid="export-home"]')).not.toBeNull();
   });
 
-  it('leva à página de Custos, na folha do avulso', () => {
-    const { host } = setup({ codes: ['ver', 'custo.gerir'] });
-    const link = host.querySelector<HTMLAnchorElement>('[data-testid="launch-cost"]')!;
-    expect(link.tagName).toBe('A');
-    expect(link.getAttribute('href')).toBe('/admin/custos?acao=avulso');
+  it('o item "Lançar custo" só existe para quem tem custo.gerir; Exportar fica para todos', () => {
+    const viewer = setup({ codes: ['ver'] });
+    openTopMenu(viewer.fixture, viewer.host);
+    expect(viewer.host.querySelector('[data-testid="launch-cost"]')).toBeNull();
+    expect(viewer.host.querySelector('[data-testid="export-home"]')).not.toBeNull();
+    const owner = setup({ codes: ['ver', 'custo.gerir'] });
+    openTopMenu(owner.fixture, owner.host);
+    expect(owner.host.querySelector('[data-testid="launch-cost"]')).not.toBeNull();
+  });
+
+  it('leva à página de Custos, na folha do avulso', async () => {
+    const { host, fixture } = setup({ codes: ['ver', 'custo.gerir'] });
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    openTopMenu(fixture, host);
+    host.querySelector<HTMLButtonElement>('[data-testid="launch-cost"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(navigate).toHaveBeenCalledWith(['/admin/custos'], { queryParams: { acao: 'avulso' } });
   });
 
   it('o lucro sem custo vira atalho para "Novo custo fixo" na página de Custos (para o Dono)', async () => {

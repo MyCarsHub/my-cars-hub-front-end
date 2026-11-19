@@ -70,23 +70,26 @@ export function clampMonth(month: string, min: string, max: string | null): stri
           <p class="rounded-2xl bg-surface-sunken px-4 py-3 text-sm text-fg" data-testid="change-summary" aria-live="polite">{{ text }}</p>
         }
 
-        @if (error(); as msg) {
-          <app-alert-banner variant="error" [message]="msg" data-testid="change-error" />
-        }
         <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true">Salvar</button>
       </form>
 
-      <div sheetFooter class="pt-3 flex flex-col-reverse gap-2 lg:flex-row lg:justify-end">
-        <button type="button" data-testid="change-cancel" (click)="cancel()"
-                class="press min-h-12 rounded-xl border border-edge px-5 text-base font-semibold text-fg hover:bg-surface-muted
-                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
-          Cancelar
-        </button>
-        <button type="button" data-testid="change-save" [disabled]="saving()" (click)="submit()"
-                class="press min-h-12 rounded-xl bg-primary-500 px-5 text-base font-semibold text-white hover:bg-primary-600
-                       disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
-          {{ saving() ? 'Salvando…' : mode() === 'amount' ? 'Mudar daqui para frente' : 'Encerrar' }}
-        </button>
+      <div sheetFooter class="pt-3 flex flex-col gap-3">
+        <!-- O erro do servidor (ex.: 409) fica colado no botão: no fim do formulário ele caía abaixo da dobra. -->
+        @if (error(); as msg) {
+          <app-alert-banner variant="error" [message]="msg" data-testid="change-error" />
+        }
+        <div class="flex flex-col-reverse gap-2 lg:flex-row lg:justify-end">
+          <button type="button" data-testid="change-cancel" (click)="cancel()"
+                  class="press min-h-12 rounded-xl border border-edge px-5 text-base font-semibold text-fg hover:bg-surface-muted
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+            Cancelar
+          </button>
+          <button type="button" data-testid="change-save" [disabled]="saving()" (click)="submit()"
+                  class="press min-h-12 rounded-xl bg-primary-500 px-5 text-base font-semibold text-white hover:bg-primary-600
+                         disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+            {{ saving() ? 'Salvando…' : mode() === 'amount' ? 'Mudar daqui para frente' : 'Encerrar' }}
+          </button>
+        </div>
       </div>
     </app-bottom-sheet>
   `,

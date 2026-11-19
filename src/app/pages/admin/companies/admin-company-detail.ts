@@ -27,7 +27,6 @@ import {
   AdminCompanyMember,
   AdminCompanySaleItem,
   AdminCompanySaleUndoItem,
-  AdminCompanyStatus,
 } from '../../../types/admin-company.types';
 import { SupportEditEntry } from './support-edit-entry';
 import { TrialExtensionSheet } from './trial-extension-sheet';
@@ -74,6 +73,7 @@ import { formatPhoneDisplay } from '../../../utils/phone-mask';
 import { maskCep, normalizeCep } from '../../../utils/cep-mask';
 import { planDisplayName } from '../../../utils/plan-grid-copy';
 import { gatewayLabel } from '../billing/gateway-label';
+import { companyStatusChip } from './company-status';
 
 /** Texto e tom de `app-status-chip`: a cor da situação mora só no chip. */
 interface ChipStyle {
@@ -141,12 +141,6 @@ function registrationRow(label: string, value: string | null | undefined): Regis
   const text = (value ?? '').trim();
   return { label, value: text === '' ? '—' : text, empty: text === '' };
 }
-
-const COMPANY_STATUS: Record<AdminCompanyStatus, ChipStyle> = {
-  ACTIVE: { label: 'Ativa', tone: 'green' },
-  SUSPENDED: { label: 'Suspensa', tone: 'red' },
-  CANCELLED: { label: 'Cancelada', tone: 'neutral' },
-};
 
 const CONFIRMATION_WORD = 'SUSPENDER';
 
@@ -252,9 +246,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   protected readonly targetActive = computed(() => !(this.detail()?.active ?? false));
 
   protected readonly companyChip = computed<ChipStyle | null>(() => {
-    const status = this.detail()?.status;
-    if (!status) return null;
-    return COMPANY_STATUS[status] ?? { label: status, tone: 'neutral' };
+    return companyStatusChip(this.detail()?.status);
   });
 
   /**
@@ -414,17 +406,17 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     const d = this.engagement()?.deadline;
     if (!d || d.kind === 'TRIAL_ENDED') return null;
     const day = businessDay(d.at);
-    return day && day >= todayInBusinessTz(this.now()) ? `até ${dayMonth(day)}` : null;
+    return day && day >= todayInBusinessTz(this.now()) ? `até ${dayMonth(day, this.now())}` : null;
   });
 
   /** O que o último contato fez com a empresa em "Hoje, para agir". */
   protected readonly contactNote = computed(() => {
     const e = this.engagement();
     if (!e) return null;
-    const line = lastContactText(e);
+    const line = lastContactText(e, this.now());
     switch (e.today?.status) {
       case 'HIDDEN_UNTIL_DATE':
-        return `${line}. Até ${dayMonth(e.today.hiddenUntil)} ela fica fora de “Hoje, para agir”.`;
+        return `${line}. Até ${dayMonth(e.today.hiddenUntil, this.now())} ela fica fora de “Hoje, para agir”.`;
       case 'HIDDEN_UNTIL_SEGMENT_CHANGES':
         return `${line}. Fica fora de “Hoje, para agir” até o segmento mudar.`;
       case 'NOT_INTERESTED':

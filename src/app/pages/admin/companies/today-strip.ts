@@ -201,8 +201,8 @@ export class TodayStrip {
         name: s.name,
         ownerName: s.ownerName,
         engagement: s.engagement,
-        contact: lastContactHead(s.engagement),
-        back: back ? `volta em ${dayMonth(back)}` : 'volta se o segmento mudar',
+        contact: lastContactHead(s.engagement, this.now()),
+        back: back ? `volta em ${dayMonth(back, this.now())}` : 'volta se o segmento mudar',
       };
     }),
   );

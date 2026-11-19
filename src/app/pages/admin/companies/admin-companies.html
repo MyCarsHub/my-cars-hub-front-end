@@ -102,8 +102,8 @@
                 @if (row.internal) {
                   <app-status-chip size="sm" data-testid="internal-badge">Interna</app-status-chip>
                 }
-                @if (!row.active) {
-                  <app-status-chip size="sm" tone="red" data-testid="suspended-chip">Suspensa</app-status-chip>
+                @if (statusChip(row); as st) {
+                  <app-status-chip size="sm" [tone]="st.tone" data-testid="company-status-chip">{{ st.label }}</app-status-chip>
                 }
               </span>
             </span>

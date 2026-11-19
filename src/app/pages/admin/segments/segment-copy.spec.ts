@@ -54,7 +54,7 @@ describe('segment-copy', () => {
   });
 
   it('datas de calendário nunca passam pelo fuso do navegador', () => {
-    expect(dayMonth('2026-11-20')).toBe('20/11');
+    expect(dayMonth('2026-11-20', NOW)).toBe('20/11');
     expect(addDays('2026-11-30', 1)).toBe('2026-12-01');
     expect(weekdayName('2026-11-19')).toBe('quinta-feira');
     // 02:30 UTC de 19/11 ainda é 18/11 em Brasília.
@@ -69,6 +69,17 @@ describe('segment-copy', () => {
     expect(deadlineText(engagement({ deadline: { kind: 'TRIAL_ENDED', at: '2026-10-25T12:00:00Z' } }), NOW)).toBe('Teste acabou em 25/10');
     expect(deadlineText(engagement({ deadline: { kind: 'RENEWAL', at: '2026-12-03T12:00:00Z' } }), NOW)).toBe('Renova em 03/12');
     expect(deadlineText(engagement({ deadline: null }), NOW)).toBe('—');
+  });
+
+  it('data fora do ano corrente leva o ano (sem ele, 22/10 de 2027 lê como passado)', () => {
+    expect(dayMonth('2027-10-22', NOW)).toBe('22/10/2027');
+    expect(dayMonth('2025-12-31', NOW)).toBe('31/12/2025');
+    // O ano é o de Brasília: 31/12 às 23h em São Paulo já é 2027 em UTC.
+    expect(dayMonth('2026-12-31', new Date('2027-01-01T02:00:00Z'))).toBe('31/12');
+    expect(deadlineText(engagement({ deadline: { kind: 'RENEWAL', at: '2027-10-22T12:00:00Z' } }), NOW)).toBe('Renova em 22/10/2027');
+    expect(deadlineText(engagement({ deadline: { kind: 'TRIAL_ENDED', at: '2025-10-25T12:00:00Z' } }), NOW)).toBe('Teste acabou em 25/10/2025');
+    // Relativo continua relativo, mesmo virando o ano.
+    expect(deadlineText(engagement({ deadline: { kind: 'RENEWAL', at: '2027-01-01T12:00:00Z' } }), new Date('2026-12-31T15:00:00Z'))).toBe('Renova amanhã');
   });
 
   it('último sinal real: ação com quando e o último acesso; sem ação diz isso', () => {

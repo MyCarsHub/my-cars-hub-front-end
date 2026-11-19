@@ -2,28 +2,24 @@
   title="Administração"
   description="A plataforma inteira em uma tela: receita, custos, crescimento, uso e movimentações."
 >
-  <div pageActions class="flex flex-wrap gap-2">
-    @if (canManageCosts()) {
-      <a
-        data-testid="launch-cost"
-        [routerLink]="costsRoute"
-        [queryParams]="launchCostParams"
-        class="press inline-flex items-center min-h-11 px-4 rounded-full bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-      >
-        Lançar custo
-      </a>
-    }
-    <button
-      type="button"
-      data-testid="export-home"
-      class="press min-h-11 px-4 rounded-full border border-edge bg-transparent text-fg text-sm font-semibold hover:bg-surface-muted
-             disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-      [disabled]="!home()"
-      (click)="exportCsv()"
-    >
-      Exportar
-    </button>
+  <!-- ⋮ do topo: lançar custo e exportar. Nenhum botão solto na tela (o mesmo de Empresas e Custos). -->
+  <div pageActions class="flex justify-end" data-testid="home-top-menu">
+    <app-actions-menu label="Ações do painel" [menuWidth]="288">
+      @if (canManageCosts()) {
+        <button type="button" dataListMenuItem data-testid="launch-cost" (click)="launchCost()">
+          <span class="flex flex-col">
+            <span class="font-semibold text-fg">Lançar custo</span>
+            <small class="text-xs text-fg-subtle">Avulso, na página de Custos</small>
+          </span>
+        </button>
+      }
+      <button type="button" dataListMenuItem data-testid="export-home" [disabled]="!home()" (click)="exportCsv()">
+        <span class="flex flex-col">
+          <span class="font-semibold text-fg">Exportar</span>
+          <small class="text-xs text-fg-subtle">CSV do que está na tela</small>
+        </span>
+      </button>
+    </app-actions-menu>
   </div>
 
   <div class="flex flex-col gap-4 min-w-0" data-admin-home>

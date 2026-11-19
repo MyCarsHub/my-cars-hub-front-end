@@ -44,10 +44,11 @@ export function monthNumeric(month: string): string {
   return m ? `${m[2]}/${m[1]}` : month;
 }
 
-/** `2026-11-05` -> `05/11`. */
-export function dayMonth(date: string | null): string {
+/** `2026-11-05` -> `05/11` no ano corrente; `05/12/2025` fora dele (sem o ano, lê como deste ano). */
+export function dayMonth(date: string | null, now: Date = new Date()): string {
   const m = date ? DATE_RE.exec(date) : null;
-  return m ? `${m[3]}/${m[2]}` : '—';
+  if (!m) return '—';
+  return m[1] === todayInBusinessTz(now).slice(0, 4) ? `${m[3]}/${m[2]}` : `${m[3]}/${m[2]}/${m[1]}`;
 }
 
 /** Último dia do mês, `yyyy-MM-dd` (o limite do campo "Vence em"). */
@@ -178,7 +179,7 @@ export interface EntryRow {
   readonly note: string;
 }
 
-export function entryRows(rows: readonly PlatformCost[]): EntryRow[] {
+export function entryRows(rows: readonly PlatformCost[], now: Date = new Date()): EntryRow[] {
   return rows.map((cost) => {
     const fixed = cost.kind === 'FIXED';
     const edited = fixed && cost.overridden;
@@ -190,7 +191,7 @@ export function entryRows(rows: readonly PlatformCost[]): EntryRow[] {
       edited,
       amountText: brl(cost.amountCents),
       fixedText: edited && cost.scheduleAmountCents !== null ? `fixo: ${brl(cost.scheduleAmountCents)}` : null,
-      dueText: dayMonth(cost.dueDate),
+      dueText: dayMonth(cost.dueDate, now),
       note: cost.note || '—',
     };
   });

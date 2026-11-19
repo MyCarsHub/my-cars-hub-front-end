@@ -37,6 +37,7 @@ import { ContactRevealActions } from '../contact/contact-reveal-actions';
 import { RegisterContactSheet } from '../contact/register-contact-sheet';
 import { TrialExtensionSheet } from './trial-extension-sheet';
 import { TodayStrip, type CompanyActionTarget } from './today-strip';
+import { companyStatusChip } from './company-status';
 import type { AdminCompanyListItem } from '../../../types/admin-company.types';
 import {
   COMPANY_SEGMENTS,
@@ -274,6 +275,11 @@ export class AdminCompanies implements OnInit {
 
   protected chip(company: AdminCompanyListItem) {
     return segmentChip(company.engagement?.segment);
+  }
+
+  /** Suspensa (vermelho) ou Cancelada (neutro) ao lado do segmento; ativa não ganha chip. */
+  protected statusChip(company: AdminCompanyListItem) {
+    return company.status === 'ACTIVE' ? null : companyStatusChip(company.status);
   }
 
   protected signalText(company: AdminCompanyListItem): string {

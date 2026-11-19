@@ -97,7 +97,7 @@ const FILTERS: readonly FilterChipOption<ActivityFilter>[] = [
         }
 
         <p class="m-0 text-xs text-fg-subtle">
-          Fora desta lista: o que a equipe fez na conta (modo edição, cobranças canceladas pelo admin), no ⋮ › Ver na auditoria.
+          Fora desta lista: o que a equipe fez na conta (modo edição, cobranças canceladas pelo admin).
         </p>
       </div>
     </app-page-card>
@@ -120,7 +120,7 @@ export class CompanyActivity {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  protected readonly lines = computed(() => this.items().map(activityLine));
+  protected readonly lines = computed(() => this.items().map((item) => activityLine(item)));
   protected readonly hasMore = computed(() => this.items().length < this.total());
 
   constructor() {

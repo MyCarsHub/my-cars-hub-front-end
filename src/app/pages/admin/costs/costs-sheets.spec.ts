@@ -131,7 +131,7 @@ describe('FixedCostSheet — Novo custo fixo', () => {
   it('409 LEGACY_COST_OVERLAP: a folha mostra a frase do servidor (fornecedor e mês) e fica aberta', () => {
     const legacy =
       'Já existe um custo lançado à mão para Render em 10/2026; apague-o antes de criar o custo fixo nesse período, senão o gasto conta duas vezes.';
-    const { fixture, type, click, svc, text } = mount(FixedCostSheet, { vendors: [RENDER], currentMonth: '2026-11' });
+    const { fixture, type, click, svc, text, q } = mount(FixedCostSheet, { vendors: [RENDER], currentMonth: '2026-11' });
     svc.createSchedule.mockReturnValue(
       throwError(
         () =>
@@ -151,6 +151,11 @@ describe('FixedCostSheet — Novo custo fixo', () => {
     click('fixed-save');
     fixture.detectChanges();
     expect(text('fixed-error')).toBe(legacy);
+    // No rodapé fixo, junto do "Salvar": no fim do formulário ficava abaixo da dobra.
+    const footer = q('fixed-save')!.closest('[sheetFooter]');
+    expect(footer).not.toBeNull();
+    expect(footer!.contains(q('fixed-error'))).toBe(true);
+    expect(q('fixed-error')!.closest('form')).toBeNull();
     expect(stale).not.toHaveBeenCalled();
     expect(saved).not.toHaveBeenCalled();
   });
@@ -266,7 +271,18 @@ describe('CostEntrySheet — avulso e Editar lançamento', () => {
     expect(svc.updateCost).toHaveBeenCalledWith('c1', { amountCents: 17_000, dueDate: '2026-11-05', note: 'Instância extra' });
   });
 
-  it('vencimento fora do mês não sai', () => {
+  it('editar uma linha LEGACY (sem descrição) diz "lançado à mão", nunca "null"', () => {
+    mount(CostEntrySheet, {
+      vendors: [RENDER],
+      month: '2026-11',
+      cost: cost({ kind: 'LEGACY', scheduleId: null, scheduleAmountCents: null, overridden: false, description: null }),
+    });
+    const body = (document.body.textContent ?? '').replace(/\s+/g, ' ');
+    expect(body).toContain('Render · lançado à mão · novembro de 2026');
+    expect(body).not.toContain('null');
+  });
+
+    it('vencimento fora do mês não sai', () => {
     const { type, click, svc, q } = mount(CostEntrySheet, { vendors: [RENDER], month: '2026-11', cost: cost() });
     type('entry-due', '2026-12-01');
     click('entry-save');

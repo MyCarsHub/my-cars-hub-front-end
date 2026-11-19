@@ -24,8 +24,10 @@ describe('costs-copy — meses e datas', () => {
     expect(addMonths('2026-12', 1)).toBe('2027-01');
     expect(addMonths('2026-01', -1)).toBe('2025-12');
     expect(monthName('2026-11')).toBe('novembro de 2026');
-    expect(dayMonth('2026-11-05')).toBe('05/11');
-    expect(dayMonth(null)).toBe('—');
+    const now = new Date('2026-11-18T12:00:00Z');
+    expect(dayMonth('2026-11-05', now)).toBe('05/11');
+    expect(dayMonth('2025-12-05', now)).toBe('05/12/2025');
+    expect(dayMonth(null, now)).toBe('—');
     expect(lastDayOf('2026-02')).toBe('2026-02-28');
     expect(lastDayOf('2026-11')).toBe('2026-11-30');
   });
@@ -98,7 +100,7 @@ describe('costs-copy — lançamentos do mês', () => {
     const [fixed, oneOff] = entryRows([
       cost(),
       cost({ id: 'c2', kind: 'ONE_OFF', scheduleId: null, scheduleAmountCents: null, overridden: false, description: 'Upgrade', dueDate: null, note: null }),
-    ]);
+    ], new Date('2026-11-18T12:00:00Z'));
     expect(fixed.kind).toBe('Fixo');
     expect(fixed.edited).toBe(true);
     expect(nbsp(fixed.fixedText!)).toBe('fixo: R$ 140,00');

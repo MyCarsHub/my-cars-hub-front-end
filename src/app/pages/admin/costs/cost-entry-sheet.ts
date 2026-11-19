@@ -111,14 +111,17 @@ export class CostEntrySheet implements OnInit {
   protected readonly subtitle = computed(() => {
     const c = this.cost();
     if (!c) return 'Um valor só no mês escolhido. Entra no total do mês e no Lucro do Painel.';
-    return `${c.vendorName} · ${c.description} · ${monthName(c.month)}`;
+    // A linha lançada à mão antes dos custos fixos (LEGACY) não tem descrição: nunca "null" na tela.
+    const what = c.description?.trim() || (c.kind === 'LEGACY' ? 'lançado à mão' : null);
+    return [c.vendorName, what, monthName(c.month)].filter(Boolean).join(' · ');
   });
   /** "Muda só este mês": o que acontece com os outros meses. */
   protected readonly onlyThisMonth = computed(() => {
     const c = this.cost();
     if (!c || c.kind !== 'FIXED') return null;
     const fixedAmount = c.scheduleAmountCents ?? c.amountCents;
-    return `O custo fixo de ${c.vendorName} (${c.description}) continua ${brl(fixedAmount)} nos outros meses.`;
+    const what = c.description?.trim() ? ` (${c.description.trim()})` : '';
+    return `O custo fixo de ${c.vendorName}${what} continua ${brl(fixedAmount)} nos outros meses.`;
   });
   protected readonly revertText = computed(() => {
     const c = this.cost();

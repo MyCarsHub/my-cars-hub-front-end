@@ -89,7 +89,8 @@ export interface PlatformCost {
   month: string;
   kind: PlatformCostKind;
   scheduleId: string | null;
-  description: string;
+  /** Nula na linha lançada à mão antes dos custos fixos (`LEGACY`). */
+  description: string | null;
   amountCents: number;
   /** O valor do custo fixo neste mês; nulo fora de `FIXED`. */
   scheduleAmountCents: number | null;

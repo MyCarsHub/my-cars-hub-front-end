@@ -30,22 +30,25 @@ import { VendorFields, VendorForm } from './vendor-fields';
     <app-bottom-sheet [title]="title()" [subtitle]="subtitle" [busy]="saving()" (closed)="closed.emit()">
       <form class="flex flex-col gap-4" data-testid="vendor-sheet" (submit)="$event.preventDefault(); submit()" novalidate>
         <app-vendor-fields [form]="form" />
+        <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true">Salvar</button>
+      </form>
+      <div sheetFooter class="pt-3 flex flex-col gap-3">
+        <!-- O erro do servidor (ex.: 409) fica colado no botão: no fim do formulário ele caía abaixo da dobra. -->
         @if (error(); as msg) {
           <app-alert-banner variant="error" [message]="msg" data-testid="vendor-error" />
         }
-        <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true">Salvar</button>
-      </form>
-      <div sheetFooter class="pt-3 flex flex-col-reverse gap-2 lg:flex-row lg:justify-end">
-        <button type="button" data-testid="vendor-cancel" (click)="cancel()"
-                class="press min-h-12 rounded-xl border border-edge px-5 text-base font-semibold text-fg hover:bg-surface-muted
-                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
-          Cancelar
-        </button>
-        <button type="button" data-testid="vendor-save" [disabled]="saving()" (click)="submit()"
-                class="press min-h-12 rounded-xl bg-primary-500 px-5 text-base font-semibold text-white hover:bg-primary-600
-                       disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
-          {{ saving() ? 'Salvando…' : 'Salvar fornecedor' }}
-        </button>
+        <div class="flex flex-col-reverse gap-2 lg:flex-row lg:justify-end">
+          <button type="button" data-testid="vendor-cancel" (click)="cancel()"
+                  class="press min-h-12 rounded-xl border border-edge px-5 text-base font-semibold text-fg hover:bg-surface-muted
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+            Cancelar
+          </button>
+          <button type="button" data-testid="vendor-save" [disabled]="saving()" (click)="submit()"
+                  class="press min-h-12 rounded-xl bg-primary-500 px-5 text-base font-semibold text-white hover:bg-primary-600
+                         disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+            {{ saving() ? 'Salvando…' : 'Salvar fornecedor' }}
+          </button>
+        </div>
       </div>
     </app-bottom-sheet>
   `,

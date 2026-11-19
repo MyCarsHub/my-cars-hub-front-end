@@ -346,9 +346,9 @@ export class RegisterContactSheet {
     const at = this.contactedAt();
     if (at) {
       const day = businessDay(at);
-      return `Contato de ${dayMonth(day)}, às ${this.when().slice(11, 16)}.`;
+      return `Contato de ${dayMonth(day, this.now())}, às ${this.when().slice(11, 16)}.`;
     }
-    return `Contato de hoje, ${dayMonth(this.today())}, às ${nowHhMmInBusinessTz(this.now())}.`;
+    return `Contato de hoje, ${dayMonth(this.today(), this.now())}, às ${nowHhMmInBusinessTz(this.now())}.`;
   });
 
   /** Novo fim do teste, pela mesma regra do servidor: max(agora, fim atual) + dias. */
@@ -357,7 +357,7 @@ export class RegisterContactSheet {
     const end = deadline && deadline.kind === 'TRIAL_ENDS' ? parseServerTime(deadline.at) : null;
     const base = end && end.getTime() > this.now().getTime() ? end : this.now();
     const until = new Date(base.getTime() + CONTACT_EXTEND_DAYS * 86_400_000);
-    return `Vai até ${dayMonth(todayInBusinessTz(until))}. É o mesmo “Estender teste” do menu ⋮, com aviso por e-mail.`;
+    return `Vai até ${dayMonth(todayInBusinessTz(until), this.now())}. É o mesmo “Estender teste” do menu ⋮, com aviso por e-mail.`;
   });
 
   protected readonly effectText = computed(() => {
@@ -372,10 +372,10 @@ export class RegisterContactSheet {
     if (!day) return `Ao salvar, ${name} sai de “Hoje, para agir” agora e volta no dia escolhido.`;
     const weekday = weekdayName(day);
     if (this.followUp() === 'D1') {
-      return `Ao salvar, ${name} sai de “Hoje, para agir” agora e volta amanhã, ${weekday}, ${dayMonth(day)}.`;
+      return `Ao salvar, ${name} sai de “Hoje, para agir” agora e volta amanhã, ${weekday}, ${dayMonth(day, this.now())}.`;
     }
     const article = weekday === 'sábado' || weekday === 'domingo' ? 'no' : 'na';
-    return `Ao salvar, ${name} sai de “Hoje, para agir” agora e volta ${article} ${weekday}, ${dayMonth(day)}.`;
+    return `Ao salvar, ${name} sai de “Hoje, para agir” agora e volta ${article} ${weekday}, ${dayMonth(day, this.now())}.`;
   });
 
   protected readonly canSubmit = computed(() => {

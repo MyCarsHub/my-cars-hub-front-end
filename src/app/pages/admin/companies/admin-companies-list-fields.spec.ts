@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AdminCompanies } from './admin-companies';
 import { AdminCompaniesService } from '../admin-companies.service';
@@ -90,7 +90,17 @@ describe('AdminCompanies — campos da linha', () => {
   }
 
   beforeEach(() => {
+    // Relógio fixo: as datas da linha dependem do ano corrente (o ano só aparece fora dele).
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-18T19:40:00Z'));
     rows = signal([BASE]);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('prazo de outro ano leva o ano: "Renova em 22/10/2027", nunca "22/10" (que lê como passado)', () => {
+    rows.set([{ ...BASE, engagement: { ...ENGAGEMENT, deadline: { kind: 'RENEWAL', at: '2027-10-22T12:00:00Z' } } }]);
+    expect(text(render().querySelector('[data-testid="cell-deadline"]'))).toBe('Renova em 22/10/2027');
   });
 
   it('segmento em chip, sinal real, prazo, frota e próxima ação com o último contato', () => {
@@ -117,9 +127,22 @@ describe('AdminCompanies — campos da linha', () => {
   it('suspensa ganha chip vermelho ao lado do segmento (cor só no chip)', () => {
     rows.set([{ ...BASE, active: false, status: 'SUSPENDED' }]);
     const host = render();
-    const chip = host.querySelector('[data-testid="suspended-chip"]') as HTMLElement;
+    const chip = host.querySelector('[data-testid="company-status-chip"]') as HTMLElement;
     expect(text(chip)).toBe('Suspensa');
     expect(chip.className).toContain('rose');
+  });
+
+  it('cancelada diz "Cancelada" em chip neutro, como no detalhe (nunca "Suspensa")', () => {
+    rows.set([{ ...BASE, active: false, status: 'CANCELLED' }]);
+    const host = render();
+    const chip = host.querySelector('[data-testid="company-status-chip"]') as HTMLElement;
+    expect(text(chip)).toBe('Cancelada');
+    expect(chip.className).not.toContain('rose');
+  });
+
+  it('ativa não ganha chip de situação', () => {
+    rows.set([{ ...BASE, active: true, status: 'ACTIVE' }]);
+    expect(render().querySelector('[data-testid="company-status-chip"]')).toBeNull();
   });
 
   it('explica que o último sinal não conta ações da equipe', () => {

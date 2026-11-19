@@ -23,6 +23,7 @@ import {
 import { GrowthChart, type GrowthSeries } from '../../components/charts/growth-chart/growth-chart';
 import { RingLegendCard, type RingSlice } from '../../components/charts/ring-legend-card/ring-legend-card';
 import { StackedBarChart, type StackRow } from '../../components/charts/stacked-bar-chart/stacked-bar-chart';
+import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import { PageCard } from '../../components/core/page-card/page-card';
 import {
   DateRangePicker,
@@ -32,6 +33,7 @@ import {
 import { KpiCard, formatKpiNumber, type KpiCardVariant, type KpiDelta, type KpiNumberFormat } from '../../components/kpi-card/kpi-card';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { downloadCsv } from '../../components/lists/data-list/data-list-csv';
+import { DataListMenuItem } from '../../components/lists/data-list/data-list-menu-item';
 import { formatBrl } from '../../pipes/brl.pipe';
 import { AdminCapabilitiesService } from '../../services/admin-capabilities.service';
 import { AdminMetricsService } from '../../services/admin-metrics.service';
@@ -188,6 +190,8 @@ function queryKey(range: AdminHomeRange, scope: AdminHomeScope): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DefaultPageLayout,
+    ActionsMenu,
+    DataListMenuItem,
     PageCard,
     RouterLink,
     DateRangePicker,
@@ -268,7 +272,7 @@ export class AdminHome implements OnInit {
 
   /** A página de Custos (Dinheiro › Custos): fixos, lançamentos do mês e fornecedores. */
   protected readonly costsRoute = COSTS_ROUTE;
-  /** O botão "Lançar custo" do topo abre a página já na folha do avulso. */
+  /** "Lançar custo" no ⋮ do topo abre a página já na folha do avulso. */
   protected readonly launchCostParams = { [COSTS_ACTION_PARAM]: 'avulso' };
   /** O cartão de fornecedores vazio abre a página na folha do custo fixo. */
   protected readonly firstCostParams = costsShortcutParams('cost');
@@ -376,6 +380,12 @@ export class AdminHome implements OnInit {
   protected openCosts(shortcut: CostsShortcut): void {
     if (!this.canManageCosts()) return;
     void this.router.navigate([COSTS_ROUTE], { queryParams: costsShortcutParams(shortcut) });
+  }
+
+  /** ⋮ do topo › Lançar custo: a página de Custos, já na folha do avulso. */
+  protected launchCost(): void {
+    if (!this.canManageCosts()) return;
+    void this.router.navigate([COSTS_ROUTE], { queryParams: this.launchCostParams });
   }
 
   protected onCompanyRows(rows: readonly AdminCompanyListItem[]): void {

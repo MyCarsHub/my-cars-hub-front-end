@@ -181,11 +181,15 @@ export function addDays(day: string, n: number): string {
   return new Date(utcOf(day) + n * DAY_MS).toISOString().slice(0, 10);
 }
 
-/** "20/11" a partir de `yyyy-MM-dd`, sem passar por fuso. */
-export function dayMonth(day: string | null | undefined): string {
+/**
+ * "20/11" a partir de `yyyy-MM-dd`, sem passar por fuso; "22/10/2027" quando o dia NÃO é do ano
+ * corrente de Brasília (sem o ano, "Renova em 22/10" de 2027 lê como uma data que já passou).
+ */
+export function dayMonth(day: string | null | undefined, now: Date = new Date()): string {
   if (!day) return '—';
-  const [, m, d] = day.split('-');
-  return d && m ? `${d}/${m}` : day;
+  const [y, m, d] = day.split('-');
+  if (!d || !m) return day;
+  return y && y !== todayInBusinessTz(now).slice(0, 4) ? `${d}/${m}/${y}` : `${d}/${m}`;
 }
 
 /** "20/11/2026" a partir de `yyyy-MM-dd`. */
@@ -202,7 +206,7 @@ export function weekdayName(day: string): string {
   return WEEKDAY.format(new Date(utcOf(day)));
 }
 
-/** "hoje", "ontem", "há 4 dias" ou "em 04/08" (passado, dia de Brasília). */
+/** "hoje", "ontem", "há 4 dias" ou "em 04/08" ("em 04/08/2025" de outro ano; passado, dia de Brasília). */
 export function relativePast(instant: string | null | undefined, now: Date = new Date()): string | null {
   const day = businessDay(instant);
   if (!day) return null;
@@ -210,7 +214,7 @@ export function relativePast(instant: string | null | undefined, now: Date = new
   if (diff <= 0) return 'hoje';
   if (diff === 1) return 'ontem';
   if (diff < 30) return `há ${diff} dias`;
-  return `em ${dayMonth(day)}`;
+  return `em ${dayMonth(day, now)}`;
 }
 
 // ---- Linha da lista ----------------------------------------------------------------------
@@ -241,12 +245,12 @@ export function lastSignalText(e: CompanyEngagement | null | undefined, now: Dat
     parts.push('Nenhuma ação real');
   }
   const access = businessDay(e.lastAccessAt);
-  if (access) parts.push(`último acesso ${dayMonth(access)}`);
+  if (access) parts.push(`último acesso ${dayMonth(access, now)}`);
   else if (!e.lastAction) parts.push('nunca acessou');
   return parts.join(' · ');
 }
 
-/** "Teste acaba amanhã" / "Teste acabou em 25/10" / "Renova em 03/12" / "—". */
+/** "Teste acaba amanhã" / "Teste acabou em 25/10" / "Renova em 03/12" / "Renova em 22/10/2027" / "—". */
 export function deadlineText(e: CompanyEngagement | null | undefined, now: Date = new Date()): string {
   const deadline = e?.deadline;
   const day = businessDay(deadline?.at);
@@ -257,17 +261,17 @@ export function deadlineText(e: CompanyEngagement | null | undefined, now: Date 
     case 'TRIAL_ENDS':
       if (ahead <= 0) return 'Teste acaba hoje';
       if (ahead === 1) return 'Teste acaba amanhã';
-      return `Teste acaba em ${dayMonth(day)}`;
+      return `Teste acaba em ${dayMonth(day, now)}`;
     case 'TRIAL_ENDED':
       if (ahead === 0) return 'Teste acabou hoje';
       if (ahead === -1) return 'Teste acabou ontem';
-      return `Teste acabou em ${dayMonth(day)}`;
+      return `Teste acabou em ${dayMonth(day, now)}`;
     case 'RENEWAL':
       if (ahead === 0) return 'Renova hoje';
       if (ahead === 1) return 'Renova amanhã';
-      return `Renova em ${dayMonth(day)}`;
+      return `Renova em ${dayMonth(day, now)}`;
     default:
-      return dayMonth(day);
+      return dayMonth(day, now);
   }
 }
 
@@ -284,23 +288,23 @@ export function fleetText(e: CompanyEngagement | null | undefined): string {
 }
 
 /** "Contato em 13/11, WhatsApp, sem resposta". Sem contato: nulo. */
-export function lastContactHead(e: CompanyEngagement | null | undefined): string | null {
+export function lastContactHead(e: CompanyEngagement | null | undefined, now: Date = new Date()): string | null {
   const c = e?.lastContact;
   if (!c) return null;
-  return `Contato em ${dayMonth(businessDay(c.contactedAt))}, ${CHANNEL_LABELS[c.channel] ?? c.channel}, ${(
+  return `Contato em ${dayMonth(businessDay(c.contactedAt), now)}, ${CHANNEL_LABELS[c.channel] ?? c.channel}, ${(
     RESULT_LABELS[c.result] ?? c.result
   ).toLowerCase()}`;
 }
 
 /** "Contato em 13/11, WhatsApp, sem resposta · retorno em 20/11". Sem contato: nulo. */
-export function lastContactText(e: CompanyEngagement | null | undefined): string | null {
-  const head = lastContactHead(e);
+export function lastContactText(e: CompanyEngagement | null | undefined, now: Date = new Date()): string | null {
+  const head = lastContactHead(e, now);
   const c = e?.lastContact;
   if (!head || !c) return null;
   const status = e?.today?.status;
-  if (status === 'HIDDEN_UNTIL_DATE' && e?.today.hiddenUntil) return `${head} · retorno em ${dayMonth(e.today.hiddenUntil)}`;
+  if (status === 'HIDDEN_UNTIL_DATE' && e?.today.hiddenUntil) return `${head} · retorno em ${dayMonth(e.today.hiddenUntil, now)}`;
   if (status === 'HIDDEN_UNTIL_SEGMENT_CHANGES') return `${head} · sem retorno marcado`;
-  if (c.followUpDate) return `${head} · retorno em ${dayMonth(c.followUpDate)}`;
+  if (c.followUpDate) return `${head} · retorno em ${dayMonth(c.followUpDate, now)}`;
   return head;
 }
 
@@ -391,8 +395,8 @@ export interface ActivityLine {
 }
 
 /** Uma linha da linha do tempo: data (dia de Brasília), frase e o chip da categoria. */
-export function activityLine(item: ActivityItem): ActivityLine {
-  const day = dayMonth(businessDay(item.at));
+export function activityLine(item: ActivityItem, now: Date = new Date()): ActivityLine {
+  const day = dayMonth(businessDay(item.at), now);
   switch (item.category) {
     case 'ACCESS':
       return {
@@ -406,7 +410,7 @@ export function activityLine(item: ActivityItem): ActivityLine {
       const who = c?.createdByName?.trim() || 'Alguém da equipe';
       const channel = c ? (CHANNEL_LABELS[c.channel] ?? c.channel) : 'contato';
       const result = c ? (RESULT_LABELS[c.result] ?? c.result).toLowerCase() : '';
-      const follow = c?.followUpDate ? ` Retorno marcado para ${dayMonth(c.followUpDate)}.` : '';
+      const follow = c?.followUpDate ? ` Retorno marcado para ${dayMonth(c.followUpDate, now)}.` : '';
       return {
         day,
         text: `${who} registrou contato por ${channel}: ${result}.${follow}`,
