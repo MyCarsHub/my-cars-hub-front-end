@@ -85,25 +85,33 @@ const LAYOUT: Record<DataListBreakpoint, { table: string; cards: string }> = {
 
 /**
  * No lines at all, outlines included (owner rule "sem linhas entre informações"): the record
- * stands out by FILL. The list area is the muted surface; each record is the plain surface
- * (white in light, the raised `surface-sunken` tone in dark, which is lighter than the dark
- * muted area). Records are separated by the area showing through the space between them.
+ * stands out by FILL in light — the list area is the muted surface and each record the plain
+ * surface (white), separated by the area showing through the space between them.
+ *
+ * Dark has TWO tones only (owner rule, 19/11/2026: page #000000, card #0E0E0E): the muted area
+ * and the record both resolve to the card tone, so the list sits on the card and records are
+ * apart by SPACE alone. Hover/press never paint a grey there: the row text brightens on hover
+ * and a pressed card dims, the same opacity/text cues the rest of the app uses.
  */
 const AREA = 'bg-surface-muted rounded-2xl p-2';
-const ROW_FILL = 'bg-surface dark:bg-surface-sunken';
-const CARD_PRESS = 'active:bg-surface-sunken dark:active:bg-surface-strong';
+const ROW_FILL = 'bg-surface';
+/** Loading rows: the plain row in light; the shared placeholder fill in dark, so they stay visible. */
+const SKELETON_FILL = 'bg-surface dark:bg-placeholder-fill';
+const CARD_PRESS = 'active:bg-surface-sunken dark:active:opacity-70';
 
 /** Each table cell paints its slice of the row's box; the ends round the row. */
 const CELL_BOX =
   `${ROW_FILL} first:rounded-l-xl last:rounded-r-xl ` +
   'transition-colors duration-150 motion-reduce:transition-none';
-const CELL_HOVER = 'group-hover:bg-surface-sunken dark:group-hover:bg-surface-strong';
+const CELL_HOVER = 'group-hover:bg-surface-sunken dark:group-hover:text-fg-strong';
 
-const CARD_BOX = `${ROW_FILL} rounded-xl p-4 min-w-0 transition-colors duration-150 motion-reduce:transition-none`;
+const CARD_BOX =
+  `${ROW_FILL} rounded-xl p-4 min-w-0 transition-[background-color,opacity] duration-150 ` +
+  'motion-reduce:transition-none';
 
 const PAGER_BUTTON =
   'inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-surface-sunken ' +
-  'text-sm font-semibold text-fg-body hover:bg-surface-strong transition-colors ' +
+  'text-sm font-semibold text-fg-body hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong transition-colors ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ' +
   'disabled:opacity-40 disabled:cursor-not-allowed';
 
@@ -112,8 +120,8 @@ const PAGER_BUTTON =
  * config: a table from `cardsBelow` up, stacked cards below it (default `sm` = 640px).
  *
  * - The list area is the muted surface; every record is its own row in the plain surface (white
- *   in light, the raised tone in dark), separated by SPACE only. No line anywhere: no divider,
- *   no `divide-*`, no outline around a row.
+ *   in light; in dark both are the card tone), separated by SPACE only. No line anywhere: no
+ *   divider, no `divide-*`, no outline around a row.
  * - Headers are normal case. Status is `app-status-chip` (tinted, no dot); a column without
  *   `tone` is a neutral chip (roles, plans).
  * - Row actions are the kebab (`app-actions-menu`); use `[dataListMenuItem]` on each item.
@@ -135,7 +143,7 @@ const PAGER_BUTTON =
         <button
           type="button"
           data-export
-          class="inline-flex items-center min-h-[44px] sm:min-h-[36px] px-4 rounded-xl bg-surface-sunken text-fg-body text-sm font-semibold hover:bg-surface-strong transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50"
+          class="inline-flex items-center min-h-[44px] sm:min-h-[36px] px-4 rounded-xl bg-surface-sunken text-fg-body text-sm font-semibold hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-50"
           [disabled]="loading() || !rows().length"
           (click)="exportCsv()"
         >
@@ -418,7 +426,7 @@ export class DataList<T = unknown> {
   protected readonly actions = contentChild(DataListActions);
   protected readonly skeletons = [0, 1, 2, 3];
   protected readonly area = AREA;
-  protected readonly rowFill = ROW_FILL;
+  protected readonly rowFill = SKELETON_FILL;
   protected readonly pagerButton = PAGER_BUTTON;
   protected readonly cellClass = computed(() =>
     this.rowTarget() ? `${CELL_BOX} ${CELL_HOVER}` : CELL_BOX,

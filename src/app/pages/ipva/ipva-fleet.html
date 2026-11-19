@@ -128,7 +128,7 @@
         } @else if (loading() && rows().length === 0) {
           <div class="space-y-3" role="status" aria-label="Carregando o IPVA" data-testid="skeleton">
             @for (i of [1, 2, 3]; track i) {
-              <div class="h-[132px] md:h-14 rounded-2xl md:rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-[132px] md:h-14 rounded-2xl md:rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
             }
           </div>
         } @else if (rows().length === 0 && anyFilter()) {
@@ -195,7 +195,7 @@
                         <td class="px-3 py-3.5 font-semibold text-fg tabular-nums whitespace-nowrap">{{ r.total }}</td>
                         <td class="px-3 py-3.5 tabular-nums whitespace-nowrap">
                           <span class="text-fg">{{ r.paid }}</span>
-                          <span class="block h-1.5 w-[70px] rounded-full bg-surface-sunken overflow-hidden mt-1.5" aria-hidden="true">
+                          <span class="block h-1.5 w-[70px] rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden mt-1.5" aria-hidden="true">
                             <span class="bar-fill block h-full w-full rounded-full bg-emerald-500"
                                   [style.--p]="r.progress" [style.--stagger-i]="i"></span>
                           </span>
@@ -246,7 +246,7 @@
                         <div class="min-w-0">
                           Pago
                           <b class="block text-sm font-semibold text-fg tabular-nums">{{ r.installments }}</b>
-                          <span class="block h-1.5 w-[70px] rounded-full bg-surface-sunken overflow-hidden mt-1.5" aria-hidden="true">
+                          <span class="block h-1.5 w-[70px] rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden mt-1.5" aria-hidden="true">
                             <span class="bar-fill block h-full w-full rounded-full bg-emerald-500"
                                   [style.--p]="r.progress" [style.--stagger-i]="i"></span>
                           </span>

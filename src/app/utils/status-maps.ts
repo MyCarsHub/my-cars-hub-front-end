@@ -124,7 +124,7 @@ export function vehicleStatusMeta(status: VehicleStatus | string | null | undefi
   if (status && status in VEHICLE_STATUS_META) {
     return VEHICLE_STATUS_META[status as VehicleStatus];
   }
-  return { label: '—', chip: 'bg-surface-sunken text-fg-soft', color: '#6b7280' };
+  return { label: '—', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft', color: '#6b7280' };
 }
 
 // --------------------------------------------------- filter option lists
@@ -144,7 +144,7 @@ interface FilterOption<T extends string> {
  * resolve amanha).
  */
 export const DRIVER_STATUS_FILTER_OPTIONS: FilterOption<DriverStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' },
   {
     value: 'AVAILABLE',
     label: DRIVER_STATUS_META.AVAILABLE.label,
@@ -171,7 +171,7 @@ export const DRIVER_STATUS_FILTER_OPTIONS: FilterOption<DriverStatus>[] = [
  * o singular, o teste cai e obriga a decisao a ser consciente.
  */
 export const RENTAL_STATUS_FILTER_OPTIONS: FilterOption<RentalStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' },
   { value: 'RESERVED', label: 'Reservados', chip: RENTAL_STATUS_META.RESERVED.chip },
   { value: 'ACTIVE', label: 'Ativos', chip: RENTAL_STATUS_META.ACTIVE.chip },
   { value: 'COMPLETED', label: 'Concluídos', chip: RENTAL_STATUS_META.COMPLETED.chip },
@@ -180,7 +180,7 @@ export const RENTAL_STATUS_FILTER_OPTIONS: FilterOption<RentalStatus>[] = [
 
 /** Mesma unificacao do filtro de motoristas — ver o comentario la em cima. */
 export const VEHICLE_STATUS_FILTER_OPTIONS: FilterOption<VehicleStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' },
   {
     value: 'AVAILABLE',
     label: VEHICLE_STATUS_META.AVAILABLE.label,
@@ -211,7 +211,7 @@ export const FINE_STATUS_META: Record<FineStatus, StatusMeta> = {
 };
 
 export const FINE_STATUS_FILTER_OPTIONS: FilterOption<FineStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' },
   { value: 'PENDING', label: FINE_STATUS_META.PENDING.label, chip: FINE_STATUS_META.PENDING.chip },
   { value: 'PAID', label: FINE_STATUS_META.PAID.label, chip: FINE_STATUS_META.PAID.chip },
   { value: 'CONTESTED', label: FINE_STATUS_META.CONTESTED.label, chip: FINE_STATUS_META.CONTESTED.chip },
@@ -252,7 +252,7 @@ export function defaultPointsForSeverity(severity: FineSeverity): number | null 
 export const FINE_SEVERITY_FILTER_OPTIONS: Array<
   FilterOption<FineSeverity> & { defaultPoints: number }
 > = [
-  { value: '', label: 'Todas', chip: 'bg-surface-sunken text-fg-soft', defaultPoints: 0 },
+  { value: '', label: 'Todas', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft', defaultPoints: 0 },
   // `defaultPoints` vem de `FINE_SEVERITY_META`, como `label` e `chip` — NAO
   // como literal. O rotulo da opcao ("Média (4 pts)") e o numero que o
   // formulario grava saem daqui; enquanto o valor era cravado, a tela podia
@@ -294,7 +294,7 @@ export const FINE_SEVERITY_FILTER_OPTIONS: Array<
  * a palavra "pendente" aqui leria como algo que o DONO deve fazer, e quem deve e o motorista.
  */
 export const INSPECTION_STATUS_META: Record<InspectionStatus, StatusMeta> = {
-  PENDING: { label: 'Em andamento', chip: 'bg-surface-sunken text-fg-soft', color: '#6b7280' },
+  PENDING: { label: 'Em andamento', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft', color: '#6b7280' },
   SUBMITTED: { label: 'Aguardando aprovação', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200', color: '#f59e0b' },
   APPROVED: { label: 'Aprovada', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200', color: '#10b981' },
   REJECTED: { label: 'Recusada', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300', color: '#ef4444' },
@@ -315,7 +315,7 @@ export function inspectionStatusMeta(status: InspectionStatus | string | null | 
   if (status && status in INSPECTION_STATUS_META) {
     return INSPECTION_STATUS_META[status as InspectionStatus];
   }
-  return { label: '—', chip: 'bg-surface-sunken text-fg-soft', color: '#6b7280' };
+  return { label: '—', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft', color: '#6b7280' };
 }
 
 // ----------------------------------------------------------- maintenance
@@ -328,7 +328,7 @@ export const MAINTENANCE_STATUS_META: Record<MaintenanceStatus, StatusMeta> = {
 };
 
 export const MAINTENANCE_STATUS_FILTER_OPTIONS: FilterOption<MaintenanceStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' },
   { value: 'SCHEDULED', label: MAINTENANCE_STATUS_META.SCHEDULED.label, chip: MAINTENANCE_STATUS_META.SCHEDULED.chip },
   { value: 'IN_PROGRESS', label: MAINTENANCE_STATUS_META.IN_PROGRESS.label, chip: MAINTENANCE_STATUS_META.IN_PROGRESS.chip },
   { value: 'DONE', label: MAINTENANCE_STATUS_META.DONE.label, chip: MAINTENANCE_STATUS_META.DONE.chip },
@@ -345,7 +345,7 @@ export const MAINTENANCE_TYPE_META: Record<MaintenanceType, StatusMeta> = {
 };
 
 export const MAINTENANCE_TYPE_FILTER_OPTIONS: FilterOption<MaintenanceType>[] = [
-  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' },
   { value: 'PREVENTIVE', label: MAINTENANCE_TYPE_META.PREVENTIVE.label, chip: MAINTENANCE_TYPE_META.PREVENTIVE.chip },
   { value: 'CORRECTIVE', label: MAINTENANCE_TYPE_META.CORRECTIVE.label, chip: MAINTENANCE_TYPE_META.CORRECTIVE.chip },
   { value: 'INSPECTION', label: MAINTENANCE_TYPE_META.INSPECTION.label, chip: MAINTENANCE_TYPE_META.INSPECTION.chip },
@@ -380,7 +380,7 @@ export const FINANCING_STATUS_META: Record<FinancingStatus, StatusMeta> = {
 };
 
 export const FINANCING_STATUS_FILTER_OPTIONS: FilterOption<FinancingStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' },
   { value: 'ACTIVE', label: FINANCING_STATUS_META.ACTIVE.label, chip: FINANCING_STATUS_META.ACTIVE.chip },
   { value: 'PAID_OFF', label: FINANCING_STATUS_META.PAID_OFF.label, chip: FINANCING_STATUS_META.PAID_OFF.chip },
 ];
@@ -395,7 +395,7 @@ export const INSURANCE_STATUS_META: Record<InsuranceStatus, StatusMeta> = {
 };
 
 export const INSURANCE_STATUS_FILTER_OPTIONS: FilterOption<InsuranceStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-soft' },
   { value: 'ACTIVE', label: INSURANCE_STATUS_META.ACTIVE.label, chip: INSURANCE_STATUS_META.ACTIVE.chip },
   { value: 'EXPIRED', label: INSURANCE_STATUS_META.EXPIRED.label, chip: INSURANCE_STATUS_META.EXPIRED.chip },
   { value: 'SUSPENDED', label: INSURANCE_STATUS_META.SUSPENDED.label, chip: INSURANCE_STATUS_META.SUSPENDED.chip },

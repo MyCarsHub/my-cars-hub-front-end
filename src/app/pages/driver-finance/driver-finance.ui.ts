@@ -19,7 +19,7 @@ export const CARD_HEAD = 'px-4 sm:px-6 pt-5 pb-1';
 export const CARD_BODY = 'px-4 sm:px-6 pt-3 pb-4 sm:pb-6';
 export const H2 = 'm-0 text-base font-semibold text-fg-body';
 export const EYEBROW = 'text-xs font-medium uppercase tracking-wide text-fg-subtle';
-export const SKELETON = 'rounded-2xl bg-surface-strong animate-pulse';
+export const SKELETON = 'rounded-2xl bg-surface-strong dark:bg-placeholder-fill animate-pulse';
 
 const CHIP =
   'shrink-0 min-h-11 px-4 rounded-full border text-sm cursor-pointer whitespace-nowrap transition-colors ' +

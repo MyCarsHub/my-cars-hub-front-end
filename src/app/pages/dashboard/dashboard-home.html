@@ -467,7 +467,7 @@
                         (selected)="setOffenderMode($event)"
                     />
                     @if (loading() && !summary()) {
-                        <div class="h-14 rounded bg-surface-sunken animate-pulse"></div>
+                        <div class="h-14 rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
                     } @else if (offenderRows().length === 0) {
                         <p class="text-sm text-fg-subtle py-4">Sem multas no período.</p>
                     } @else {

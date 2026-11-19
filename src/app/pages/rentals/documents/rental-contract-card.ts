@@ -123,7 +123,7 @@ function isPdfBytes(head: Uint8Array): boolean {
           }
         }
         @if (loading()) {
-          <div class="h-16 rounded-xl bg-surface-sunken motion-safe:animate-pulse"></div>
+          <div class="h-16 rounded-xl bg-surface-sunken dark:bg-placeholder-fill motion-safe:animate-pulse"></div>
         } @else if (contract(); as c) {
           <div
             data-testid="contract-file-row"
@@ -173,7 +173,7 @@ function isPdfBytes(head: Uint8Array): boolean {
               </button>
               @if (canReplaceFile()) {
                 <button type="button" (click)="askDelete()"
-                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl press hover:bg-surface-strong text-fg-subtle hover:text-rose-700 dark:hover:text-rose-300 text-sm font-medium transition-colors min-h-[44px]"
+                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl press hover:bg-surface-strong dark:hover:bg-transparent text-fg-subtle hover:text-rose-700 dark:hover:text-rose-300 text-sm font-medium transition-colors min-h-[44px]"
                 >
                   Remover
                 </button>
@@ -202,7 +202,7 @@ function isPdfBytes(head: Uint8Array): boolean {
               }
               @if (canMarkSigned()) {
                 <button type="button" (click)="askMarkSigned()" [disabled]="markingSigned()"
-                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl press bg-surface-sunken hover:bg-surface-strong text-fg-body text-sm font-semibold transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl press bg-surface-sunken hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong text-fg-body text-sm font-semibold transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -327,7 +327,7 @@ function isPdfBytes(head: Uint8Array): boolean {
                 <p class="m-0 min-w-0 flex-1 truncate text-base font-semibold text-fg">{{ roleOf(i) }}</p>
                 @if (signers().length > 1) {
                   <button type="button" (click)="removeSigner(i)"
-                    class="press -mr-2 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-fg-subtle hover:bg-surface-strong hover:text-rose-600 dark:hover:text-rose-300"
+                    class="press -mr-2 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-fg-subtle hover:bg-surface-strong dark:hover:bg-transparent hover:text-rose-600 dark:hover:text-rose-300"
                     aria-label="Remover signatário">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                       fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

@@ -39,7 +39,7 @@
       </div>
 
       @if (loading()) {
-        <div class="mt-1 h-4 w-56 max-w-full rounded bg-surface-sunken animate-pulse" aria-hidden="true"></div>
+        <div class="mt-1 h-4 w-56 max-w-full rounded bg-surface-sunken dark:bg-placeholder-fill animate-pulse" aria-hidden="true"></div>
         <p class="sr-only" role="status">Carregando o agendamento automático…</p>
       } @else if (loadFailed()) {
         <p data-schedule-load-error class="text-sm text-fg-muted leading-relaxed" role="alert">

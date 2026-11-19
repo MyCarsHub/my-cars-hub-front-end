@@ -74,7 +74,7 @@ const num = (n: number | null | undefined, kind: 'integer' | 'decimal' = 'intege
           <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" [attr.data-role-card]="card.role">
             <p class="-mt-3 text-xs text-fg-subtle">{{ card.subtitle }}</p>
             @if (loading() && !usage()) {
-              <div class="h-24 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-24 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
             } @else {
               <p class="flex items-baseline gap-2 min-w-0">
                 <b class="text-3xl font-semibold tracking-tight text-fg tabular-nums">{{ card.big }}</b>
@@ -85,7 +85,7 @@ const num = (n: number | null | undefined, kind: 'integer' | 'decimal' = 'intege
                   <span>Acessaram nos últimos 7 dias</span>
                   <b class="text-fg tabular-nums">{{ card.seenText }}</b>
                 </p>
-                <div class="h-2 rounded-full bg-surface-sunken overflow-hidden" aria-hidden="true">
+                <div class="h-2 rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden" aria-hidden="true">
                   <div
                     class="h-full rounded-full bg-success-500 transition-[width] duration-500 motion-reduce:transition-none"
                     [style.width.%]="(card.ratio ?? 0) * 100"
@@ -108,7 +108,7 @@ const num = (n: number | null | undefined, kind: 'integer' | 'decimal' = 'intege
                     class="press flex items-center gap-2 min-h-11 text-xs rounded-xl px-1 -mx-1 hover:bg-surface-muted
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                   >
-                    <span class="size-6 shrink-0 grid place-items-center rounded-full bg-surface-sunken text-[10px] font-bold text-fg-body">{{ i + 1 }}</span>
+                    <span class="size-6 shrink-0 grid place-items-center rounded-full bg-surface-sunken dark:bg-surface-strong text-[10px] font-bold text-fg-body">{{ i + 1 }}</span>
                     <span class="flex-1 min-w-0 truncate text-fg">{{ p.name }}</span>
                     <b class="shrink-0 text-fg tabular-nums">{{ p.value }}</b>
                   </a>
@@ -212,7 +212,7 @@ export class HomeRoles {
       <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-home-activity>
         <p class="-mt-3 text-xs text-fg-subtle">{{ subtitle() }}</p>
         @if (loading() && !usage()) {
-          <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          <div class="h-40 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
         } @else if (empty()) {
           <p data-empty class="text-sm text-fg-subtle text-center py-10">{{ emptyText() }}</p>
         } @else {
@@ -284,7 +284,7 @@ export class HomeActivityMap {
           {{ byAccess() ? 'Horas com acesso no período' : 'Ações registradas no período (acessos contam desde a captura)' }}
         </p>
         @if (loading() && !usage()) {
-          <div class="h-32 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          <div class="h-32 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
         } @else {
           <ol class="flex flex-col gap-1.5">
             @for (p of people(); track p.userId) {
@@ -336,13 +336,13 @@ export class HomeTopUsers {
       <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-home-ufs>
         <p class="-mt-3 text-xs text-fg-subtle">Empresas por estado cadastrado</p>
         @if (loading() && !usage()) {
-          <div class="h-32 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+          <div class="h-32 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
         } @else {
           <ul class="flex flex-col gap-2" aria-label="Empresas por estado">
             @for (row of rows(); track row.uf) {
               <li data-uf-row class="flex items-center gap-2 text-xs min-w-0">
                 <b class="w-12 shrink-0 text-fg">{{ row.uf }}</b>
-                <span class="flex-1 h-2 rounded-full bg-surface-sunken overflow-hidden" aria-hidden="true">
+                <span class="flex-1 h-2 rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden" aria-hidden="true">
                   <span
                     class="block h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none"
                     [class.bg-success-500]="!row.missing"

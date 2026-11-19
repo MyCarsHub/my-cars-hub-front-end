@@ -140,7 +140,7 @@
         @if (loading() && items().length === 0) {
           <div class="space-y-3" role="status" aria-label="Carregando financiamentos">
             @for (i of [1, 2]; track i) {
-              <div class="h-[148px] lg:h-14 rounded-2xl lg:rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-[148px] lg:h-14 rounded-2xl lg:rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
             }
           </div>
         }

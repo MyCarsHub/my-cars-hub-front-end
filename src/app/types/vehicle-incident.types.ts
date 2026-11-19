@@ -251,7 +251,7 @@ export const INCIDENT_RESOLUTION_META: Record<IncidentResolutionStatus, Incident
 export const INCIDENT_INSURANCE_META: Record<IncidentInsuranceStatus, IncidentStatusMeta> = {
   NOT_FILED: {
     label: 'Não acionado',
-    chip: 'bg-surface-sunken text-fg-body border-edge-strong',
+    chip: 'bg-surface-sunken dark:bg-surface-strong text-fg-body border-edge-strong',
     icon: '—',
     terminal: false,
   },

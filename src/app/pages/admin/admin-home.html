@@ -125,7 +125,7 @@
         <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-mrr-chart>
           <p class="-mt-3 text-xs text-fg-subtle">Receita recorrente: real e estimada pelo preço de tabela</p>
           @if (pending()) {
-            <div class="h-48 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-48 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
           } @else {
             <app-growth-chart
               [series]="mrrChart()"
@@ -149,7 +149,7 @@
         <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-subs-chart>
           <p class="-mt-3 text-xs text-fg-subtle">Quantas locadoras pagam</p>
           @if (pending()) {
-            <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-40 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
           } @else {
             <app-growth-chart
               [series]="subsChart()"
@@ -180,7 +180,7 @@
         <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-profit-chart>
           <p class="-mt-3 text-xs text-fg-subtle">O que entra, o que sai e o que sobra, mês a mês</p>
           @if (pending()) {
-            <div class="h-48 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-48 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
           } @else {
             <app-bar-chart
               [series]="profitSeries()"
@@ -202,7 +202,7 @@
       @if (pending() || vendorSlices().length) {
         @if (pending()) {
           <app-page-card title="Custos por fornecedor" [fill]="true">
-            <div class="px-4 sm:px-6 pb-5"><div class="h-40 rounded-xl bg-surface-sunken animate-pulse"></div></div>
+            <div class="px-4 sm:px-6 pb-5"><div class="h-40 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div></div>
           </app-page-card>
         } @else {
           <app-ring-legend-card
@@ -232,7 +232,7 @@
             Cada cor é um fornecedor{{ vendorNames() ? ': ' + vendorNames() : '' }}
           </p>
           @if (pending()) {
-            <div class="h-48 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-48 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
           } @else {
             <app-stacked-bar-chart
               [rows]="costRows()"
@@ -250,7 +250,7 @@
         <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-managed-chart>
           <p class="-mt-3 text-xs text-fg-subtle">Quanto dinheiro de aluguel passa pela plataforma: esperado e recebido</p>
           @if (pending()) {
-            <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-40 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
           } @else {
             <app-growth-chart
               [series]="managedChart()"
@@ -277,7 +277,7 @@
         <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-growth-chart>
           <p class="-mt-3 text-xs text-fg-subtle">Usuários, empresas e veículos criados em cada intervalo do período</p>
           @if (pending()) {
-            <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-40 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
           } @else {
             <app-growth-chart
               [series]="growthChart()"
@@ -295,7 +295,7 @@
         <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 min-w-0 flex-1" data-funnel>
           <p class="-mt-3 text-xs text-fg-subtle">Do cadastro ao cliente pagante{{ funnel() ? ', de ' + funnel()!.cohort : '' }}</p>
           @if (pending() || !funnel()) {
-            <div class="h-40 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+            <div class="h-40 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
           } @else {
             @if (funnel(); as f) {
               <ol class="flex flex-col gap-2.5">
@@ -305,7 +305,7 @@
                       <span class="text-fg-body">{{ s.label }}</span>
                       <b class="text-fg tabular-nums">{{ s.n }}</b>
                     </span>
-                    <span class="h-2.5 rounded-full bg-surface-sunken overflow-hidden" aria-hidden="true">
+                    <span class="h-2.5 rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden" aria-hidden="true">
                       <span
                         class="block h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none"
                         [class]="s.fill"

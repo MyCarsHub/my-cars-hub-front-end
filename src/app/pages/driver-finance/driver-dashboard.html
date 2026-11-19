@@ -221,7 +221,7 @@
                 </span>
                 <span class="text-xs text-fg-subtle text-right">de {{ period().split.gross }} ganhos</span>
               </div>
-              <div role="img" [attr.aria-label]="period().split.aria" class="flex h-3.5 rounded-full overflow-hidden bg-surface-sunken">
+              <div role="img" [attr.aria-label]="period().split.aria" class="flex h-3.5 rounded-full overflow-hidden bg-surface-sunken dark:bg-placeholder-fill">
                 @for (r of period().split.rows; track r.key) {
                   <div [style.width.%]="r.width"
                     [class]="r.key === 'net' ? 'bg-emerald-600' : r.key === 'exp' ? 'bg-red-500' : 'bg-amber-500'"></div>
@@ -277,7 +277,7 @@
                     <span>{{ d.label }}</span>
                     <span class="font-semibold text-fg tabular-nums">{{ d.value }}</span>
                   </div>
-                  <div class="h-2.5 rounded-full bg-surface-sunken overflow-hidden" aria-hidden="true">
+                  <div class="h-2.5 rounded-full bg-surface-sunken dark:bg-placeholder-fill overflow-hidden" aria-hidden="true">
                     <div class="h-full rounded-full" [style.width.%]="d.width"
                       [class]="d.app === 'UBER' ? 'bg-neutral-900 dark:bg-neutral-700' : d.app === '99' ? 'bg-primary-500' : d.app === 'INDRIVE' ? 'bg-emerald-600' : 'bg-neutral-400 dark:bg-neutral-500'"></div>
                   </div>

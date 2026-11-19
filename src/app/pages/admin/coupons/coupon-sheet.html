@@ -400,7 +400,7 @@
               }
             </app-painted-card>
           } @else if (previewLoading()) {
-            <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none" data-testid="coupon-preview-loading"></div>
+            <div class="h-40 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none" data-testid="coupon-preview-loading"></div>
           } @else if (previewError(); as err) {
             <div class="flex flex-col gap-2" data-testid="coupon-preview-error">
               <app-alert-banner variant="error" [message]="err" />
@@ -457,7 +457,7 @@
       <button
         type="button"
         class="press w-full min-h-12 rounded-xl bg-surface-sunken px-4 text-base font-semibold text-fg-soft
-               hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+               hover:bg-surface-strong dark:hover:bg-transparent dark:hover:text-fg-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
         data-testid="coupon-finish"
         (click)="finish()"
       >

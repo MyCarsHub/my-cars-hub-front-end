@@ -75,7 +75,7 @@ export function cashflowKindMeta(kind: string): KindMeta {
         CASHFLOW_KIND_META[kind as CashflowKind] ?? {
             label: kind,
             color: 'text-gray-700 dark:text-fg-soft',
-            chip: 'bg-gray-100 text-gray-600 dark:bg-surface-sunken dark:text-fg-muted',
+            chip: 'bg-gray-100 text-gray-600 dark:bg-surface-strong dark:text-fg-muted',
             icon: 'rental',
         }
     );

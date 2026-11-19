@@ -36,7 +36,7 @@ export const FAILED_NOTICES_COLLAPSED = 3;
         </h2>
         <ul class="mt-2 space-y-3">
           @for (n of visible(); track n.chargeId) {
-            <li class="rounded-lg bg-white/70 dark:bg-white/5 p-3" data-failed-charge-notice>
+            <li class="rounded-lg bg-white/70 dark:bg-transparent p-3" data-failed-charge-notice>
               @if (isAdjustment(n)) {
                 <span
                   data-notice-kind

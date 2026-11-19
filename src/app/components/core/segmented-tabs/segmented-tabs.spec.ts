@@ -72,6 +72,16 @@ describe('SegmentedTabs', () => {
     expect(thumb().className).toContain('motion-reduce:transition-none');
   });
 
+  it('no escuro não pinta cinza: trilho e polegar transparentes, seleção pelo texto', () => {
+    const { root, tabs, thumb } = render();
+    const track = root.querySelector<HTMLElement>('[role="tablist"]')!;
+    expect(track.className).toContain('dark:bg-transparent');
+    expect(thumb().className).toContain('dark:bg-transparent');
+    expect(thumb().className).not.toContain('surface-strong');
+    expect(tabs()[0].className).not.toContain('dark:text-fg-faint');
+    expect(tabs()[1].className).toContain('dark:text-fg-faint');
+  });
+
   it('mostra a contagem com rótulo acessível, e zero não mostra nada', () => {
     const { fixture, root } = render();
     const badge = () => root.querySelector('app-count-badge');

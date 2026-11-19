@@ -374,7 +374,7 @@ export class InsurancesList implements OnInit {
 
   protected statusInfo(s: InsuranceStatus): { label: string; chip: string } {
     const o = STATUS_OPTIONS.find((x) => x.value === s);
-    return o ? { label: o.label, chip: o.chip } : { label: s, chip: 'bg-surface-sunken' };
+    return o ? { label: o.label, chip: o.chip } : { label: s, chip: 'bg-surface-sunken dark:bg-surface-strong' };
   }
 
   protected coverageLabel(c: InsuranceCoverage): string {
