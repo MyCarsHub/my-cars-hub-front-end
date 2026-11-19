@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BarChart, barPct, zeroSplit, type BarSeries } from './bar-chart';
+import { BarChart, barPct, placeBarValues, zeroSplit, type BarSeries, type BarValueColumn } from './bar-chart';
 
 
 /** Tooltip as text: "title | series value | ..." (the template has no spaces between nodes). */
@@ -262,5 +262,103 @@ describe('BarChart day columns (y axis, thinned labels, density)', () => {
     const values = [...el.querySelectorAll('[data-bar-value]')].map((v) => v.textContent!.replace(/\s+/g, ' ').trim());
     expect(values).toEqual(['R$ 100', 'R$ 300']);
     expect(el.querySelector('tbody')!.textContent).toContain('R$ 0,00');
+  });
+});
+
+/*
+ * "Recebido por dia" (owner, 19/11, admin home at 1280px, "Mês atual" = 19 days, card ~350px):
+ * the coupon chart printed its two numbers, the received chart printed none. Five paid days with
+ * two of them two days apart failed the one spacing rule for the whole chart, though their
+ * numbers sit at different heights and never touch.
+ */
+describe('BarChart numbers on sparse day columns (measured width)', () => {
+  const days = (n: number) => Array.from({ length: n }, (_, i) => `${String(i + 1).padStart(2, '0')}/11`);
+  /** The chart host inside a ~350px card (p-4 each side). */
+  const HOST_PX = 318;
+
+  class FakeResizeObserver {
+    constructor(private readonly cb: (entries: { contentRect: { width: number } }[]) => void) {}
+    observe(): void {
+      this.cb([{ contentRect: { width: HOST_PX } }]);
+    }
+    disconnect(): void {}
+    unobserve(): void {}
+  }
+
+  beforeEach(() => vi.stubGlobal('ResizeObserver', FakeResizeObserver));
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function setup(values: number[]) {
+    const fixture = TestBed.createComponent(BarChart);
+    fixture.componentRef.setInput('series', [{ key: 'r', label: 'Recebido', color: '#0a9b62', values }]);
+    fixture.componentRef.setInput('labels', days(values.length));
+    fixture.componentRef.setInput('valueFormat', 'brl-cents');
+    fixture.componentRef.setInput('legend', false);
+    fixture.componentRef.setInput('yAxis', true);
+    fixture.componentRef.setInput('axisFloor', 100_00);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    return [...el.querySelectorAll('[data-bar-value]')].map((v) => v.textContent!.replace(/\s+/g, ' ').trim());
+  }
+
+  const at = (entries: [number, number][]) => {
+    const values = days(19).map(() => 0);
+    for (const [i, v] of entries) values[i] = v;
+    return values;
+  };
+
+  it('the received month of the report: five paid days, two of them two days apart, all print', async () => {
+    const printed = await setup(at([[2, 159_80], [5, 79_90], [7, 99_80], [11, 79_90], [13, 149_80]]));
+    expect(printed).toEqual(['R$ 160', 'R$ 80', 'R$ 100', 'R$ 80', 'R$ 150']);
+  });
+
+  it('the coupon month (two days far apart) still prints both', async () => {
+    expect(await setup(at([[4, 50_00], [12, 150_00]]))).toEqual(['R$ 50', 'R$ 150']);
+  });
+
+  it('two neighbouring days at the same height cannot both print: the first keeps its number', async () => {
+    expect(await setup(at([[4, 100_00], [5, 100_00], [12, 150_00]]))).toEqual(['R$ 100', 'R$ 150']);
+  });
+
+  it('a short column beside a tall one loses its number (it would sit on the tall column)', async () => {
+    expect(await setup(at([[4, 50_00], [5, 150_00], [12, 100_00]]))).toEqual(['R$ 150', 'R$ 100']);
+  });
+
+  it('a loss keeps the one spacing rule (all or none)', async () => {
+    expect(await setup(at([[2, 159_80], [4, -79_90], [13, 149_80]]))).toEqual([]);
+  });
+});
+
+describe('placeBarValues (pure)', () => {
+  const col = (pct: number | null, short = 'R$ 100'): BarValueColumn => ({ pct, negative: false, zero: pct === 0, short });
+  /** 19 one-column groups over 270px: 14.2px a day, "R$ 100" is ~34px wide. */
+  const month = (entries: [number, number][]) => {
+    const groups = Array.from({ length: 19 }, () => [col(0)]);
+    for (const [i, pct] of entries) groups[i] = [col(pct)];
+    return groups;
+  };
+  const printed = (shown: boolean[][]) => shown.flatMap((g, i) => (g.some(Boolean) ? [i] : []));
+
+  it('numbers two days apart at different heights both print; at the same height only the first', () => {
+    expect(printed(placeBarValues(month([[4, 90], [6, 40]]), 270, 138))).toEqual([4, 6]);
+    expect(printed(placeBarValues(month([[4, 60], [6, 60]]), 270, 138))).toEqual([4]);
+  });
+
+  it('a number never hangs past a side further than allowed', () => {
+    const edges = month([[0, 50], [18, 80]]);
+    expect(printed(placeBarValues(edges, 270, 138))).toEqual([]);
+    expect(printed(placeBarValues(edges, 270, 138, { left: 12, right: 12 }))).toEqual([0, 18]);
+  });
+
+  it('zero, missing and negative columns carry no number', () => {
+    const shown = placeBarValues([[col(0), col(null), { ...col(50), negative: true }, col(50)]], 400, 138);
+    expect(shown).toEqual([[false, false, false, true]]);
+  });
+
+  it('unmeasured or empty: nothing', () => {
+    expect(placeBarValues([], 270, 138)).toEqual([]);
+    expect(placeBarValues([[col(50)]], 0, 138)).toEqual([[false]]);
   });
 });

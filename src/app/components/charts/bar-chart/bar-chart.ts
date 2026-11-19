@@ -3,6 +3,7 @@ import { formatBRL } from '../../../types/dashboard.types';
 import { formatKpiNumber, type KpiNumberFormat } from '../../kpi-card/kpi-card';
 import {
   ChartTooltip,
+  LABEL_CHAR_PX,
   axisLabelIndices,
   axisLabelStep,
   barLabelFormat,
@@ -91,6 +92,83 @@ export function zeroSplit(series: readonly BarSeries[]): { top: number; bottom: 
     const span = top + bottom;
     const up = span > 0 ? (top / span) * 100 : 100;
     return { top, bottom, up, down: 100 - up };
+}
+
+/** Height of the x label row under the columns: the group's `gap-1.5` + the `h-5` label, px. */
+const X_ROW_PX = 26;
+/** Room kept above the tallest column for its number (`sm:pt-4`), px. */
+const LABEL_ROOM_PX = 16;
+/** A number on a column: `text-[10px] leading-none`, lifted by its `mb-0.5`, px. */
+const VALUE_HEIGHT_PX = 10;
+const VALUE_LIFT_PX = 2;
+/** Least air between two numbers side by side / one above the other, px. */
+const VALUE_AIR_X_PX = 4;
+const VALUE_AIR_Y_PX = 2;
+/**
+ * How far a number may hang past the plot's side, px: on the left up to the y axis ticks (a
+ * `gap-2` away, less the air), elsewhere into the card's `p-4` padding.
+ */
+const VALUE_EDGE_BY_AXIS_PX = 6;
+const VALUE_EDGE_BY_CARD_PX = 12;
+
+/** What {@link placeBarValues} reads of a column. */
+export interface BarValueColumn {
+    /** Height in % of the band; null = not measured. */
+    readonly pct: number | null;
+    readonly negative: boolean;
+    readonly zero: boolean;
+    /** The number printed on it. */
+    readonly short: string;
+}
+
+/**
+ * Pure: which positive columns may carry their number, placed one by one (tallest first, then
+ * left to right) where it touches no number already placed and sits on no other column. A number
+ * is a box `short.length * LABEL_CHAR_PX` wide centred on its column, just above the column's top;
+ * two numbers side by side are fine when their heights differ by more than a line. `plotPx` is the
+ * width of the columns, `bandPx` the height the tallest one can reach, `edge` how far a number may
+ * hang past each side. Negative, zero and missing columns never carry one (their bars still count
+ * as obstacles).
+ */
+export function placeBarValues(
+    groups: readonly (readonly BarValueColumn[])[],
+    plotPx: number,
+    bandPx: number,
+    edge: { readonly left: number; readonly right: number } = { left: 0, right: 0 },
+): boolean[][] {
+    const shown = groups.map((g) => g.map(() => false));
+    if (!groups.length || !(plotPx > 0) || !(bandPx > 0)) return shown;
+    const groupPx = plotPx / groups.length;
+    const top = (c: BarValueColumn) => (c.pct === null || c.negative || c.zero ? 0 : (c.pct / 100) * bandPx);
+    const cells = groups.flatMap((g, gi) =>
+        g.map((c, ci) => {
+            const left = gi * groupPx + (ci * groupPx) / g.length;
+            const right = left + groupPx / g.length;
+            return { gi, ci, c, left, right, centre: (left + right) / 2, top: top(c) };
+        }),
+    );
+    const candidates = cells
+        .filter((x) => x.c.pct !== null && !x.c.negative && !x.c.zero)
+        .sort((a, b) => b.top - a.top || a.left - b.left);
+    const placed: { centre: number; half: number; bottom: number }[] = [];
+    for (const x of candidates) {
+        const half = (x.c.short.length * LABEL_CHAR_PX) / 2;
+        const bottom = x.top + VALUE_LIFT_PX;
+        const from = x.centre - half;
+        const to = x.centre + half;
+        if (from < -edge.left || to > plotPx + edge.right) continue;
+        const onAColumn = cells.some((o) => o !== x && o.left < to && o.right > from && o.top > bottom - VALUE_AIR_Y_PX);
+        if (onAColumn) continue;
+        const touches = placed.some(
+            (p) =>
+                Math.abs(p.centre - x.centre) < p.half + half + VALUE_AIR_X_PX &&
+                Math.abs(p.bottom - bottom) < VALUE_HEIGHT_PX + VALUE_AIR_Y_PX,
+        );
+        if (touches) continue;
+        placed.push({ centre: x.centre, half, bottom });
+        shown[x.gi][x.ci] = true;
+    }
+    return shown;
 }
 
 interface RenderedBar {
@@ -207,7 +285,7 @@ interface RenderedBar {
                             <div class="w-full flex-1 min-h-0 flex flex-col">
                                 <!-- sm:pt-4 keeps room above the tallest column for its number -->
                                 <div class="w-full flex items-end gap-0.5" [class.sm:pt-4]="showLabels()" [style.height.%]="split().up">
-                                    @for (c of g.columns; track c.key) {
+                                    @for (c of g.columns; track c.key; let ci = $index) {
                                         <div class="relative flex-1 min-w-0 h-full flex flex-col justify-end">
                                             <span
                                                 data-bar-column
@@ -216,7 +294,7 @@ interface RenderedBar {
                                                 [style.height.%]="c.negative || c.pct === null ? 0 : c.pct"
                                                 [style.background-color]="c.color"
                                             ></span>
-                                            @if (showLabels() && !c.negative && !c.zero && c.pct !== null) {
+                                            @if (labelShown()[gi][ci] && !c.negative && !c.zero && c.pct !== null) {
                                                 <span
                                                     data-bar-value
                                                     class="label-in absolute left-1/2 -translate-x-1/2 mb-0.5 hidden sm:block text-[10px] leading-none text-fg-muted tabular-nums whitespace-nowrap"
@@ -232,7 +310,7 @@ interface RenderedBar {
                                 </div>
                                 @if (split().down > 0) {
                                     <div class="w-full flex items-start gap-0.5" [class.sm:pb-4]="showLabels()" [style.height.%]="split().down">
-                                        @for (c of g.columns; track c.key) {
+                                        @for (c of g.columns; track c.key; let ci = $index) {
                                             <div class="relative flex-1 min-w-0 h-full flex flex-col justify-start">
                                                 <span
                                                     data-bar-negative
@@ -242,7 +320,7 @@ interface RenderedBar {
                                                     [style.height.%]="c.negative && c.pct !== null ? c.pct : 0"
                                                     [style.background-color]="c.color"
                                                 ></span>
-                                                @if (showLabels() && c.negative && c.pct !== null) {
+                                                @if (labelShown()[gi][ci] && c.negative && c.pct !== null) {
                                                     <span
                                                         data-bar-value
                                                         class="label-in absolute left-1/2 -translate-x-1/2 mt-0.5 hidden sm:block text-[10px] leading-none text-fg-muted tabular-nums whitespace-nowrap"
@@ -459,10 +537,10 @@ export class BarChart {
     });
 
     /**
-     * Numbers on the columns (sm and up) only when every printed one has room. A zero column prints
-     * nothing, so a sparse month of days (most of them empty) still gets its numbers.
+     * Every number on the columns has room by spacing alone. A zero column prints nothing, so a
+     * sparse month of days (most of them empty) still gets its numbers.
      */
-    protected readonly showLabels = computed(() => {
+    private readonly allLabelsFit = computed(() => {
         const columns = this.groups().flatMap((g) => g.columns);
         const positions: number[] = [];
         columns.forEach((c, i) => {
@@ -471,6 +549,28 @@ export class BarChart {
         const maxChars = Math.max(0, ...columns.map((c) => (c.zero ? 0 : c.short.length)));
         return sparseLabelsFit(positions, columns.length, maxChars, this.plotWidth());
     });
+
+    /**
+     * Which columns carry their number (sm and up), per group then column. All of them when they
+     * fit by spacing; otherwise, once measured and with no loss below zero, each number that
+     * touches no other and sits on no column ({@link placeBarValues}). Two numbers never overlap.
+     */
+    protected readonly labelShown = computed<boolean[][]>(() => {
+        const groups = this.groups();
+        const all = (on: boolean) => groups.map((g) => g.columns.map(() => on));
+        if (this.allLabelsFit()) return all(true);
+        const plot = this.plotWidth();
+        if (plot === null || this.split().down > 0) return all(false);
+        return placeBarValues(
+            groups.map((g) => g.columns),
+            plot,
+            this.heightPx() - X_ROW_PX - LABEL_ROOM_PX,
+            { left: this.showYAxis() ? VALUE_EDGE_BY_AXIS_PX : VALUE_EDGE_BY_CARD_PX, right: VALUE_EDGE_BY_CARD_PX },
+        );
+    });
+
+    /** Any number printed: the plot keeps the room above its tallest column for it. */
+    protected readonly showLabels = computed(() => this.labelShown().some((g) => g.some(Boolean)));
 
     /** Widest x label as drawn (the bold active one left out, so reading a column never re-thins). */
     private readonly labelPx = injectLabelWidth('[data-x-label]:not(.font-semibold)', () => this.groups());
