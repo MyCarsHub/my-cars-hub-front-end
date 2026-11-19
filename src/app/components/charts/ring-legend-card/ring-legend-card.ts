@@ -14,6 +14,15 @@ interface LegendRow extends RingSlice {
   readonly pct: number;
 }
 
+/**
+ * Ring body classes. Mobile-first: stacked (ring on top, legend below in full-width rows) by
+ * default; ring beside the legend only from the container size in the `@[...]` variant, measured
+ * on the card's content box. That size is picked so a full-width phone card keeps the row while a
+ * card in a three-column desktop grid stacks instead of squeezing the legend to one letter a line.
+ */
+const RING_BODY = 'flex flex-1 min-w-0 flex-col items-center gap-4 @[19rem]:flex-row @[19rem]:gap-5';
+const BAR_BODY = 'flex flex-1 min-w-0 flex-col gap-4';
+
 /** Gap between slices, in degrees, so neighbours do not touch. */
 const GAP_DEG = 3;
 
@@ -52,14 +61,10 @@ export function ringGradient(slices: readonly RingSlice[], gap: string): string 
       @if (subtitle()) {
         <p data-subtitle class="px-4 sm:px-6 -mt-1 pb-3 text-xs text-fg-muted">{{ subtitle() }}</p>
       }
-      <div
-        class="px-4 sm:px-6 pb-5 flex min-w-0 flex-1"
-        [class.flex-row]="layout() === 'ring'"
-        [class.items-center]="layout() === 'ring'"
-        [class.gap-5]="layout() === 'ring'"
-        [class.flex-col]="layout() === 'bar'"
-        [class.gap-4]="layout() === 'bar'"
-      >
+      <!-- @container: the card decides by its OWN content width, never the viewport (three of
+           these side by side on the admin home are far narrower than the screen). See RING_BODY. -->
+      <div class="@container px-4 sm:px-6 pb-5 flex min-w-0 flex-1 flex-col">
+      <div data-ring-body [class]="bodyClass()">
         @if (layout() === 'ring') {
           <div
             data-ring
@@ -94,13 +99,15 @@ export function ringGradient(slices: readonly RingSlice[], gap: string): string 
         <ul class="w-full min-w-0 space-y-1.5 sm:space-y-2.5" aria-label="Legenda">
           @for (row of rows(); track row.label) {
             <li data-legend-row class="flex items-center justify-between gap-3 text-sm min-w-0">
-              <span class="inline-flex items-center gap-2 min-w-0 text-fg-body">
+              <span class="flex flex-1 items-center gap-2 min-w-0 text-fg-body">
                 <span
                   class="size-3 rounded-[4px] shrink-0"
                   aria-hidden="true"
                   [style.background-color]="row.color"
                 ></span>
-                <span class="min-w-0 break-words">{{ row.label }}</span>
+                <span data-legend-label class="min-w-0 truncate" [attr.title]="row.label">{{
+                  row.label
+                }}</span>
               </span>
               <span class="shrink-0 tabular-nums text-fg inline-flex items-baseline gap-3">
                 <span class="text-xs text-fg-muted">{{ row.pct }}%</span>
@@ -111,6 +118,7 @@ export function ringGradient(slices: readonly RingSlice[], gap: string): string 
             <li class="text-sm text-fg-subtle text-center py-4">Sem dados no período.</li>
           }
         </ul>
+      </div>
       </div>
     </app-page-card>
   `,
@@ -134,6 +142,7 @@ export class RingLegendCard {
     this.slices().reduce((t, s) => t + Math.max(0, s.value), 0),
   );
 
+  protected readonly bodyClass = computed(() => (this.layout() === 'ring' ? RING_BODY : BAR_BODY));
   protected readonly totalText = computed(() => formatKpiNumber(this.valueFormat(), this.total()));
   protected readonly gradient = computed(() => ringGradient(this.slices(), this.gapColor()));
   protected readonly rows = computed<LegendRow[]>(() => {
