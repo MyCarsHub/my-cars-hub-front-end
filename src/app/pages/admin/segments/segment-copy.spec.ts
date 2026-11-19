@@ -171,7 +171,8 @@ describe('segment-copy', () => {
     });
     const action = activityLine({ at: '2026-11-05T18:41:00Z', category: 'ACTION', kind: 'CHARGE_CANCELED', count: 4, contact: null, subscription: null });
     expect(action.text).toBe('Cancelou cobrança (4 vezes)');
-    expect(action.chip.label).toBe('Ação real');
+    // Ação real é a maioria das linhas: a frase basta, sem chip repetido em cada uma.
+    expect(action.chip).toBeNull();
     const sub = activityLine({
       at: '2026-10-29T12:00:00Z',
       category: 'SUBSCRIPTION',

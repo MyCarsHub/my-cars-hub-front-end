@@ -420,10 +420,14 @@ export interface ActivityLine {
   day: string;
   text: string;
   note: string | null;
-  chip: ChipStyle;
+  /**
+   * Chip da categoria só quando ele diferencia (Contato, Assinatura, Acesso, Cadastro). Ação real
+   * é a maioria das linhas e a frase já diz o que foi feito: sem chip (dono, 19/11).
+   */
+  chip: ChipStyle | null;
 }
 
-/** Uma linha da linha do tempo: data (dia de Brasília), frase e o chip da categoria. */
+/** Uma linha da linha do tempo: data (dia de Brasília), frase e, quando diferencia, o chip da categoria. */
 export function activityLine(item: ActivityItem, now: Date = new Date()): ActivityLine {
   const day = dayMonth(businessDay(item.at), now);
   switch (item.category) {
@@ -459,7 +463,7 @@ export function activityLine(item: ActivityItem, now: Date = new Date()): Activi
       return { day, text: 'Criou a empresa e começou o teste', note: null, chip: { label: 'Cadastro', tone: 'neutral' } };
     default: {
       const times = item.count > 1 ? ` (${item.count} vezes)` : '';
-      return { day, text: `${actionLabel(item.kind)}${times}`, note: null, chip: { label: 'Ação real', tone: 'green' } };
+      return { day, text: `${actionLabel(item.kind)}${times}`, note: null, chip: null };
     }
   }
 }

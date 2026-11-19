@@ -12,6 +12,9 @@ import type { PlatformCostMonth } from '../../../types/admin-finance.types';
 import { AdminFinanceService } from '../finance/admin-finance.service';
 import { AdminHomeService } from '../home/admin-home.service';
 import { HOME } from '../home/admin-home.testing';
+import { ADMIN_HOME_DEFAULT_SCOPE, mrrRealCaption } from '../home/admin-home.view';
+import { rangeForPreset } from '../../../components/date-range-picker/date-range-picker';
+import type { AdminHomeRange } from '../../../types/admin-home.types';
 import { AdminCosts } from './admin-costs';
 import { cost, schedule, vendor } from './costs.testing';
 
@@ -111,13 +114,26 @@ describe('AdminCosts — Dinheiro › Custos', () => {
     expect(homeSvc.home).toHaveBeenCalledWith({ from: '2026-11-01', to: '2026-11-18' }, 'clients');
   });
 
+  it('"MRR real" é o cartão do Painel: mesmo nome, mesmo campo e mesma legenda', () => {
+    const { q, homeSvc } = setup();
+    const [range, scope] = homeSvc.home.mock.calls[0] as unknown as [AdminHomeRange, string];
+    // O mesmo pedido que o Painel abre: a pílula "Mês atual" até hoje, só clientes.
+    expect(range).toEqual(rangeForPreset('monthCurrent', 'today'));
+    expect(scope).toBe(ADMIN_HOME_DEFAULT_SCOPE);
+    const card = flat(q('[data-kpi="mrr"]')).replace(/\s/g, ' ');
+    expect(card).toContain('MRR real');
+    expect(card).not.toContain('Receita');
+    expect(card).toContain('R$ 569,10');
+    expect(card).toContain(mrrRealCaption(HOME.kpis.mrrReal));
+  });
+
   it('o topo mostra custos e lucro do mês, e a conta que chega ao Painel', () => {
     const { q } = setup();
     expect(flat(q('[data-kpi="costs"]'))).toContain('Custos de novembro');
     expect(flat(q('[data-kpi="profit"]'))).toContain('Lucro de novembro');
     expect(flat(q('[data-kpi="fixed"]'))).toContain('2');
     const flow = flat(q('[data-costs-flow]')).replace(/\s/g, ' ');
-    expect(flow).toContain('Receita R$ 569,10');
+    expect(flow).toContain('MRR real R$ 569,10');
     expect(flow).toContain('Custos R$ 193,00');
     expect(flow).toContain('Lucro R$ 376,10');
   });

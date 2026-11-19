@@ -52,6 +52,7 @@ import { TRIAL_ENDING_CHIP_DAYS, trialEndingQueryParams } from './segments/segme
 import { COSTS_ACTION_PARAM, COSTS_ROUTE, costsShortcutParams, type CostsShortcut } from './costs/costs-link';
 import { AdminHomeService } from './home/admin-home.service';
 import {
+  ADMIN_HOME_DEFAULT_SCOPE,
   bucketLabels,
   buildHomeCsv,
   clampRange,
@@ -61,6 +62,7 @@ import {
   monthLong,
   monthShort,
   movementsWindow,
+  mrrRealCaption,
   nullText,
   percentDelta,
   shortDay,
@@ -227,7 +229,7 @@ export class AdminHome implements OnInit {
 
   /** O período da tela, já dentro do que o servidor aceita. `null` até o seletor emitir o inicial. */
   protected readonly range = signal<AdminHomeRange | null>(null);
-  protected readonly scope = signal<AdminHomeScope>('clients');
+  protected readonly scope = signal<AdminHomeScope>(ADMIN_HOME_DEFAULT_SCOPE);
   protected readonly includeInternal = computed(() => this.scope() === 'all');
   private readonly key = computed(() => {
     const r = this.range();
@@ -482,11 +484,8 @@ export class AdminHome implements OnInit {
     const k = h?.kpis;
     const startCaption = (kpi: HomeKpi | undefined) =>
       kpi?.previousAsOf ? `vs ${shortDay(kpi.previousAsOf)}` : 'vs início do período';
-    const mrrRealDetail = () => {
-      const without = k?.mrrReal.parts['withoutChargedAmount'] ?? 0;
-      if (!k || k.mrrReal.value === null) return this.kpiDetail(k?.mrrReal, null);
-      return without ? `cobrado de fato; ${without} pelo preço de tabela` : 'cobrado de fato, com cupons';
-    };
+    const mrrRealDetail = () =>
+      !k || k.mrrReal.value === null ? this.kpiDetail(k?.mrrReal, null) : mrrRealCaption(k.mrrReal);
     const vendorsWithCost = k?.costsMonth.parts['vendorsWithCost'];
     const internal = k?.companies.parts['internal'];
     return [
