@@ -2,14 +2,20 @@ import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   Directive,
+  ElementRef,
   TemplateRef,
+  afterRenderEffect,
   computed,
   contentChild,
   contentChildren,
   inject,
   input,
   output,
+  signal,
+  untracked,
+  viewChild,
 } from '@angular/core';
 import { formatKpiNumber } from '../../kpi-card/kpi-card';
 import { ActionsMenu } from '../../core/actions-menu/actions-menu';
@@ -37,6 +43,34 @@ export interface DataListColumn<T> {
   readonly primary?: boolean;
   /** Skip this column in the CSV (e.g. an actions-only or presentational column). */
   readonly noExport?: boolean;
+  /**
+   * With `fit`, the table drops this column FIRST when not every column fits, before turning
+   * into cards; a line under the table names what left. The cards and the CSV keep it.
+   */
+  readonly optional?: boolean;
+}
+
+/** What a `fit` list shows: every column, the table without its `optional` columns, or the cards. */
+export type DataListFit = 'table' | 'compact' | 'cards';
+
+/** Sub-pixel slack: widths come from layout as fractions. */
+const FIT_SLACK = 1;
+
+/**
+ * The fit rule (pure; px). `fullMin` is the narrowest the whole table can lay out, `optionalMin`
+ * the share of it the `optional` columns take (0 = none). The whole table while it fits the room;
+ * else the table without the optional columns, if that fits; else the cards. Never a scroll.
+ */
+export function fitLayout(room: number, fullMin: number, optionalMin: number): DataListFit {
+  if (fullMin <= room + FIT_SLACK) return 'table';
+  if (optionalMin > 0 && fullMin - optionalMin <= room + FIT_SLACK) return 'compact';
+  return 'cards';
+}
+
+/** "A", "A e B", "A, B e C" (the line that names the columns the table left out). */
+export function joinPt(items: readonly string[]): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`;
 }
 
 /** Below this width the rows become stacked cards; from it up they are a table. */
@@ -152,7 +186,7 @@ const PAGER_BUTTON =
       </div>
     }
 
-    <div [attr.aria-busy]="loading()" class="min-w-0">
+    <div [attr.aria-busy]="loading()" class="min-w-0" [class.relative]="fit()">
       @if (loading()) {
         <div data-loading role="status" aria-label="Carregando" class="space-y-2" [class]="area">
           @for (n of skeletons; track n) {
@@ -190,11 +224,16 @@ const PAGER_BUTTON =
           <ng-content select="[dataListEmptyAction]" />
         </div>
       } @else {
-        <!-- Table: from cardsBelow up. Scrolls inside itself, never the page. -->
+        <!-- Table: from cardsBelow up, never scrolling the page. With fit it never scrolls at all:
+             it drops its optional columns, then hands over to the cards (staying laid out, unseen,
+             to keep measuring). Without fit it scrolls inside itself as the last resort. -->
         <div
+          #tableWrap
           data-table-wrap
           class="overflow-x-auto min-w-0 sm:px-3"
-          [class]="area + ' ' + layout().table"
+          [class]="area + ' ' + tableLayout()"
+          [attr.aria-hidden]="fit() && fitMode() === 'cards' ? 'true' : null"
+          [attr.data-fit]="fit() ? fitMode() : null"
         >
           <table data-table class="w-full border-separate border-spacing-y-2 -my-2 text-sm">
             <caption class="sr-only">
@@ -206,6 +245,8 @@ const PAGER_BUTTON =
                   <th
                     scope="col"
                     class="pt-1 pb-0 text-xs font-medium text-fg-subtle"
+                    [attr.data-optional]="col.optional ? '' : null"
+                    [class.hidden]="dropped(col)"
                     [class.px-4]="!dense()"
                     [class.px-3]="dense()"
                     [class.text-left]="!col.end"
@@ -233,6 +274,7 @@ const PAGER_BUTTON =
                     <td
                       class="text-fg-body align-middle"
                       [class]="cellClass()"
+                      [class.hidden]="dropped(c.column)"
                       [class.px-4]="!dense()"
                       [class.py-3]="!dense()"
                       [class.px-3]="dense()"
@@ -264,12 +306,16 @@ const PAGER_BUTTON =
             </tbody>
           </table>
         </div>
+        @if (droppedNote(); as note) {
+          <!-- Nothing leaves in silence: the table names the columns it left out at this width. -->
+          <p data-dropped-columns class="mt-2 text-xs text-fg-subtle" [class]="layout().table">{{ note }}</p>
+        }
 
-        <!-- Cards: below cardsBelow (the phone) -->
+        <!-- Cards: below cardsBelow (the phone); with fit, also wherever the table does not fit. -->
         <ul
           data-cards
           class="space-y-2"
-          [class]="area + ' ' + layout().cards"
+          [class]="area + ' ' + cardsLayout()"
           [attr.aria-label]="ariaLabel()"
         >
           @for (r of rendered(); track r.id; let i = $index) {
@@ -406,6 +452,13 @@ export class DataList<T = unknown> {
   readonly rowTarget = input(false);
   /** Linhas baixas (~56px) e células sem quebra, para tabelas largas ao lado de outros blocos. */
   readonly dense = input(false);
+  /**
+   * The table shows only while it FITS the list's own width (measured, so the sidebar, the data
+   * and the card it sits in all count, not only the viewport): when it would not, it first drops
+   * the `optional` columns (and says so under it), then turns into the cards. No horizontal
+   * scroll, inside or outside. Below `cardsBelow` the cards show as before. Default `false`.
+   */
+  readonly fit = input(false);
 
   /**
    * Server pagination. `page` is 0-based; the footer shows when `totalPages > 1`. The list does
@@ -437,6 +490,38 @@ export class DataList<T = unknown> {
 
   protected readonly layout = computed(() => LAYOUT[this.cardsBelow()] ?? LAYOUT.sm);
 
+  /** Measured layout of a `fit` list: 'table' until measured (and always where there is no layout). */
+  protected readonly fitMode = signal<DataListFit>('table');
+  private readonly tableWrap = viewChild<ElementRef<HTMLElement>>('tableWrap');
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  /** Width the optional columns took the last time they were drawn (dropped ones measure 0). */
+  private optionalMin = 0;
+
+  /**
+   * In `cards` the table stays laid out at the list's width to keep measuring, but out of the
+   * flow, unseen and out of reach (`invisible` takes it off the accessibility tree and the Tab).
+   */
+  protected readonly tableLayout = computed(() =>
+    this.fit() && this.fitMode() === 'cards'
+      ? `${this.layout().table} absolute inset-x-0 top-0 h-0 invisible pointer-events-none`
+      : this.layout().table,
+  );
+  protected readonly cardsLayout = computed(() =>
+    this.fit() && this.fitMode() === 'cards' ? '' : this.layout().cards,
+  );
+
+  protected readonly droppedNote = computed(() => {
+    if (!this.fit() || this.fitMode() !== 'compact') return null;
+    const names = this.columns()
+      .filter((c) => c.optional)
+      .map((c) => c.header);
+    return names.length ? `Sem espaço nesta largura para ${joinPt(names)}` : null;
+  });
+
+  protected dropped(column: { readonly optional?: boolean }): boolean {
+    return !!column.optional && this.fit() && this.fitMode() === 'compact';
+  }
+
   protected readonly rendered = computed<RenderedRow[]>(() => {
     const cols = this.columns() as readonly DataListColumn<unknown>[];
     const defs = new Map(this.cellDefs().map((d) => [d.key(), d.template]));
@@ -461,6 +546,78 @@ export class DataList<T = unknown> {
       };
     });
   });
+
+  constructor() {
+    let observer: ResizeObserver | null = null;
+    let watched: Element | null = null;
+    let frame = 0;
+    const win = () => this.host.nativeElement.ownerDocument?.defaultView ?? null;
+    const schedule = (): void => {
+      const w = win();
+      if (!w || frame) return;
+      frame = w.requestAnimationFrame(() => {
+        frame = 0;
+        this.measureFit();
+      });
+    };
+    // Measure again when the list's width changes (window, sidebar), when the table's own size
+    // does (rows, loading over), and after every render that changes the rows or the columns.
+    afterRenderEffect(() => {
+      if (!this.fit()) return;
+      this.rendered();
+      const wrap = this.tableWrap()?.nativeElement ?? null;
+      untracked(() => {
+        const w = win();
+        if (!wrap || !w || typeof w.ResizeObserver !== 'function') return;
+        const table = wrap.querySelector('table');
+        if (wrap !== watched) {
+          const ro = (observer ??= new w.ResizeObserver(schedule));
+          ro.disconnect();
+          ro.observe(wrap);
+          if (table) ro.observe(table);
+          watched = wrap;
+        }
+        schedule();
+      });
+    });
+    inject(DestroyRef).onDestroy(() => {
+      observer?.disconnect();
+      if (frame) win()?.cancelAnimationFrame(frame);
+    });
+  }
+
+  /**
+   * How narrow the table can get (a table never lays out narrower than its content, so at width 0
+   * it shows its minimum) against the room inside its wrap; then the layout that fits.
+   */
+  private measureFit(): void {
+    const wrap = this.tableWrap()?.nativeElement;
+    const table = wrap?.querySelector('table');
+    const w = wrap?.ownerDocument.defaultView;
+    if (!wrap || !table || !w) return;
+    const style = w.getComputedStyle(wrap);
+    // Below cardsBelow the wrap is display:none and the cards already show.
+    if (style.display === 'none') return;
+    const room =
+      wrap.getBoundingClientRect().width -
+      (parseFloat(style.paddingLeft) || 0) -
+      (parseFloat(style.paddingRight) || 0);
+    if (!(room > 0)) return;
+    const compact = this.fitMode() === 'compact';
+    const before = table.style.width;
+    table.style.width = '0px';
+    const min = table.getBoundingClientRect().width;
+    if (!compact) {
+      let optional = 0;
+      table.querySelectorAll('th[data-optional]').forEach((th) => {
+        optional += th.getBoundingClientRect().width;
+      });
+      this.optionalMin = optional;
+    }
+    table.style.width = before;
+    const fullMin = compact ? min + this.optionalMin : min;
+    this.fitMode.set(fitLayout(room, fullMin, this.optionalMin));
+  }
 
   protected readonly showPager = computed(() => {
     const pages = this.totalPages();

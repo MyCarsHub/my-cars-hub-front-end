@@ -62,6 +62,7 @@ interface Query {
           [rows]="rows()"
           [rowId]="rowId"
           [loading]="loading()"
+          [fit]="true"
           ariaLabel="Movimentações da plataforma"
           emptyText="Nada registrado neste filtro e período."
         >

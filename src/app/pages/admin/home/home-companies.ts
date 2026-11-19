@@ -53,8 +53,10 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
 
 /**
  * "Cruzamento por empresa": plano, tamanho, valor gerenciado, uso e receita no mesmo lugar. É a
- * lista de /admin/companies ordenada no servidor; a linha abre a empresa. Tabela no computador,
- * cartões no celular (o `app-data-list`), sem rolagem horizontal da página.
+ * lista de /admin/companies ordenada no servidor; a linha abre a empresa. A tabela só aparece
+ * quando CABE no cartão (`fit`, medido: barra lateral aberta conta): sem espaço, ela tira primeiro
+ * Veíc., Motor., Acessos 30d e Ações 30d (e diz isso embaixo), depois vira cartões. MRR,
+ * Gerenciado e Último acesso, o que o dono lê primeiro, nunca saem. Nenhuma rolagem lateral.
  */
 @Component({
   selector: 'app-home-companies',
@@ -73,8 +75,8 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
             <button type="button" class="ml-1 underline min-h-[44px]" (click)="reload()">Tentar novamente</button>
           </app-alert-banner>
         }
-        <!-- Dez colunas: tabela só a partir de lg (cartões abaixo); se ainda faltar largura, a
-             tabela rola dentro dela mesma (app-data-list), nunca a página. -->
+        <!-- Dez colunas: cartões abaixo de lg; de lg para cima a tabela só aparece se couber no
+             cartão (fit). Sem espaço: saem as colunas optional, depois viram cartões. Nunca rola. -->
         <app-data-list
           [columns]="columns"
           [rows]="shown()"
@@ -82,6 +84,7 @@ export const COMPANY_CSV_COLUMNS: readonly CsvColumn<AdminCompanyListItem>[] = [
           [loading]="loading()"
           [rowTarget]="true"
           [dense]="true"
+          [fit]="true"
           cardsBelow="lg"
           ariaLabel="Cruzamento por empresa"
           emptyText="Nenhuma empresa neste escopo."
@@ -154,17 +157,18 @@ export class HomeCompanies {
   protected readonly columns: readonly DataListColumn<AdminCompanyListItem>[] = [
     { key: 'name', header: 'Empresa', primary: true, value: (c) => c.name },
     { key: 'plan', header: 'Plano', value: (c) => c.planName },
-    { key: 'vehicles', header: 'Veíc.', kind: 'integer', end: true, value: (c) => c.vehicleCount },
-    { key: 'drivers', header: 'Motor.', kind: 'integer', end: true, value: (c) => c.driverCount },
-    // Real completo, com centavos (regra do dono 18/11); a tabela rola dentro dela se faltar largura.
+    // `optional`: o que a tabela tira primeiro quando não cabe (o cartão e o CSV mantêm).
+    { key: 'vehicles', header: 'Veíc.', kind: 'integer', end: true, optional: true, value: (c) => c.vehicleCount },
+    { key: 'drivers', header: 'Motor.', kind: 'integer', end: true, optional: true, value: (c) => c.driverCount },
+    // Real completo, com centavos (regra do dono 18/11).
     {
       key: 'managed',
       header: 'Gerenciado',
       end: true,
       value: (c) => (c.managedMonthCents == null ? null : formatBrl(c.managedMonthCents)),
     },
-    { key: 'access', header: 'Acessos 30d', kind: 'integer', end: true, value: (c) => c.accessHours30d },
-    { key: 'actions', header: 'Ações 30d', kind: 'integer', end: true, value: (c) => c.actions30d },
+    { key: 'access', header: 'Acessos 30d', kind: 'integer', end: true, optional: true, value: (c) => c.accessHours30d },
+    { key: 'actions', header: 'Ações 30d', kind: 'integer', end: true, optional: true, value: (c) => c.actions30d },
     { key: 'last', header: 'Último acesso', value: (c) => this.lastText(c) },
     { key: 'mrr', header: 'MRR', end: true, value: (c) => this.mrrText(c) },
     { key: 'health', header: 'Saúde', end: true, value: (c) => (c.health ? HEALTH_LABEL[c.health] : null) },
