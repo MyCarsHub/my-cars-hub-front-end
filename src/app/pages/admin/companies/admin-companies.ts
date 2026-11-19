@@ -31,7 +31,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { TrialExtensionResponse } from '../../../services/admin-trial.service';
-import { AdminCompaniesService } from '../admin-companies.service';
+import { AdminCompaniesService, type LoadCompaniesOptions } from '../admin-companies.service';
 import { AdminSegmentsService } from '../segments/admin-segments.service';
 import { ContactRevealActions } from '../contact/contact-reveal-actions';
 import { RegisterContactSheet } from '../contact/register-contact-sheet';
@@ -48,14 +48,17 @@ import {
 import {
   SEGMENT_CHIPS,
   SEGMENT_QUERY_PARAM,
+  TRIAL_ENDING_QUERY_PARAM,
   deadlineText,
   fleetText,
   isTrialSegment,
   lastContactText,
   lastSignalText,
   nextActionTitle,
+  parseTrialEndingDays,
   segmentChip,
   trialActionLabel,
+  trialEndingFilterLabel,
   whatsAppMessage,
 } from '../segments/segment-copy';
 
@@ -119,6 +122,16 @@ export class AdminCompanies implements OnInit {
   protected readonly segment = signal<SegmentFilter>('ALL');
   /** `true`: a lista mostra só as contas internas (fora das pílulas e da contagem). */
   protected readonly internalView = signal(false);
+  /**
+   * "Testes que vencem em N dias" (chip do Painel, `?testeVenceEm=N`): o servidor filtra com a
+   * mesma regra do número do chip e ordena quem vence primeiro. Nulo = sem esse filtro. Mostrado
+   * como um filtro removível, para o dono saber por que a lista está curta.
+   */
+  protected readonly trialDays = signal<number | null>(null);
+  protected readonly trialFilterLabel = computed(() => {
+    const days = this.trialDays();
+    return days ? trialEndingFilterLabel(days) : null;
+  });
   protected readonly currentPage = signal(0);
 
   protected readonly today = signal<TodayList | null>(null);
@@ -163,11 +176,15 @@ export class AdminCompanies implements OnInit {
     return t <= 0 ? 1 : Math.max(1, Math.ceil(t / PAGE_SIZE));
   });
 
-  protected readonly filtersActive = computed(() => this.search() !== '' || this.segment() !== 'ALL');
+  protected readonly filtersActive = computed(
+    () => this.search() !== '' || this.segment() !== 'ALL' || this.trialDays() !== null,
+  );
 
   protected readonly emptyText = computed(() => {
     if (this.internalView()) return 'Nenhuma conta interna.';
     if (this.search()) return 'Nenhuma empresa com essa busca.';
+    const days = this.trialDays();
+    if (days) return `Nenhum teste vence nos próximos ${days} ${days === 1 ? 'dia' : 'dias'}.`;
     const s = this.segment();
     if (s === 'EX_CLIENT') return 'Nenhum ex-cliente até hoje.';
     return s === 'ALL' ? 'Nenhuma empresa encontrada.' : `Nenhuma empresa em “${SEGMENT_CHIPS[s].label}”.`;
@@ -175,19 +192,10 @@ export class AdminCompanies implements OnInit {
 
   constructor() {
     effect(() => {
-      const search = this.search();
-      const segment = this.segment();
-      const internal = this.internalView();
-      const page = this.currentPage();
+      const options = this.listOptions();
       this.error.set(null);
       this.companiesService
-        .load({
-          search,
-          segment: internal || segment === 'ALL' ? null : segment,
-          internal,
-          page,
-          size: PAGE_SIZE,
-        })
+        .load(options)
         .subscribe({
           error: (err: HttpErrorResponse) =>
             this.error.set(this.apiErrors.messageFor(err, 'Não foi possível carregar as empresas. Tente novamente.')),
@@ -201,6 +209,7 @@ export class AdminCompanies implements OnInit {
     if (fromUrl && (COMPANY_SEGMENTS as readonly string[]).includes(fromUrl)) {
       this.segment.set(fromUrl as CompanySegment);
     }
+    this.trialDays.set(parseTrialEndingDays(this.route.snapshot?.queryParamMap?.get(TRIAL_ENDING_QUERY_PARAM)));
     this.loadToday();
   }
 
@@ -243,6 +252,13 @@ export class AdminCompanies implements OnInit {
     this.currentPage.set(0);
     this.search.set('');
     this.segment.set('ALL');
+    this.trialDays.set(null);
+  }
+
+  /** O "x" do filtro "Testes que vencem em N dias": volta à lista inteira, pílula e busca ficam. */
+  protected removeTrialFilter(): void {
+    this.currentPage.set(0);
+    this.trialDays.set(null);
   }
 
   protected toggleInternalView(): void {
@@ -257,11 +273,13 @@ export class AdminCompanies implements OnInit {
 
   /** CSV do que está na tela (o segmento escolhido), com o segmento numa coluna própria. */
   protected exportList(): void {
-    const name = this.internalView()
+    const base = this.internalView()
       ? 'empresas-internas'
       : this.segment() === 'ALL'
         ? 'empresas'
         : `empresas-${SEGMENT_CHIPS[this.segment() as CompanySegment].label.toLowerCase().replace(/\s+/g, '-')}`;
+    const days = this.internalView() ? null : this.trialDays();
+    const name = days ? `${base}-teste-vence-em-${days}-dias` : base;
     downloadCsv(
       name,
       buildCsv(
@@ -375,14 +393,32 @@ export class AdminCompanies implements OnInit {
   }
 
   private reloadList(): void {
-    this.companiesService
-      .load({
-        search: this.search(),
-        segment: this.internalView() || this.segment() === 'ALL' ? null : (this.segment() as CompanySegment),
-        internal: this.internalView(),
-        page: this.currentPage(),
-        size: PAGE_SIZE,
-      })
-      .subscribe({ error: () => undefined });
+    this.companiesService.load(this.listOptions()).subscribe({ error: () => undefined });
+  }
+
+  /**
+   * O pedido da lista a partir dos filtros da tela (lido dentro do `effect`, então cada sinal
+   * daqui recarrega a lista). Contas internas ignoram segmento e "vence em N dias", que são só
+   * de clientes. Com "vence em N dias", quem vence primeiro vem no topo.
+   */
+  private listOptions(): LoadCompaniesOptions {
+    const search = this.search();
+    const segment = this.segment();
+    const internal = this.internalView();
+    const trialDays = this.trialDays();
+    const page = this.currentPage();
+    const options: LoadCompaniesOptions = {
+      search,
+      segment: internal || segment === 'ALL' ? null : segment,
+      internal,
+      page,
+      size: PAGE_SIZE,
+    };
+    if (!internal && trialDays) {
+      options.trialEndsWithinDays = trialDays;
+      options.sort = 'trialEndsAt';
+      options.dir = 'asc';
+    }
+    return options;
   }
 }

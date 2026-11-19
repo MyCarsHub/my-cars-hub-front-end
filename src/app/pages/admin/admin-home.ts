@@ -48,7 +48,7 @@ import type {
 } from '../../types/admin-home.types';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import { MONEY_AXIS_FLOOR_CENTS } from '../../utils/money-axis';
-import { segmentQueryParams } from './segments/segment-copy';
+import { TRIAL_ENDING_CHIP_DAYS, trialEndingQueryParams } from './segments/segment-copy';
 import { COSTS_ACTION_PARAM, COSTS_ROUTE, costsShortcutParams, type CostsShortcut } from './costs/costs-link';
 import { AdminHomeService } from './home/admin-home.service';
 import {
@@ -270,12 +270,8 @@ export class AdminHome implements OnInit {
 
   // ---------------------------------------------------------------- Custos
 
-  /** A página de Custos (Dinheiro › Custos): fixos, lançamentos do mês e fornecedores. */
-  protected readonly costsRoute = COSTS_ROUTE;
-  /** "Lançar custo" no ⋮ do topo abre a página já na folha do avulso. */
+  /** "Lançar custo" no ⋮ do topo abre a página já na folha do avulso. O cartão de fornecedores vazio só avisa. */
   protected readonly launchCostParams = { [COSTS_ACTION_PARAM]: 'avulso' };
-  /** O cartão de fornecedores vazio abre a página na folha do custo fixo. */
-  protected readonly firstCostParams = costsShortcutParams('cost');
 
   // ---------------------------------------------------------------- Visão geral antiga (cartões mantidos)
 
@@ -414,12 +410,15 @@ export class AdminHome implements OnInit {
       {
         key: 'trials',
         n: c.trialsEndingIn7Days,
-        label: plural(c.trialsEndingIn7Days, 'trial vence em 7 dias', 'trials vencem em 7 dias'),
-        // A pílula "Teste parado" de Empresas (a aba "Converter testes" saiu em 18/11/2026): o teste
-        // que acaba sem uso é o que pede contato. Os que estão ativando e acabam logo aparecem em
-        // "Hoje, para agir" (oferecer extensão), no topo da mesma página.
+        label: plural(
+          c.trialsEndingIn7Days,
+          `trial vence em ${TRIAL_ENDING_CHIP_DAYS} dias`,
+          `trials vencem em ${TRIAL_ENDING_CHIP_DAYS} dias`,
+        ),
+        // Empresas filtrada por "vence em 7 dias", quem vence primeiro no topo: o servidor conta o
+        // chip e filtra a lista com a MESMA regra, então a lista mostra exatamente estas empresas.
         route: '/admin/companies',
-        queryParams: segmentQueryParams('TRIAL_STALLED'),
+        queryParams: trialEndingQueryParams(TRIAL_ENDING_CHIP_DAYS),
       },
       {
         key: 'feedback',

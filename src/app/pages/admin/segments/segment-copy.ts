@@ -50,6 +50,35 @@ export function segmentQueryParams(segment: CompanySegment): Record<string, stri
   return { [SEGMENT_QUERY_PARAM]: segment };
 }
 
+/**
+ * Deep link da lista de Empresas filtrada por "teste que vence em N dias"
+ * (`/admin/companies?testeVenceEm=7`). O chip do Painel monta o endereço por aqui; a lista lê o
+ * mesmo nome e pede `trialEndsWithinDays=N&sort=trialEndsAt&dir=asc`, a MESMA regra do número do
+ * chip no servidor (`TrialEndingSql`), então o total da lista é o número do chip.
+ */
+export const TRIAL_ENDING_QUERY_PARAM = 'testeVenceEm';
+/** Dias do chip do Painel (o servidor manda o número como `trialsEndingIn7Days`). */
+export const TRIAL_ENDING_CHIP_DAYS = 7;
+/** Limites que o servidor aceita em `trialEndsWithinDays`. */
+export const TRIAL_ENDING_MIN_DAYS = 1;
+export const TRIAL_ENDING_MAX_DAYS = 90;
+
+export function trialEndingQueryParams(days: number): Record<string, string> {
+  return { [TRIAL_ENDING_QUERY_PARAM]: String(days) };
+}
+
+/** O valor do endereço, se for um número inteiro dentro dos limites; o resto é ignorado. */
+export function parseTrialEndingDays(raw: string | null | undefined): number | null {
+  if (!raw || !/^\d+$/.test(raw.trim())) return null;
+  const days = Number(raw.trim());
+  return days >= TRIAL_ENDING_MIN_DAYS && days <= TRIAL_ENDING_MAX_DAYS ? days : null;
+}
+
+/** Rótulo do filtro removível: "Testes que vencem em 7 dias" / "em 1 dia". */
+export function trialEndingFilterLabel(days: number): string {
+  return `Testes que vencem em ${days} ${days === 1 ? 'dia' : 'dias'}`;
+}
+
 export function segmentChip(segment: CompanySegment | null | undefined): ChipStyle | null {
   return segment ? (SEGMENT_CHIPS[segment] ?? { label: segment, tone: 'neutral' }) : null;
 }

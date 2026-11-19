@@ -122,6 +122,62 @@ describe('Empresas (lista) — padrão da plataforma', () => {
     expect(load).toHaveBeenLastCalledWith(expect.objectContaining({ segment: null, search: '' }));
   });
 
+  it('?testeVenceEm=7 (chip do Painel) pede os mesmos testes ao servidor, quem vence primeiro no topo', () => {
+    total = signal(4);
+    const host = render({ testeVenceEm: '7' }).nativeElement as HTMLElement;
+    expect(load).toHaveBeenLastCalledWith(
+      expect.objectContaining({ trialEndsWithinDays: 7, sort: 'trialEndsAt', dir: 'asc', segment: null, page: 0 }),
+    );
+    // O total da lista é o número do chip; nenhuma pílula muda de lugar.
+    expect(text(host.querySelector('[data-list-results]'))).toBe('4 empresas');
+    const checked = host.querySelector('app-list-toolbar [role="radio"][aria-checked="true"]');
+    expect(text(checked)).toContain('Todas');
+    const chip = host.querySelector('[data-testid="trial-ending-filter"]') as HTMLButtonElement;
+    expect(text(chip)).toBe('Testes que vencem em 7 dias');
+    expect(chip.getAttribute('aria-label')).toBe('Remover filtro: Testes que vencem em 7 dias');
+    expect(host.querySelector('[data-list-clear]')).not.toBeNull();
+  });
+
+  it('o "x" do filtro volta à lista inteira, sem a ordenação do teste', () => {
+    const fixture = render({ testeVenceEm: '7' });
+    const host = fixture.nativeElement as HTMLElement;
+    (host.querySelector('[data-testid="trial-ending-filter"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const last = load.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(last).toMatchObject({ segment: null, page: 0 });
+    expect(last['trialEndsWithinDays']).toBeUndefined();
+    expect(last['sort']).toBeUndefined();
+    expect(host.querySelector('[data-testid="trial-ending-filter"]')).toBeNull();
+  });
+
+  it('"Limpar filtros" também tira o filtro de teste; pílula escolhida por cima soma os dois', () => {
+    const fixture = render({ testeVenceEm: '7' });
+    const host = fixture.nativeElement as HTMLElement;
+    const pill = Array.from(host.querySelectorAll('app-list-toolbar [role="radio"]')).find((b) =>
+      text(b).startsWith('Teste parado'),
+    ) as HTMLButtonElement;
+    pill.click();
+    fixture.detectChanges();
+    expect(load).toHaveBeenLastCalledWith(
+      expect.objectContaining({ segment: 'TRIAL_STALLED', trialEndsWithinDays: 7, page: 0 }),
+    );
+    (host.querySelector('[data-list-clear]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const last = load.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(last).toMatchObject({ segment: null, search: '' });
+    expect(last['trialEndsWithinDays']).toBeUndefined();
+    expect(host.querySelector('[data-testid="trial-ending-filter"]')).toBeNull();
+  });
+
+  it('?testeVenceEm= inválido é ignorado', () => {
+    for (const bad of ['abc', '0', '91', '7.5']) {
+      const host = render({ testeVenceEm: bad }).nativeElement as HTMLElement;
+      const last = load.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+      expect(last['trialEndsWithinDays'], bad).toBeUndefined();
+      expect(host.querySelector('[data-testid="trial-ending-filter"]'), bad).toBeNull();
+    }
+  });
+
   it('chip "Interna" é neutro; nenhuma bolinha', () => {
     const host = render().nativeElement as HTMLElement;
     const badge = host.querySelector('[data-testid="internal-badge"]') as HTMLElement;

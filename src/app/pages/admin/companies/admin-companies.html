@@ -57,6 +57,26 @@
           (clearFilters)="clearFilters()"
         />
 
+        @if (!internalView() && trialFilterLabel(); as label) {
+          <!-- Filtro vindo do chip do Painel: removível, para o dono saber por que a lista está curta. -->
+          <button
+            type="button"
+            data-testid="trial-ending-filter"
+            (click)="removeTrialFilter()"
+            [attr.aria-label]="'Remover filtro: ' + label"
+            class="press inline-flex items-center gap-2 min-h-11 px-4 rounded-full text-sm font-semibold
+                   border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10
+                   text-amber-800 dark:text-amber-200 cursor-pointer
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+          >
+            {{ label }}
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        }
+
         @if (internalView()) {
           <p class="m-0 text-xs text-fg-subtle" data-testid="internal-note">
             Contas internas ficam fora dos segmentos, das contagens e de “Hoje, para agir”.

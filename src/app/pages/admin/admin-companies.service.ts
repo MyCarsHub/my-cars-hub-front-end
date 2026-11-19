@@ -22,6 +22,11 @@ export interface LoadCompaniesOptions {
   segment?: CompanySegment | null;
   /** `true` só internas, `false` só clientes; ausente = todas (como antes). */
   internal?: boolean | null;
+  /** Só testes em andamento que vencem em até N dias (a regra do chip do Painel); sem internas. */
+  trialEndsWithinDays?: number | null;
+  /** Ordenação do servidor (`createdAt` quando ausente); `trialEndsAt` = fim do teste. */
+  sort?: 'createdAt' | 'mrr' | 'mrrReal' | 'managed' | 'lastAccess' | 'name' | 'trialEndsAt' | null;
+  dir?: 'asc' | 'desc' | null;
 }
 
 /** Envelope da lista: o paginado de sempre mais as contagens por segmento. */
@@ -53,7 +58,7 @@ export class AdminCompaniesService {
   readonly total = this._total.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
-  /** Contagens das pílulas de segmento (respeitam busca, não o segmento escolhido). */
+  /** Contagens das pílulas de segmento (respeitam busca e "vence em N dias", não o segmento escolhido). */
   readonly segmentCounts = this._segmentCounts.asReadonly();
 
   readonly detail = this._detail.asReadonly();
@@ -87,6 +92,15 @@ export class AdminCompaniesService {
     }
     if (options.internal === true || options.internal === false) {
       params = params.set('internal', String(options.internal));
+    }
+    if (options.trialEndsWithinDays) {
+      params = params.set('trialEndsWithinDays', String(options.trialEndsWithinDays));
+    }
+    if (options.sort) {
+      params = params.set('sort', options.sort);
+    }
+    if (options.dir) {
+      params = params.set('dir', options.dir);
     }
 
     return this.http.get<AdminCompanyPage>(API_BASE, { params }).pipe(

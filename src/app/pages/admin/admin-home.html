@@ -218,18 +218,8 @@
         <app-page-card title="Custos por fornecedor" [fill]="true">
           <div class="px-4 sm:px-6 pb-5 flex flex-col gap-3 flex-1" data-vendor-empty>
             <p class="-mt-3 text-xs text-fg-subtle">Somados por fornecedor: os fixos lançam sozinhos todo mês, os avulsos entram em Custos</p>
+            <!-- Só a mensagem: "Lançar custo" mora no ⋮ do topo, como toda ação da página. -->
             <p class="text-sm text-fg-soft py-4">Nenhum custo lançado em {{ currentMonthName() }}.</p>
-            @if (canManageCosts()) {
-              <a
-                data-testid="vendor-empty-launch"
-                [routerLink]="costsRoute"
-                [queryParams]="firstCostParams"
-                class="press self-start inline-flex items-center min-h-11 px-4 rounded-full bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-              >
-                Lançar custo
-              </a>
-            }
           </div>
         </app-page-card>
       }

@@ -205,7 +205,7 @@ describe('AdminHome v2 — chips, período e escopo', () => {
     expect(host.querySelector('[data-chip="reconciliation"]')!.getAttribute('aria-label')).toBe('1 falha de conciliação');
   });
 
-  it('"trials vencem em 7 dias" abre Empresas na pílula "Teste parado" (a aba Converter testes saiu)', () => {
+  it('"trials vencem em 7 dias" abre Empresas filtrada pelos mesmos testes (a mesma regra do número)', () => {
     const { host } = setup({
       home: (range: AdminHomeRange, scope: AdminHomeScope) =>
         of({
@@ -215,7 +215,7 @@ describe('AdminHome v2 — chips, período e escopo', () => {
         }),
     });
     const chip = host.querySelector('[data-chip="trials"]')!;
-    expect(chip.getAttribute('href')).toBe('/admin/companies?segmento=TRIAL_STALLED');
+    expect(chip.getAttribute('href')).toBe('/admin/companies?testeVenceEm=7');
     expect(chip.getAttribute('aria-label')).toBe('4 trials vencem em 7 dias');
   });
 
@@ -393,6 +393,15 @@ describe('AdminHome v2 — Lançar custo', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(navigate).toHaveBeenCalledWith(['/admin/custos'], { queryParams: { acao: 'fixo' } });
+  });
+
+  it('o cartão de fornecedores vazio só avisa: nenhum "Lançar custo" solto (ele mora no ⋮)', () => {
+    const { host } = setup({ codes: ['ver', 'custo.gerir'] });
+    const empty = host.querySelector('[data-vendor-empty]');
+    expect(empty).not.toBeNull();
+    expect(flat(empty)).toContain('Nenhum custo lançado em');
+    expect(flat(empty)).not.toContain('Lançar custo');
+    expect(empty!.querySelector('a, button')).toBeNull();
   });
 
   it('a folha antiga de custo não existe mais no Painel', () => {
