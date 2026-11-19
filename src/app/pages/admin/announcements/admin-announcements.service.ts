@@ -49,7 +49,10 @@ export class AdminAnnouncementsService {
     });
   }
 
-  /** Só rascunho. */
+  /**
+   * Exclui em qualquer situação (rascunho, publicada, agendada, encerrada): 204. 404 = já não
+   * existe. Servidor antigo responde 409 `ANNOUNCEMENT_NOT_DRAFT` para a publicada.
+   */
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${BASE}/${encodeURIComponent(id)}`, { context: this.context() });
   }

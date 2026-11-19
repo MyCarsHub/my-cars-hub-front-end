@@ -143,7 +143,7 @@ export function pointerFraction(event: PointerEvent | MouseEvent, el: Element): 
 /** Columns assumed to fit labels before the chart has been measured (SSR, first paint, tests). */
 export const LABELS_FIT_UNMEASURED_MAX = 16;
 /** Average width of one character of the 10px tabular label, in px (measured on "R$ 12,5k"). */
-const LABEL_CHAR_PX = 5.6;
+export const LABEL_CHAR_PX = 5.6;
 
 /**
  * Pure: whether `count` columns, each labelled with up to `maxChars` characters, can carry their

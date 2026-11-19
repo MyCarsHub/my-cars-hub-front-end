@@ -151,6 +151,7 @@
                     <button type="button" dataListMenuItem data-testid="menu-edit" (click)="open(row.a)">Editar</button>
                     <button type="button" dataListMenuItem data-testid="menu-preview" (click)="open(row.a)">Ver prévia</button>
                     <button type="button" dataListMenuItem="danger" data-testid="menu-unpublish" (click)="askUnpublish(row.a)">Encerrar agora</button>
+                    <button type="button" dataListMenuItem="danger" data-testid="menu-delete" (click)="askDelete(row.a)">Excluir</button>
                   }
                   @case ('DRAFT') {
                     <button type="button" dataListMenuItem data-testid="menu-edit" (click)="open(row.a)">Editar</button>
@@ -160,6 +161,7 @@
                   @default {
                     <button type="button" dataListMenuItem data-testid="menu-view" (click)="open(row.a)">Ver</button>
                     <button type="button" dataListMenuItem data-testid="menu-duplicate" (click)="duplicate(row.a)">Duplicar como rascunho</button>
+                    <button type="button" dataListMenuItem="danger" data-testid="menu-delete" (click)="askDelete(row.a)">Excluir</button>
                   }
                 }
               </ng-template>
