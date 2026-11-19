@@ -115,6 +115,27 @@ describe('RingLegendCard in a narrow (~287px) card', () => {
     expect(body.firstElementChild!.hasAttribute('data-ring')).toBe(true);
   });
 
+  it('goes side by side only where the label column still gets real room', () => {
+    // Measured in production: a full-width card on a 375px phone has ~311px of content and the
+    // "Custos por fornecedor" card on desktop ~326px; side by side both cut every label. The
+    // largest phones (430px) give ~366px. Beside the ring the row spends ~271px on fixed columns
+    // (ring 128 + gap 20 + swatch 20 + gap 12 + percent and a money value ~91), and a label needs
+    // at least ~140px to show a status or vendor name whole.
+    const classes = Array.from(narrow().querySelector('[data-ring-body]')!.classList);
+    const sizes = classes
+      .map((c) => /^@\[([\d.]+)rem\]:/.exec(c))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]) * 16);
+    expect(sizes.length).toBeGreaterThan(0);
+    expect(new Set(sizes).size).toBe(1); // flex-row and its gap switch at the same size
+    const threshold = sizes[0];
+    const LARGEST_PHONE_CONTENT_PX = 366;
+    const FIXED_COLUMNS_PX = 271;
+    const MIN_LABEL_PX = 140;
+    expect(threshold).toBeGreaterThan(LARGEST_PHONE_CONTENT_PX);
+    expect(threshold - FIXED_COLUMNS_PX).toBeGreaterThanOrEqual(MIN_LABEL_PX);
+  });
+
   it('keeps each label on one line (ellipsis, full text in the title), never one letter a line', () => {
     const labels = Array.from(narrow().querySelectorAll('[data-legend-label]'));
     expect(labels).toHaveLength(3);
