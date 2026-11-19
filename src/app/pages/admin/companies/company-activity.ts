@@ -62,7 +62,7 @@ const FILTERS: readonly FilterChipOption<ActivityFilter>[] = [
         @if (loading() && items().length === 0) {
           <div class="flex flex-col gap-3" aria-hidden="true">
             @for (n of [1, 2, 3]; track n) {
-              <div class="h-10 rounded-xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-10 rounded-xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
             }
           </div>
         } @else if (lines().length === 0) {

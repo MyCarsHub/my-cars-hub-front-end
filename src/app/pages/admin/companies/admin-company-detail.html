@@ -149,9 +149,9 @@
 
   @if (loading() && !detail()) {
     <div class="space-y-4" data-testid="detail-skeleton">
-      <div class="h-32 rounded-2xl bg-surface-sunken animate-pulse"></div>
-      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse"></div>
-      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse"></div>
+      <div class="h-32 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+      <div class="h-40 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+      <div class="h-40 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
     </div>
   } @else if (detail(); as company) {
     <div class="flex flex-col gap-4 sm:gap-5">

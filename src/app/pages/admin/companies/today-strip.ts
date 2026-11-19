@@ -79,7 +79,7 @@ interface SnoozedRow extends CompanyActionTarget {
         @if (loading() && !data()) {
           <div class="flex gap-2.5 overflow-hidden" aria-hidden="true">
             @for (n of skeleton; track n) {
-              <div class="h-24 w-[272px] shrink-0 rounded-2xl bg-surface-sunken animate-pulse motion-reduce:animate-none"></div>
+              <div class="h-24 w-[272px] shrink-0 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse motion-reduce:animate-none"></div>
             }
           </div>
         } @else if (tiles().length > 0) {
