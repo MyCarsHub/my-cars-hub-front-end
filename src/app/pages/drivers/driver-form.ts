@@ -696,7 +696,7 @@ export class DriverForm implements OnInit {
         status: raw.status,
         // Lista inteira, sempre: o PUT SUBSTITUI o conjunto (vazia apaga todos). Também cobre
         // o retry de um cadastro com anexo falho — reenvia os mesmos contatos do POST.
-        contacts: contactsPayload,
+        thirdPartyContacts: contactsPayload,
       };
       this.saveChildren(this.driverService.update(this.editingId()!, payload));
     } else {
@@ -764,7 +764,7 @@ export class DriverForm implements OnInit {
           // está habilitado — e reescreve o status do grupo para VALID.
           this.form.controls.document.disable({ emitEvent: false });
           // Contatos de terceiros ficam editáveis: o PUT do retry carrega a
-          // lista inteira (`contacts`), então uma alteração não se perde.
+          // lista inteira (`thirdPartyContacts`), então uma alteração não se perde.
         }),
         switchMap((driver) => this.documentsStep(driver)),
       )

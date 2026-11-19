@@ -2277,7 +2277,8 @@ describe('VehicleForm — máscara de milhar nos campos de dinheiro (FIX-0261)',
 /**
  * Edição depois do cadastro: um cliente salvou o veículo sem chassi/RENAVAM e
  * não tinha como completar. Os dois campos agora são editáveis na edição (só a
- * venda trava) e o PUT sempre os carrega: valor = grava, `""` = apaga. O 409 de
+ * venda trava) e o PUT só os carrega quando MUDARAM nesta edição: valor = grava,
+ * `""` = apaga, ausente = mantém (um valor antigo fora do padrão não trava nada). O 409 de
  * duplicado cai inline no próprio campo, igual ao cadastro.
  */
 describe('VehicleForm — chassi e RENAVAM editáveis depois do cadastro', () => {
@@ -2418,12 +2419,58 @@ describe('VehicleForm — chassi e RENAVAM editáveis depois do cadastro', () =>
     expect(update.mock.calls[0][1]).toMatchObject({ chassis: CHASSIS, renavam: RENAVAM });
   });
 
-  it('salvar sem tocar reenvia o valor carregado (mesmo resultado no backend)', async () => {
+  it('salvar sem tocar OMITE os dois campos do PUT (ausente = manter)', async () => {
     await setup(vehicle({ chassis: CHASSIS, renavam: RENAVAM }));
 
     submit();
 
-    expect(update.mock.calls[0][1]).toMatchObject({ chassis: CHASSIS, renavam: RENAVAM });
+    expect(update).toHaveBeenCalledTimes(1);
+    const payload = update.mock.calls[0][1] as Record<string, unknown>;
+    expect('chassis' in payload).toBe(false);
+    expect('renavam' in payload).toBe(false);
+  });
+
+  it('campo vazio que continuou vazio também fica fora do PUT', async () => {
+    await setup(vehicle());
+
+    submit();
+
+    const payload = update.mock.calls[0][1] as Record<string, unknown>;
+    expect('chassis' in payload).toBe(false);
+    expect('renavam' in payload).toBe(false);
+  });
+
+  it('só o campo alterado vai no PUT', async () => {
+    await setup(vehicle({ chassis: CHASSIS, renavam: RENAVAM }));
+
+    type('veiculo-renavam', '98765432100');
+    submit();
+
+    const payload = update.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload['renavam']).toBe('98765432100');
+    expect('chassis' in payload).toBe(false);
+  });
+
+  it('valor antigo fora do padrão não trava salvar outra alteração — e não vai no PUT', async () => {
+    await setup(vehicle({ chassis: 'ABC123', renavam: '12345' }));
+
+    expect(host().querySelector('#veiculo-chassis-error')).toBeNull();
+    submit();
+
+    expect(update).toHaveBeenCalledTimes(1);
+    const payload = update.mock.calls[0][1] as Record<string, unknown>;
+    expect('chassis' in payload).toBe(false);
+    expect('renavam' in payload).toBe(false);
+  });
+
+  it('mexer no valor antigo fora do padrão passa a cobrar o formato', async () => {
+    await setup(vehicle({ chassis: 'ABC123' }));
+
+    type('veiculo-chassis', 'ABC1234');
+    submit();
+
+    expect(update).not.toHaveBeenCalled();
+    expect(host().querySelector('#veiculo-chassis-error')).not.toBeNull();
   });
 
   it('apagar um valor já gravado manda "" — o "apagar" do contrato, nunca omitido', async () => {

@@ -737,10 +737,10 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
       expect(remove?.disabled).toBe(false);
     });
 
-    it('salvar sem mexer manda a lista inteira em `contacts` — o legado sem parentesco não trava o PUT', () => {
+    it('salvar sem mexer manda a lista inteira em `thirdPartyContacts` — o legado sem parentesco não trava o PUT', () => {
       submit();
 
-      expect(updatePayload().contacts).toEqual([
+      expect(updatePayload().thirdPartyContacts).toEqual([
         { fullName: 'Maria da Silva', phone: '11987654321', relationship: null },
         { fullName: 'José Souza', phone: '1132654321', relationship: 'BROTHER' },
       ]);
@@ -753,7 +753,7 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
 
       choose(relationshipSelect(0), 'MOTHER');
       submit();
-      expect(updatePayload().contacts?.[0]).toEqual({
+      expect(updatePayload().thirdPartyContacts?.[0]).toEqual({
         fullName: 'Maria da Silva Santos',
         phone: '11987654321',
         relationship: 'MOTHER',
@@ -773,7 +773,7 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
 
       submit();
 
-      expect(updatePayload().contacts).toEqual([
+      expect(updatePayload().thirdPartyContacts).toEqual([
         { fullName: 'José Souza', phone: '11999990000', relationship: 'BROTHER' },
         { fullName: 'Ana Lima', phone: '21988887777', relationship: 'FEMALE_FRIEND' },
       ]);
@@ -788,7 +788,7 @@ describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
 
       submit();
 
-      expect(updatePayload().contacts).toEqual([]);
+      expect(updatePayload().thirdPartyContacts).toEqual([]);
     });
 
     it('o CPF/CNPJ continua travado na edição', () => {
