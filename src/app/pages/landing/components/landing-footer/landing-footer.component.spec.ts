@@ -98,8 +98,12 @@ describe('LandingFooterComponent', () => {
       expect(host.textContent ?? '').not.toContain('CNPJ');
     });
 
-    /** O padrao do token e `null`: nada vai ao ar ate o dono fornecer os valores. */
-    it('o padrao do token e silencio, nao um CNPJ de exemplo', () => {
+    /**
+     * O padrao do token e o CNPJ real fornecido pelo dono — nenhum valor de exemplo.
+     * Razao social e endereco ainda nao foram fornecidos: o bloco mostra so o CNPJ,
+     * sem linha vazia no lugar deles.
+     */
+    it('o padrao do token publica o CNPJ real da empresa, e so ele', () => {
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         imports: [LandingFooterComponent],
@@ -107,8 +111,10 @@ describe('LandingFooterComponent', () => {
       });
       const fixture = TestBed.createComponent(LandingFooterComponent);
       fixture.detectChanges();
+      const address = (fixture.nativeElement as HTMLElement).querySelector('address');
 
-      expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('CNPJ');
+      expect(address?.textContent?.replace(/\s+/g, ' ').trim()).toBe('CNPJ 68.737.997/0001-09');
+      expect(address?.querySelectorAll('span').length).toBe(1);
     });
   });
 });

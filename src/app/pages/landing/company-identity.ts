@@ -19,19 +19,24 @@ import { InjectionToken } from '@angular/core';
  * Ligar é uma edição só, aqui, e vale para as SEIS páginas que montam este
  * rodapé (landing, blog, post, termos, privacidade e 404).
  *
+ * <h4>Estado atual</h4>
+ * O dono forneceu o CNPJ (68.737.997/0001-09). Razão social e endereço ainda
+ * não foram fornecidos, por isso são opcionais: o rodapé mostra só o que
+ * existe e nunca preenche o resto com exemplo.
+ *
  * Token com `factory` em vez de constante exportada pelo mesmo motivo de
  * `VEHICLE_LOOKUPS`: a tela fica testável nos dois estados sem reescrever
  * módulo nenhum.
  */
 export interface CompanyIdentity {
-  /** Razão social, como consta no registro. */
-  readonly legalName: string;
+  /** Razão social, como consta no registro. Ausente até o dono fornecer. */
+  readonly legalName?: string;
   /** CNPJ já formatado (`00.000.000/0000-00`). */
   readonly cnpj: string;
-  /** Endereço em uma linha, como aparece no rodapé. */
-  readonly address: string;
+  /** Endereço em uma linha, como aparece no rodapé. Ausente até o dono fornecer. */
+  readonly address?: string;
 }
 
 export const COMPANY_IDENTITY = new InjectionToken<CompanyIdentity | null>('COMPANY_IDENTITY', {
-  factory: () => null,
+  factory: () => ({ cnpj: '68.737.997/0001-09' }),
 });
