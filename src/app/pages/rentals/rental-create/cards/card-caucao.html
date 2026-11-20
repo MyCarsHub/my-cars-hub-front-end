@@ -1,0 +1,170 @@
+<ng-template #tick>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5l9-11"></path></svg>
+</ng-template>
+
+<div class="rc-g2">
+  <div class="rc-fld">
+    <div class="rc-lbi">
+      <label class="rc-lb" for="rc-cau">Valor da caução</label>
+      <app-info-tip #tCau label="O que é caução" controls="rc-tip-cau" />
+    </div>
+    <p class="rc-tip" id="rc-tip-cau" role="note" [hidden]="!tCau.expanded()">
+      Dinheiro que fica com você como <b>garantia</b>. Volta para ele no fim do aluguel, se estiver
+      tudo certo. Deixe 0 se você não cobra caução.
+    </p>
+    <div class="rc-mny big" [class.bad]="!!errors()['caucaoReais']">
+      <span class="pre">R$</span>
+      <input id="rc-cau" inputmode="decimal" autocomplete="off" placeholder="0,00" data-testid="caucao-value"
+        [formControl]="form().controls.caucaoReais" (input)="money($event, form().controls.caucaoReais)"
+        (blur)="touched.emit('caucaoReais')"
+        [attr.aria-invalid]="errors()['caucaoReais'] ? 'true' : null"
+        [attr.aria-describedby]="errors()['caucaoReais'] ? 'rc-cau-err' : null" />
+    </div>
+    @if (errors()['caucaoReais']; as m) {
+      <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rc-cau-err">{{ m }}</p>
+    }
+  </div>
+  <div class="rc-fld">
+    <div class="rc-ckr">
+      <button type="button" class="pe-tg rc-tgg" role="switch" [attr.aria-checked]="paid()"
+        data-testid="caucao-paid" (click)="togglePaid.emit()">
+        <span class="pe-ot"><b>Recebi por fora</b><span>Ele já te pagou a caução.</span></span>
+        <span class="pe-sw" [class.on]="paid()"></span>
+      </button>
+      <app-info-tip #tPaid label="O que é Recebi por fora" controls="rc-tip-paid" />
+    </div>
+    <p class="rc-tip" id="rc-tip-paid" role="note" [hidden]="!tPaid.expanded()">
+      Use quando ele já te pagou a caução <b>fora do MyCarsHub</b> (em mãos ou Pix direto para
+      você). O valor fica anotado no aluguel e nenhuma cobrança de caução é enviada.
+    </p>
+  </div>
+</div>
+
+@if (paid()) {
+  <div class="rc-paid">
+    <p class="rc-okg" data-testid="caucao-paid-line">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+      {{ grossText() }} anotados como pagos
+    </p>
+    <p class="rc-hint">Nenhuma cobrança de caução vai ser enviada.</p>
+  </div>
+} @else {
+  <div>
+    <span class="rc-sub" id="rc-cau-how">Como cobrar a caução</span>
+    <p class="rc-hint">Desconto e parcelar podem ir juntos.</p>
+    <div class="rc-checks" role="group" aria-labelledby="rc-cau-how">
+      <button type="button" class="rc-chk" role="checkbox" [attr.aria-checked]="full()"
+        data-testid="caucao-full" (click)="check.emit('full')">
+        <span class="rc-bx">@if (full()) { <ng-container [ngTemplateOutlet]="tick" /> }</span>
+        <span class="pe-ot"><b>Valor cheio</b>
+          <span>Uma cobrança{{ grossCents() > 0 ? ' de ' + grossText() : '' }} no dia da retirada.</span></span>
+      </button>
+      <div class="rc-ckw">
+        <div class="rc-ckr">
+          <button type="button" class="rc-chk" role="checkbox" [attr.aria-checked]="descOn()"
+            data-testid="caucao-desc" (click)="check.emit('desc')">
+            <span class="rc-bx">@if (descOn()) { <ng-container [ngTemplateOutlet]="tick" /> }</span>
+            <span class="pe-ot"><b>Dar desconto</b><span>Ele paga menos de caução.</span></span>
+          </button>
+          <app-info-tip #tDesc label="O que é Dar desconto" controls="rc-tip-cdesc" />
+        </div>
+        <p class="rc-tip" id="rc-tip-cdesc" role="note" [hidden]="!tDesc.expanded()">
+          A cobrança da caução sai com o desconto. No fim do aluguel, você devolve o que ele pagou.
+        </p>
+      </div>
+      <div class="rc-ckw">
+        <div class="rc-ckr">
+          <button type="button" class="rc-chk" role="checkbox" [attr.aria-checked]="splitOn()"
+            data-testid="caucao-split" (click)="check.emit('split')">
+            <span class="rc-bx">@if (splitOn()) { <ng-container [ngTemplateOutlet]="tick" /> }</span>
+            <span class="pe-ot"><b>Parcelar</b><span>Dividir em partes, cada uma com a sua data.</span></span>
+          </button>
+          <app-info-tip #tSplit label="O que é Parcelar" controls="rc-tip-csplit" />
+        </div>
+        <p class="rc-tip" id="rc-tip-csplit" role="note" [hidden]="!tSplit.expanded()">
+          Cada parte vira uma cobrança, enviada para ele na data. As partes precisam somar o valor
+          da caução.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  @if (descOn()) {
+    <div class="rc-g2">
+      <div class="rc-fld">
+        <label class="rc-lb" for="rc-cau-desc">Desconto de</label>
+        <div class="rc-mny" [class.bad]="!!errors()['caucaoDiscount']">
+          <span class="pre">R$</span>
+          <input id="rc-cau-desc" inputmode="decimal" autocomplete="off" placeholder="0,00"
+            data-testid="caucao-discount"
+            [formControl]="form().controls.caucaoDiscount" (input)="money($event, form().controls.caucaoDiscount)"
+            (blur)="touched.emit('caucaoDiscount')"
+            [attr.aria-invalid]="errors()['caucaoDiscount'] ? 'true' : null"
+            [attr.aria-describedby]="errors()['caucaoDiscount'] ? 'rc-cau-desc-err' : 'rc-cau-desc-hint'" />
+        </div>
+        @if (errors()['caucaoDiscount']; as m) {
+          <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rc-cau-desc-err">{{ m }}</p>
+        } @else {
+          <p class="rc-hint" id="rc-cau-desc-hint" data-testid="caucao-net">Ele paga {{ netText() }} de caução.</p>
+        }
+      </div>
+    </div>
+  }
+
+  @if (splitOn()) {
+    <div class="rc-parts">
+      @for (part of parts().controls; track part; let i = $index) {
+        <div class="rc-prt">
+          <div class="rc-fld">
+            <label class="rc-lb" [for]="'rc-cp' + i">Parte {{ i + 1 }}</label>
+            <div class="rc-mny" [class.bad]="!!errors()['cauPart' + i]">
+              <span class="pre">R$</span>
+              <input [id]="'rc-cp' + i" inputmode="decimal" autocomplete="off" placeholder="0,00"
+                [attr.data-testid]="'caucao-part-' + i"
+                [formControl]="part.controls.amount" (input)="money($event, part.controls.amount); partEdited.emit()"
+                (blur)="touched.emit('cauPart' + i)"
+                [attr.aria-invalid]="errors()['cauPart' + i] ? 'true' : null"
+                [attr.aria-describedby]="errors()['cauPart' + i] ? 'rc-cp-err' + i : null" />
+            </div>
+            @if (errors()['cauPart' + i]; as m) {
+              <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" [id]="'rc-cp-err' + i">{{ m }}</p>
+            }
+          </div>
+          <app-calendar-field label="Vence em" [testId]="'caucao-due-' + i" [value]="partDues()[i]"
+            [min]="today()" [error]="errors()['cauDue' + i] ?? null"
+            (valueChange)="setDue(i, $event)" (closed)="touched.emit('cauDue' + i)" />
+          @if (i >= 2) {
+            <button type="button" class="rc-lnk rc-rm" [attr.data-testid]="'caucao-remove-' + i"
+              (click)="removePart.emit(i)">Tirar a parte {{ i + 1 }}</button>
+          }
+        </div>
+      }
+      @if (errors()['caucaoPartsSum']; as m) {
+        <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" data-testid="caucao-sum">{{ m }}</p>
+      } @else if (sumOk()) {
+        <p class="rc-okg" data-testid="caucao-sum">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+          As partes somam {{ sumText() }}
+        </p>
+      }
+      <button type="button" class="rc-lnk" data-testid="caucao-add" (click)="addPart.emit()">+ Mais uma parte</button>
+    </div>
+  }
+
+  <button type="button" class="rc-pv" data-testid="caucao-preview" [disabled]="!preview()"
+    (click)="previewOpen.set(true)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle>
+    </svg>
+    Ver prévia da caução
+  </button>
+}
+
+@if (previewOpen() && preview(); as p) {
+  <app-rc-preview-sheet title="Prévia da caução" testId="caucao-preview-sheet" [model]="p"
+    (closed)="previewOpen.set(false)" />
+}

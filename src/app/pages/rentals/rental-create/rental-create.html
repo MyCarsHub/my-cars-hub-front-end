@@ -1,0 +1,184 @@
+@if (done(); as d) {
+  <app-default-page-layout title="Aluguel criado" [description]="d.subtitle">
+    <app-rc-created [model]="d" (open)="openRental()" (again)="restart()" />
+  </app-default-page-layout>
+} @else {
+<app-default-page-layout
+  title="Novo aluguel"
+  description="Reserve um veículo para um motorista. Você escolhe se registra manualmente ou já dispara cobrança via Asaas."
+>
+  <div class="rc-page">
+    <div
+      class="rc-evo"
+      role="progressbar"
+      aria-label="Progresso do aluguel"
+      aria-valuemin="0"
+      [attr.aria-valuemax]="progress().total"
+      [attr.aria-valuenow]="progress().done"
+      [attr.aria-valuetext]="progress().done + ' de ' + progress().total + ' cards prontos'"
+      data-testid="create-progress"
+    >
+      <div class="rc-evh">
+        <span>Etapa {{ progress().step }} de {{ progress().total }}</span>
+        <span><b>{{ progress().percent }}%</b> concluído</span>
+      </div>
+      <div class="rc-evb" aria-hidden="true">
+        @for (s of progress().segments; track $index) {
+          <i [class]="s"></i>
+        }
+      </div>
+    </div>
+
+    @if (draftRestored()) {
+      <div role="status" class="rc-draft" data-testid="draft-restored">
+        <p>Continuamos de onde você parou.</p>
+        <button type="button" class="rc-link" (click)="discardDraft()">Começar do zero</button>
+      </div>
+    }
+
+    <section class="rc-card" aria-labelledby="rc-c1">
+      <h2 class="rc-ch" id="rc-c1" tabindex="-1">{{ cardNames[0] }}</h2>
+      <app-rc-driver-vehicle
+        [drivers]="driverOptions()"
+        [vehicles]="vehicleOptions()"
+        [driverId]="v().driverId"
+        [vehicleId]="v().vehicleId"
+        [driverError]="shownErrors()['driverId'] ?? null"
+        [vehicleError]="shownErrors()['vehicleId'] ?? null"
+        [driverLost]="driverLost()"
+        [vehicleLost]="vehicleLost()"
+        [failed]="pickersFailed()"
+        (driverChange)="setDriver($event)"
+        (vehicleChange)="setVehicle($event)"
+        (touched)="markTouched($event)"
+        (retry)="retryPickers()"
+      />
+    </section>
+
+    <section class="rc-card" aria-labelledby="rc-c2">
+      <h2 class="rc-ch" id="rc-c2" tabindex="-1">{{ cardNames[1] }}</h2>
+      <app-rc-period
+        [value]="period()"
+        [errors]="shownErrors()"
+        [sentence]="sentence()"
+        (patch)="patchPeriod($event)"
+        (touched)="markTouched($event)"
+      />
+    </section>
+
+    <section class="rc-card" aria-labelledby="rc-c3">
+      <h2 class="rc-ch" id="rc-c3" tabindex="-1">{{ cardNames[2] }}</h2>
+      <app-rc-caucao
+        [form]="form"
+        [parts]="caucaoParts"
+        [paid]="v().caucaoPaid"
+        [descOn]="v().caucaoDescOn"
+        [splitOn]="v().caucaoSplit"
+        [grossCents]="caucao().gross"
+        [netCents]="caucao().net"
+        [partDues]="caucaoDues()"
+        [partsSum]="caucaoSum()"
+        [errors]="shownErrors()"
+        [today]="today"
+        [preview]="caucaoPreviewModel()"
+        (check)="caucaoCheck($event)"
+        (togglePaid)="toggleCaucaoPaid()"
+        (addPart)="addCaucaoPart()"
+        (removePart)="removeCaucaoPart($event)"
+        (partEdited)="caucaoPartsEdited.set(true)"
+        (touched)="markTouched($event)"
+      />
+    </section>
+
+    <section class="rc-card" aria-labelledby="rc-c4">
+      <h2 class="rc-ch" id="rc-c4" tabindex="-1">{{ cardNames[3] }}</h2>
+      <app-rc-charges
+        [form]="form"
+        [parts]="periodParts"
+        [frequency]="frequency()"
+        [words]="words()"
+        [rateCents]="rateCents()"
+        [rateHint]="rateHintText()"
+        [descOn]="v().descOn"
+        [splitOn]="v().parcOn"
+        [scope]="v().splitScope"
+        [discountN]="v().discountN"
+        [firstNOptions]="discountOptions()"
+        [discountHint]="discountHintText()"
+        [partOffsets]="periodOffsets()"
+        [partOptions]="partOptions()"
+        [partsSum]="periodSum()"
+        [canAddPart]="canAddPeriodPart()"
+        [canDrop]="canDropSelection()"
+        [weeks]="weekItems()"
+        [errors]="shownErrors()"
+        [preview]="chargesPreviewModel()"
+        (frequencyChange)="setFrequency($event)"
+        (check)="chargesCheck($event)"
+        (scopeChange)="setScope($event)"
+        (toggleWeek)="toggleWeek($event)"
+        (dropStale)="dropStaleWeeks()"
+        (addPart)="addPeriodPart()"
+        (removePart)="removePeriodPart($event)"
+        (partEdited)="periodPartsEdited.set(true)"
+        (touched)="markTouched($event)"
+      />
+    </section>
+
+    <section class="rc-card" aria-labelledby="rc-c5">
+      <h2 class="rc-ch" id="rc-c5" tabindex="-1">{{ cardNames[4] }}</h2>
+      <app-rc-terms
+        [form]="form"
+        [value]="v()"
+        [errors]="shownErrors()"
+        [frequency]="frequency()"
+        [chargeCents]="chargeCents()"
+        (touched)="markTouched($event)"
+      />
+    </section>
+
+    <section class="rc-card" aria-labelledby="rc-c6">
+      <h2 class="rc-ch" id="rc-c6" tabindex="-1">{{ cardNames[5] }}</h2>
+      <app-rc-contract
+        [useTemplate]="v().useContractTemplate"
+        [hasContractTemplate]="hasContractTemplate()"
+        [isOwner]="isOwner"
+        (useTemplateChange)="setUseTemplate($event)"
+      />
+    </section>
+
+    <section class="rc-card" aria-labelledby="rc-c7">
+      <h2 class="rc-ch" id="rc-c7" tabindex="-1">{{ cardNames[6] }}</h2>
+      <app-rc-billing
+        [automatic]="v().automaticCharge"
+        [asaasConnected]="asaasConnected()"
+        [isOwner]="isOwner"
+        (automaticChange)="setAutomatic($event)"
+      />
+    </section>
+
+    <section class="rc-card" aria-labelledby="rc-c8">
+      <h2 class="rc-ch" id="rc-c8" tabindex="-1">{{ cardNames[7] }}</h2>
+      <app-rc-notes [value]="v().notes" (valueChange)="setNotes($event)" />
+    </section>
+
+    <app-rc-actions
+      [missing]="missing()"
+      [showMissing]="showMissing()"
+      [busy]="checking()"
+      [checkFailed]="checkFailed()"
+      [stale]="checkStale()"
+      (create)="create()"
+      (cancel)="cancel()"
+      (go)="goToCard($event)"
+    />
+  </div>
+</app-default-page-layout>
+
+@if (confirmOpen() && confirm(); as c) {
+  <app-rc-confirm-sheet [model]="c" [saving]="saving()" (create)="confirmCreate()" (closed)="onConfirmClosed($event)" />
+}
+@if (blockReasons(); as reasons) {
+  <app-rc-blocked-sheet [reasons]="reasons" (closed)="onBlockedClosed($event)" />
+}
+}

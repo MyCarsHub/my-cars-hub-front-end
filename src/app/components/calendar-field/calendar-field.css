@@ -1,0 +1,79 @@
+/* Campo + calendário, nos tokens do app (claro e escuro). Laranja = escolha e foco. */
+:host {
+  display: contents;
+  --cf-tint: color-mix(in srgb, var(--color-primary-500) 18%, transparent);
+}
+
+.cf-anchor { display: flex; flex-direction: column; min-width: 0; }
+.cf-lb { display: block; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--color-fg-soft); margin-bottom: 6px; }
+.cf-req { color: var(--color-primary-500); }
+
+.cf-f {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px;
+  font: inherit; font-size: 16px; line-height: 24px; text-align: left; cursor: pointer;
+  background: var(--color-surface); color: var(--color-fg-body);
+  border: 1px solid var(--color-edge-field); border-radius: 12px; padding: 11px 16px;
+  transition: border-color 200ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.cf-f.empty { color: var(--color-fg-faint); }
+.cf-f svg { flex: none; color: var(--color-fg-muted); }
+.cf-f.bad { border-color: #f43f5e; }
+.cf-f.open, .cf-f:focus-visible { outline: none; border-color: var(--color-primary-600); box-shadow: 0 0 0 1px var(--color-primary-600); }
+.cf-err { margin: 6px 0 0; font-size: 14px; line-height: 20px; font-weight: 500; }
+
+.cf-pn {
+  grid-column: 1 / -1; margin-top: 8px;
+  border: 1px solid var(--color-edge-field); border-radius: 12px; background: var(--color-surface);
+  padding: 8px; animation: cf-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes cf-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.cf-mm { display: grid; gap: 24px; }
+.cf-pn.two .cf-mm { grid-template-columns: 1fr 1fr; }
+.cf-cal { padding: 4px 4px 0; min-width: 0; }
+.cf-cmh { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 4px 8px; }
+.cf-cmh b { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--color-fg); }
+.cf-nav { display: flex; gap: 4px; }
+.cf-nav button {
+  width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--color-edge-field); background: transparent; color: var(--color-fg-soft);
+}
+
+.cf-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.cf-grid th { font-size: 13px; line-height: 20px; font-weight: 400; color: var(--color-fg-faint); padding: 0 0 4px; }
+.cf-grid td { height: 44px; padding: 0; text-align: center; font-size: 16px; color: var(--color-fg-body); cursor: pointer; }
+.cf-grid td i {
+  font-style: normal; width: 40px; height: 40px; border-radius: 20px; display: inline-grid; place-items: center;
+  transition: background-color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.cf-grid td.in { background: var(--cf-tint); }
+.cf-grid td.s { background: linear-gradient(90deg, transparent 50%, var(--cf-tint) 50%); }
+.cf-grid td.e { background: linear-gradient(90deg, var(--cf-tint) 50%, transparent 50%); }
+.cf-grid td.today i { box-shadow: inset 0 0 0 1px var(--color-edge-field); }
+.cf-grid td:not(.on):not(.off):hover i { background: color-mix(in srgb, var(--color-fg) 8%, transparent); }
+.cf-grid td.on i { background: var(--color-primary-500); color: #fff; font-weight: 700; }
+.cf-grid td.off { opacity: 0.35; cursor: not-allowed; }
+.cf-grid td:focus { outline: none; }
+.cf-grid td:focus-visible i { outline: 2px solid var(--color-primary-400); outline-offset: 1px; }
+
+.cf-pf { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 8px 4px; }
+.cf-pf p { margin: 0; font-size: 14px; line-height: 20px; color: var(--color-fg-muted); }
+.cf-ok {
+  flex: none; min-height: 44px; padding: 0 18px; border: 0; border-radius: 12px; cursor: pointer;
+  background: var(--color-primary-500); color: #fff; font: inherit; font-size: 16px; font-weight: 600;
+}
+.cf-nav button:focus-visible, .cf-ok:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+
+@media (min-width: 1024px) {
+  :host { display: block; position: relative; }
+  .cf-pn {
+    position: absolute; left: 0; top: 100%; z-index: 30; width: 360px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  }
+  .cf-pn.two { width: 680px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-pn { animation: none; }
+  .cf-f, .cf-grid td i { transition: none; }
+}

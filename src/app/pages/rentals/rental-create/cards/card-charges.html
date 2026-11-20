@@ -1,0 +1,207 @@
+<ng-template #tick>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5l9-11"></path></svg>
+</ng-template>
+
+<div class="rc-g2">
+  <div class="rc-fld">
+    <div class="rc-lbi">
+      <span class="rc-lb" id="rc-freq-lb">Frequência <span class="pe-req" aria-hidden="true">*</span></span>
+      <app-info-tip #tFreq label="O que é frequência" controls="rc-tip-freq" />
+    </div>
+    <p class="rc-tip" id="rc-tip-freq" role="note" [hidden]="!tFreq.expanded()">
+      <b>Por semana:</b> uma cobrança a cada 7 dias, sempre no dia da semana em que ele pega o carro.
+      <b>Por dia</b> cobra todo dia; <b>por mês</b>, a cada 30 dias.
+    </p>
+    <app-segmented-toggle class="rc-seg" data-testid="frequency" [options]="freqOptions" [value]="frequency()"
+      ariaLabelledby="rc-freq-lb" containerClass="border border-edge-field" activeClass="text-white"
+      inactiveClass="text-fg-muted hover:text-fg" textClass="text-base"
+      (selectionChange)="frequencyChange.emit($event)" />
+  </div>
+  <div class="rc-fld">
+    <label class="rc-lb" for="rc-rate">Valor de cada {{ words().lower }} <span class="pe-req" aria-hidden="true">*</span></label>
+    <div class="rc-mny big" [class.bad]="!!errors()['periodRateReais']">
+      <span class="pre">R$</span>
+      <input id="rc-rate" inputmode="decimal" autocomplete="off" placeholder="0,00" data-testid="rate"
+        [formControl]="form().controls.periodRateReais" (input)="money($event, form().controls.periodRateReais)"
+        (blur)="touched.emit('periodRateReais')"
+        [attr.aria-invalid]="errors()['periodRateReais'] ? 'true' : null"
+        [attr.aria-describedby]="errors()['periodRateReais'] ? 'rc-rate-err' : 'rc-rate-hint'" />
+    </div>
+    @if (errors()['periodRateReais']; as m) {
+      <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rc-rate-err">{{ m }}</p>
+    } @else {
+      <p class="rc-hint" id="rc-rate-hint" data-testid="rate-hint">{{ rateHint() }}</p>
+    }
+  </div>
+</div>
+
+<div>
+  <span class="rc-sub" id="rc-chg-how">Como cobrar {{ theMany() }}</span>
+  <p class="rc-hint">Desconto e parcelar podem ir juntos.</p>
+  <div class="rc-checks" role="group" aria-labelledby="rc-chg-how">
+    <button type="button" class="rc-chk" role="checkbox" [attr.aria-checked]="full()"
+      data-testid="charges-full" (click)="check.emit('full')">
+      <span class="rc-bx">@if (full()) { <ng-container [ngTemplateOutlet]="tick" /> }</span>
+      <span class="pe-ot"><b>Valor cheio</b>
+        <span>{{ rateCents() > 0 ? rateText() : 'O mesmo valor' }} em {{ allMany() }}.</span></span>
+    </button>
+    <div class="rc-ckw">
+      <div class="rc-ckr">
+        <button type="button" class="rc-chk" role="checkbox" [attr.aria-checked]="descOn()"
+          data-testid="charges-desc" (click)="check.emit('desc')">
+          <span class="rc-bx">@if (descOn()) { <ng-container [ngTemplateOutlet]="tick" /> }</span>
+          <span class="pe-ot"><b>Dar desconto</b><span>Um valor menor em {{ some() }}.</span></span>
+        </button>
+        <app-info-tip #tDesc label="O que é Dar desconto" controls="rc-tip-pdesc" />
+      </div>
+      <p class="rc-tip" id="rc-tip-pdesc" role="note" [hidden]="!tDesc.expanded()">
+        O desconto vale só para as primeiras cobranças. Depois, volta ao valor cheio.
+      </p>
+    </div>
+    <div class="rc-ckw">
+      <div class="rc-ckr">
+        <button type="button" class="rc-chk" role="checkbox" [attr.aria-checked]="splitOn()"
+          data-testid="charges-split" (click)="check.emit('split')">
+          <span class="rc-bx">@if (splitOn()) { <ng-container [ngTemplateOutlet]="tick" /> }</span>
+          <span class="pe-ot"><b>Parcelar</b><span>Dividir {{ theOne() }} em partes.</span></span>
+        </button>
+        <app-info-tip #tSplit label="O que é Parcelar" controls="rc-tip-psplit" />
+      </div>
+      <p class="rc-tip" id="rc-tip-psplit" role="note" [hidden]="!tSplit.expanded()">
+        Cada parte vira uma cobrança, no dia escolhido. As partes precisam somar o valor {{ ofOne() }}.
+      </p>
+    </div>
+  </div>
+</div>
+
+@if (descOn()) {
+  <div class="rc-prt rc-desc">
+    <div class="rc-fld">
+      <label class="rc-lb" for="rc-dn">Em quantas</label>
+      <select id="rc-dn" class="rc-sel" data-testid="discount-n" [value]="discountN()" (change)="setDiscountN($event)"
+        [attr.aria-invalid]="errors()['discountN'] ? 'true' : null"
+        [attr.aria-describedby]="errors()['discountN'] ? 'rc-dn-err' : null">
+        @for (o of firstNOptions(); track o.value) {
+          <option [value]="o.value" [selected]="o.value === discountN()">{{ o.label }}</option>
+        }
+      </select>
+      @if (errors()['discountN']; as m) {
+        <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rc-dn-err">{{ m }}</p>
+      }
+    </div>
+    <div class="rc-fld">
+      <label class="rc-lb" for="rc-dv">Desconto em cada</label>
+      <div class="rc-mny" [class.bad]="!!errors()['discountValue']">
+        <span class="pre">R$</span>
+        <input id="rc-dv" inputmode="decimal" autocomplete="off" placeholder="0,00" data-testid="discount-value"
+          [formControl]="form().controls.discountValue" (input)="money($event, form().controls.discountValue)"
+          (blur)="touched.emit('discountValue')"
+          [attr.aria-invalid]="errors()['discountValue'] ? 'true' : null"
+          [attr.aria-describedby]="errors()['discountValue'] ? 'rc-dv-err' : 'rc-dv-hint'" />
+      </div>
+      @if (errors()['discountValue']; as m) {
+        <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rc-dv-err">{{ m }}</p>
+      }
+    </div>
+    @if (!errors()['discountValue'] && discountHint()) {
+      <p class="rc-hint rc-span" id="rc-dv-hint" data-testid="discount-hint">{{ discountHint() }}</p>
+    }
+  </div>
+}
+
+@if (splitOn()) {
+  <div class="rc-g2">
+    <div class="rc-fld">
+      <span class="rc-lb" id="rc-scope-lb">{{ scopeLabel() }}</span>
+      <app-segmented-toggle class="rc-seg two" data-testid="split-scope" [options]="scopeOptions()" [value]="scope()"
+        ariaLabelledby="rc-scope-lb" containerClass="border border-edge-field" activeClass="text-white"
+        inactiveClass="text-fg-muted hover:text-fg" textClass="text-base"
+        (selectionChange)="scopeChange.emit($event)" />
+    </div>
+  </div>
+
+  @if (scope() === 'SOME') {
+    <div class="rc-fld">
+      <div class="rc-wk" role="group" [attr.aria-label]="scopeLabel()">
+        @for (w of weeks(); track w.i) {
+          <button type="button" [attr.aria-pressed]="w.on" [disabled]="w.past && !w.on"
+            [attr.data-testid]="'week-' + w.i" (click)="toggleWeek.emit(w.i)">
+            {{ w.label }}<i>{{ w.date }}</i>
+          </button>
+        }
+      </div>
+      @if (errors()['splitSel']; as m) {
+        <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" data-testid="split-sel-error">{{ m }}</p>
+        @if (canDrop()) {
+          <button type="button" class="rc-lnk" (click)="dropStale.emit()">Tirar da escolha</button>
+        }
+      }
+    </div>
+  }
+
+  <div class="rc-parts">
+    @for (part of parts().controls; track part; let i = $index) {
+      <div class="rc-prt">
+        <div class="rc-fld">
+          <label class="rc-lb" [for]="'rc-pp' + i">Parte {{ i + 1 }}</label>
+          <div class="rc-mny" [class.bad]="!!errors()['perPart' + i]">
+            <span class="pre">R$</span>
+            <input [id]="'rc-pp' + i" inputmode="decimal" autocomplete="off" placeholder="0,00"
+              [attr.data-testid]="'period-part-' + i"
+              [formControl]="part.controls.amount" (input)="money($event, part.controls.amount); partEdited.emit()"
+              (blur)="touched.emit('perPart' + i)"
+              [attr.aria-invalid]="errors()['perPart' + i] ? 'true' : null"
+              [attr.aria-describedby]="errors()['perPart' + i] ? 'rc-pp-err' + i : null" />
+          </div>
+          @if (errors()['perPart' + i]; as m) {
+            <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" [id]="'rc-pp-err' + i">{{ m }}</p>
+          }
+        </div>
+        <div class="rc-fld">
+          <label class="rc-lb" [for]="'rc-pd' + i">{{ dueLabel() }}</label>
+          <select class="rc-sel" [id]="'rc-pd' + i" [attr.data-testid]="'period-due-' + i" (change)="setOffset(i, $event)"
+            [attr.aria-invalid]="errors()['perDue' + i] ? 'true' : null"
+            [attr.aria-describedby]="errors()['perDue' + i] ? 'rc-pd-err' + i : null">
+            @for (o of partOptions(); track o.value) {
+              <option [value]="o.value" [selected]="o.value === partOffsets()[i]">{{ o.label }}</option>
+            }
+          </select>
+          @if (errors()['perDue' + i]; as m) {
+            <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" [id]="'rc-pd-err' + i">{{ m }}</p>
+          }
+        </div>
+        @if (i >= 2) {
+          <button type="button" class="rc-lnk rc-rm" [attr.data-testid]="'period-remove-' + i"
+            (click)="removePart.emit(i)">Tirar a parte {{ i + 1 }}</button>
+        }
+      </div>
+    }
+    @if (errors()['periodPartsSum']; as m) {
+      <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" data-testid="period-sum">{{ m }}</p>
+    } @else if (sumOk()) {
+      <p class="rc-okg" data-testid="period-sum">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+        As partes somam {{ sumText() }}, o valor {{ ofOne() }}
+      </p>
+    }
+    @if (canAddPart()) {
+      <button type="button" class="rc-lnk" data-testid="period-add" (click)="addPart.emit()">+ Mais uma parte</button>
+    }
+  </div>
+}
+
+<button type="button" class="rc-pv" data-testid="charges-preview" [disabled]="!preview()"
+  (click)="previewOpen.set(true)">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle>
+  </svg>
+  Ver prévia das cobranças
+</button>
+
+@if (previewOpen() && preview(); as p) {
+  <app-rc-preview-sheet title="Prévia das cobranças" testId="charges-preview-sheet" [model]="p"
+    (closed)="previewOpen.set(false)" />
+}
