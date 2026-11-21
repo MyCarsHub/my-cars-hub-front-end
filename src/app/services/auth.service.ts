@@ -114,6 +114,9 @@ export class AuthService {
         const companiesFromMe: UserCompanies[] = user.companies ?? [];
 
         this.sessionService.setItem('id', user.id ?? '');
+        // Numa aba compartilhada, o que a sessão que CAIU de OUTRO usuário deixou (rascunhos,
+        // "voltar para") não fica para quem entrou agora. Vale para o login OAuth e o por senha.
+        this.sessionService.dropOtherUsersLeftovers(user.id ?? null);
         this.sessionService.setItem('name', user.name ?? '');
         this.sessionService.setItem('email', user.email ?? '');
         this.sessionService.setItem('systemRole', user.systemRole ?? 'USER');

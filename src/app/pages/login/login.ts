@@ -74,6 +74,12 @@ export class Login {
         this.clearForm();
         const onboardingCompleted = this.sessionService.isOnboardingCompleted();
         const home = homeRouteForRole(this.sessionService.getCompanyRoleFromToken());
+        // A sessão tinha caído no meio de uma tela: o MESMO usuário volta para ela.
+        const back = this.sessionService.takeReturnUrl(this.sessionService.getUserId());
+        if (onboardingCompleted && back) {
+          this.router.navigateByUrl(back);
+          return;
+        }
         this.router.navigate([onboardingCompleted ? home : '/onboarding']);
       },
       error: (err: HttpErrorResponse) => this.handleError(err),

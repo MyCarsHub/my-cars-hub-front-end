@@ -28,6 +28,7 @@ describe('AuthService', () => {
     setTourSeen: ReturnType<typeof vi.fn>;
     getToken: ReturnType<typeof vi.fn>;
     clear: ReturnType<typeof vi.fn>;
+    dropOtherUsersLeftovers: ReturnType<typeof vi.fn>;
   };
   let httpGet: ReturnType<typeof vi.fn>;
   let service: AuthService;
@@ -52,6 +53,7 @@ describe('AuthService', () => {
       clear: vi.fn(() => {
         store = {};
       }),
+      dropOtherUsersLeftovers: vi.fn(),
     };
     httpGet = vi.fn();
 
@@ -135,6 +137,13 @@ describe('AuthService', () => {
         ...extra,
       };
     }
+
+    it('assim que o /auth/me grava o id, apaga o que outro usuário deixou na aba', () => {
+      httpGet.mockReturnValue(of(buildMe({ id: 'u-2' })));
+      service.hydrateSession().subscribe();
+      expect(store['id']).toBe('u-2');
+      expect(sessionMock.dropOtherUsersLeftovers).toHaveBeenCalledWith('u-2');
+    });
 
     it('usa o valor do backend quando ele opina', () => {
       httpGet.mockReturnValue(of(buildMe({ hasSeenTour: true })));

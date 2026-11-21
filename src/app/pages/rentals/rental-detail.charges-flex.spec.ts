@@ -200,10 +200,21 @@ describe('RentalDetail — Cobranças flexíveis (FEAT-0573)', () => {
       http.expectNone((r) => r.url.includes('/agreements'));
     });
 
-    it('o rótulo da linha inteira continua "Aluguel — período"', async () => {
+    it('o período inteiro se chama "Semana N", como o parcelado ("Semana N, parcela x de y")', async () => {
       const { fixture } = await mount({ flex: false, charges: [OPEN_W4] });
-      expect(el(fixture).textContent).toContain('Aluguel — período');
+      expect(el(fixture).textContent).toContain('Semana 4');
+      expect(el(fixture).textContent).not.toContain('Aluguel — período');
       expect(el(fixture).textContent).not.toContain('parcela');
+    });
+
+    it('a mesma regra por dia e por mês; caução segue "Caução"', async () => {
+      const { fixture } = await mount({
+        flex: false,
+        charges: [OPEN_W4, charge({ id: 'c1', kind: 'CAUCAO', periodIndex: null, dueDate: '2099-12-01' })],
+        rental: { billingFrequency: 'MONTHLY' },
+      });
+      expect(el(fixture).textContent).toContain('Mês 4');
+      expect(el(fixture).textContent).toContain('Caução');
     });
   });
 

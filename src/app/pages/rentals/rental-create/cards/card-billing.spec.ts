@@ -47,11 +47,11 @@ describe('CardBilling — card 7 · Cobrança', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('radiogroup "Como ele vai pagar?" com as duas opções da prancha', async () => {
+  it('radiogroup com as duas opções, sem o título visível "Como ele vai pagar?"', async () => {
     await mount();
     const group = q('[role="radiogroup"]')!;
-    expect(group.getAttribute('aria-labelledby')).toBe('rt-pay-lb');
-    expect(flat(q('#rt-pay-lb'))).toBe('Como ele vai pagar?');
+    expect(group.getAttribute('aria-label')).toBe('Como ele vai pagar');
+    expect(el().textContent).not.toContain('Como ele vai pagar');
     expect(flat(auto().querySelector('b'))).toBe('Cobranças automáticas');
     expect(flat(outside().querySelector('b'))).toBe('Eu recebo por fora');
     expect(el().textContent).not.toContain('Pix pelo MyCarsHub');

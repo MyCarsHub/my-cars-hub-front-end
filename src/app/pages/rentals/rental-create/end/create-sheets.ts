@@ -43,15 +43,18 @@ const SHARED_STYLES = `
   template: `
     <app-bottom-sheet #sheet title="Confira antes de criar" size="lg" [busy]="saving()" (closed)="closed.emit(exit)">
       <div class="sh" data-testid="confirm-sheet">
-        <div class="tt">
+        <!-- Sem caução, o cartão verde não aparece e o Aluguel ocupa a largura toda. -->
+        <div class="tt" [class.one]="!model().showCaucao">
           <app-painted-card tone="orange" class="tt-c">
             <span class="tt-k">Aluguel</span><span class="tt-v" data-testid="confirm-rent">{{ model().rentTotal }}</span>
             <span class="tt-s">{{ model().rentCaption }}</span>
           </app-painted-card>
-          <app-painted-card tone="green" class="tt-c hub">
-            <span class="tt-k">Caução</span><span class="tt-v" data-testid="confirm-caucao">{{ model().caucaoTotal }}</span>
-            <span class="tt-s">{{ model().caucaoCaption }}</span>
-          </app-painted-card>
+          @if (model().showCaucao) {
+            <app-painted-card tone="green" class="tt-c hub">
+              <span class="tt-k">Caução</span><span class="tt-v" data-testid="confirm-caucao">{{ model().caucaoTotal }}</span>
+              <span class="tt-s" data-testid="confirm-caucao-caption">{{ model().caucaoCaption }}</span>
+            </app-painted-card>
+          }
         </div>
         <div class="kv">
           @for (r of model().rows; track r.label) {
@@ -93,6 +96,7 @@ const SHARED_STYLES = `
     /* Verde principal (Hub Green, success-500), pedido do dono: só aqui; o tom verde do painted-card não muda. */
     .hub { background: var(--color-success-500) !important; }
     .tt { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .tt.one { grid-template-columns: 1fr; }
     .tt-c { gap: 2px !important; padding: 14px !important; }
     .tt-k { font-size: 13px; line-height: 20px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
     .tt-v { font-size: 22px; line-height: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }

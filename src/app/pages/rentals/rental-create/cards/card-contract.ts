@@ -18,7 +18,7 @@ import { InfoTip } from '../../../../components/info-tip/info-tip';
   styleUrl: './card-terms.css',
   encapsulation: ViewEncapsulation.None,
   template: `
-    <div class="rt-g2">
+    <div class="rt-col">
       <div class="rt-fld">
         <div class="rt-ckr">
           <button
