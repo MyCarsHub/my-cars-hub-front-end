@@ -1,0 +1,84 @@
+/* Cards 5 a 8 (Condições de pagamento, Contrato, Cobrança, Observações), pranchas Cond/Ctr/Cobr/Obs.
+   Sem encapsulamento: todo seletor começa com rt- (o Angular insere a folha uma vez só).
+   Tokens do app (claro e escuro), dois tons, separação por espaço, laranja na escolha, verde Hub ligado. */
+.rt-grp, .rt-col, .rt-g2 { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.rt-grp > h3 {
+  margin: 0; font-size: 13px; line-height: 20px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--color-fg-subtle);
+}
+.rt-fld { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.rt-lb, .rt-sub { display: block; margin: 0 0 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--color-fg-soft); }
+.rt-lbi { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
+.rt-lbi .rt-lb { margin: 0; }
+.rt-hint { margin: 6px 0 0; font-size: 14px; line-height: 20px; color: var(--color-fg-subtle); }
+.rt-tip { margin: 4px 0 10px; padding: 12px 14px; border-radius: 12px; background: var(--color-canvas); font-size: 14px; line-height: 20px; color: var(--color-fg-body); }
+.rt-tip[hidden] { display: none; }
+.rt-tip b { font-weight: 600; color: var(--color-fg); }
+.rt-fld > .rc-err { margin-top: 6px; }
+
+/* O (i) ao lado do rótulo do calendário: um rótulo fantasma, do mesmo tamanho, empurra o botão. */
+.rt-ghost { position: absolute; top: 0; left: 0; z-index: 2; height: 20px; display: flex; align-items: center; gap: 2px; pointer-events: none; }
+.rt-ghost > span { visibility: hidden; white-space: nowrap; font-size: 14px; line-height: 20px; font-weight: 500; }
+.rt-ghost app-info-tip { pointer-events: auto; }
+
+/* Campo com unidade (%, R$, km) */
+.rt-unit {
+  display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; border-radius: 12px;
+  border: 1px solid var(--color-edge-field); background: var(--color-surface); color: var(--color-fg-body);
+}
+.rt-unit:focus-within { border-color: var(--color-primary-600); box-shadow: 0 0 0 1px var(--color-primary-600); }
+.rt-unit.bad { border-color: #f43f5e; }
+.rt-unit > span { flex: none; font-size: 16px; line-height: 24px; color: var(--color-fg-faint); }
+.rt-unit input {
+  flex: 1; min-width: 0; border: 0; background: transparent; padding: 11px 0; margin: 0; outline: none;
+  font: inherit; font-size: 16px; line-height: 24px; color: inherit; font-variant-numeric: tabular-nums;
+}
+.rt-unit input::placeholder { color: var(--color-fg-faint); }
+.rt-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.rt-gap { margin-top: 8px; }
+.rt-col.rt-lim { gap: 6px; }
+.rt-lim > .rt-hint { margin: 0; }
+
+/* Segmentos de largura igual, o marcado em laranja sólido (o mesmo do card Cobranças). */
+.rt-seg { display: block; }
+.rt-seg [role='radiogroup'] { display: grid; grid-template-columns: 1fr 1fr; width: 100%; border-radius: 12px; padding: 4px; }
+.rt-seg [role='radio'] { justify-content: center; border-radius: 9px; padding-inline: 4px; }
+.rt-seg [role='radio'][aria-checked='true'] { font-weight: 600; }
+
+/* Linha com o (i) à direita (chave, opção) */
+.rt-ckr { display: flex; align-items: flex-start; gap: 4px; }
+.rt-ckr > button { flex: 1; min-width: 0; }
+.rt-ckr > app-info-tip { margin: 12px 4px 0 0; }
+.rt-off { opacity: 0.45; }
+.pe-tg[aria-disabled='true'] { cursor: not-allowed; }
+
+/* Quadro de estado (na cor do fundo da página) */
+.rt-tile { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; background: var(--color-canvas); }
+.rt-ic { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--color-surface); color: var(--color-fg-muted); }
+.rt-ic.ok { color: var(--color-success-500); }
+.rt-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rt-tx b { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--color-fg); }
+.rt-tx span { font-size: 14px; line-height: 20px; color: var(--color-fg-subtle); }
+.rt-warn { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-radius: 14px; background: var(--color-canvas); }
+.rt-warn p { margin: 0; font-size: 15px; line-height: 22px; color: var(--color-fg-body); }
+.rt-warn p b { font-weight: 600; color: var(--color-primary-700); }
+.rt-warn .rt-hint { margin: -4px 0 0; }
+
+/* Botão contornado em laranja (link de Configurações) */
+.rt-pv {
+  display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 24px;
+  border-radius: 12px; border: 1px solid var(--color-primary-500); background: transparent; text-decoration: none;
+  font: inherit; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--color-primary-700);
+}
+.rt-pv + .rt-hint { margin-top: -8px; }
+.dark .rt-pv, .dark .rt-warn p b { color: var(--color-primary-400); }
+.rt-pv:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+
+@media (min-width: 1024px) {
+  .rt-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .rt-pv { width: auto; align-self: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rt-grp *, .rt-col * { transition: none !important; animation: none !important; }
+}

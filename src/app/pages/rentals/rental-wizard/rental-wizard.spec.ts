@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 
 import { RentalWizard } from './rental-wizard';
 import { RentalForm } from '../rental-form';
-import { RentalNew } from '../rental-new';
 import { RentalService } from '../rental.service';
 import { CompanyContactGate } from '../../../services/company-contact-gate.service';
 import { VehiclesService } from '../../../services/vehicles.service';
@@ -768,34 +767,4 @@ describe('RentalWizard — paridade do corpo com o formulário de hoje', () => {
   });
 });
 
-/** O portão em `/alugueis/novo`: sem a chave, o formulário de hoje; com ela, o passo a passo. */
-describe('RentalNew — portão CHARGES_FLEX', () => {
-  async function mountGate(features: string[] | null): Promise<HTMLElement> {
-    if (features) sessionStorage.setItem('features', JSON.stringify(features));
-    TestBed.configureTestingModule({ imports: [RentalNew], providers: providers() });
-    await TestBed.compileComponents();
-    const f = TestBed.createComponent(RentalNew);
-    f.detectChanges();
-    await f.whenStable();
-    f.detectChanges();
-    return f.nativeElement as HTMLElement;
-  }
-
-  it('sem a chave: o formulário de hoje e nada do passo a passo', async () => {
-    const el = await mountGate(null);
-    expect(el.querySelector('app-rental-form')).not.toBeNull();
-    expect(el.querySelector('app-rental-wizard')).toBeNull();
-  });
-
-  it('com outra chave qualquer: continua o formulário de hoje', async () => {
-    const el = await mountGate(['OTHER_FEATURE']);
-    expect(el.querySelector('app-rental-form')).not.toBeNull();
-    expect(el.querySelector('app-rental-wizard')).toBeNull();
-  });
-
-  it('com CHARGES_FLEX: o passo a passo, e não o formulário de hoje', async () => {
-    const el = await mountGate(['CHARGES_FLEX']);
-    expect(el.querySelector('app-rental-wizard')).not.toBeNull();
-    expect(el.querySelector('app-rental-form')).toBeNull();
-  });
-});
+// O portão de `/alugueis/novo` mudou para a página nova: ver `../rental-new.spec.ts`.

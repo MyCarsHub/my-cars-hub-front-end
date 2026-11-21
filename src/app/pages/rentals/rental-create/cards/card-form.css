@@ -1,0 +1,96 @@
+/* Cards 3 (Caução) e 4 (Cobranças): campos de dinheiro, caixas, partes, segmentos e semanas.
+   Folha compartilhada pelos dois cards, sem encapsulamento (o Angular a insere uma vez só);
+   fora da folha da página para cada uma caber no orçamento de 8 kB. Marcado = verde Hub. */
+.rc-g2, .rc-parts { display: flex; flex-direction: column; gap: 16px; }
+.rc-parts { gap: 12px; }
+.rc-fld { display: flex; flex-direction: column; min-width: 0; }
+.rc-lb, .rc-sub { display: block; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--color-fg-soft); margin-bottom: 6px; }
+.rc-sub { margin: 0; }
+.rc-lbi { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
+.rc-lbi .rc-lb { margin: 0; }
+.rc-tip { margin: 4px 0 10px; padding: 12px 14px; border-radius: 12px; background: var(--color-canvas); font-size: 14px; line-height: 20px; color: var(--color-fg-body); }
+.rc-tip[hidden] { display: none; }
+.rc-tip b { font-weight: 600; color: var(--color-fg); }
+.rc-hint { margin: 4px 0 0; font-size: 14px; line-height: 20px; color: var(--color-fg-subtle); }
+.rc-mny {
+  display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; border-radius: 12px;
+  border: 1px solid var(--color-edge-field); background: var(--color-surface); color: var(--color-fg-body);
+}
+.rc-mny:focus-within { border-color: var(--color-primary-600); box-shadow: 0 0 0 1px var(--color-primary-600); }
+.rc-mny.bad { border-color: #f43f5e; }
+.rc-mny .pre { flex: none; font-size: 16px; color: var(--color-fg-faint); }
+.rc-mny input {
+  flex: 1; min-width: 0; border: 0; background: transparent; padding: 11px 0; margin: 0; outline: none;
+  font: inherit; font-size: 16px; line-height: 24px; color: inherit; font-variant-numeric: tabular-nums;
+}
+.rc-mny.big input { font-size: 22px; line-height: 28px; font-weight: 600; color: var(--color-fg); }
+.rc-mny input::placeholder { color: var(--color-fg-faint); font-weight: 400; }
+.rc-sel {
+  width: 100%; min-height: 48px; padding: 11px 40px 11px 16px; border-radius: 12px; appearance: none;
+  border: 1px solid var(--color-edge-field); color: var(--color-fg-body); font: inherit; font-size: 16px; line-height: 24px;
+  background: var(--color-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%238E8E97' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center;
+}
+.rc-sel:focus-visible { outline: none; border-color: var(--color-primary-600); box-shadow: 0 0 0 1px var(--color-primary-600); }
+.dark .rc-sel { color-scheme: dark; }
+
+.rc-checks { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.rc-ckw { min-width: 0; }
+.rc-ckr { display: flex; align-items: flex-start; gap: 4px; }
+.rc-ckr > button { flex: 1; min-width: 0; }
+.rc-ckr > app-info-tip { margin: 12px 4px 0 0; }
+.rc-chk {
+  display: flex; gap: 14px; align-items: flex-start; width: 100%; padding: 14px 12px; border: 0; border-radius: 16px;
+  background: transparent; font: inherit; text-align: left; color: var(--color-fg); cursor: pointer;
+}
+.rc-bx {
+  flex: none; width: 22px; height: 22px; margin-top: 1px; display: grid; place-items: center; border-radius: 6px;
+  border: 2px solid var(--color-edge-field); transition: background-color 200ms var(--rc-e), border-color 200ms var(--rc-e);
+}
+.rc-chk[aria-checked='true'] .rc-bx { background: var(--color-success-500); border-color: var(--color-success-500); }
+.rc-okg { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--color-success-800); }
+.dark .rc-okg { color: var(--color-success-500); }
+.rc-paid { display: flex; flex-direction: column; gap: 2px; }
+
+.rc-prt { display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: dense; gap: 12px; align-items: start; }
+.rc-prt > .rc-rm, .rc-prt > .rc-span { grid-column: 1 / -1; }
+.rc-lnk {
+  align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer; text-align: left;
+  font: inherit; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--color-primary-700);
+}
+.rc-pv {
+  display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 24px;
+  border-radius: 12px; border: 1px solid var(--color-primary-500); background: transparent; cursor: pointer;
+  font: inherit; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--color-primary-700);
+}
+.dark .rc-lnk, .dark .rc-pv { color: var(--color-primary-400); }
+.rc-pv:disabled { opacity: 0.5; cursor: not-allowed; }
+.rc-chk:focus-visible, .rc-lnk:focus-visible, .rc-pv:focus-visible, .rc-wk button:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+
+/* Frequência e "quais semanas": segmentos de largura igual, o marcado em laranja sólido. */
+.rc-seg { display: block; }
+.rc-seg [role='radiogroup'] { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; border-radius: 12px; padding: 4px; }
+.rc-seg.two [role='radiogroup'] { grid-template-columns: 1fr 1fr; }
+.rc-seg [role='radio'] { justify-content: center; border-radius: 9px; padding-inline: 4px; }
+.rc-seg [role='radio'][aria-checked='true'] { font-weight: 600; }
+
+.rc-wk { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.rc-wk button {
+  min-height: 52px; border: 0; border-radius: 12px; background: var(--color-canvas); color: var(--color-fg); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; font: inherit; font-size: 15px; line-height: 20px; font-weight: 600;
+}
+.rc-wk button i { font-style: normal; font-size: 13px; line-height: 16px; font-weight: 500; color: var(--color-fg-subtle); }
+.rc-wk button[aria-pressed='true'] { background: var(--color-primary-500); color: #fff; }
+.rc-wk button[aria-pressed='true'] i { color: #fff; }
+.rc-wk button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+@media (min-width: 1024px) {
+  /* Cards 3 e 4: duas colunas; as três caixas lado a lado; partes em três colunas. */
+  .rc-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .rc-g2 .pe-tg { margin-top: 30px; }
+  .rc-checks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .rc-prt { grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+  .rc-prt > .rc-rm { grid-column: auto; align-self: end; }
+  .rc-prt.rc-desc > .rc-span { grid-column: 1 / 3; }
+  .rc-pv { width: auto; align-self: flex-start; }
+  .rc-wk { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
