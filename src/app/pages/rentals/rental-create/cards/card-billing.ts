@@ -13,7 +13,7 @@ import { RouterLink } from '@angular/router';
 import { InfoTip } from '../../../../components/info-tip/info-tip';
 
 /**
- * Card 7 · Cobrança (pranchas CobrQ1–Q4 / CobrD1–D3). "Como ele vai pagar?": cobranças
+ * Card 7 · Cobrança (pranchas CobrQ1–Q4 / CobrD1–D3). Sem título visível (dono, 21/11): cobranças
  * automáticas (pela conta Asaas da empresa) ou "Eu recebo por fora" (`automaticCharge`).
  * Só a tela: nada aqui conecta, envia ou muda o fluxo do Asaas. O estado é da página
  * (`RentalCreate`): aqui só se mostra e se avisa.
@@ -43,8 +43,7 @@ import { InfoTip } from '../../../../components/info-tip/info-tip';
   `,
   template: `
     <div>
-      <span class="rt-sub" id="rt-pay-lb">Como ele vai pagar?</span>
-      <div class="rt-opts" role="radiogroup" aria-labelledby="rt-pay-lb" (keydown)="onKey($event)">
+      <div class="rt-opts" role="radiogroup" aria-label="Como ele vai pagar" (keydown)="onKey($event)">
         <div class="rt-ckr">
           <button
             type="button"
