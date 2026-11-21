@@ -10,8 +10,9 @@ import {
   fitToMax,
   minimumTermLabel,
   newEndTail,
-  localNewEnd,
+  allowedUnits,
   overdueText,
+  previewErrorMessage,
   rateHint,
   renewErrorMessage,
   renewalsLabel,
@@ -58,19 +59,37 @@ describe('renovação — detalhe do aluguel (RenR1/R6)', () => {
     expect(endingNotice('2026-12-22', '2026-12-14')).toBeNull();
   });
 
-  it('fim que já passou: o mesmo aviso dizendo que passou', () => {
+  it('fim que já passou: o mesmo aviso dizendo que passou; em outro ano, com o ano', () => {
     expect(endingNotice('2026-12-22', '2026-12-23')?.title).toBe('Terminou em 22/12 e continua ativo');
+    expect(endingNotice('2025-12-22', '2027-01-02')?.title).toBe('Terminou em 22/12/2025 e continua ativo');
+    expect(endingNotice('2027-01-02', '2026-12-28')?.title).toBe('Termina em 5 dias, em 02/01/2027');
   });
 
-  it('renovado: verde, com o fim novo e para onde foram as cobranças', () => {
-    expect(renewedNotice('2027-01-19', 4, 4)).toEqual({
+  it('renovado: verde só sem falha, sempre a partir do chargeSync da resposta', () => {
+    expect(renewedNotice('2027-01-19', { requested: 4, created: 4, failed: 0, local: 0 }, 4)).toEqual({
       tone: 'green',
       title: 'Aluguel renovado até 19/01/2027',
-      text: '4 cobranças novas na sua conta Asaas. O motorista recebeu um aviso por e-mail.',
+      text: '4 cobranças novas na sua conta Asaas. O motorista é avisado por e-mail, se tiver e-mail cadastrado.',
     });
-    expect(renewedNotice('2027-01-19', 1, 0).text).toBe(
-      '1 cobrança nova anotada no aluguel. O motorista recebeu um aviso por e-mail.',
+    expect(renewedNotice('2027-01-19', { requested: 0, created: 0, failed: 0, local: 1 }, 0).text).toBe(
+      '1 cobrança nova anotada no aluguel. O motorista é avisado por e-mail, se tiver e-mail cadastrado.',
     );
+    expect(renewedNotice('2027-01-19', { requested: 3, created: 3, failed: 0, local: 1 }, 3).text).toBe(
+      '3 cobranças novas na sua conta Asaas e 1 cobrança nova anotada no aluguel. O motorista é avisado por e-mail, se tiver e-mail cadastrado.',
+    );
+  });
+
+  it('com falha (ou sem chargeSync numa renovação que ia ao Asaas): laranja, renovado e quantas a gente tenta de novo', () => {
+    expect(renewedNotice('2027-01-19', { requested: 4, created: 3, failed: 1, local: 0 }, 4)).toEqual({
+      tone: 'orange',
+      title: 'Aluguel renovado até 19/01/2027',
+      text: '1 cobrança não foi para a sua conta Asaas. A gente tenta de novo sozinho.',
+    });
+    expect(renewedNotice('2027-01-19', null, 4)).toEqual({
+      tone: 'orange',
+      title: 'Aluguel renovado até 19/01/2027',
+      text: '4 cobranças não foram para a sua conta Asaas. A gente tenta de novo sozinho.',
+    });
   });
 
   it('"Tempo mínimo" na unidade do aluguel e "Renovações"', () => {
@@ -85,6 +104,12 @@ describe('renovação — detalhe do aluguel (RenR1/R6)', () => {
 });
 
 describe('renovação — folha (RenR2–R5)', () => {
+  it('unidades: só as que fecham períodos inteiros da frequência', () => {
+    expect(allowedUnits('WEEKLY')).toEqual(['WEEKS']);
+    expect(allowedUnits('MONTHLY')).toEqual(['MONTHS']);
+    expect(allowedUnits('DAILY')).toEqual(['DAYS', 'WEEKS', 'MONTHS']);
+  });
+
   it('padrões: a unidade da frequência e o tempo mínimo nela', () => {
     expect(defaultUnit('WEEKLY')).toBe('WEEKS');
     expect(defaultUnit('DAILY')).toBe('DAYS');
@@ -94,10 +119,9 @@ describe('renovação — folha (RenR2–R5)', () => {
     expect(defaultAmount(null, 'WEEKS')).toBe(1);
   });
 
-  it('"Novo fim: 19/01/2027 (4 semanas depois de 22/12)." e mês = 30 dias', () => {
-    expect(localNewEnd('2026-12-22', 4, 'WEEKS')).toBe('2027-01-19');
-    expect(localNewEnd('2026-12-22', 1, 'MONTHS')).toBe('2027-01-21');
+  it('"(4 semanas depois de 22/12)." (a data do "Novo fim" vem da prévia)', () => {
     expect(newEndTail('2026-12-22', 4, 'WEEKS')).toBe('(4 semanas depois de 22/12).');
+    expect(newEndTail('2026-12-22', 1, 'MONTHS')).toBe('(1 mês depois de 22/12).');
   });
 
   it('dica do valor e o total pintado', () => {
@@ -135,14 +159,16 @@ describe('renovação — folha (RenR2–R5)', () => {
     expect(local.after).toContain('ficam anotadas no aluguel');
   });
 
-  it('carro com outra reserva (RenR5): cabe na unidade; senão em dias; sem espaço, não dá', () => {
-    expect(fitToMax('2026-12-22', '2027-01-05', 'WEEKS')).toEqual({ amount: 2, unit: 'WEEKS' });
-    expect(fitToMax('2026-12-22', '2026-12-25', 'WEEKS')).toEqual({ amount: 3, unit: 'DAYS' });
+  it('carro com outra reserva (RenR5): períodos inteiros; em dias só quando a frequência deixa', () => {
+    expect(fitToMax('2026-12-22', '2027-01-05', 'WEEKS', ['WEEKS'])).toEqual({ amount: 2, unit: 'WEEKS' });
+    expect(fitToMax('2026-12-22', '2026-12-25', 'WEEKS', ['WEEKS'])).toBeNull();
+    expect(fitToMax('2026-12-22', '2026-12-25', 'WEEKS', ['DAYS', 'WEEKS', 'MONTHS'])).toEqual({ amount: 3, unit: 'DAYS' });
     expect(fitToMax('2026-12-22', '2026-12-22', 'WEEKS')).toBeNull();
-    expect(vehicleTakenText('2026-12-22', '2027-01-05', { amount: 2, unit: 'WEEKS' })).toEqual({
+    expect(vehicleTakenText('2027-01-05', { amount: 2, unit: 'WEEKS' })).toEqual({
       lead: 'O carro tem outra reserva a partir de 05/01.',
       rest: 'Dá para renovar até 05/01 (2 semanas).',
     });
+    expect(vehicleTakenText('2027-01-05', null).rest).toBe('Não dá para renovar agora.');
   });
 
   it('erros do renew: 409, 403, rede e o maxEndDate do VEHICLE_PERIOD_TAKEN', () => {
@@ -160,5 +186,15 @@ describe('renovação — folha (RenR2–R5)', () => {
     expect(takenMaxEnd(apiError(409, { code: 'VEHICLE_PERIOD_TAKEN', reason: '2027-01-05' }))).toBe('2027-01-05');
     expect(takenMaxEnd(apiError(409, { code: 'VEHICLE_PERIOD_TAKEN', reason: null }))).toBeNull();
     expect(takenMaxEnd(apiError(409, { code: 'RENEWAL_STALE' }))).toBeNull();
+    expect(
+      renewErrorMessage(apiError(400, { code: 'RENEWAL_UNIT_MISALIGNED', message: 'Use semanas inteiras.' })),
+    ).toBe('Use semanas inteiras.');
+  });
+
+  it('prévia com erro HTTP: a frase do servidor num 400; senão a genérica', () => {
+    expect(previewErrorMessage(apiError(400, { code: 'RENEWAL_UNIT_MISALIGNED', message: 'Use semanas inteiras.' }))).toBe(
+      'Use semanas inteiras.',
+    );
+    expect(previewErrorMessage(apiError(500, { message: 'boom' }))).toBe('Não deu para calcular a renovação.');
   });
 });

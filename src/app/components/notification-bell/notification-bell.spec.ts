@@ -210,6 +210,39 @@ describe('NotificationBell', () => {
     expect(host.querySelector('[role="dialog"]')).toBeNull();
   });
 
+  it('aviso de aluguel (V151): o texto do servidor como veio, sem selo de vencimento e sem "Renovar"', async () => {
+    // O backend manda outra frase para quem não tem CHARGES_FLEX; o sino só mostra o que veio.
+    const notice: NotificationItem = {
+      ...item,
+      id: 'n-2',
+      type: 'RENTAL_ENDING_SOON',
+      typeLabel: 'Aluguel perto do fim',
+      severity: 'WARNING',
+      title: 'Aluguel termina em 7 dias',
+      message: 'O aluguel de João Pedro Alves (RDC-4A21) termina em 22/12.',
+      entityType: 'RENTAL',
+      entityId: 'r-1',
+      dueDate: '2026-12-22',
+      actionUrl: '/alugueis/r-1',
+    };
+    items.set([notice]);
+    const fixture = TestBed.createComponent(NotificationBell);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    await openPanel(fixture);
+
+    const button = itemButtons(host)[0];
+    expect(button.textContent).toContain('Aluguel termina em 7 dias');
+    expect(button.textContent).toContain('O aluguel de João Pedro Alves (RDC-4A21) termina em 22/12.');
+    expect(button.textContent).not.toMatch(/Vence|Vencido/);
+    expect(host.querySelector('[role="dialog"]')!.textContent).not.toContain('Renovar');
+    button.click();
+    fixture.detectChanges();
+    expect(navigate).toHaveBeenCalledWith('/alugueis/r-1');
+  });
+
   it('"Marcar todas como lidas" delega ao service', async () => {
     const fixture = TestBed.createComponent(NotificationBell);
     fixture.detectChanges();

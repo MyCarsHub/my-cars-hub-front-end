@@ -62,4 +62,8 @@ export const RENEWAL_CODES = {
   HORIZON_EXCEEDED: 'RENEWAL_HORIZON_EXCEEDED',
   AMOUNT_TOO_HIGH: 'RENEWAL_AMOUNT_TOO_HIGH',
   BELOW_MIN_CHARGE: 'RENEWAL_BELOW_MIN_CHARGE',
+  /** 400: a unidade não fecha períodos inteiros da frequência do aluguel. */
+  UNIT_MISALIGNED: 'RENEWAL_UNIT_MISALIGNED',
+  /** 400: renovação longa demais (o backend limita a quantidade de períodos). */
+  TOO_LONG: 'RENEWAL_TOO_LONG',
 } as const;

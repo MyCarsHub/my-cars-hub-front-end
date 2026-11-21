@@ -13,6 +13,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -1796,6 +1797,10 @@ export class RentalDetail implements OnInit {
     () => this.chargesFlex() && !this.isDriver && !this.editSession() && this.rental()?.status === 'ACTIVE',
   );
   protected readonly renewOpen = signal(false);
+  /** A trava fechou (relido como encerrado, troca de chave): a folha não fica "aberta" por baixo. */
+  private readonly renewGateWatch = effect(() => {
+    if (!this.canRenew() && untracked(() => this.renewOpen())) this.renewOpen.set(false);
+  });
   /** RenR6: o aviso verde depois de renovar (no lugar do "Termina em N dias"). */
   protected readonly renewedNoticeSig = signal<RentalNotice | null>(null);
   /** RenR1: "Termina em N dias, em DD/MM", ou que o fim passou e ele continua ativo. */
@@ -1823,8 +1828,9 @@ export class RentalDetail implements OnInit {
   protected onRenewed(result: RenewedResult): void {
     const r = result.rental;
     this.rental.set(r);
-    this.renewedNoticeSig.set(renewedNotice(r.endDate, result.count, result.gatewayCount));
-    if (r.chargeSync && r.chargeSync.failed > 0) this.chargeSyncNotice.set(r.chargeSync);
+    // O aviso sai do `chargeSync` da resposta: com falha ele já diz quantas a gente tenta de
+    // novo (laranja), sem somar o aviso de sincronização da criação.
+    this.renewedNoticeSig.set(renewedNotice(r.endDate, r.chargeSync, result.gatewayCount));
     this.loadHistory(r.id);
   }
 

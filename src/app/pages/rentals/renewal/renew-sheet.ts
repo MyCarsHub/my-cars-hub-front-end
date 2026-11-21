@@ -33,12 +33,13 @@ import { periodWords } from '../rental-wizard/wizard-format';
 import { RentalRenewalService } from './rental-renewal.service';
 import {
   RENEWAL_AMOUNT_MAX,
+  allowedUnits,
   chargesModel,
   defaultAmount,
   defaultUnit,
   fitToMax,
-  localNewEnd,
   newEndTail,
+  previewErrorMessage,
   overdueText,
   rateHint,
   renewErrorMessage,
@@ -54,16 +55,15 @@ export const RENEW_PREVIEW_DEBOUNCE_MS = 300;
 
 /** O que a página recebe depois de renovar (RenR6). */
 export interface RenewedResult {
+  /** O aluguel renovado; `chargeSync` diz o que de fato foi ao Asaas. */
   rental: RentalResponseDto;
-  count: number;
+  /** Quantas a prévia mandaria ao Asaas (o aviso usa quando a resposta vem sem `chargeSync`). */
   gatewayCount: number;
 }
 
 type PreviewState =
   | { key: string; preview: RenewalPreviewDto; failed: false }
-  | { key: string; preview: null; failed: true };
-
-const UNITS: readonly RenewalUnit[] = ['DAYS', 'WEEKS', 'MONTHS'];
+  | { key: string; preview: null; failed: true; message: string };
 
 /**
  * "Renovar aluguel" (pranchas RenR2–R5 / RenD1): folha de baixo no celular, janela no centro no
@@ -143,21 +143,23 @@ const UNITS: readonly RenewalUnit[] = ['DAYS', 'WEEKS', 'MONTHS'];
                 inputmode="numeric"
                 autocomplete="off"
                 data-testid="renew-amount"
-                data-autofocus
+                aria-required="true"
+                [attr.data-autofocus]="backFromCharges() ? null : ''"
                 [class.bad]="!!amountError()"
                 [value]="amountText()"
                 [attr.aria-invalid]="amountError() ? 'true' : null"
-                [attr.aria-describedby]="amountError() ? 'rn-amount-err' : 'rn-amount-hint'"
+                [attr.aria-describedby]="amountError() ? 'rn-amount-err' : newEnd() ? 'rn-amount-hint' : null"
                 (input)="onAmount($event)"
               />
               <select
                 class="rn-sel"
                 aria-label="Unidade"
+                aria-required="true"
                 data-testid="renew-unit"
                 [value]="unit()"
                 (change)="onUnit($event)"
               >
-                @for (u of units; track u) {
+                @for (u of units(); track u) {
                   <option [value]="u" [selected]="u === unit()">{{ unitLabel(u) }}</option>
                 }
               </select>
@@ -181,6 +183,7 @@ const UNITS: readonly RenewalUnit[] = ['DAYS', 'WEEKS', 'MONTHS'];
                 autocomplete="off"
                 placeholder="0,00"
                 data-testid="renew-rate"
+                aria-required="true"
                 [formControl]="rate"
                 [attr.aria-invalid]="rateError() ? 'true' : null"
                 [attr.aria-describedby]="rateError() ? 'rn-rate-err' : 'rn-rate-hint'"
@@ -200,9 +203,9 @@ const UNITS: readonly RenewalUnit[] = ['DAYS', 'WEEKS', 'MONTHS'];
             </div>
           } @else if (blockerMessage(); as m) {
             <div class="rn-warn" data-testid="renew-blocker" role="status">{{ m }}</div>
-          } @else if (previewFailed()) {
+          } @else if (previewFailed(); as m) {
             <div class="rn-warn" data-testid="renew-preview-failed" role="status">
-              Não deu para calcular a renovação.
+              {{ m }}
               <button type="button" class="rn-lnk" (click)="retryPreview()">Tentar de novo</button>
             </div>
           } @else if (shown(); as p) {
@@ -211,8 +214,14 @@ const UNITS: readonly RenewalUnit[] = ['DAYS', 'WEEKS', 'MONTHS'];
               <span class="rn-v">{{ money(p.addedTotalCents) }}</span>
               <span class="rn-c">{{ caption() }}</span>
             </app-painted-card>
-            <button type="button" class="rn-lnk" data-testid="renew-see-charges" (click)="seeCharges()">
-              Ver as {{ p.periods.length }} cobranças
+            <button
+              type="button"
+              class="rn-lnk"
+              data-testid="renew-see-charges"
+              [attr.data-autofocus]="backFromCharges() ? '' : null"
+              (click)="seeCharges()"
+            >
+              {{ seeChargesLabel() }}
             </button>
             @if (overdue(); as o) {
               <div class="rn-warn" data-testid="renew-overdue"><b>{{ o.lead }}</b> {{ o.rest }}</div>
@@ -225,12 +234,13 @@ const UNITS: readonly RenewalUnit[] = ['DAYS', 'WEEKS', 'MONTHS'];
           @if (error(); as m) {
             <p class="rn-err text-rose-700 dark:text-rose-300" role="alert" data-testid="renew-error">{{ m }}</p>
           }
+          <p class="sr-only" aria-live="polite" data-testid="renew-live">{{ liveText() }}</p>
         </div>
         <div sheetFooter class="rn-act">
-          @if (takenMax()) {
+          @if (takenMax() && !fitting()) {
             @if (fit()) {
               <button type="button" class="rn-go" data-testid="renew-fit" (click)="applyFit()">
-                Renovar até {{ fitUntil() }}
+                Renovar até {{ takenUntil() }}
               </button>
             }
             <button type="button" class="rn-no" data-testid="renew-back" (click)="close()">Voltar</button>
@@ -240,17 +250,17 @@ const UNITS: readonly RenewalUnit[] = ['DAYS', 'WEEKS', 'MONTHS'];
               class="rn-go"
               data-testid="renew-submit"
               [disabled]="!canSubmit()"
-              [attr.aria-busy]="saving() ? 'true' : null"
+              [attr.aria-busy]="saving() || fitting() ? 'true' : null"
               (click)="submit()"
             >
-              {{ saving() ? 'Renovando…' : 'Renovar e criar cobranças' }}
+              {{ saving() || fitting() ? 'Renovando…' : 'Renovar e criar cobranças' }}
             </button>
             <button type="button" class="rn-no" data-testid="renew-cancel" [disabled]="saving()" (click)="close()">Cancelar</button>
           }
         </div>
       </app-bottom-sheet>
     } @else if (chargesPreview(); as m) {
-      <app-rc-preview-sheet title="Cobranças da renovação" [model]="m" testId="renew-charges" (closed)="view.set('form')" />
+      <app-rc-preview-sheet title="Cobranças da renovação" [model]="m" testId="renew-charges" (closed)="backToForm()" />
     }
   `,
 })
@@ -260,14 +270,20 @@ export class RenewSheet implements OnInit {
   readonly rental = input.required<RentalResponseDto>();
   readonly closed = output<void>();
   readonly renewed = output<RenewedResult>();
-  /** 409 `RENEWAL_STALE`/`RENEWAL_NOT_ACTIVE`: a página relê o aluguel (o fim/estado mudou). */
+  /**
+   * `RENEWAL_STALE`/`RENEWAL_NOT_ACTIVE` (na prévia ou no envio): a página relê o aluguel por
+   * trás da folha; o fim novo entra no corpo e a prévia roda de novo sozinha.
+   */
   readonly stale = output<void>();
 
-  protected readonly units = UNITS;
+  /** Só as unidades que fecham períodos inteiros da frequência do aluguel. */
+  protected readonly units = computed(() => allowedUnits(this.rental().billingFrequency));
   protected readonly view = signal<'form' | 'charges'>('form');
   private readonly sheet = viewChild<BottomSheet>('sheet');
   /** Para onde a folha vai depois da animação de saída. */
   private next: 'charges' | 'exit' = 'exit';
+  /** Voltou de "Cobranças da renovação": o foco volta ao link que abriu a lista. */
+  protected readonly backFromCharges = signal(false);
 
   // ------------------------------------------------------------------ campos
   protected readonly unit = signal<RenewalUnit>('WEEKS');
@@ -307,13 +323,6 @@ export class RenewSheet implements OnInit {
     return r ? JSON.stringify(r) : '';
   });
 
-  protected readonly newEnd = computed(() => {
-    const n = this.amount();
-    if (n === null || this.amountError()) return null;
-    const prev = this.rental().endDate;
-    return { date: brDate(localNewEnd(prev, n, this.unit())), tail: newEndTail(prev, n, this.unit()) };
-  });
-
   // ------------------------------------------------------------------ prévia do servidor
   private readonly state = signal<PreviewState | null>(null);
   protected readonly loading = signal(false);
@@ -330,9 +339,10 @@ export class RenewSheet implements OnInit {
     const s = this.state();
     return !!s && !s.failed && s.key === this.requestKey() && !this.loading();
   });
+  /** A prévia do corpo de agora falhou: a frase do servidor (400) ou a genérica. */
   protected readonly previewFailed = computed(() => {
     const s = this.state();
-    return !!s && s.failed && s.key === this.requestKey() && !this.loading();
+    return s && s.failed && s.key === this.requestKey() && !this.loading() ? s.message : null;
   });
   private readonly blocker = computed(() => (this.fresh() ? (this.shown()?.blocker ?? null) : null));
   protected readonly takenMax = computed(() => {
@@ -342,23 +352,39 @@ export class RenewSheet implements OnInit {
   });
   protected readonly fit = computed(() => {
     const max = this.takenMax();
-    return max ? fitToMax(this.rental().endDate, max, this.unit()) : null;
+    return max ? fitToMax(this.rental().endDate, max, this.unit(), this.units()) : null;
   });
-  protected readonly fitUntil = computed(() => {
-    const f = this.fit();
-    return f ? brDayMonth(localNewEnd(this.rental().endDate, f.amount, f.unit)) : '';
-  });
+  protected readonly takenUntil = computed(() => brDayMonth(this.takenMax()));
   protected readonly taken = computed(() => {
     const max = this.takenMax();
-    return max ? vehicleTakenText(this.rental().endDate, max, this.fit()) : null;
+    return max ? vehicleTakenText(max, this.fit()) : null;
   });
+  /** Qualquer outro bloqueio, inclusive o carro ocupado sem `maxEndDate`: a frase do servidor. */
   protected readonly blockerMessage = computed(() => {
     const b = this.blocker();
-    return b && b.code !== RENEWAL_CODES.VEHICLE_PERIOD_TAKEN ? b.message : null;
+    if (!b) return null;
+    return b.code === RENEWAL_CODES.VEHICLE_PERIOD_TAKEN && b.maxEndDate ? null : b.message;
+  });
+  /** "Novo fim" sai SEMPRE da prévia do servidor (períodos inteiros depois do último cobrado). */
+  protected readonly newEnd = computed(() => {
+    const p = this.fresh() ? this.shown() : null;
+    const r = this.request();
+    if (!p || !r || p.blocker) return null;
+    return { date: brDate(p.newEndDate), tail: newEndTail(p.previousEndDate, r.additionalAmount, r.unit) };
   });
   protected readonly caption = computed(() => {
     const p = this.shown();
     return p ? totalCaption(p, this.rental().billingFrequency) : '';
+  });
+  protected readonly seeChargesLabel = computed(() => {
+    const n = this.shown()?.periods.length ?? 0;
+    return n === 1 ? 'Ver a cobrança' : `Ver as ${n} cobranças`;
+  });
+  /** O total pintado muda sem foco: o leitor de tela ouve a prévia nova quando ela chega. */
+  protected readonly liveText = computed(() => {
+    const p = this.fresh() ? this.shown() : null;
+    if (!p || p.blocker) return '';
+    return `Renovação: ${brl(p.addedTotalCents)}. ${this.caption()}. Novo fim: ${brDate(p.newEndDate)}.`;
   });
   protected readonly overdue = computed(() => overdueText(this.shown()?.overdueCount ?? 0));
   protected readonly say = computed(() => {
@@ -372,14 +398,19 @@ export class RenewSheet implements OnInit {
 
   // ------------------------------------------------------------------ envio
   protected readonly saving = signal(false);
+  /** "Renovar até DD/MM" em curso: ajusta a quantidade, espera a prévia ajustada e renova. */
+  protected readonly fitting = signal(false);
   protected readonly error = signal<string | null>(null);
   /** Um POST de renovação em voo: nunca dois (o botão também fica desabilitado). */
   private sending = false;
+  /** A prévia já avisou a página deste corpo desatualizado (uma vez por corpo). */
+  private staleKey: string | null = null;
 
   protected readonly canSubmit = computed(
     () =>
       this.fresh() &&
       !this.saving() &&
+      !this.fitting() &&
       !this.blocker() &&
       !this.conflictMax() &&
       (this.shown()?.periods.length ?? 0) > 0,
@@ -393,7 +424,9 @@ export class RenewSheet implements OnInit {
           if (!req) return of(null);
           return this.api.preview(this.rental().id, req.body).pipe(
             map((preview): PreviewState => ({ key: req.key, preview, failed: false })),
-            catchError(() => of<PreviewState>({ key: req.key, preview: null, failed: true })),
+            catchError((err: unknown) =>
+              of<PreviewState>({ key: req.key, preview: null, failed: true, message: previewErrorMessage(err) }),
+            ),
           );
         }),
         takeUntilDestroyed(),
@@ -408,6 +441,22 @@ export class RenewSheet implements OnInit {
       const body = this.request();
       const key = this.requestKey();
       untracked(() => this.ask(body, key));
+    });
+
+    // Prévia que diz "o fim mudou" / "não está ativo": a página relê o aluguel por trás.
+    effect(() => {
+      const code = this.blocker()?.code;
+      if (code !== RENEWAL_CODES.STALE && code !== RENEWAL_CODES.NOT_ACTIVE) return;
+      const key = untracked(() => this.requestKey());
+      if (key === this.staleKey) return;
+      this.staleKey = key;
+      untracked(() => this.stale.emit());
+    });
+
+    // "Renovar até": a prévia ajustada chegou; renova, tira mais um período, ou para.
+    effect(() => {
+      if (!this.fitting() || !this.fresh()) return;
+      untracked(() => this.continueFit());
     });
   }
 
@@ -440,26 +489,52 @@ export class RenewSheet implements OnInit {
 
   protected onAmount(event: Event): void {
     this.error.set(null);
+    this.fitting.set(false);
     this.amountText.set((event.target as HTMLInputElement).value);
   }
 
   protected onUnit(event: Event): void {
     this.error.set(null);
+    this.fitting.set(false);
     this.unit.set((event.target as HTMLSelectElement).value as RenewalUnit);
   }
 
   protected onRate(event: Event): void {
     this.error.set(null);
+    this.fitting.set(false);
     applyPtBrMoneyMaskToControl(event, this.rate);
   }
 
-  /** RenR5 — "Renovar até 05/01": só ajusta a quantidade; a renovação continua no botão. */
+  /**
+   * RenR5 — "Renovar até 05/01": põe a quantidade que cabe, espera a prévia ajustada e renova,
+   * com a mesma trava de envio duplo do botão laranja.
+   */
   protected applyFit(): void {
     const f = this.fit();
-    if (!f) return;
+    if (!f || this.fitting() || this.sending) return;
+    const sameBody = f.unit === this.unit() && String(f.amount) === this.amountText().trim();
     this.error.set(null);
+    this.fitting.set(true);
     this.unit.set(f.unit);
     this.amountText.set(String(f.amount));
+    // Mesmo corpo de antes (o 409 veio no envio): nada muda, então a prévia é pedida de novo.
+    if (sameBody) this.retryPreview();
+  }
+
+  private continueFit(): void {
+    const b = this.blocker();
+    if (!b) {
+      this.fitting.set(false);
+      this.submit();
+      return;
+    }
+    const n = this.amount() ?? 0;
+    if (b.code === RENEWAL_CODES.VEHICLE_PERIOD_TAKEN && n > 1) {
+      // O palpite não coube (o último período cobrado vai além do fim): um período a menos.
+      this.amountText.set(String(n - 1));
+      return;
+    }
+    this.fitting.set(false);
   }
 
   protected seeCharges(): void {
@@ -467,8 +542,14 @@ export class RenewSheet implements OnInit {
     this.sheet()?.requestClose();
   }
 
+  protected backToForm(): void {
+    this.backFromCharges.set(true);
+    this.view.set('form');
+  }
+
   protected close(): void {
     this.next = 'exit';
+    this.fitting.set(false);
     this.sheet()?.requestClose();
   }
 
@@ -493,7 +574,7 @@ export class RenewSheet implements OnInit {
       next: (rental) => {
         this.sending = false;
         this.saving.set(false);
-        this.renewed.emit({ rental, count: preview.periods.length, gatewayCount: preview.gatewayCount });
+        this.renewed.emit({ rental, gatewayCount: preview.gatewayCount });
         this.next = 'exit';
         this.sheet()?.requestClose(true);
       },

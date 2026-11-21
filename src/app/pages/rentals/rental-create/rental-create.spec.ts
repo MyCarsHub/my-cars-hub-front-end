@@ -1048,13 +1048,36 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
       expect(cmp()['form'].controls.endDate.value).toBe('2026-12-22');
     });
 
-    it('voltar para "Tem data para devolver" não mexe mais na data', async () => {
+    it('voltar para "Tem data para devolver" devolve a data escolhida e não mexe mais nela', async () => {
       await mount();
       await fillAll();
-      byId<HTMLButtonElement>('until-fixed')!.click();
+      await pickMinimum();
       cmp()['patchPeriod']({ endDate: '2026-12-20' });
       await render();
+      expect(cmp()['form'].controls.endDate.value).toBe('2026-12-22');
+      byId<HTMLButtonElement>('until-fixed')!.click();
+      await render();
       expect(cmp()['form'].controls.endDate.value).toBe('2026-12-20');
+      cmp()['patchPeriod']({ endDate: '2026-12-19' });
+      await render();
+      expect(cmp()['form'].controls.endDate.value).toBe('2026-12-19');
+    });
+
+    it('mudar a retirada 3 vezes não empurra o fim: o arredondamento sai sempre da data escolhida', async () => {
+      await mount();
+      await fillAll();
+      await pickMinimum();
+      cmp()['patchPeriod']({ endDate: '2026-12-22' });
+      await render();
+      const ends: string[] = [];
+      for (const start of ['2026-11-25', '2026-11-26', '2026-11-24']) {
+        cmp()['patchPeriod']({ startDate: start });
+        await render();
+        ends.push(cmp()['form'].controls.endDate.value);
+      }
+      // 25/11→22/12 = 27 dias → 4 semanas (23/12); 26/11 → 24/12; de volta a 24/11 → 22/12.
+      expect(ends).toEqual(['2026-12-23', '2026-12-24', '2026-12-22']);
+      expect(byId('period-sentence')!.textContent).toContain('no mínimo 4 semanas');
     });
 
     it('rascunho antigo (sem minimumTerm) volta em "Tem data para devolver"; o novo guarda a escolha', async () => {

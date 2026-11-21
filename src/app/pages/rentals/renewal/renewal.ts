@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 import { RentalBillingFrequency } from '../../../types/rental.types';
 import { RENEWAL_CODES, RenewalPreviewDto, RenewalUnit } from '../../../types/rental-renewal.types';
-import { INTERVAL_UNIT_OPTIONS, addDaysIso, brDate, brl, isIsoDay, intervalLabel } from '../charges-flex/charges-flex';
+import { INTERVAL_UNIT_OPTIONS, brDate, brl, isIsoDay, intervalLabel } from '../charges-flex/charges-flex';
 import { apiErrorCode } from '../charges-flex/flex-errors';
 import { dShort, periodWords, plural, weekdayLong } from '../rental-wizard/wizard-format';
 import { PreviewModel } from '../rental-create/cards/preview-sheet';
@@ -26,6 +26,16 @@ export function unitDays(unit: RenewalUnit): number {
 export function unitWord(unit: RenewalUnit, amount: number): string {
   const o = INTERVAL_UNIT_OPTIONS.find((u) => u.value === unit) ?? INTERVAL_UNIT_OPTIONS[0];
   return amount === 1 ? o.singular : o.plural;
+}
+
+/**
+ * As unidades que fecham períodos INTEIROS do aluguel (decisão da revisão; o backend recusa as
+ * outras com 400 `RENEWAL_UNIT_MISALIGNED`): semanal só semanas, mensal só meses, diário as três.
+ */
+export function allowedUnits(freq: RentalBillingFrequency): readonly RenewalUnit[] {
+  if (freq === 'WEEKLY') return ['WEEKS'];
+  if (freq === 'MONTHLY') return ['MONTHS'];
+  return ['DAYS', 'WEEKS', 'MONTHS'];
 }
 
 /** A unidade natural da frequência do aluguel (semanal → semanas). */
@@ -62,7 +72,8 @@ export function endingNotice(endDate: string | null | undefined, today: string):
   if (!isIsoDay(endDate) || !isIsoDay(today)) return null;
   const left = daysBetween(today, endDate);
   if (left > ENDING_NOTICE_DAYS) return null;
-  const day = dShort(endDate);
+  // Em outro ano, a data leva o ano (um fim que passou há mais de um ano não fica ambíguo).
+  const day = endDate.slice(0, 4) === today.slice(0, 4) ? dShort(endDate) : brDate(endDate);
   const title =
     left > 0
       ? `Termina em ${plural(left, 'dia', 'dias')}, em ${day}`
@@ -72,21 +83,40 @@ export function endingNotice(endDate: string | null | undefined, today: string):
   return { tone: 'orange', title, text: ENDING_TEXT };
 }
 
+export interface RenewalSync {
+  requested: number;
+  created: number;
+  failed: number;
+  local: number;
+}
+
 /**
- * RenR6: "Aluguel renovado até 19/01/2027" + quantas cobranças novas e para onde foram. A
- * prancha diz "por e-mail e no app"; o motorista não tem feed (o backend só manda o e-mail),
- * então a frase fica no que de fato acontece.
+ * RenR6: o aviso depois de renovar, sempre a partir do `chargeSync` da RESPOSTA (o que de fato
+ * aconteceu), nunca da prévia. Verde só quando nenhuma cobrança falhou. Com falha (ou sem
+ * `chargeSync` numa renovação que ia ao Asaas: a emissão lançou), laranja: renovado, e as
+ * cobranças que não foram a gente tenta de novo sozinho. A prancha diz "por e-mail e no app";
+ * o motorista não tem feed (o backend só manda o e-mail), então a frase fica no e-mail.
+ *
+ * @param expectedGateway quantas a prévia mandaria ao Asaas (só para o caso sem `chargeSync`)
  */
-export function renewedNotice(newEndDate: string, count: number, gatewayCount: number): RentalNotice {
-  const where =
-    gatewayCount > 0
-      ? `${plural(count, 'cobrança nova', 'cobranças novas')} na sua conta Asaas.`
-      : `${plural(count, 'cobrança nova anotada', 'cobranças novas anotadas')} no aluguel.`;
-  return {
-    tone: 'green',
-    title: `Aluguel renovado até ${brDate(newEndDate)}`,
-    text: `${where} O motorista recebeu um aviso por e-mail.`,
-  };
+export function renewedNotice(newEndDate: string, sync: RenewalSync | null | undefined, expectedGateway: number): RentalNotice {
+  const title = `Aluguel renovado até ${brDate(newEndDate)}`;
+  const driver = 'O motorista é avisado por e-mail, se tiver e-mail cadastrado.';
+  const failed = sync ? sync.failed : expectedGateway;
+  if (failed > 0) {
+    const what =
+      failed === 1
+        ? '1 cobrança não foi para a sua conta Asaas.'
+        : `${failed} cobranças não foram para a sua conta Asaas.`;
+    return { tone: 'orange', title, text: `${what} A gente tenta de novo sozinho.` };
+  }
+  const created = sync?.created ?? 0;
+  const local = sync?.local ?? 0;
+  const parts: string[] = [];
+  if (created > 0) parts.push(`${plural(created, 'cobrança nova', 'cobranças novas')} na sua conta Asaas`);
+  if (local > 0) parts.push(`${plural(local, 'cobrança nova anotada', 'cobranças novas anotadas')} no aluguel`);
+  const what = parts.length ? `${parts.join(' e ')}. ` : '';
+  return { tone: 'green', title, text: `${what}${driver}` };
 }
 
 /** "Tempo mínimo": "4 semanas" (semanal, múltiplo de 7), "3 meses" (mensal, de 30), senão dias. */
@@ -102,11 +132,6 @@ export function renewalsLabel(count: number | null | undefined): string {
 }
 
 // ------------------------------------------------------------------ folha "Renovar aluguel"
-/** O novo fim, na conta local (a mesma do servidor: fim atual + quantidade × dias da unidade). */
-export function localNewEnd(previousEnd: string, amount: number, unit: RenewalUnit): string {
-  return addDaysIso(previousEnd, amount * unitDays(unit));
-}
-
 /** "(4 semanas depois de 22/12)." — depois do "Novo fim: <b>19/01/2027</b>". */
 export function newEndTail(previousEnd: string, amount: number, unit: RenewalUnit): string {
   return `(${intervalLabel(amount, unit)} depois de ${dShort(previousEnd)}).`;
@@ -202,25 +227,32 @@ export function sayText(preview: RenewalPreviewDto): SayText | null {
   };
 }
 
-/** Quanto cabe até a próxima reserva do carro, na unidade escolhida (senão em dias). */
-export function fitToMax(previousEnd: string, maxEnd: string, unit: RenewalUnit): { amount: number; unit: RenewalUnit } | null {
+/**
+ * Quanto cabe até a próxima reserva do carro, em períodos inteiros: na unidade escolhida, senão
+ * em dias quando a frequência permite. É um palpite; quem confirma é a prévia do servidor.
+ */
+export function fitToMax(
+  previousEnd: string,
+  maxEnd: string,
+  unit: RenewalUnit,
+  allowed: readonly RenewalUnit[] = ['DAYS', 'WEEKS', 'MONTHS'],
+): { amount: number; unit: RenewalUnit } | null {
   if (!isIsoDay(previousEnd) || !isIsoDay(maxEnd)) return null;
   const days = daysBetween(previousEnd, maxEnd);
   if (days <= 0) return null;
   const n = Math.floor(days / unitDays(unit));
-  return n >= 1 ? { amount: n, unit } : { amount: days, unit: 'DAYS' };
+  if (n >= 1) return { amount: n, unit };
+  return allowed.includes('DAYS') ? { amount: days, unit: 'DAYS' } : null;
 }
 
 /** RenR5 — "O carro tem outra reserva a partir de 05/01. Dá para renovar até 05/01 (2 semanas)." */
 export function vehicleTakenText(
-  previousEnd: string,
   maxEnd: string,
   fit: { amount: number; unit: RenewalUnit } | null,
 ): LeadText {
   const lead = `O carro tem outra reserva a partir de ${dShort(maxEnd)}.`;
   if (!fit) return { lead, rest: 'Não dá para renovar agora.' };
-  const until = localNewEnd(previousEnd, fit.amount, fit.unit);
-  return { lead, rest: `Dá para renovar até ${dShort(until)} (${intervalLabel(fit.amount, fit.unit)}).` };
+  return { lead, rest: `Dá para renovar até ${dShort(maxEnd)} (${intervalLabel(fit.amount, fit.unit)}).` };
 }
 
 // ------------------------------------------------------------------ erros do renew
@@ -246,6 +278,19 @@ export function renewErrorMessage(err: unknown): string {
     if (typeof own === 'string' && own.trim()) return own.trim();
   }
   return 'Não foi possível renovar. Tente de novo.';
+}
+
+/**
+ * O texto de uma prévia que voltou com erro HTTP: a frase do servidor num 400 (ex.:
+ * `RENEWAL_UNIT_MISALIGNED`), senão a genérica (o link "Tentar de novo" vem junto).
+ */
+export function previewErrorMessage(err: unknown): string {
+  if (err instanceof HttpErrorResponse && err.status === 400) {
+    const own = (err.error as { message?: unknown } | null)?.message;
+    if (typeof own === 'string' && own.trim()) return own.trim();
+  }
+  if (err instanceof HttpErrorResponse && err.status === 403) return 'Você não tem permissão para renovar este aluguel.';
+  return 'Não deu para calcular a renovação.';
 }
 
 /** O `maxEndDate` de um 409 `VEHICLE_PERIOD_TAKEN` (o backend o manda em `reason`). */
