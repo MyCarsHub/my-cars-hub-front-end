@@ -76,7 +76,8 @@ const SHARED_STYLES = `
         @if (model().automatic) {
           <p class="sh-say" data-testid="confirm-say">Ao criar, as <b>{{ model().countText }}</b> ({{ model().detail }}) vão para a sua conta Asaas agora.</p>
         } @else {
-          <p class="sh-say" data-testid="confirm-say">Ao criar, nada é enviado para ele. As {{ model().countText }} ficam anotadas aqui e você marca cada uma quando receber.</p>
+          <!-- Por fora, o servidor só anota as cobranças quando o aluguel começa (Marcar como ativo). -->
+          <p class="sh-say" data-testid="confirm-say">Ao criar, nada é enviado para ele. As {{ model().countText }} ficam anotadas quando o aluguel começar (Marcar como ativo), e você marca cada uma quando receber.</p>
         }
       </div>
       <div sheetFooter class="sh-act">
