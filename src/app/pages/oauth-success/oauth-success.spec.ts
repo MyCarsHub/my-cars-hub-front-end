@@ -71,6 +71,7 @@ describe('OauthSuccess routing (systemRole aware)', () => {
     companyRole: string | null = null,
   ) {
     const navigate = vi.fn();
+    const navigateByUrl = vi.fn();
     const authService = { getMe: vi.fn().mockReturnValue(of(me)) };
     const store = { ...stored };
     const sessionService = {
@@ -84,13 +85,29 @@ describe('OauthSuccess routing (systemRole aware)', () => {
       }),
       // O papel da empresa vem do TOKEN; o teste decide qual token a sessao tem.
       getCompanyRoleFromToken: vi.fn(() => companyRole),
+      // O `/auth/me` grava o id do usuário; aqui, o do `me`.
+      getUserId: vi.fn(() => store['id'] ?? me.id),
+      // Mesmo contrato do `SessionService`: guarda rascunhos e o "voltar para" e os recoloca.
+      preserveAcrossRelogin: vi.fn(() => {
+        const kept = Object.entries(store).filter(
+          ([key]) => key.startsWith('rentalCreateDraft:') || key === 'returnAfterLogin',
+        );
+        return () => kept.forEach(([key, value]) => (store[key] = value));
+      }),
+      takeReturnUrl: vi.fn((userId: string | null) => {
+        const raw = store['returnAfterLogin'];
+        delete store['returnAfterLogin'];
+        if (!raw) return null;
+        const saved = JSON.parse(raw) as { userId: string; url: string };
+        return saved.userId === userId ? saved.url : null;
+      }),
     };
 
     await TestBed.configureTestingModule({
       imports: [OauthSuccess],
       providers: [
         provideHttpClient(),
-        { provide: Router, useValue: { navigate } },
+        { provide: Router, useValue: { navigate, navigateByUrl } },
         { provide: AuthService, useValue: authService },
         { provide: SessionService, useValue: sessionService },
         {
@@ -105,7 +122,7 @@ describe('OauthSuccess routing (systemRole aware)', () => {
     const fixture = TestBed.createComponent(OauthSuccess);
     fixture.detectChanges();
     await fixture.whenStable();
-    return { navigate, authService, sessionService };
+    return { navigate, navigateByUrl, authService, sessionService, store };
   }
 
   /**
@@ -191,6 +208,32 @@ describe('OauthSuccess routing (systemRole aware)', () => {
         companies: [{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }],
       }),
     );
+    expect(navigate).toHaveBeenCalledWith(['/dashboard']);
+  });
+
+  it('sessão que caiu: o rascunho atravessa o login de novo e o MESMO usuário volta à tela', async () => {
+    const draft = JSON.stringify({ v: 1, form: { driverId: 'drv-2' } });
+    const { navigate, navigateByUrl, store } = await setup(
+      buildMe({ id: 'u-1', systemRole: 'USER', companies: [{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }] }),
+      {
+        'rentalCreateDraft:u-1:c-1': draft,
+        returnAfterLogin: JSON.stringify({ userId: 'u-1', url: '/alugueis/novo' }),
+        token: 'old',
+      },
+    );
+    expect(store['rentalCreateDraft:u-1:c-1']).toBe(draft);
+    expect(store['token']).toBeUndefined();
+    expect(navigateByUrl).toHaveBeenCalledWith('/alugueis/novo');
+    expect(navigate).not.toHaveBeenCalled();
+    expect(store['returnAfterLogin']).toBeUndefined();
+  });
+
+  it('outro usuário entrando: não volta à tela do anterior', async () => {
+    const { navigate, navigateByUrl } = await setup(
+      buildMe({ id: 'u-2', systemRole: 'USER', companies: [{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }] }),
+      { returnAfterLogin: JSON.stringify({ userId: 'u-1', url: '/alugueis/novo' }) },
+    );
+    expect(navigateByUrl).not.toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith(['/dashboard']);
   });
 });

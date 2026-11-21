@@ -250,8 +250,11 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         );
       }
 
+      // A sessão CAIU sem o usuário pedir: `clearForExpiry` derruba tudo como `clear()`, mas
+      // os rascunhos (Novo aluguel) ficam e a tela de agora volta depois do login. O "Sair"
+      // do usuário continua limpando tudo.
       if (isTokenExpired(error, backendMessage)) {
-        session.clear();
+        session.clearForExpiry(router.url);
         notifications.warning('Sua sessão expirou. Faça login novamente.');
         router.navigate(['/login'], { replaceUrl: true });
       } else if (status === 401) {
@@ -260,7 +263,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         // /login, mesmo quando a tela é dona dos erros de negócio.
         if (!req.url.includes('/auth/login')) {
           notifications.warning('Sessão inválida. Faça login novamente.');
-          session.clear();
+          session.clearForExpiry(router.url);
           router.navigate(['/login'], { replaceUrl: true });
         }
       } else if (req.context.get(OWNED_HTTP_ERRORS)) {

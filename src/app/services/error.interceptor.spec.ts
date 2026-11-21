@@ -43,6 +43,12 @@ function makeError(status: number, body?: unknown): HttpErrorResponse {
   return new HttpErrorResponse({ status, error: body, url: 'http://localhost/v1/x' });
 }
 
+/** Queda de sessão por expiração/401: limpa mantendo os rascunhos (`SessionService.clearForExpiry`). */
+let sessionClearForExpiry: Mock;
+beforeEach(() => {
+  sessionClearForExpiry = vi.fn();
+});
+
 describe('errorInterceptor', () => {
   let sessionClear: ReturnType<typeof vi.fn>;
   let routerNavigate: ReturnType<typeof vi.fn>;
@@ -68,8 +74,8 @@ describe('errorInterceptor', () => {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([errorInterceptor])),
-        { provide: SessionService, useValue: { clear: sessionClear } },
-        { provide: Router, useValue: { navigate: routerNavigate } },
+        { provide: SessionService, useValue: { clear: sessionClear, clearForExpiry: sessionClearForExpiry } },
+        { provide: Router, useValue: { navigate: routerNavigate, url: '/alugueis/novo' } },
         { provide: ApiErrorService, useValue: { scheduleSafetyNet, claim: vi.fn() } },
         {
           provide: ImpersonationService,
@@ -113,7 +119,10 @@ describe('errorInterceptor', () => {
 
   it('clears session and redirects to /login on 401', async () => {
     const err = await runAndCatch(401);
-    expect(sessionClear).toHaveBeenCalledTimes(1);
+    // Queda de sessão, não "Sair": limpa mantendo o rascunho e lembra a tela de agora.
+    expect(sessionClearForExpiry).toHaveBeenCalledTimes(1);
+    expect(sessionClearForExpiry).toHaveBeenCalledWith('/alugueis/novo');
+    expect(sessionClear).not.toHaveBeenCalled();
     expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
     expect(notifyWarning).toHaveBeenCalledWith('Sessão inválida. Faça login novamente.');
     expect(err?.status).toBe(401);
@@ -124,7 +133,8 @@ describe('errorInterceptor', () => {
       message: 'TokenExpiredException: JWT expired',
     });
 
-    expect(sessionClear).toHaveBeenCalledTimes(1);
+    expect(sessionClearForExpiry).toHaveBeenCalledWith('/alugueis/novo');
+    expect(sessionClear).not.toHaveBeenCalled();
     expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
     expect(err?.status).toBe(401);
     expect(notifyWarning).toHaveBeenCalledWith('Sua sessão expirou. Faça login novamente.');
@@ -471,7 +481,7 @@ describe('errorInterceptor — 403 DRIVER_SCOPE_FORBIDDEN', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
-        { provide: SessionService, useValue: { clear: sessionClear } },
+        { provide: SessionService, useValue: { clear: sessionClear, clearForExpiry: sessionClearForExpiry } },
         { provide: Router, useValue: { navigate: routerNavigate } },
         {
           provide: NotificationService,
@@ -577,7 +587,7 @@ describe('errorInterceptor — OWNED_HTTP_ERRORS e SILENT_HTTP_ERRORS', () => {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([errorInterceptor])),
-        { provide: SessionService, useValue: { clear: sessionClear } },
+        { provide: SessionService, useValue: { clear: sessionClear, clearForExpiry: sessionClearForExpiry } },
         { provide: Router, useValue: { navigate: routerNavigate } },
         { provide: ApiErrorService, useValue: { scheduleSafetyNet, claim: vi.fn() } },
         { provide: ImpersonationService, useValue: { active: () => false, expire: vi.fn() } },
@@ -632,7 +642,7 @@ describe('errorInterceptor — OWNED_HTTP_ERRORS e SILENT_HTTP_ERRORS', () => {
   it('OWNED + 401 → sessão CONTINUA sendo limpa e redirecionada (a diferença para o SILENT)', async () => {
     const err = await runMarked(OWNED_HTTP_ERRORS, 401);
 
-    expect(sessionClear).toHaveBeenCalledTimes(1);
+    expect(sessionClearForExpiry).toHaveBeenCalledTimes(1);
     expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
     expect(notifyWarning).toHaveBeenCalledWith('Sessão inválida. Faça login novamente.');
     expect(err?.status).toBe(401);
@@ -641,7 +651,7 @@ describe('errorInterceptor — OWNED_HTTP_ERRORS e SILENT_HTTP_ERRORS', () => {
   it('OWNED + TokenExpiredException → caminho de sessão expirada intacto', async () => {
     await runMarked(OWNED_HTTP_ERRORS, 401, { message: 'TokenExpiredException: JWT expired' });
 
-    expect(sessionClear).toHaveBeenCalledTimes(1);
+    expect(sessionClearForExpiry).toHaveBeenCalledTimes(1);
     expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
     expect(notifyWarning).toHaveBeenCalledWith('Sua sessão expirou. Faça login novamente.');
   });
