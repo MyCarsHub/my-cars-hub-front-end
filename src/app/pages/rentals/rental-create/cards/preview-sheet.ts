@@ -22,6 +22,7 @@ export interface PreviewModel {
   total: string;
   caption: string;
   rows: PreviewRow[];
+  /** Vazio = sem nota (RenCobK5). */
   note: string;
 }
 
@@ -59,7 +60,9 @@ export interface PreviewModel {
             </li>
           }
         </ul>
-        <p class="pv-note">{{ model().note }}</p>
+        @if (model().note) {
+          <p class="pv-note">{{ model().note }}</p>
+        }
       </div>
       <div sheetFooter class="pv-ft">
         <button type="button" class="pv-ok" (click)="close()">Entendi</button>

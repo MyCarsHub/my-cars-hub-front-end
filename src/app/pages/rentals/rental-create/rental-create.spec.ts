@@ -149,7 +149,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     await render();
   }
 
-  it('título, descrição, os 8 cards na ordem e sem "Até quando?" / data mínima', async () => {
+  it('título, descrição, os 8 cards na ordem e "Até quando?" começa em "Tem data para devolver"', async () => {
     await mount();
     expect(text()).toContain('Novo aluguel');
     expect(text()).toContain('Reserve um veículo para um motorista.');
@@ -164,8 +164,10 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
       'Cobrança',
       'Observações',
     ]);
-    expect(text()).not.toContain('Até quando?');
-    expect(text()).not.toContain('Fica pelo menos até');
+    // RenPerF1: a escolha aparece fechada na data fixa; o campo é "Devolve em".
+    expect(text()).toContain('Até quando?');
+    expect(byId('until-fixed')!.getAttribute('aria-checked')).toBe('true');
+    expect(byId('until-minimum')!.getAttribute('aria-checked')).toBe('false');
     expect(text()).toContain('Devolve em');
   });
 
@@ -987,5 +989,111 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     expect(byId('create-progress')!.textContent).toContain('0% concluído');
     await fillAll();
     expect(byId('create-progress')!.textContent).toContain('100% concluído');
+  });
+  // ================================================================ V151 · tempo mínimo (RenPerF1/F5/G4, RenCobK5)
+  describe('"Fica pelo menos até uma data" (tempo mínimo)', () => {
+    async function pickMinimum(): Promise<void> {
+      byId<HTMLButtonElement>('until-minimum')!.click();
+      await render();
+    }
+
+    it('a escolha troca o campo para "Fica pelo menos até" e mostra a frase da prancha F5', async () => {
+      await mount();
+      await fillAll();
+      await pickMinimum();
+      expect(byId('until-minimum')!.getAttribute('aria-checked')).toBe('true');
+      expect(byId('until-fixed')!.getAttribute('aria-checked')).toBe('false');
+      expect(text()).toContain('Fica pelo menos até');
+      expect(text()).not.toContain('Devolve em');
+      expect(byId('period-sentence')!.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+        'A partir de 24/11, no mínimo 4 semanas. Perto de 22/12 a gente te avisa para renovar.',
+      );
+    });
+
+    it('o corpo leva endDate + minimumTerm: true; Confira e "Aluguel criado" falam do mínimo', async () => {
+      await mount();
+      await fillAll();
+      await pickMinimum();
+      await click('create-submit');
+      const sent = chargePreview.mock.calls[0][0];
+      expect(sent.endDate).toBe('2026-12-22');
+      expect(sent.minimumTerm).toBe(true);
+      expect(preflight.mock.calls[0][0]).not.toHaveProperty('minimumTerm');
+      expect(byId('confirm-sheet')!.textContent).toContain('24/11 a 22/12 · no mínimo 4 semanas');
+      await click('confirm-create');
+      expect(createSpy.mock.calls[0][0]).toEqual(sent);
+      expect(byId('done-caption')!.textContent).toContain('Perto de 22/12 a gente te avisa para renovar.');
+    });
+
+    it('"Tem data para devolver": o corpo é o de antes, sem minimumTerm', async () => {
+      await mount();
+      await fillAll();
+      await click('create-submit');
+      expect(chargePreview.mock.calls[0][0]).not.toHaveProperty('minimumTerm');
+    });
+
+    it('por semana a data mínima arredonda para semanas inteiras; por dia, não', async () => {
+      await mount();
+      await fillAll();
+      await pickMinimum();
+      cmp()['patchPeriod']({ endDate: '2026-12-20' });
+      await render();
+      expect(cmp()['form'].controls.endDate.value).toBe('2026-12-22');
+      cmp()['setFrequency']('DAILY');
+      cmp()['patchPeriod']({ endDate: '2026-12-20' });
+      await render();
+      expect(cmp()['form'].controls.endDate.value).toBe('2026-12-20');
+      cmp()['setFrequency']('WEEKLY');
+      await render();
+      expect(cmp()['form'].controls.endDate.value).toBe('2026-12-22');
+    });
+
+    it('voltar para "Tem data para devolver" devolve a data escolhida e não mexe mais nela', async () => {
+      await mount();
+      await fillAll();
+      await pickMinimum();
+      cmp()['patchPeriod']({ endDate: '2026-12-20' });
+      await render();
+      expect(cmp()['form'].controls.endDate.value).toBe('2026-12-22');
+      byId<HTMLButtonElement>('until-fixed')!.click();
+      await render();
+      expect(cmp()['form'].controls.endDate.value).toBe('2026-12-20');
+      cmp()['patchPeriod']({ endDate: '2026-12-19' });
+      await render();
+      expect(cmp()['form'].controls.endDate.value).toBe('2026-12-19');
+    });
+
+    it('mudar a retirada 3 vezes não empurra o fim: o arredondamento sai sempre da data escolhida', async () => {
+      await mount();
+      await fillAll();
+      await pickMinimum();
+      cmp()['patchPeriod']({ endDate: '2026-12-22' });
+      await render();
+      const ends: string[] = [];
+      for (const start of ['2026-11-25', '2026-11-26', '2026-11-24']) {
+        cmp()['patchPeriod']({ startDate: start });
+        await render();
+        ends.push(cmp()['form'].controls.endDate.value);
+      }
+      // 25/11→22/12 = 27 dias → 4 semanas (23/12); 26/11 → 24/12; de volta a 24/11 → 22/12.
+      expect(ends).toEqual(['2026-12-23', '2026-12-24', '2026-12-22']);
+      expect(byId('period-sentence')!.textContent).toContain('no mínimo 4 semanas');
+    });
+
+    it('rascunho antigo (sem minimumTerm) volta em "Tem data para devolver"; o novo guarda a escolha', async () => {
+      sessionStorage.setItem('id', 'user-1');
+      sessionStorage.setItem('selectedCompanyId', 'co-1');
+      const draft = { v: 1, form: { startDate: '2026-11-24', endDate: '2026-12-22' }, parts: [], selected: [], selectedFreq: 'WEEKLY' };
+      sessionStorage.setItem('rentalCreateDraft:user-1:co-1', JSON.stringify(draft));
+      await mount();
+      expect(cmp()['form'].controls.minimumTerm.value).toBe(false);
+      expect(byId('until-fixed')!.getAttribute('aria-checked')).toBe('true');
+      await pickMinimum();
+      expect(JSON.parse(sessionStorage.getItem('rentalCreateDraft:user-1:co-1')!).form.minimumTerm).toBe(true);
+
+      TestBed.resetTestingModule();
+      await mount();
+      expect(byId('until-minimum')!.getAttribute('aria-checked')).toBe('true');
+    });
   });
 });

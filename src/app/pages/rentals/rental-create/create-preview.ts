@@ -48,6 +48,8 @@ export interface ChargesPreviewInput {
   firstDue: string;
   discount: { valueCents: number; firstPeriods: number } | null;
   charges: readonly WizardCharge[];
+  /** "Fica pelo menos até uma data" (RenCobK5): "Mínimo previsto" e a linha da renovação no fim. */
+  minimum?: boolean;
 }
 
 export function chargesPreview(input: ChargesPreviewInput): PreviewModel | null {
@@ -73,10 +75,33 @@ export function chargesPreview(input: ChargesPreviewInput): PreviewModel | null 
       discounted && d ? `− ${brl(d.valueCents)}` : null,
     );
   });
+  const total = brl(rent.reduce((a, c) => a + c.amountCents, 0));
+  if (input.minimum) {
+    const periods = new Set(rent.map((c) => c.index)).size;
+    return {
+      tone: 'orange',
+      label: 'Mínimo previsto',
+      total,
+      caption: `${plural(periods, w.lower, w.lowerMany)} até ${dShort(input.endDate)}. Sem a caução. Depois você renova.`,
+      rows: [
+        ...rows,
+        {
+          key: 'renew',
+          day: dShort(input.endDate),
+          weekday: 'fim',
+          title: 'Renovação',
+          sub: 'Você escolhe por quanto tempo e o valor',
+          amount: '—',
+          discount: null,
+        },
+      ],
+      note: '',
+    };
+  }
   return {
     tone: 'orange',
     label: 'Total previsto',
-    total: brl(rent.reduce((a, c) => a + c.amountCents, 0)),
+    total,
     caption: `${plural(rent.length, 'cobrança', 'cobranças')}, ${cadence}. Sem a caução.`,
     rows,
     note: `O aluguel acaba em ${dShort(input.endDate)}. Nenhuma cobrança depois disso.`,

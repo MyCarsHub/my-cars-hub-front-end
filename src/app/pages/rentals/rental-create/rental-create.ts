@@ -112,6 +112,7 @@ import {
   periodErrors,
   periodSentence,
   rateHint,
+  wholeWeeksEnd,
 } from './create-rules';
 
 interface CreateDraft {
@@ -231,6 +232,7 @@ export class RentalCreate implements OnInit {
       pickupOtherDay: v.pickupOtherDay,
       pickupDay: v.pickupDay,
       endDate: v.endDate,
+      minimumTerm: v.minimumTerm,
     };
   });
   protected readonly frequency = computed(() => this.v().billingFrequency);
@@ -368,6 +370,7 @@ export class RentalCreate implements OnInit {
       firstDue: this.firstDue(),
       discount: this.discountState(),
       charges: this.charges(),
+      minimum: this.v().minimumTerm,
     }),
   );
 
@@ -740,6 +743,29 @@ export class RentalCreate implements OnInit {
 
   protected patchPeriod(patch: Partial<PeriodValue>): void {
     this.form.patchValue(patch);
+    this.applyMinimumRounding();
+  }
+
+  /**
+   * A data que o usuário ESCOLHEU no campo do fim. O arredondamento sai sempre dela (nunca da
+   * data já arredondada): mudar a retirada várias vezes não empurra o fim para a frente.
+   */
+  private endPick: string | null = null;
+  /** O fim que o arredondamento deixou no formulário; outro valor lá = escolha nova. */
+  private lastEnd: string | null = null;
+
+  /**
+   * Tempo mínimo por semana: a data mínima arredonda para semanas inteiras, para cima (estudo
+   * §9.1). O campo mostra a data já arredondada; a frase e o corpo leem a mesma. Fora do tempo
+   * mínimo semanal, o fim volta a ser exatamente o escolhido.
+   */
+  private applyMinimumRounding(): void {
+    const v = this.form.getRawValue();
+    if (this.endPick === null || v.endDate !== this.lastEnd) this.endPick = v.endDate;
+    const pick = this.endPick;
+    const target = v.minimumTerm && v.billingFrequency === 'WEEKLY' ? wholeWeeksEnd(v.startDate, pick) : pick;
+    this.lastEnd = target;
+    if (target !== v.endDate) this.form.controls.endDate.setValue(target);
   }
 
   // ------------------------------------------------------------------ card 3 · Caução
@@ -782,6 +808,7 @@ export class RentalCreate implements OnInit {
   // ------------------------------------------------------------------ card 4 · Cobranças
   protected setFrequency(f: RentalBillingFrequency): void {
     this.form.controls.billingFrequency.setValue(f);
+    this.applyMinimumRounding();
     // "Vence na" de cada parte fica dentro do período da frequência nova.
     const max = partOffsetMax(f);
     this.periodParts.controls.forEach((p) => {
@@ -874,7 +901,9 @@ export class RentalCreate implements OnInit {
 
   /** O corpo do create (a entrega 5 o manda, depois da prévia do servidor). */
   protected body(): CreateRentalRequest {
-    return buildCreateBody(this.raw(), this.plan());
+    const body = buildCreateBody(this.raw(), this.plan());
+    // Só com o tempo mínimo: o corpo de "Tem data para devolver" fica idêntico ao de antes.
+    return this.form.controls.minimumTerm.value ? { ...body, minimumTerm: true } : body;
   }
 
   protected preflightBody(): RentalPreflightRequest {
@@ -938,6 +967,7 @@ export class RentalCreate implements OnInit {
       caucaoPaid: body.caucaoPaid === true,
       caucaoGrossCents: body.caucaoAmount ?? 0,
       useContractTemplate: body.contractSource === 'AUTO',
+      minimum: body.minimumTerm === true,
     });
   });
 
@@ -954,6 +984,7 @@ export class RentalCreate implements OnInit {
       preview: this.serverPreview(),
       useContractTemplate: body.contractSource === 'AUTO',
       sync: c.sync,
+      minimum: body.minimumTerm === true,
     });
   });
 

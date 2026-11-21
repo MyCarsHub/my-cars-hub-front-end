@@ -26,12 +26,25 @@ export type NotificationType =
   | 'FINANCING_INSTALLMENT_DUE'
   | 'IPVA_DUE_SOON';
 
+/**
+ * V151 — avisos do aluguel no feed do dono e do gerente (RenR7). Não são vencimento de
+ * documento: ficam fora de `NotificationType`, que é a lista dos alertas de documentos. Fim em
+ * 7 dias e fim que passou com o aluguel ainda ativo; `actionUrl` leva ao aluguel
+ * (`/alugueis/<id>`). O motorista não tem feed: a renovação chega a ele só por e-mail.
+ */
+export type RentalNoticeType = 'RENTAL_ENDING_SOON' | 'RENTAL_ENDED_STILL_ACTIVE';
+
+export const RENTAL_NOTICE_TYPES: ReadonlySet<string> = new Set<RentalNoticeType>([
+  'RENTAL_ENDING_SOON',
+  'RENTAL_ENDED_STILL_ACTIVE',
+]);
+
 export type NotificationSeverity = 'INFO' | 'WARNING' | 'DANGER';
 
 /** Item do feed (`GET /v1/notifications`). */
 export interface NotificationItem {
   id: string;
-  type: NotificationType;
+  type: NotificationType | RentalNoticeType;
   typeLabel: string;
   severity: NotificationSeverity;
   title: string;
