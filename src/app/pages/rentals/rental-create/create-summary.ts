@@ -54,6 +54,8 @@ export interface ConfirmInput {
   caucaoPaid: boolean;
   caucaoGrossCents: number;
   useContractTemplate: boolean;
+  /** Tempo mínimo ("Fica pelo menos até uma data"): o fim é o do mínimo e depois ele renova. */
+  minimum?: boolean;
 }
 
 export interface ConfirmRow {
@@ -135,13 +137,21 @@ export function confirmModel(i: ConfirmInput): ConfirmModel {
   const count = i.preview.charges.length;
   return {
     rentTotal: brl(sum(rent)),
-    rentCaption: `${periodsText}, ${cadence(i.frequency, i.firstDue)}`,
+    rentCaption: i.minimum
+      ? `${periodsText}, ${cadence(i.frequency, i.firstDue)}. Depois você renova.`
+      : `${periodsText}, ${cadence(i.frequency, i.firstDue)}`,
     showCaucao,
     caucaoTotal,
     caucaoCaption,
     rows: [
       { label: 'Motorista e carro', value: `${i.driverName} · ${i.plate}`, card: 0 },
-      { label: 'Período', value: `${dShort(i.startDate)} a ${dShort(i.endDate)} · ${periodsText}`, card: 1 },
+      {
+        label: 'Período',
+        value: i.minimum
+          ? `${dShort(i.startDate)} a ${dShort(i.endDate)} · no mínimo ${periodsText}`
+          : `${dShort(i.startDate)} a ${dShort(i.endDate)} · ${periodsText}`,
+        card: 1,
+      },
       { label: '1ª cobrança', value: `${cap(weekdayLong(i.firstDue))}, ${dShort(i.firstDue)}`, card: 4 },
       { label: 'Contrato', value: i.useContractTemplate ? 'Gerado pelo seu modelo' : 'Você envia o PDF', card: 5 },
       { label: 'Cobrança', value: i.automatic ? 'Cobranças automáticas' : 'Eu recebo por fora', card: 6 },
@@ -164,6 +174,8 @@ export interface CreatedInput {
   preview: RentalChargePreviewDto | null;
   useContractTemplate: boolean;
   sync: RentalChargeSyncDto | null;
+  /** Tempo mínimo: o aviso de renovação perto do fim (RenPerF5). */
+  minimum?: boolean;
 }
 
 export interface CreatedModel {
@@ -181,12 +193,13 @@ export function createdModel(i: CreatedInput): CreatedModel {
   // Por fora, o servidor só cria as cobranças ao ativar o aluguel (`RentalActivationService` →
   // `RentalScheduleService.materializeIfMissing`): no "Aluguel criado" ainda não há nenhuma.
   const later = i.automatic ? '' : 'Elas ficam anotadas quando o aluguel começar (Marcar como ativo).';
+  const renew = i.minimum ? `Perto de ${dShort(i.endDate)} a gente te avisa para renovar.` : '';
   return {
     subtitle: `${i.driverName} · ${i.plate} · ${dShort(i.startDate)} a ${dShort(i.endDate)}`,
     headline: i.automatic
       ? `${plural(n, 'cobrança', 'cobranças')} na sua conta Asaas`
       : `${plural(n, 'cobrança', 'cobranças')} ao ativar o aluguel`,
-    caption: [later, when, contract].filter(Boolean).join(' '),
+    caption: [later, when, contract, renew].filter(Boolean).join(' '),
     syncFailed: i.sync?.failed ?? 0,
   };
 }

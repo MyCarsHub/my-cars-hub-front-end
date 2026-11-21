@@ -62,6 +62,31 @@
           </button>
         </app-alert-banner>
       }
+      <!-- V151 (RenR1/R6): "Termina em N dias" pintado de laranja; depois de renovar, verde. -->
+      @if (rentalNotice(); as n) {
+        <div
+          class="flex items-start gap-3.5 rounded-2xl p-4 text-white"
+          [class.bg-primary-500]="n.tone === 'orange'"
+          [class.bg-success-500]="n.tone === 'green'"
+          role="status"
+          data-testid="rental-end-notice"
+          [attr.data-tone]="n.tone"
+        >
+          <span class="shrink-0 pt-0.5" aria-hidden="true">
+            @if (n.tone === 'green') {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+                stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+            } @else {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+            }
+          </span>
+          <span class="min-w-0">
+            <b class="block text-[17px] leading-6 font-bold" data-testid="rental-end-notice-title">{{ n.title }}</b>
+            <span class="block text-[15px] leading-[22px]">{{ n.text }}</span>
+          </span>
+        </div>
+      }
       <!-- Desktop actions (top-right). O motorista só consulta: o backend recusa editar/excluir. -->
       @if (!isDriver) {
       <div class="hidden lg:flex justify-end">
@@ -176,6 +201,18 @@
               <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Fim</span>
               <span class="tabular-nums text-fg-body">{{ formatDate(r.endDate) }}</span>
             </div>
+            @if (minimumTermText(); as m) {
+              <div class="flex items-baseline justify-between" data-testid="period-minimum">
+                <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Tempo mínimo</span>
+                <span class="tabular-nums text-fg-body">{{ m }}</span>
+              </div>
+            }
+            @if (renewalsText(); as n) {
+              <div class="flex items-baseline justify-between" data-testid="period-renewals">
+                <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Renovações</span>
+                <span class="tabular-nums text-fg-body">{{ n }}</span>
+              </div>
+            }
             <div class="flex items-baseline justify-between pt-2 border-t border-edge-soft">
               <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Total</span>
               <span class="text-lg font-semibold text-fg tabular-nums">
@@ -890,6 +927,20 @@
         </div>
       </app-page-card>
 
+      <!-- V151 (RenR1/D1): "Renovar aluguel" acima das ações do ciclo de vida, laranja sólido. -->
+      @if (canRenew()) {
+        <div class="flex sm:justify-end">
+          <button type="button"
+            data-testid="renew-open"
+            (click)="openRenew()"
+            class="w-full sm:w-auto min-h-[52px] px-6 rounded-xl bg-primary-500 hover:bg-primary-700 text-white
+                   text-[17px] font-semibold focus-visible:outline-none focus-visible:ring-2
+                   focus-visible:ring-primary-400 focus-visible:ring-offset-2">
+            Renovar aluguel
+          </button>
+        </div>
+      }
+
       <!-- Actions -->
       @if (canCancel() || canComplete() || canActivate()) {
         <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
@@ -964,6 +1015,15 @@
     </div>
 
     <app-back-link link="/alugueis" label="Voltar para a lista" />
+
+    @if (renewOpen() && canRenew()) {
+      <app-renew-sheet
+        [rental]="r"
+        (renewed)="onRenewed($event)"
+        (stale)="onRenewStale()"
+        (closed)="renewOpen.set(false)"
+      />
+    }
   }
 </app-default-page-layout>
 

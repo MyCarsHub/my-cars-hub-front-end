@@ -16,6 +16,7 @@ import {
   partDueOptions,
   periodErrors,
   periodSentence,
+  wholeWeeksEnd,
   rateHint,
 } from './create-rules';
 
@@ -83,6 +84,8 @@ describe('Card 2 · Período — a frase', () => {
       range: '24/11 a 22/12',
       endLong: 'terça, 22/12',
       length: '4 semanas',
+      startShort: '24/11',
+      endShort: '22/12',
     });
   });
 
@@ -299,5 +302,24 @@ describe('mínimo por cobrança antes do servidor (Pix: R$ 5,00)', () => {
     const V = { periodRateReais: '4,00', descOn: false, discountN: '1', discountValue: '', parcOn: false, splitScope: 'ALL' as const, parts: [] };
     const C = { words: periodWords('WEEKLY'), periods: 4, minCents: 500, selected: [], stale: [], past: [], smallestPart: null };
     expect(chargesErrors(V, C)['periodRateReais']).toBe('Cada cobrança precisa ser de pelo menos R$ 5,00.');
+  });
+});
+
+describe('Card 2 · Período — tempo mínimo (RenPerF5)', () => {
+  it('por semana arredonda para semanas inteiras, para cima', () => {
+    expect(wholeWeeksEnd('2026-11-24', '2026-12-22')).toBe('2026-12-22');
+    expect(wholeWeeksEnd('2026-11-24', '2026-12-20')).toBe('2026-12-22');
+    expect(wholeWeeksEnd('2026-11-24', '2026-11-25')).toBe('2026-12-01');
+  });
+
+  it('sem as duas datas coerentes, devolve o fim como veio', () => {
+    expect(wholeWeeksEnd('', '2026-12-20')).toBe('2026-12-20');
+    expect(wholeWeeksEnd('2026-12-22', '2026-12-20')).toBe('2026-12-20');
+  });
+
+  it('erros falam da data mínima', () => {
+    const base = { startDate: '2026-11-24', pickupTime: '09:00', pickupOtherDay: false, pickupDay: '', minimumTerm: true };
+    expect(periodErrors({ ...base, endDate: '' })['endDate']).toBe('Escolha até quando ele fica, no mínimo.');
+    expect(periodErrors({ ...base, endDate: '2026-11-24' })['endDate']).toBe('A data mínima precisa ser depois da retirada.');
   });
 });

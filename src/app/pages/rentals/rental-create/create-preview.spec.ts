@@ -74,3 +74,42 @@ describe('prévia das cobranças (prancha CobK4)', () => {
     expect(p.note).toBe('O aluguel acaba em 22/12. Nenhuma cobrança depois disso.');
   });
 });
+
+describe('prévia das cobranças com tempo mínimo (prancha RenCobK5)', () => {
+  const charges = createCharges({
+    frequency: 'WEEKLY',
+    startDate: '2026-11-24',
+    periods: 4,
+    firstDue: '2026-11-24',
+    rateCents: 60_000,
+    today: '2026-11-20',
+    discount: null,
+    split: null,
+    caucaoCents: 120_000,
+    caucaoPaid: false,
+    caucaoParts: null,
+  });
+
+  it('"Mínimo previsto", "4 semanas até 22/12. Sem a caução. Depois você renova." e a linha da renovação', () => {
+    const p = chargesPreview({
+      frequency: 'WEEKLY',
+      startDate: '2026-11-24',
+      endDate: '2026-12-22',
+      firstDue: '2026-11-24',
+      discount: null,
+      charges,
+      minimum: true,
+    })!;
+    expect(p.label).toBe('Mínimo previsto');
+    expect(p.total).toBe('R$ 2.400,00');
+    expect(p.caption).toBe('4 semanas até 22/12. Sem a caução. Depois você renova.');
+    expect(p.rows.map((r) => [r.day, r.weekday, r.title, r.sub, r.amount])).toEqual([
+      ['24/11', 'terça', 'Semana 1', 'até 30/11', 'R$ 600,00'],
+      ['01/12', 'terça', 'Semana 2', 'até 07/12', 'R$ 600,00'],
+      ['08/12', 'terça', 'Semana 3', 'até 14/12', 'R$ 600,00'],
+      ['15/12', 'terça', 'Semana 4', 'até 21/12', 'R$ 600,00'],
+      ['22/12', 'fim', 'Renovação', 'Você escolhe por quanto tempo e o valor', '—'],
+    ]);
+    expect(p.note).toBe('');
+  });
+});

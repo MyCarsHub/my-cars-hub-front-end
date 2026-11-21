@@ -18,7 +18,11 @@ import { Router } from '@angular/router';
 import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
 import { NotificationFeedService } from '../../services/notification-feed.service';
 import { SessionService } from '../../services/session.service';
-import { NotificationItem, NotificationSeverity } from '../../types/notification-feed.types';
+import {
+  NotificationItem,
+  NotificationSeverity,
+  RENTAL_NOTICE_TYPES,
+} from '../../types/notification-feed.types';
 import { BellTab, DUE_ALERTS_ROLES, NotificationBellStore } from './notification-bell.store';
 
 /** Quantidade de notificações mostradas no painel do sino. */
@@ -229,7 +233,9 @@ export class BellPanel {
   /** Vencimento relativo em pt-BR (sem `new Date()` no template). */
   protected dueLabel(item: NotificationItem): string {
     const iso = item.dueDate;
-    if (!iso) return '';
+    // Aviso de aluguel (RenR7): o `dueDate` é o FIM do aluguel, não um vencimento; o título
+    // e o texto já dizem a data. Sem o selo "Vence em N dias".
+    if (!iso || RENTAL_NOTICE_TYPES.has(item.type)) return '';
     const due = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso);
     if (Number.isNaN(due.getTime())) return '';
     const today = new Date();
