@@ -329,6 +329,10 @@ export interface RentalResponseDto {
    * ainda não concluído, ou multa de zero centavo, que o backend nunca lança.
    */
   overdueFee?: OverdueFeeSummary | null;
+  /** V151 — tamanho do tempo mínimo em dias; `null`/ausente = aluguel de data fixa. */
+  minimumTermDays?: number | null;
+  /** V151 — quantas renovações o aluguel já teve (ausente = backend antigo = 0). */
+  renewalCount?: number;
 }
 
 export interface RentalListItemDto {
@@ -436,6 +440,12 @@ export interface CreateRentalRequest {
    * comportamento de hoje.
    */
   chargePlan?: ChargePlanDto | null;
+  /**
+   * V151 — "Fica pelo menos até esta data": `true` faz o servidor gravar em
+   * `minimumTermDays` os dias entre `startDate` e `endDate`. O aluguel continua com fim,
+   * cronograma e contrato de sempre; no fim o dono renova. Ausente = data fixa.
+   */
+  minimumTerm?: boolean;
 }
 
 /** FEAT-0573 — `ChargePlanDto` (contrato B2). Dinheiro em centavos, datas yyyy-MM-dd. */

@@ -17,6 +17,8 @@ export function createRentalForm(fb: FormBuilder) {
     pickupOtherDay: false,
     pickupDay: '',
     endDate: '',
+    /** "Fica pelo menos até uma data": o `endDate` é o fim do tempo mínimo (corpo: `minimumTerm`). */
+    minimumTerm: false,
     billingFrequency: 'WEEKLY' as RentalBillingFrequency,
     periodRateReais: '',
     firstPaymentDate: '',

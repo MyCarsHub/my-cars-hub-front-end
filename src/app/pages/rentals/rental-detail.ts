@@ -98,6 +98,14 @@ import {
   renegotiatedTotalCents,
 } from './charges-flex/charges-flex';
 import { apiErrorCode, flexErrorMessage } from './charges-flex/flex-errors';
+import { RenewSheet, RenewedResult } from './renewal/renew-sheet';
+import {
+  RentalNotice,
+  endingNotice,
+  minimumTermLabel,
+  renewalsLabel,
+  renewedNotice,
+} from './renewal/renewal';
 import {
   AgreementDto,
   RECEIVED_OUTSIDE_ERROR_MESSAGES,
@@ -131,6 +139,7 @@ const UNMARK_RECEIVED_OUTSIDE_COPY =
     ReceivedOutsideSheet,
     AgreementSheet,
     PaintedCard,
+    RenewSheet,
   ],
   templateUrl: './rental-detail.html',
 })
@@ -1779,6 +1788,56 @@ export class RentalDetail implements OnInit {
   private readonly featureFlags = inject(FeatureFlagsService);
   private readonly chargesFlexApi = inject(ChargesFlexService);
   protected readonly chargesFlex = this.featureFlags.chargesFlex;
+
+  // ------------------------------------------------------------------ V151 — renovação
+  // (pranchas RenR1–R6 / RenD1). Só com `CHARGES_FLEX` (a mesma chave do `rental-new.ts`),
+  // aluguel ATIVO e quem opera (o backend recusa o motorista e a sessão de suporte com 403).
+  protected readonly canRenew = computed(
+    () => this.chargesFlex() && !this.isDriver && !this.editSession() && this.rental()?.status === 'ACTIVE',
+  );
+  protected readonly renewOpen = signal(false);
+  /** RenR6: o aviso verde depois de renovar (no lugar do "Termina em N dias"). */
+  protected readonly renewedNoticeSig = signal<RentalNotice | null>(null);
+  /** RenR1: "Termina em N dias, em DD/MM", ou que o fim passou e ele continua ativo. */
+  protected readonly rentalNotice = computed<RentalNotice | null>(() => {
+    if (!this.canRenew()) return null;
+    return this.renewedNoticeSig() ?? endingNotice(this.rental()?.endDate, this.today());
+  });
+  /** "Tempo mínimo" no card Período (só aluguel criado com "Fica pelo menos até"). */
+  protected readonly minimumTermText = computed(() => {
+    const r = this.rental();
+    return this.chargesFlex() && r ? minimumTermLabel(r.minimumTermDays, r.billingFrequency) : null;
+  });
+  /** "Renovações" no card Período: aluguel ativo (renovável) ou que já foi renovado. */
+  protected readonly renewalsText = computed(() => {
+    const r = this.rental();
+    if (!this.chargesFlex() || !r) return null;
+    const count = r.renewalCount ?? 0;
+    return r.status === 'ACTIVE' || count > 0 ? renewalsLabel(count) : null;
+  });
+
+  protected openRenew(): void {
+    if (this.canRenew()) this.renewOpen.set(true);
+  }
+
+  protected onRenewed(result: RenewedResult): void {
+    const r = result.rental;
+    this.rental.set(r);
+    this.renewedNoticeSig.set(renewedNotice(r.endDate, result.count, result.gatewayCount));
+    if (r.chargeSync && r.chargeSync.failed > 0) this.chargeSyncNotice.set(r.chargeSync);
+    this.loadHistory(r.id);
+  }
+
+  /** 409 de fim/estado desatualizado: relê o aluguel; a folha recalcula com o fim novo. */
+  protected onRenewStale(): void {
+    const id = this.rental()?.id;
+    if (!id) return;
+    this.rentalService.getById(id).subscribe({
+      next: (r) => this.rental.set(r),
+      error: (err: unknown) => this.apiErrors.claim(err),
+    });
+  }
+
   /** O mesmo "hoje" (fuso de negócio) dos chips, para as folhas. */
   protected readonly flexToday = computed(() => this.today());
 

@@ -13,6 +13,7 @@ import {
   weekdayLong,
 } from '../rental-wizard/wizard-format';
 import { caucaoNet, partOffsetMax } from './create-plan';
+import { addDaysIso } from '../charges-flex/charges-flex';
 
 /**
  * Regras dos cards 1 e 2 do Novo aluguel, as mesmas do passo a passo (`rental-wizard.ts`,
@@ -31,6 +32,11 @@ export interface PeriodValue {
   pickupOtherDay: boolean;
   pickupDay: string;
   endDate: string;
+  /**
+   * "Fica pelo menos até uma data" (pranchas RenPerF1/F5/G4): o `endDate` é o fim do tempo
+   * MÍNIMO e o corpo leva `minimumTerm: true`. Ausente/`false` = "Tem data para devolver".
+   */
+  minimumTerm?: boolean;
 }
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -46,8 +52,13 @@ export function periodErrors(v: PeriodValue): Record<string, string> {
   const e: Record<string, string> = {};
   if (!v.startDate) e['startDate'] = 'Escolha o dia em que ele pega o carro.';
   if (!TIME.test(v.pickupTime ?? '')) e['pickupTime'] = 'Hora inválida. Use horas:minutos, por exemplo 09:00.';
-  if (!v.endDate) e['endDate'] = 'Escolha o dia da devolução.';
-  else if (v.startDate && v.endDate <= v.startDate) e['endDate'] = 'A devolução precisa ser depois da retirada.';
+  if (!v.endDate) {
+    e['endDate'] = v.minimumTerm ? 'Escolha até quando ele fica, no mínimo.' : 'Escolha o dia da devolução.';
+  } else if (v.startDate && v.endDate <= v.startDate) {
+    e['endDate'] = v.minimumTerm
+      ? 'A data mínima precisa ser depois da retirada.'
+      : 'A devolução precisa ser depois da retirada.';
+  }
   if (v.pickupOtherDay) {
     const d = v.pickupDay ?? '';
     if (!d) e['pickupDay'] = 'Escolha o dia da retirada.';
@@ -72,6 +83,10 @@ export interface PeriodSentence {
   endLong: string;
   /** "4 semanas" */
   length: string;
+  /** "24/11" */
+  startShort: string;
+  /** "22/12" */
+  endShort: string;
 }
 
 /** As partes de "De 24/11 a 22/12. São 4 semanas." — `null` sem um período válido. */
@@ -88,7 +103,21 @@ export function periodSentence(
     range: `${dShort(start)} a ${dShort(end)}`,
     endLong: `${weekdayLong(end)}, ${dShort(end)}`,
     length: plural(n, w.lower, w.lowerMany),
+    startShort: dShort(start),
+    endShort: dShort(end),
   };
+}
+
+/**
+ * Tempo mínimo por semana (estudo §9.1, resposta do dono): a duração arredonda para semanas
+ * INTEIRAS, para cima — a última semana nunca fica parcial (e a renovação, que começa no fim,
+ * nunca cobra um dia duas vezes). Sem as duas datas coerentes, devolve o `end` como veio.
+ */
+export function wholeWeeksEnd(start: string, end: string): string {
+  if (!isDay(start) || !isDay(end) || end <= start) return end;
+  const days = Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000);
+  const rest = days % 7;
+  return rest === 0 ? end : addDaysIso(end, 7 - rest);
 }
 
 // ================================================================== card 3 · Caução
