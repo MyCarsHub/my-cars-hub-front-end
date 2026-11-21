@@ -114,7 +114,11 @@ describe('Aluguel criado (prancha FimF6)', () => {
     expect(m.headline).toBe('6 cobranças na sua conta Asaas');
     expect(m.caption).toBe('A primeira vence terça, 24/11. O contrato foi gerado pelo seu modelo.');
     expect(m.syncFailed).toBe(2);
-    expect(createdModel({ ...BASEDONE, automatic: false }).headline).toBe('6 cobranças anotadas');
+    // Por fora, nada existe ainda: as cobranças nascem ao ativar o aluguel.
+    const manual = createdModel({ ...BASEDONE, automatic: false });
+    expect(manual.headline).toBe('6 cobranças ao ativar o aluguel');
+    expect(manual.caption).toContain('Elas ficam anotadas quando o aluguel começar (Marcar como ativo).');
+    expect(manual.headline).not.toContain('anotadas');
   });
 });
 

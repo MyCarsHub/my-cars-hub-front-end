@@ -8,7 +8,8 @@ app-rental-create {
   color: var(--color-fg-body);
 }
 
-.rc-page { display: flex; flex-direction: column; gap: 12px; max-width: 1040px; }
+/* Largura: a do `app-default-page-layout`, como o detalhe e a lista de aluguéis (sem teto próprio). */
+.rc-page { display: flex; flex-direction: column; gap: 12px; }
 
 /* Barra de etapas: presa no topo do conteúdo enquanto a página rola (celular e computador). */
 .rc-evo {
@@ -38,6 +39,9 @@ app-rental-create {
 .rc-card { background: var(--color-surface); border-radius: 16px; }
 .rc-ch { margin: 0; padding: 20px 16px; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--color-fg-body); }
 .rc-ch:focus { outline: none; }
+/* "Ir" e "Mudar" rolam até o título do card: ele para logo abaixo da barra de etapas presa
+   no topo (8 + 20 + 8 + 10 + 8 = 54px de barra, mais um respiro). */
+.rc-ch { scroll-margin-top: 68px; }
 .rc-cb { display: flex; flex-direction: column; gap: 16px; padding: 0 16px 16px; }
 .rc-stack { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .rc-span { display: flex; flex-direction: column; gap: 4px; }
