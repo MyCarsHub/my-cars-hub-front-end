@@ -42,7 +42,7 @@ import { CreatedModel } from '../create-summary';
     </div>
   `,
   styles: `
-    .dn { display: flex; flex-direction: column; gap: 20px; max-width: 640px; animation: dn-in 320ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+    .dn { display: flex; flex-direction: column; gap: 20px; animation: dn-in 320ms cubic-bezier(0.32, 0.72, 0, 1) both; }
     @keyframes dn-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
     /* Verde principal (Hub Green, success-500), pedido do dono: só aqui; o tom verde do painted-card não muda. */
     .hub { background: var(--color-success-500) !important; }

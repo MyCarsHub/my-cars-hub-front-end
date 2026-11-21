@@ -634,7 +634,9 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     expect(byId('confirm-caucao')!.textContent).toContain('R$ 1.199,99'); // o do servidor, não o da tela
     expect(sheet.textContent).toContain('João Pedro Alves · RDC-4A21');
     expect(sheet.textContent).toContain('24/11 a 22/12 · 4 semanas');
-    expect(byId('confirm-say')!.textContent).toContain('Ao criar, nada é enviado para ele. As 5 cobranças ficam anotadas aqui');
+    expect(byId('confirm-say')!.textContent).toContain(
+      'Ao criar, nada é enviado para ele. As 5 cobranças ficam anotadas quando o aluguel começar (Marcar como ativo)',
+    );
     expect(byId('confirm-create')!.textContent?.trim()).toBe('Criar aluguel');
     expect(byId('confirm-lines')).toBeNull();
     await click('confirm-lines-toggle');
@@ -646,7 +648,8 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     expect(byId('create-done')).not.toBeNull();
     expect(text()).toContain('Aluguel criado');
     expect(text()).toContain('João Pedro Alves · RDC-4A21 · 24/11 a 22/12');
-    expect(byId('done-headline')!.textContent).toContain('5 cobranças anotadas');
+    expect(byId('done-headline')!.textContent).toContain('5 cobranças ao ativar o aluguel');
+    expect(byId('done-caption')!.textContent).toContain('quando o aluguel começar (Marcar como ativo)');
     expect(byId('done-caption')!.textContent).toContain('A primeira vence terça, 24/11.');
     expect(sessionStorage.getItem('rentalCreateDraft:user-1:co-1')).toBeNull();
   });

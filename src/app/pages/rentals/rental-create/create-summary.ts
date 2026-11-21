@@ -172,12 +172,15 @@ export function createdModel(i: CreatedInput): CreatedModel {
   const first = i.preview?.firstDueDate ?? null;
   const when = first ? `A primeira vence ${weekdayLong(first)}, ${dShort(first)}.` : '';
   const contract = i.useContractTemplate ? 'O contrato foi gerado pelo seu modelo.' : 'Envie o contrato em PDF no aluguel.';
+  // Por fora, o servidor só cria as cobranças ao ativar o aluguel (`RentalActivationService` →
+  // `RentalScheduleService.materializeIfMissing`): no "Aluguel criado" ainda não há nenhuma.
+  const later = i.automatic ? '' : 'Elas ficam anotadas quando o aluguel começar (Marcar como ativo).';
   return {
     subtitle: `${i.driverName} · ${i.plate} · ${dShort(i.startDate)} a ${dShort(i.endDate)}`,
     headline: i.automatic
       ? `${plural(n, 'cobrança', 'cobranças')} na sua conta Asaas`
-      : `${plural(n, 'cobrança anotada', 'cobranças anotadas')}`,
-    caption: [when, contract].filter(Boolean).join(' '),
+      : `${plural(n, 'cobrança', 'cobranças')} ao ativar o aluguel`,
+    caption: [later, when, contract].filter(Boolean).join(' '),
     syncFailed: i.sync?.failed ?? 0,
   };
 }
