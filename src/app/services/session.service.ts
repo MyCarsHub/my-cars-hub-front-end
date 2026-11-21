@@ -4,6 +4,17 @@ import { SessionResetRegistry } from './session-reset.registry';
 import { TelemetryService } from './telemetry.service';
 import { IMPERSONATED_ROLE, IMPERSONATION_CLAIM } from './impersonation.context';
 
+/**
+ * Chaves que sobrevivem a uma sessão que CAIU (token vencido, 401) e ao wipe do relogin: os
+ * rascunhos do Novo aluguel. A chave já é escopada por usuário e empresa
+ * (`rentalCreateDraft:{userId}:{companyId}`), então outro usuário nunca a lê. O "Sair" do
+ * usuário continua limpando tudo (`clear()`).
+ */
+export const KEPT_ACROSS_EXPIRY_PREFIXES: readonly string[] = ['rentalCreateDraft:'];
+
+/** Para onde voltar depois de entrar de novo: `{ userId, url }`, só para o mesmo usuário. */
+export const RETURN_AFTER_LOGIN_KEY = 'returnAfterLogin';
+
 @Injectable({
   providedIn: 'root'
 })
@@ -65,6 +76,71 @@ export class SessionService {
       // Sentry may not be initialized (e.g. dev without DSN); safe to ignore.
     }
     this.resetRegistry.run();
+  }
+
+  /**
+   * Guarda o que precisa atravessar um wipe da sessão (os rascunhos e o "voltar para") e devolve
+   * a função que os recoloca. Mesmo idioma de `PlanIntentService.preserveAcrossSessionWipe`:
+   * ler antes, recolocar depois.
+   */
+  preserveAcrossRelogin(): () => void {
+    const kept: Array<[string, string]> = [];
+    if (this.isBrowser) {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (!key) continue;
+        const keep = key === RETURN_AFTER_LOGIN_KEY || KEPT_ACROSS_EXPIRY_PREFIXES.some((p) => key.startsWith(p));
+        const value = keep ? sessionStorage.getItem(key) : null;
+        if (value !== null) kept.push([key, value]);
+      }
+    }
+    return () => kept.forEach(([key, value]) => this.setItem(key, value));
+  }
+
+  /**
+   * A sessão CAIU (token vencido ou 401), sem o usuário pedir: derruba tudo como `clear()`,
+   * mas os rascunhos ficam e a tela de agora é lembrada para depois do login — um formulário
+   * longo não se perde porque o token venceu no meio dele.
+   */
+  clearForExpiry(returnUrl: string | null): void {
+    const userId = this.getUserId();
+    const restore = this.preserveAcrossRelogin();
+    this.clear();
+    restore();
+    const url = safeReturnUrl(returnUrl);
+    if (userId && url) this.setItem(RETURN_AFTER_LOGIN_KEY, JSON.stringify({ userId, url }));
+  }
+
+  /** Lê e apaga o "voltar para": só vale para o MESMO usuário que perdeu a sessão. */
+  takeReturnUrl(userId: string | null): string | null {
+    const raw = this.getItem(RETURN_AFTER_LOGIN_KEY);
+    if (raw === null) return null;
+    this.removeItem(RETURN_AFTER_LOGIN_KEY);
+    try {
+      const saved = JSON.parse(raw) as { userId?: unknown; url?: unknown };
+      if (!userId || saved.userId !== userId || typeof saved.url !== 'string') return null;
+      return safeReturnUrl(saved.url);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Quem entrou agora é `userId`: apaga os rascunhos (`rentalCreateDraft:{userId}:{companyId}`)
+   * e o "voltar para" de QUALQUER outro usuário. Chamado assim que o `/auth/me` grava o id, nos
+   * dois logins (OAuth e senha). Sem id, apaga todos (não há de quem guardar).
+   */
+  dropOtherUsersLeftovers(userId: string | null): void {
+    if (!this.isBrowser) return;
+    const stale: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (!key) continue;
+      const prefix = KEPT_ACROSS_EXPIRY_PREFIXES.find((p) => key.startsWith(p));
+      if (prefix && (!userId || key.slice(prefix.length).split(':')[0] !== userId)) stale.push(key);
+      if (key === RETURN_AFTER_LOGIN_KEY && returnOwner(sessionStorage.getItem(key)) !== userId) stale.push(key);
+    }
+    stale.forEach((key) => this.removeItem(key));
   }
 
   setToken(token: string): void {
@@ -331,4 +407,35 @@ export class SessionService {
     }
   }
 
+}
+
+/** Telas de entrada: voltar a elas depois do login seria um laço. */
+const ENTRY_ROUTES = ['/', '/login', '/signup', '/oauth-success', '/landing'];
+
+/**
+ * Telas de passagem e de fluxo (troca de empresa, onboarding, convite): voltar a elas depois de
+ * uma sessão vencida cairia numa tela morta. Casam o caminho e o que vem abaixo dele.
+ */
+const FLOW_ROUTE_PREFIXES = ['/trocando-empresa', '/onboarding', '/convite', '/invite', '/invite-onboarding'];
+
+/**
+ * Só um caminho DENTRO do app ("/alugueis/novo"), nunca outro site ("//x.com", "https://…"),
+ * nem as telas de entrada ou de passagem; sem ele, o login segue para a casa de sempre.
+ */
+export function safeReturnUrl(url: string | null | undefined): string | null {
+  if (!url || !url.startsWith('/') || url.startsWith('//') || url.startsWith('/\\')) return null;
+  const path = url.split(/[?#]/)[0];
+  if (ENTRY_ROUTES.includes(path)) return null;
+  if (FLOW_ROUTE_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`))) return null;
+  return url;
+}
+
+/** O dono do "voltar para" guardado, ou `null` quando ilegível. */
+function returnOwner(raw: string | null): string | null {
+  try {
+    const saved = raw ? (JSON.parse(raw) as { userId?: unknown }) : null;
+    return typeof saved?.userId === 'string' ? saved.userId : null;
+  } catch {
+    return null;
+  }
 }

@@ -76,7 +76,7 @@ describe('Confira antes de criar (pranchas FimF3/F4)', () => {
   it('cobranças automáticas: os totais do SERVIDOR, as linhas e a frase', () => {
     const m = confirmModel(BASE);
     expect([m.rentTotal, m.rentCaption]).toEqual(['R$ 2.200,00', '4 semanas, toda terça']);
-    expect([m.caucaoTotal, m.caucaoCaption]).toEqual(['R$ 1.200,00', 'Em 2 partes. Volta no fim']);
+    expect([m.showCaucao, m.caucaoTotal, m.caucaoCaption]).toEqual([true, 'R$ 1.200,00', 'Em 2 partes. Volta no fim']);
     expect(m.rows.map((r) => [r.label, r.value, r.card])).toEqual([
       ['Motorista e carro', 'João Pedro Alves · RDC-4A21', 0],
       ['Período', '24/11 a 22/12 · 4 semanas', 1],
@@ -89,10 +89,20 @@ describe('Confira antes de criar (pranchas FimF3/F4)', () => {
     expect(m.lines[1].title).toBe('Semana 1');
   });
 
+  it('sem caução: o cartão verde não aparece (nada de "R$ 0,00 · Sem caução")', () => {
+    const m = confirmModel({
+      ...BASE,
+      caucaoGrossCents: 0,
+      preview: { ...PREVIEW, charges: PREVIEW.charges.filter((c) => c.kind !== 'CAUCAO') },
+    });
+    expect(m.showCaucao).toBe(false);
+    expect(m.detail).toBe('4 semanas');
+  });
+
   it('eu recebo por fora, caução recebida por fora, contrato por PDF', () => {
     const m = confirmModel({ ...BASE, automatic: false, caucaoPaid: true, useContractTemplate: false });
     expect(m.automatic).toBe(false);
-    expect([m.caucaoTotal, m.caucaoCaption]).toEqual(['R$ 1.200,00', 'Recebida por fora. Volta no fim']);
+    expect([m.showCaucao, m.caucaoTotal, m.caucaoCaption]).toEqual([true, 'R$ 1.200,00', 'Recebida por fora']);
     expect(m.rows[3].value).toBe('Você envia o PDF');
     expect(m.rows[4].value).toBe('Eu recebo por fora');
   });
