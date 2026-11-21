@@ -1,0 +1,111 @@
+/* Novo aluguel em uma página (pranchas MvCombo/Per, 20/11), nos tokens do app (claro e escuro).
+   Sem encapsulamento: todo seletor é prefixado por rc-/pe- ou pela própria tag.
+   Dois tons só (fundo da página e cartão), separação por espaço, laranja na escolha,
+   verde Hub na barra de etapas. */
+app-rental-create {
+  --rc-e: cubic-bezier(0.32, 0.72, 0, 1);
+  display: block;
+  color: var(--color-fg-body);
+}
+
+.rc-page { display: flex; flex-direction: column; gap: 12px; max-width: 1040px; }
+
+/* Barra de etapas: presa no topo do conteúdo enquanto a página rola (celular e computador). */
+.rc-evo {
+  position: sticky; top: 0; z-index: 20; display: flex; flex-direction: column; gap: 8px;
+  background: var(--color-canvas); margin: -8px -16px 0; padding: 8px 16px;
+}
+.rc-evh { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.rc-evh span:first-child {
+  font-size: 13px; line-height: 20px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--color-fg-subtle);
+}
+.rc-evh span:last-child { font-size: 14px; line-height: 20px; color: var(--color-success-800); }
+.dark .rc-evh span:last-child { color: var(--color-success-500); }
+.rc-evh b { font-weight: 700; }
+.rc-evb { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.rc-evb i {
+  display: block; height: 10px; border-radius: 5px; background: var(--color-surface);
+  transition: background-color 300ms var(--rc-e), box-shadow 300ms var(--rc-e);
+}
+.rc-evb i.done { background: var(--color-success-500); }
+.rc-evb i.current { background: transparent; box-shadow: inset 0 0 0 2px var(--color-success-500); }
+
+.rc-draft { display: flex; flex-direction: column; gap: 4px; border-radius: 16px; background: var(--color-surface); padding: 16px; }
+.rc-draft p { margin: 0; font-size: 16px; line-height: 24px; }
+
+/* Cartão: sem borda, sem `overflow: hidden` (a lista e o calendário flutuam por cima no computador). */
+.rc-card { background: var(--color-surface); border-radius: 16px; }
+.rc-ch { margin: 0; padding: 20px 16px; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--color-fg-body); }
+.rc-ch:focus { outline: none; }
+.rc-cb { display: flex; flex-direction: column; gap: 16px; padding: 0 16px 16px; }
+.rc-stack { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rc-span { display: flex; flex-direction: column; gap: 4px; }
+.rc-err { margin: 0; font-size: 14px; line-height: 20px; font-weight: 500; }
+.rc-link {
+  align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--color-fg-muted);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* Card 2 · Período */
+.pe-g2 { display: flex; flex-direction: column; gap: 16px; }
+.pe-two { display: grid; grid-template-columns: 1.4fr 1fr; grid-auto-flow: dense; gap: 12px; align-items: start; }
+.pe-time { display: flex; flex-direction: column; min-width: 0; }
+.pe-lb { display: block; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--color-fg-soft); margin-bottom: 6px; }
+.pe-req { color: var(--color-primary-500); }
+.pe-time input {
+  width: 100%; min-width: 0; min-height: 48px; font: inherit; font-size: 16px; line-height: 24px;
+  background: var(--color-surface); color: var(--color-fg-body);
+  border: 1px solid var(--color-edge-field); border-radius: 12px; padding: 11px 12px 11px 16px;
+}
+.pe-time input.bad { border-color: #f43f5e; }
+.pe-time input:focus-visible { outline: none; border-color: var(--color-primary-600); box-shadow: 0 0 0 1px var(--color-primary-600); }
+.dark .pe-time input { color-scheme: dark; }
+.pe-time .rc-err { margin-top: 6px; }
+
+.pe-tg {
+  display: flex; align-items: flex-start; gap: 16px; width: 100%; min-height: 44px; padding: 0; border: 0;
+  background: transparent; font: inherit; text-align: left; color: var(--color-fg); cursor: pointer;
+}
+.pe-ot { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pe-ot b { font-size: 16px; line-height: 24px; font-weight: 600; }
+.pe-ot span { font-size: 14px; line-height: 20px; color: var(--color-fg-subtle); }
+.pe-sw {
+  flex: none; position: relative; width: 52px; height: 32px; margin-top: 2px; border-radius: 16px;
+  background: var(--color-surface-strong); transition: background-color 250ms var(--rc-e);
+}
+.pe-sw::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 13px;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); transition: transform 250ms var(--rc-e);
+}
+.pe-sw.on { background: var(--color-success-500); }
+.pe-sw.on::after { transform: translateX(20px); }
+.pe-tg:focus-visible, .rc-link:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; border-radius: 8px; }
+
+.pe-say { margin: 0; font-size: 16px; line-height: 24px; color: var(--color-fg-body); }
+.pe-say b { font-weight: 600; color: var(--color-fg); }
+.pe-help { margin: 0; font-size: 14px; line-height: 20px; color: var(--color-fg-subtle); }
+
+@media (min-width: 640px) {
+  .rc-evo { margin-inline: -24px; padding-inline: 24px; }
+}
+
+@media (min-width: 1024px) {
+  .rc-page { gap: 24px; }
+  .rc-evo { margin-inline: -40px; padding-inline: 40px; }
+  .rc-evh span:first-child { font-size: 14px; }
+  .rc-ch { padding: 20px 24px; }
+  .rc-cb { padding: 0 24px 24px; gap: 24px; }
+  /* Card 1: Motorista | Veículo. */
+  .rc-cols { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+  .rc-cols > .rc-span { grid-column: 1 / -1; }
+  /* Card 2: [retirada + hora | outro dia] e [devolução | a frase]. */
+  .pe-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .pe-g2 > .pe-tg { margin-top: 28px; }
+  .pe-g2 > .pe-say, .pe-g2 > .pe-help { align-self: end; padding-bottom: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  app-rental-create * { transition: none !important; animation: none !important; }
+}

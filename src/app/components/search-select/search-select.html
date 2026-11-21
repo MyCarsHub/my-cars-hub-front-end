@@ -1,0 +1,109 @@
+<span class="ss-lb" [id]="id + '-lb'"
+  >{{ label() }}
+  @if (required()) {
+    <span class="ss-req" aria-hidden="true">*</span>
+  }
+</span>
+<button
+  type="button"
+  class="ss-f"
+  [class.empty]="!selected()"
+  [class.open]="open()"
+  [class.bad]="!!error()"
+  aria-haspopup="listbox"
+  [attr.aria-expanded]="open()"
+  [attr.aria-controls]="open() ? id + '-lst' : null"
+  [attr.aria-labelledby]="id + '-lb ' + id + '-v'"
+  [attr.aria-invalid]="error() ? 'true' : null"
+  [attr.aria-describedby]="error() ? id + '-err' : null"
+  [attr.data-testid]="testId() || null"
+  (click)="toggle()"
+  (keydown)="onTriggerKey($event)"
+>
+  <span class="ss-val" [id]="id + '-v'">
+    @if (selected(); as s) {
+      @if (s.initials) {
+        <span class="ss-av sm" aria-hidden="true">{{ s.initials }}</span>
+        <span class="ss-tx">{{ s.title }}</span>
+      } @else {
+        <span class="ss-tx">{{ s.title }}{{ s.subtitle ? ' · ' + s.subtitle : '' }}</span>
+      }
+    } @else {
+      <span class="ss-tx">{{ placeholder() }}</span>
+    }
+  </span>
+  <svg class="ss-chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="m6 9 6 6 6-6"></path>
+  </svg>
+</button>
+
+@if (open()) {
+  <div class="ss-pn">
+    <div class="ss-sx">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-3.5-3.5"></path>
+      </svg>
+      <input
+        class="ss-q"
+        type="text"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded="true"
+        [attr.aria-controls]="id + '-lst'"
+        [attr.aria-activedescendant]="activeId()"
+        [attr.aria-label]="'Buscar ' + label().toLowerCase()"
+        [placeholder]="searchPlaceholder()"
+        [value]="query()"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        enterkeyhint="search"
+        (input)="onQuery($event)"
+        (keydown)="onSearchKey($event)"
+      />
+    </div>
+    @if (query().trim()) {
+      <p class="ss-cnt" aria-live="polite">{{ countText() }}</p>
+    }
+    <!-- mousedown sem efeito: tocar numa opção não tira o foco da busca. -->
+    <div class="ss-lst" role="listbox" [id]="id + '-lst'" [attr.aria-labelledby]="id + '-lb'"
+      (mousedown)="$event.preventDefault()">
+      @for (o of filtered(); track o.id; let i = $index) {
+        <div
+          class="ss-row"
+          role="option"
+          [id]="optionId(i)"
+          [class.hl]="i === active()"
+          [class.on]="o.id === value()"
+          [attr.aria-selected]="o.id === value()"
+          [attr.aria-disabled]="o.busy ? 'true' : null"
+          [attr.data-testid]="testId() ? testId() + '-' + o.id : null"
+          (click)="pick(o)"
+          (pointermove)="hover(i)"
+        >
+          @if (o.initials) {
+            <span class="ss-av" aria-hidden="true">{{ o.initials }}</span>
+          }
+          <span class="ss-rt">
+            <b>{{ o.title }}</b>
+            @if (o.subtitle) {
+              <span>{{ o.subtitle }}</span>
+            }
+            @if (o.busy) {
+              <span>{{ busyText() }}</span>
+            }
+          </span>
+        </div>
+      } @empty {
+        <p class="ss-empty">{{ emptyText() }}</p>
+      }
+    </div>
+  </div>
+}
+
+@if (error(); as e) {
+  <p class="ss-err text-rose-700 dark:text-rose-300" role="alert" [id]="id + '-err'">{{ e }}</p>
+}

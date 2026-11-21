@@ -77,6 +77,8 @@ import {
 } from './wizard-math';
 import { RentalCreateRaw, buildCreateBody, buildPreflightBody } from './wizard-payload';
 import {
+  FUEL_OPTIONS,
+  FUEL_OTHER,
   brl,
   brlShort,
   dLong,
@@ -101,9 +103,6 @@ export const STEP_NAMES = [
   'Desconto ou parcelas',
   'Entrega do carro',
 ] as const;
-
-const FUEL_OPTIONS = ['Mesmo nível da retirada', 'Tanque cheio', 'Livre (sem exigência)'] as const;
-const FUEL_OTHER = 'OTHER';
 
 /** Em que passo mora cada campo (erros do servidor e "Mudar"). */
 const FIELD_STEP: Readonly<Record<string, Step>> = {

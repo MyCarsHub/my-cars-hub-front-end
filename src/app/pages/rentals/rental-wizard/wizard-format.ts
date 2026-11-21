@@ -3,6 +3,14 @@ import { brDate, brDayMonth, brl, isIsoDay } from '../charges-flex/charges-flex'
 
 /** Texto do passo a passo: datas e valores como o protótipo escreve. */
 
+/**
+ * O combustível na devolução: o TEXTO vai no corpo (`returnFuelPolicy`). Uma lista só, usada
+ * pelo passo a passo e pela página nova, para o texto enviado nunca divergir.
+ */
+export const FUEL_OPTIONS = ['Mesmo nível da retirada', 'Tanque cheio', 'Livre (sem exigência)'] as const;
+/** "Outra regra": o texto vem de `customFuel`. */
+export const FUEL_OTHER = 'OTHER';
+
 const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 const WEEKDAYS_LONG = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 

@@ -1,0 +1,112 @@
+<div class="cf-anchor">
+  <span class="cf-lb" [id]="id + '-lb'"
+    >{{ label() }}
+    @if (required()) {
+      <span class="cf-req" aria-hidden="true">*</span>
+    }
+  </span>
+  <button
+    type="button"
+    class="cf-f"
+    [class.empty]="!display()"
+    [class.open]="open()"
+    [class.bad]="!!error()"
+    aria-haspopup="dialog"
+    [attr.aria-expanded]="open()"
+    [attr.aria-controls]="open() ? id + '-pn' : null"
+    [attr.aria-labelledby]="id + '-lb ' + id + '-v'"
+    [attr.aria-invalid]="error() ? 'true' : null"
+    [attr.aria-describedby]="error() ? id + '-err' : null"
+    [attr.data-testid]="testId() || null"
+    (click)="toggle()"
+  >
+    <span [id]="id + '-v'">{{ display() || placeholder() }}</span>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+      <path d="M16 2v4M8 2v4M3 10h18"></path>
+    </svg>
+  </button>
+  @if (error(); as e) {
+    <p class="cf-err text-rose-700 dark:text-rose-300" role="alert" [id]="id + '-err'">{{ e }}</p>
+  }
+</div>
+
+@if (open()) {
+  <div class="cf-pn" [class.two]="shown() === 2" role="dialog" [id]="id + '-pn'"
+    [attr.aria-label]="'Escolher a data: ' + label()" (keydown.escape)="close(true)">
+    <div class="cf-mm">
+      @for (g of grids(); track g.ym; let first = $first; let last = $last) {
+        <div class="cf-cal">
+          <div class="cf-cmh">
+            <b [id]="id + '-' + g.ym" aria-live="polite">{{ g.title }}</b>
+            @if (first) {
+              <div class="cf-nav">
+                <button type="button" aria-label="Mês anterior" (click)="prevMonth()">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 6l-6 6l6 6"></path>
+                  </svg>
+                </button>
+                @if (last) {
+                  <button type="button" aria-label="Próximo mês" (click)="nextMonth()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M9 6l6 6l-6 6"></path>
+                    </svg>
+                  </button>
+                }
+              </div>
+            } @else if (last) {
+              <div class="cf-nav">
+                <button type="button" aria-label="Próximo mês" (click)="nextMonth()">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M9 6l6 6l-6 6"></path>
+                  </svg>
+                </button>
+              </div>
+            }
+          </div>
+          <table class="cf-grid" role="grid" [attr.aria-labelledby]="id + '-' + g.ym">
+            <thead>
+              <tr>
+                @for (w of weekdays; track $index) {
+                  <th scope="col" [attr.abbr]="w.long"><span aria-hidden="true">{{ w.short }}</span></th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (week of g.weeks; track $index) {
+                <tr>
+                  @for (c of week; track $index) {
+                    @if (c) {
+                      <td
+                        role="gridcell"
+                        [class]="c.cls"
+                        [attr.data-day]="c.iso"
+                        [attr.tabindex]="c.tab ? 0 : -1"
+                        [attr.aria-selected]="c.sel"
+                        [attr.aria-disabled]="c.off ? 'true' : null"
+                        [attr.aria-current]="c.today ? 'date' : null"
+                        [attr.aria-label]="c.label"
+                        (click)="pick(c.iso)"
+                        (keydown)="onDayKey($event, c.iso)"
+                      ><i>{{ c.day }}</i></td>
+                    } @else {
+                      <td aria-hidden="true"></td>
+                    }
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+    <div class="cf-pf">
+      <p aria-live="polite"><ng-content /></p>
+      <button type="button" class="cf-ok" data-testid="calendar-done" (click)="close(true)">Pronto</button>
+    </div>
+  </div>
+}

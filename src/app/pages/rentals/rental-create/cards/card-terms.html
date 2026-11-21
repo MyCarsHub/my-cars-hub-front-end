@@ -1,0 +1,229 @@
+<div class="rt-grp">
+  <h3>Vencimento</h3>
+  <div class="rt-g2">
+    <div class="rt-fld rt-due">
+      <div class="rt-lbi">
+        <span class="rt-lb" aria-hidden="true">Primeira cobrança vence em <span class="pe-req">*</span></span>
+        <app-info-tip #tDue label="O que é primeira cobrança" controls="rt-tip-due" />
+      </div>
+      <p class="rt-tip" id="rt-tip-due" role="note" [hidden]="!tDue.expanded()">
+        A primeira cobrança vence nessa data. As outras vêm <b>{{ step() }}</b> a partir dela. Já vem
+        preenchida com o dia em que ele pega o carro.
+      </p>
+      <app-calendar-field
+        label="Primeira cobrança vence em"
+        [required]="true"
+        testId="first-due"
+        [value]="value().firstPaymentDate"
+        [max]="value().endDate || null"
+        [error]="errors()['firstPaymentDate'] ?? null"
+        (valueChange)="setFirstDue($event)"
+        (closed)="touched.emit('firstPaymentDate')"
+      >
+        @if (dueDay(); as d) {
+          Vence {{ d.article }} <b>{{ d.day }}</b>
+        }
+      </app-calendar-field>
+      @if (!errors()['firstPaymentDate'] && dueHint()) {
+        <p class="rt-hint" data-testid="first-due-hint">{{ dueHint() }}</p>
+      }
+    </div>
+  </div>
+</div>
+
+<div class="rt-grp">
+  <h3>Se atrasar</h3>
+  <div class="rt-g2">
+    <div class="rt-fld">
+      <div class="rt-lbi">
+        <span class="rt-lb" id="rt-fine-lb">Multa <span class="pe-req" aria-hidden="true">*</span></span>
+        <app-info-tip #tFine label="O que é multa" controls="rt-tip-fine" />
+      </div>
+      <p class="rt-tip" id="rt-tip-fine" role="note" [hidden]="!tFine.expanded()">
+        Cobrada <b>uma vez</b> em cada cobrança paga com atraso. Em %, sobre o valor da cobrança; em
+        R$, um valor fixo. Coloque 0 para não cobrar.
+      </p>
+      <app-segmented-toggle class="rt-seg" data-testid="fine-type" [options]="fineOptions"
+        [value]="value().lateFineType" ariaLabelledby="rt-fine-lb"
+        containerClass="border border-edge-field" activeClass="text-white"
+        inactiveClass="text-fg-muted hover:text-fg" textClass="text-base"
+        (selectionChange)="setFineType($event)" />
+      <div class="rt-unit rt-gap" [class.bad]="!!errors()['lateFineValue']">
+        @if (fixed()) {
+          <span aria-hidden="true">R$</span>
+        }
+        <input id="rt-fine" inputmode="decimal" autocomplete="off" data-testid="fine-value"
+          [placeholder]="fixed() ? '0,00' : '0'"
+          [attr.aria-label]="fixed() ? 'Multa em reais' : 'Multa em porcentagem'"
+          [formControl]="form().controls.lateFineValue" (input)="fineInput($event)"
+          (blur)="touched.emit('lateFineValue')"
+          [attr.aria-invalid]="errors()['lateFineValue'] ? 'true' : null"
+          [attr.aria-describedby]="errors()['lateFineValue'] ? 'rt-fine-err' : 'rt-fine-hint'" />
+        @if (!fixed()) {
+          <span aria-hidden="true">%</span>
+        }
+      </div>
+      @if (errors()['lateFineValue']; as m) {
+        <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rt-fine-err">{{ m }}</p>
+      } @else {
+        <p class="rt-hint" id="rt-fine-hint" data-testid="fine-hint">{{ fineText() }}</p>
+      }
+    </div>
+
+    <div class="rt-fld">
+      <div class="rt-lbi">
+        <label class="rt-lb" for="rt-interest">Juros ao mês</label>
+        <app-info-tip #tInt label="O que é juros" controls="rt-tip-int" />
+      </div>
+      <p class="rt-tip" id="rt-tip-int" role="note" [hidden]="!tInt.expanded()">
+        Cobrado <b>por dia de atraso</b>, proporcional ao mês.
+        @if (interestExample(); as x) {
+          {{ x.pct }}% ao mês sobre {{ x.charge }} dá cerca de <b>{{ x.day }} por dia</b>.
+        }
+        Coloque 0 para não cobrar.
+      </p>
+      <div class="rt-unit" [class.bad]="!!errors()['lateInterestPercent']">
+        <input id="rt-interest" inputmode="decimal" autocomplete="off" placeholder="0,00" data-testid="interest"
+          [formControl]="form().controls.lateInterestPercent"
+          (input)="money($event, form().controls.lateInterestPercent)"
+          (blur)="touched.emit('lateInterestPercent')"
+          [attr.aria-invalid]="errors()['lateInterestPercent'] ? 'true' : null"
+          [attr.aria-describedby]="errors()['lateInterestPercent'] ? 'rt-int-err' : 'rt-int-hint'" />
+        <span aria-hidden="true">% ao mês</span>
+      </div>
+      @if (errors()['lateInterestPercent']; as m) {
+        <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rt-int-err">{{ m }}</p>
+      } @else {
+        <p class="rt-hint" id="rt-int-hint" data-testid="interest-hint">{{ interestText() }}</p>
+      }
+    </div>
+  </div>
+</div>
+
+<div class="rt-grp">
+  <h3>Quilometragem</h3>
+  <div class="rt-g2">
+    <div class="rt-fld">
+      <label class="rt-lb" for="rt-km">Km do carro na retirada <span class="pe-req" aria-hidden="true">*</span></label>
+      <div class="rt-unit" [class.bad]="!!errors()['initialKm']">
+        <input id="rt-km" inputmode="numeric" autocomplete="off" placeholder="0" required data-testid="initial-km"
+          [formControl]="form().controls.initialKm" (input)="km($event, form().controls.initialKm)"
+          (blur)="touched.emit('initialKm')"
+          [attr.aria-invalid]="errors()['initialKm'] ? 'true' : null"
+          [attr.aria-describedby]="errors()['initialKm'] ? 'rt-km-err' : 'rt-km-hint'" />
+        <span aria-hidden="true">km</span>
+      </div>
+      @if (errors()['initialKm']; as m) {
+        <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rt-km-err">{{ m }}</p>
+      } @else {
+        <p class="rt-hint" id="rt-km-hint">Olhe no painel na hora da entrega.</p>
+      }
+    </div>
+    <div class="rt-fld">
+      <div class="rt-lbi">
+        <span class="rt-lb" id="rt-limit-lb">Limite de km</span>
+        <app-info-tip #tLim label="O que é limite de km" controls="rt-tip-lim" />
+      </div>
+      <p class="rt-tip" id="rt-tip-lim" role="note" [hidden]="!tLim.expanded()">
+        Com limite, cada km rodado <b>acima do limite do dia</b> pode ser cobrado no fim. O limite e o
+        preço do km vão escritos no contrato.
+      </p>
+      <app-segmented-toggle class="rt-seg" data-testid="km-limit" [options]="limitOptions"
+        [value]="value().hasKmLimit" ariaLabelledby="rt-limit-lb"
+        containerClass="border border-edge-field" activeClass="text-white"
+        inactiveClass="text-fg-muted hover:text-fg" textClass="text-base"
+        (selectionChange)="setLimit($event)" />
+    </div>
+  </div>
+
+  @if (value().hasKmLimit) {
+    <div class="rt-col rt-lim">
+      <div class="rt-two">
+        <div class="rt-fld">
+          <label class="rt-lb" for="rt-fkm">Km por dia</label>
+          <div class="rt-unit" [class.bad]="!!errors()['franchiseKm']">
+            <input id="rt-fkm" inputmode="numeric" autocomplete="off" placeholder="0" required data-testid="franchise-km"
+              [formControl]="form().controls.franchiseKm" (input)="km($event, form().controls.franchiseKm)"
+              (blur)="touched.emit('franchiseKm')"
+              [attr.aria-invalid]="errors()['franchiseKm'] ? 'true' : null"
+              [attr.aria-describedby]="errors()['franchiseKm'] ? 'rt-fkm-err' : null" />
+            <span aria-hidden="true">km</span>
+          </div>
+          @if (errors()['franchiseKm']; as m) {
+            <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rt-fkm-err">{{ m }}</p>
+          }
+        </div>
+        <div class="rt-fld">
+          <label class="rt-lb" for="rt-xkm">Cada km a mais</label>
+          <div class="rt-unit" [class.bad]="!!errors()['extraKmPriceReais']">
+            <span aria-hidden="true">R$</span>
+            <input id="rt-xkm" inputmode="decimal" autocomplete="off" placeholder="0,00" data-testid="extra-km"
+              [formControl]="form().controls.extraKmPriceReais"
+              (input)="money($event, form().controls.extraKmPriceReais)"
+              (blur)="touched.emit('extraKmPriceReais')"
+              [attr.aria-invalid]="errors()['extraKmPriceReais'] ? 'true' : null"
+              [attr.aria-describedby]="errors()['extraKmPriceReais'] ? 'rt-xkm-err' : null" />
+          </div>
+          @if (errors()['extraKmPriceReais']; as m) {
+            <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rt-xkm-err">{{ m }}</p>
+          }
+        </div>
+      </div>
+      @if (limitText()) {
+        <p class="rt-hint" data-testid="km-limit-hint">{{ limitText() }}</p>
+      }
+    </div>
+  }
+</div>
+
+<div class="rt-grp">
+  <h3>Combustível</h3>
+  <div class="rt-g2">
+    <div class="rt-fld rt-lx">
+      <span class="rt-lb" id="rt-fuel-lb">Na devolução, o tanque deve estar</span>
+      <button type="button" class="rt-lx-f" [class.open]="fuelOpen()" [class.empty]="!fuelLabel()"
+        aria-haspopup="listbox" [attr.aria-expanded]="fuelOpen()"
+        [attr.aria-controls]="fuelOpen() ? 'rt-fuel-lst' : null"
+        aria-labelledby="rt-fuel-lb rt-fuel-v" data-testid="fuel"
+        (click)="toggleFuel()" (keydown)="onFuelTriggerKey($event)">
+        <span id="rt-fuel-v">{{ fuelLabel() || 'Selecione' }}</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+      </button>
+      @if (fuelOpen()) {
+        <div class="rt-lx-pn" role="listbox" id="rt-fuel-lst" tabindex="-1" aria-label="Combustível na devolução"
+          [attr.aria-activedescendant]="'rt-fuel-o' + fuelActive()" (keydown)="onFuelKey($event)"
+          (mousedown)="$event.preventDefault()">
+          @for (o of fuelOptions; track o.value; let i = $index) {
+            <div class="rt-lx-o" role="option" [id]="'rt-fuel-o' + i" [class.hl]="i === fuelActive()"
+              [attr.aria-selected]="o.value === value().fuel" [attr.data-testid]="'fuel-' + i"
+              (click)="pickFuel(o.value)" (pointermove)="fuelActive.set(i)">
+              <span>{{ o.label }}</span>
+              @if (o.value === value().fuel) {
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+    @if (value().fuel === fuelOther) {
+      <div class="rt-fld">
+        <label class="rt-lb" for="rt-fuel-rule">Qual regra?</label>
+        <div class="rt-unit" [class.bad]="!!errors()['customFuel']">
+          <input id="rt-fuel-rule" autocomplete="off" required data-testid="custom-fuel" [attr.maxlength]="customFuelMax"
+            placeholder="Ex.: devolver com 1/4 do tanque"
+            [formControl]="form().controls.customFuel" (blur)="touched.emit('customFuel')"
+            [attr.aria-invalid]="errors()['customFuel'] ? 'true' : null"
+            [attr.aria-describedby]="errors()['customFuel'] ? 'rt-fuel-err' : 'rt-fuel-hint'" />
+        </div>
+        @if (errors()['customFuel']; as m) {
+          <p class="rc-err text-rose-700 dark:text-rose-300" role="alert" id="rt-fuel-err">{{ m }}</p>
+        } @else {
+          <p class="rt-hint" id="rt-fuel-hint">Vai escrita no contrato.</p>
+        }
+      </div>
+    }
+  </div>
+</div>
