@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { SessionService } from './session.service';
+import { SessionService, safeReturnUrl } from './session.service';
 import { SessionResetRegistry } from './session-reset.registry';
 import { TelemetryService } from './telemetry.service';
 
@@ -322,5 +322,124 @@ describe('SessionService.getCompanyRoleFromToken', () => {
   it('nao confunde impersonation:false com sessao de suporte', () => {
     sessionStorage.setItem('token', buildToken({ impersonation: false, role: 'DRIVER' }));
     expect(service.getCompanyRoleFromToken()).toBe('DRIVER');
+  });
+});
+
+describe('SessionService: sessão que CAIU guarda o rascunho; "Sair" limpa tudo', () => {
+  let service: SessionService;
+  const DRAFT = 'rentalCreateDraft:u-1:c-1';
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [SessionService, SessionResetRegistry] });
+    service = TestBed.inject(SessionService);
+    sessionStorage.setItem('id', 'u-1');
+    sessionStorage.setItem('token', 'jwt');
+    sessionStorage.setItem('selectedCompanyId', 'c-1');
+    sessionStorage.setItem(DRAFT, '{"v":1}');
+  });
+
+  afterEach(() => sessionStorage.clear());
+
+  it('expiração/401: derruba a sessão, mantém o rascunho e lembra a tela para o mesmo usuário', () => {
+    service.clearForExpiry('/alugueis/novo');
+    expect(sessionStorage.getItem('token')).toBeNull();
+    expect(sessionStorage.getItem('selectedCompanyId')).toBeNull();
+    expect(sessionStorage.getItem(DRAFT)).toBe('{"v":1}');
+    expect(service.takeReturnUrl('u-2')).toBeNull(); // outro usuário: não volta, e o aviso some
+    service.clearForExpiry('/alugueis/novo');
+    expect(service.takeReturnUrl('u-1')).toBeNull(); // o id já tinha caído no 1º clear
+  });
+
+  it('o "voltar para" vale só para o mesmo usuário, uma vez', () => {
+    service.clearForExpiry('/alugueis/novo');
+    expect(service.takeReturnUrl('u-1')).toBe('/alugueis/novo');
+    expect(service.takeReturnUrl('u-1')).toBeNull();
+  });
+
+  it('"Sair" (clear) apaga o rascunho também', () => {
+    service.clear();
+    expect(sessionStorage.getItem(DRAFT)).toBeNull();
+  });
+
+  it('o relogin (wipe + recolocar) mantém o rascunho', () => {
+    service.clearForExpiry('/alugueis/novo');
+    const restore = service.preserveAcrossRelogin();
+    service.clear();
+    service.setToken('novo');
+    restore();
+    expect(sessionStorage.getItem(DRAFT)).toBe('{"v":1}');
+    expect(sessionStorage.getItem('returnAfterLogin')).toContain('/alugueis/novo');
+  });
+
+  it('só volta para caminho de dentro do app, nunca para outro site ou para o /login', () => {
+    expect(safeReturnUrl('/alugueis/novo?vehicleId=1')).toBe('/alugueis/novo?vehicleId=1');
+    expect(safeReturnUrl('//evil.com')).toBeNull();
+    expect(safeReturnUrl('https://evil.com')).toBeNull();
+    expect(safeReturnUrl('/login')).toBeNull();
+  });
+});
+
+describe('SessionService: aba compartilhada — o que outro usuário deixou não fica', () => {
+  let service: SessionService;
+  const A_DRAFT = 'rentalCreateDraft:u-a:c-1';
+  const B_DRAFT = 'rentalCreateDraft:u-b:c-9';
+
+  /** O relogin do OAuth: guarda, limpa, entra, recoloca; o `/auth/me` grava o id e limpa. */
+  function relogin(userId: string): void {
+    const restore = service.preserveAcrossRelogin();
+    service.clear();
+    service.setToken(`jwt-${userId}`);
+    restore();
+    service.setItem('id', userId);
+    service.dropOtherUsersLeftovers(userId);
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [SessionService, SessionResetRegistry] });
+    service = TestBed.inject(SessionService);
+    sessionStorage.setItem('id', 'u-a');
+    sessionStorage.setItem('token', 'jwt-a');
+    sessionStorage.setItem(A_DRAFT, '{"v":1,"who":"a"}');
+    sessionStorage.setItem(B_DRAFT, '{"v":1,"who":"b"}');
+  });
+
+  afterEach(() => sessionStorage.clear());
+
+  it('A expira, B entra: os rascunhos e o "voltar para" de A somem; os de B ficam', () => {
+    service.clearForExpiry('/alugueis/novo');
+    expect(sessionStorage.getItem(A_DRAFT)).not.toBeNull();
+    relogin('u-b');
+    expect(sessionStorage.getItem(A_DRAFT)).toBeNull();
+    expect(sessionStorage.getItem('returnAfterLogin')).toBeNull();
+    expect(sessionStorage.getItem(B_DRAFT)).toBe('{"v":1,"who":"b"}');
+    expect(service.takeReturnUrl('u-b')).toBeNull();
+  });
+
+  it('A expira e A entra de novo: o rascunho de A volta, e a tela também', () => {
+    service.clearForExpiry('/alugueis/novo');
+    relogin('u-a');
+    expect(sessionStorage.getItem(A_DRAFT)).toBe('{"v":1,"who":"a"}');
+    expect(sessionStorage.getItem(B_DRAFT)).toBeNull();
+    expect(service.takeReturnUrl('u-a')).toBe('/alugueis/novo');
+  });
+
+  it('login por senha (sem wipe): o /auth/me de B também apaga o que A deixou', () => {
+    service.clearForExpiry('/alugueis/novo');
+    service.setItem('id', 'u-b');
+    service.dropOtherUsersLeftovers('u-b');
+    expect(sessionStorage.getItem(A_DRAFT)).toBeNull();
+    expect(sessionStorage.getItem('returnAfterLogin')).toBeNull();
+  });
+
+  it('não volta para tela de passagem ou de fluxo: cai na casa de sempre', () => {
+    expect(safeReturnUrl('/trocando-empresa')).toBeNull();
+    expect(safeReturnUrl('/onboarding')).toBeNull();
+    expect(safeReturnUrl('/convite/cadastro')).toBeNull();
+    expect(safeReturnUrl('/invite/accept?token=x')).toBeNull();
+    expect(safeReturnUrl('/alugueis/novo')).toBe('/alugueis/novo');
   });
 });

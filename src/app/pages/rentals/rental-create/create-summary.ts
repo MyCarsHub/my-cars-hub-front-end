@@ -73,6 +73,8 @@ export interface ChargeLine {
 export interface ConfirmModel {
   rentTotal: string;
   rentCaption: string;
+  /** Há caução a mostrar (cobrada ou recebida por fora)? Sem ela, o cartão verde some. */
+  showCaucao: boolean;
   caucaoTotal: string;
   caucaoCaption: string;
   rows: ConfirmRow[];
@@ -115,12 +117,15 @@ export function confirmModel(i: ConfirmInput): ConfirmModel {
   const sum = (list: typeof rent): number => list.reduce((a, c) => a + c.amountCents, 0);
   const periodsText = plural(i.periods, w.lower, w.lowerMany);
 
+  let showCaucao = false;
   let caucaoTotal = brl(0);
-  let caucaoCaption = 'Sem caução';
+  let caucaoCaption = '';
   if (i.caucaoPaid && i.caucaoGrossCents > 0) {
+    showCaucao = true;
     caucaoTotal = brl(i.caucaoGrossCents);
-    caucaoCaption = 'Recebida por fora. Volta no fim';
+    caucaoCaption = 'Recebida por fora';
   } else if (caucao.length) {
+    showCaucao = true;
     caucaoTotal = brl(sum(caucao));
     caucaoCaption = caucao.length > 1 ? `Em ${caucao.length} partes. Volta no fim` : 'Volta no fim';
   }
@@ -131,6 +136,7 @@ export function confirmModel(i: ConfirmInput): ConfirmModel {
   return {
     rentTotal: brl(sum(rent)),
     rentCaption: `${periodsText}, ${cadence(i.frequency, i.firstDue)}`,
+    showCaucao,
     caucaoTotal,
     caucaoCaption,
     rows: [

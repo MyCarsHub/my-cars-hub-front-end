@@ -962,6 +962,26 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     expect(cmp()['form'].controls.automaticCharge.value).toBe(false);
   });
 
+  it('Confira sem caução: só o cartão do Aluguel; caução recebida por fora: o verde com "Recebida por fora"', async () => {
+    chargePreview.mockReturnValue(of({ ...SERVER_PREVIEW, charges: SERVER_PREVIEW.charges.filter((c) => c.kind !== 'CAUCAO') }));
+    await mount();
+    await fillAll();
+    patch({ caucaoReais: '0' });
+    await click('create-submit');
+    expect(byId('confirm-sheet')).not.toBeNull();
+    expect(byId('confirm-caucao')).toBeNull();
+    expect(byId('confirm-sheet')!.textContent).not.toContain('Sem caução');
+    await click('confirm-back');
+    await wait();
+    await render();
+
+    patch({ caucaoReais: '1.200,00' });
+    await click('caucao-paid');
+    await click('create-submit');
+    expect(byId('confirm-caucao')!.textContent).toContain('R$ 1.200,00');
+    expect(byId('confirm-caucao-caption')!.textContent?.trim()).toBe('Recebida por fora');
+  });
+
   it('a barra só conta Contrato, Cobrança e Observações depois dos cards de cima', async () => {
     await mount();
     expect(byId('create-progress')!.textContent).toContain('0% concluído');

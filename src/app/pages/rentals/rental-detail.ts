@@ -983,12 +983,13 @@ export class RentalDetail implements OnInit {
   }
 
   /**
-   * Rótulo da linha. FEAT-0573: parcela de período, parte da caução e parcela de acordo
-   * ganham "Semana 1, parcela 1 de 3" / "Acordo, parcela 1 de 4"; a cobrança inteira segue
-   * com o rótulo de sempre.
+   * Rótulo da linha do cronograma (tabela do computador e cartões do celular). Período inteiro
+   * e período parcelado falam igual: "Semana 2" e "Semana 2, parcela 1 de 2" ("Dia N" / "Mês N"
+   * pela frequência). Caução, acordo e os outros tipos seguem como eram. É o mesmo nome curto
+   * das folhas (`shortChargeName`).
    */
   protected rowKindLabel(charge: RentalChargeDto): string {
-    return flexChargeLabel(charge, this.rental()?.billingFrequency) ?? chargeKindLabel(charge.kind);
+    return this.shortChargeName(charge);
   }
 
   /**

@@ -548,7 +548,8 @@ describe('NotificationFeedService — o poll diante do errorInterceptor', () => 
         provideHttpClientTesting(),
         {
           provide: SessionService,
-          useValue: { getToken: () => 'token', getItem: () => null, clear: sessionClear },
+          // Sessão vencida cai por `clearForExpiry` (mantém rascunhos); o "Sair" é `clear`.
+          useValue: { getToken: () => 'token', getItem: () => null, clear: vi.fn(), clearForExpiry: sessionClear },
         },
         { provide: Router, useValue: { navigate: routerNavigate } },
         { provide: ApiErrorService, useValue: { scheduleSafetyNet, claim: vi.fn() } },

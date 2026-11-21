@@ -87,6 +87,9 @@ export class OauthSuccess implements OnInit {
     // Sem isto ela morreria exatamente no meio do trajeto que existe para
     // atravessar (FIX-0291).
     const restorePlanIntent = this.planIntent.preserveAcrossSessionWipe();
+    // Idem para o que a sessão que CAIU deixou (`SessionService.clearForExpiry`): os rascunhos
+    // do Novo aluguel e a tela para onde voltar.
+    const restoreKept = this.sessionService.preserveAcrossRelogin();
 
     // Wipe any leftover state from a previous login (companies=[], selectedCompanyId,
     // onboardingCompleted=false, etc). Sem isso, um relogin depois de trocar de
@@ -94,6 +97,7 @@ export class OauthSuccess implements OnInit {
     this.sessionService.clear();
     this.sessionService.setToken(token);
     restorePlanIntent();
+    restoreKept();
 
     // Invite flow: this login exists only to accept an invitation. `/auth/me` is skipped
     // on purpose — the invitee has no company yet (it would bounce them to /onboarding),
@@ -131,6 +135,12 @@ export class OauthSuccess implements OnInit {
         // A casa do papel: o motorista abre o app no painel dele, nao num /dashboard que o
         // roleGuard desviaria com um aviso de "area exclusiva".
         const home = homeRouteForRole(this.sessionService.getCompanyRoleFromToken());
+        // A sessão tinha caído no meio de uma tela: o MESMO usuário volta para ela.
+        const back = this.sessionService.takeReturnUrl(this.sessionService.getUserId());
+        if (isCompleted && back) {
+          this.router.navigateByUrl(back);
+          return;
+        }
         this.router.navigate([isCompleted ? home : '/onboarding']);
       },
       error: () => {
