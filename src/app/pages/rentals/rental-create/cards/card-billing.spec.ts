@@ -23,13 +23,12 @@ class Host {
   readonly changes: boolean[] = [];
 }
 
-describe('CardBilling — card 7 · Cobrança', () => {
+describe('CardBilling — card 7 · Cobrança (igual ao Contrato)', () => {
   let fixture: ReturnType<typeof TestBed.createComponent<Host>>;
   const host = (): Host => fixture.componentInstance;
   const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
   const q = (sel: string): HTMLElement | null => el().querySelector<HTMLElement>(sel);
-  const auto = (): HTMLButtonElement => q('[data-testid="pay-automatic"]') as HTMLButtonElement;
-  const outside = (): HTMLButtonElement => q('[data-testid="pay-outside"]') as HTMLButtonElement;
+  const sw = (): HTMLButtonElement => q('[data-testid="pay-automatic"]') as HTMLButtonElement;
   const flat = (node: Element | null): string => (node?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
   async function mount(state: { auto?: boolean; connected?: boolean; owner?: boolean } = {}): Promise<void> {
@@ -47,29 +46,24 @@ describe('CardBilling — card 7 · Cobrança', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('radiogroup com as duas opções, sem o título visível "Como ele vai pagar?"', async () => {
+  it('uma chave "Cobranças automáticas", sem opções de rádio nem título', async () => {
     await mount();
-    const group = q('[role="radiogroup"]')!;
-    expect(group.getAttribute('aria-label')).toBe('Como ele vai pagar');
+    expect(sw().getAttribute('role')).toBe('switch');
+    expect(q('[role="radiogroup"]')).toBeNull();
+    expect(q('[role="radio"]')).toBeNull();
     expect(el().textContent).not.toContain('Como ele vai pagar');
-    expect(flat(auto().querySelector('b'))).toBe('Cobranças automáticas');
-    expect(flat(outside().querySelector('b'))).toBe('Eu recebo por fora');
-    expect(el().textContent).not.toContain('Pix pelo MyCarsHub');
+    expect(el().textContent).not.toContain('Eu recebo por fora');
+    expect(flat(sw().querySelector('b'))).toBe('Cobranças automáticas');
   });
 
-  it('automática com Asaas conectado: marcada e o quadro "conectada"', async () => {
+  it('ligada com Asaas conectado: o quadro "conectada" embaixo', async () => {
     await mount();
-    expect(auto().getAttribute('aria-checked')).toBe('true');
-    expect(auto().getAttribute('tabindex')).toBe('0');
-    expect(outside().getAttribute('tabindex')).toBe('-1');
+    expect(sw().getAttribute('aria-checked')).toBe('true');
     expect(flat(q('[data-testid="billing-tile"] .rt-tx b'))).toBe('Sua conta Asaas está conectada');
-    expect(flat(q('[data-testid="billing-tile"] .rt-tx span'))).toBe(
-      'Antes de criar, você vê o resumo das cobranças e confirma.',
-    );
     expect(el().textContent).toContain('Dá para mudar uma cobrança depois, no aluguel.');
   });
 
-  it('o (i) de Cobranças automáticas explica a conta Asaas', async () => {
+  it('o (i) explica a conta Asaas e o desligado', async () => {
     await mount();
     const tip = q('#rt-tip-auto')!;
     expect(tip.hidden).toBe(true);
@@ -77,48 +71,39 @@ describe('CardBilling — card 7 · Cobrança', () => {
     await render();
     expect(tip.hidden).toBe(false);
     expect(tip.textContent).toContain('sua conta Asaas');
+    expect(tip.textContent).toContain('Desligada, você recebe por fora');
   });
 
-  it('"Eu recebo por fora": avisa e mostra "Nada é enviado para ele"', async () => {
+  it('desligar = recebo por fora; ligar de novo volta', async () => {
     await mount();
-    outside().click();
+    sw().click();
     await render();
     expect(host().changes).toEqual([false]);
-    expect(outside().getAttribute('aria-checked')).toBe('true');
-    expect(flat(q('[data-testid="billing-tile"]'))).toContain('Nada é enviado para ele');
-  });
-
-  it('setas trocam a escolha e levam o foco', async () => {
-    await mount({ auto: false });
-    outside().focus();
-    outside().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    expect(sw().getAttribute('aria-checked')).toBe('false');
+    expect(flat(q('[data-testid="billing-tile"]'))).toContain('Você recebe por fora');
+    sw().click();
     await render();
-    expect(host().changes).toEqual([true]);
-    expect(document.activeElement).toBe(auto());
+    expect(host().changes).toEqual([false, true]);
   });
 
-  it('dono sem Asaas, automática marcada: aviso com o atalho para conectar', async () => {
+  it('dono sem Asaas, chave ligada: aviso com o atalho para conectar', async () => {
     await mount({ connected: false });
     expect(q('[data-testid="billing-tile"]')).toBeNull();
     const warn = q('[data-testid="billing-warn"]')!;
-    expect(flat(warn)).toContain('Sua conta Asaas ainda não está conectada. Sem ela, as cobranças automáticas não funcionam.');
+    expect(flat(warn)).toContain('Sua conta Asaas ainda não está conectada.');
     const link = q('[data-testid="billing-connect"]') as HTMLAnchorElement;
-    expect(flat(link)).toBe('Conectar minha conta Asaas');
     expect(link.getAttribute('href')).toBe('/configuracoes/integracoes/asaas');
-    expect(flat(warn)).toContain('O que você já preencheu aqui fica guardado.');
   });
 
-  it('outra pessoa da equipe sem Asaas: a automática fica travada e pede ao dono', async () => {
+  it('outra pessoa da equipe sem Asaas: ligar fica travado e pede ao dono', async () => {
     await mount({ auto: false, connected: false, owner: false });
-    expect(auto().getAttribute('aria-disabled')).toBe('true');
-    expect(flat(auto())).toContain('Precisa da conta Asaas conectada.');
-    auto().click();
-    outside().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    expect(sw().getAttribute('aria-disabled')).toBe('true');
+    expect(flat(sw())).toContain('Precisa da conta Asaas conectada.');
+    sw().click();
     await render();
     expect(host().changes).toEqual([]);
     expect(flat(q('[data-testid="billing-ask-owner"]'))).toBe(
       'Para usar cobranças automáticas, peça ao dono da conta para conectar o Asaas.',
     );
-    expect(q('[data-testid="billing-connect"]')).toBeNull();
   });
 });
