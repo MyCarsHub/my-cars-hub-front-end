@@ -228,6 +228,16 @@ describe('OauthSuccess routing (systemRole aware)', () => {
     expect(store['returnAfterLogin']).toBeUndefined();
   });
 
+  it('PLATFORM_ADMIN com a sessão caída também volta à tela (antes caía no /dashboard)', async () => {
+    const { navigate, navigateByUrl, store } = await setup(
+      buildMe({ id: 'u-1', systemRole: 'PLATFORM_ADMIN', companies: [{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }] }),
+      { returnAfterLogin: JSON.stringify({ userId: 'u-1', url: '/alugueis/novo' }) },
+    );
+    expect(navigateByUrl).toHaveBeenCalledWith('/alugueis/novo');
+    expect(navigate).not.toHaveBeenCalled();
+    expect(store['returnAfterLogin']).toBeUndefined();
+  });
+
   it('outro usuário entrando: não volta à tela do anterior', async () => {
     const { navigate, navigateByUrl } = await setup(
       buildMe({ id: 'u-2', systemRole: 'USER', companies: [{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }] }),
