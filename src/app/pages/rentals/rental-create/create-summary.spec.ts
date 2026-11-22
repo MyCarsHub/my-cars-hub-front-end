@@ -181,3 +181,40 @@ describe('recusas do servidor: o que as limpa e para onde voltam', () => {
     expect(blockerCard({ code: 'X', message: null }, null)).toBe(3);
   });
 });
+
+describe('aluguel que começou no passado: as vencidas ficam só no app (E2E 22/11)', () => {
+  const past = (gw: number, local: number): RentalChargePreviewDto => ({
+    ...PREVIEW,
+    charges: PREVIEW.charges.slice(0, gw + local),
+    gatewayCount: gw,
+    localCount: local,
+  });
+
+  it('Confira: todas vencidas não dizem "vão para a sua conta Asaas"', () => {
+    const m = confirmModel({ ...BASE, caucaoGrossCents: 0, preview: past(0, 4) });
+    const say = m.say.before + m.say.bold + m.say.after;
+    expect(say).toBe('As 4 cobranças já venceram: ficam só anotadas no aluguel, sem ir para a sua conta Asaas.');
+  });
+
+  it('Confira: parte vencida, parte no Asaas', () => {
+    const m = confirmModel({ ...BASE, preview: past(2, 3) });
+    expect(m.say.bold).toBe('2 cobranças');
+    expect(m.say.after).toBe(' vão para a sua conta Asaas agora. 3 cobranças que já venceram ficam só anotadas no aluguel.');
+  });
+
+  it('Confira: nada vencido mantém o texto de sempre', () => {
+    const m = confirmModel(BASE);
+    expect(m.say.before + m.say.bold + m.say.after).toBe(
+      'Ao criar, as 6 cobranças (4 semanas e 2 partes da caução) vão para a sua conta Asaas agora.',
+    );
+  });
+
+  it('Aluguel criado: conta só as do Asaas e diz quantas ficaram no app', () => {
+    const all = createdModel({ ...BASEDONE, preview: past(0, 4) });
+    expect(all.headline).toBe('4 cobranças anotadas no aluguel');
+    expect(all.caption).toContain('Elas já venceram, então não vão para a sua conta Asaas.');
+    const mixed = createdModel({ ...BASEDONE, preview: past(1, 1) });
+    expect(mixed.headline).toBe('1 cobrança na sua conta Asaas');
+    expect(mixed.caption).toContain('1 cobrança que já venceu fica só anotada no aluguel.');
+  });
+});
