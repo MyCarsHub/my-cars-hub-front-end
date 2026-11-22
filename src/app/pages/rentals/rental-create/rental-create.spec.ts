@@ -748,6 +748,89 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     expect(byId('create-done')).toBeNull();
   });
 
+  describe('"Bloquear sempre": motorista/carro com aluguel em aberto', () => {
+    const ACTIVE_UNTIL_30_11 = { status: 'ACTIVE', startDate: '2026-11-01', endDate: '2026-11-30' };
+    const RESERVED_JAN = { status: 'RESERVED', startDate: '2027-01-10', endDate: '2027-02-07' };
+
+    it('a lista mostra o preso apagado, com o motivo dele, e não deixa escolher', async () => {
+      driversList = () =>
+        of({ content: [DRIVERS[0], { ...DRIVERS[1], openRental: ACTIVE_UNTIL_30_11 }], page: 0, size: 500, total: 2 });
+      vehiclesList = () =>
+        of({ content: [{ ...VEHICLES[0], openRental: RESERVED_JAN }, VEHICLES[1]], page: 0, size: 500, total: 2 });
+      await mount();
+
+      byId<HTMLButtonElement>('driver')!.click();
+      await render();
+      const busyDriver = byId('driver-drv-2')!;
+      expect(busyDriver.getAttribute('aria-disabled')).toBe('true');
+      expect(busyDriver.textContent).toContain('Em aluguel até 30/11');
+      expect(byId('driver-drv-1')!.getAttribute('aria-disabled')).toBeNull();
+      busyDriver.click();
+      await render();
+      expect(cmp()['form'].controls.driverId.value).toBe('');
+
+      byId<HTMLButtonElement>('vehicle')!.click();
+      await render();
+      const busyCar = byId('vehicle-veh-1')!;
+      expect(busyCar.getAttribute('aria-disabled')).toBe('true');
+      expect(busyCar.textContent).toContain('Reservado de 10/01 a 07/02');
+    });
+
+    it('rascunho cujo motorista agora está preso: o erro aparece no campo na hora e o card não fica pronto', async () => {
+      sessionStorage.setItem('id', 'user-1');
+      sessionStorage.setItem('selectedCompanyId', 'co-1');
+      sessionStorage.setItem(
+        'rentalCreateDraft:user-1:co-1',
+        JSON.stringify({ v: 1, form: { driverId: 'drv-2', vehicleId: 'veh-2' } }),
+      );
+      driversList = () =>
+        of({ content: [DRIVERS[0], { ...DRIVERS[1], openRental: RESERVED_JAN }], page: 0, size: 500, total: 2 });
+      await mount();
+
+      expect(cmp()['form'].controls.driverId.value).toBe('drv-2');
+      expect(el().querySelector('app-rc-driver-vehicle')!.textContent).toContain(
+        'Este motorista já tem um aluguel reservado de 10/01 a 07/02. Conclua ou cancele esse aluguel antes de criar outro.',
+      );
+      expect(byId('driver')!.getAttribute('aria-invalid')).toBe('true');
+      expect(cmp()['cardStatus']()[0].complete).toBe(false);
+    });
+
+    it('409 DRIVER_HAS_OPEN_RENTAL ao criar: a mensagem do servidor vai ao campo do motorista, sem atalho de cadastro', async () => {
+      const message = 'Este motorista já está em um aluguel (ativo até 30/11). Conclua ou cancele esse aluguel antes de criar outro.';
+      createSpy.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 409,
+        error: { message, code: 'DRIVER_HAS_OPEN_RENTAL', fieldErrors: { driverId: message } },
+      })));
+      await mount();
+      await fillAll();
+      await click('create-submit');
+      await click('confirm-create');
+
+      expect(byId('create-done')).toBeNull();
+      expect(el().querySelector('app-rc-driver-vehicle')!.textContent).toContain(message);
+      expect(cmp()['cardStatus']()[0].complete).toBe(false);
+      expect(byId('blocked-sheet')!.textContent).toContain(message);
+      expect(byId('blocked-sheet')!.textContent).not.toContain('Abrir o cadastro do motorista');
+    });
+
+    it('preflight com VEHICLE_HAS_OPEN_RENTAL: o erro no campo do carro e nada vai à prévia', async () => {
+      const message = 'Este carro já está reservado de 10/01 a 07/02. Conclua ou cancele esse aluguel antes de criar outro.';
+      preflight.mockReturnValue(of({
+        ok: false,
+        issues: [{ field: 'vehicleId', code: 'VEHICLE_HAS_OPEN_RENTAL', message, acceptedValue: null, severity: 'BLOCKING' }],
+        warnings: [],
+        limits: null,
+      }));
+      await mount();
+      await fillAll();
+      await click('create-submit');
+
+      expect(chargePreview).not.toHaveBeenCalled();
+      expect(el().querySelector('app-rc-driver-vehicle')!.textContent).toContain(message);
+      expect(byId('vehicle')!.getAttribute('aria-invalid')).toBe('true');
+    });
+  });
+
   it('prévia falhou (rede): "Tentar de novo" e nada sai; na 2ª, o Confira abre', async () => {
     chargePreview.mockImplementationOnce(() => throwError(() => new Error('timeout')));
     await mount();

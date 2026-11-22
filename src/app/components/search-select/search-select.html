@@ -93,7 +93,7 @@
               <span>{{ o.subtitle }}</span>
             }
             @if (o.busy) {
-              <span>{{ busyText() }}</span>
+              <span>{{ o.busyReason || busyText() }}</span>
             }
           </span>
         </div>

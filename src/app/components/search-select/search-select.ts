@@ -24,6 +24,8 @@ export interface SearchSelectOption {
   readonly initials?: string;
   /** Ocupado: aparece apagado, com o motivo, e não pode ser escolhido. */
   readonly busy?: boolean;
+  /** O motivo DESTE item ocupado (ex.: "Em aluguel até 30/11"); ausente = o `busyText` da lista. */
+  readonly busyReason?: string | null;
 }
 
 /** Sem acento e em minúsculas: "joão" acha "Joao". */
