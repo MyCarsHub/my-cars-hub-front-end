@@ -115,10 +115,17 @@ export class OauthSuccess implements OnInit {
 
     this.authService.getMe().subscribe({
       next: (user) => {
+        // A sessão tinha caído no meio de uma tela: o MESMO usuário volta para ela. Lido antes
+        // do desvio do PLATFORM_ADMIN, que também perdia o rascunho (21/11).
+        const back = this.sessionService.takeReturnUrl(this.sessionService.getUserId());
         // PLATFORM_ADMIN operates above the tenant model — bypass onboarding
         // entirely even if companies=[]. Keeps admins out of the tenant setup
         // flow that would otherwise 400/403 on every step.
         if (user.systemRole === 'PLATFORM_ADMIN') {
+          if (back) {
+            this.router.navigateByUrl(back);
+            return;
+          }
           this.router.navigate(['/dashboard']);
           return;
         }
@@ -135,8 +142,6 @@ export class OauthSuccess implements OnInit {
         // A casa do papel: o motorista abre o app no painel dele, nao num /dashboard que o
         // roleGuard desviaria com um aviso de "area exclusiva".
         const home = homeRouteForRole(this.sessionService.getCompanyRoleFromToken());
-        // A sessão tinha caído no meio de uma tela: o MESMO usuário volta para ela.
-        const back = this.sessionService.takeReturnUrl(this.sessionService.getUserId());
         if (isCompleted && back) {
           this.router.navigateByUrl(back);
           return;
