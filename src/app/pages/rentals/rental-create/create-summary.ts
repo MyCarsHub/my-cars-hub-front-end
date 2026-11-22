@@ -87,6 +87,48 @@ export interface ConfirmModel {
   countText: string;
   /** "4 semanas e 2 partes da caução" */
   detail: string;
+  /** Frase do automático com a parte em negrito; diz quantas vão ao Asaas e quantas ficam no app. */
+  say: SayParts;
+}
+
+export interface SayParts {
+  before: string;
+  bold: string;
+  after: string;
+}
+
+/**
+ * Quantas vão ao Asaas e quantas ficam só no app: vencimento antes de hoje nunca vai ao
+ * gateway (regra do servidor), então um aluguel que começou no passado tem cobranças locais.
+ */
+function gatewaySplit(preview: RentalChargePreviewDto | null): { gw: number; local: number; n: number } {
+  const n = preview?.charges.length ?? 0;
+  // Prévia calculada como "recebo por fora" não diz o destino no Asaas: sem divisão.
+  if (!preview?.automaticCharge) return { gw: n, local: 0, n };
+  const gw = preview.gatewayCount ?? n;
+  const local = preview.localCount ?? 0;
+  return { gw, local, n };
+}
+
+function localText(local: number): string {
+  return local === 1
+    ? '1 cobrança que já venceu fica só anotada no aluguel'
+    : `${local} cobranças que já venceram ficam só anotadas no aluguel`;
+}
+
+function confirmSay(preview: RentalChargePreviewDto, countText: string, detail: string): SayParts {
+  const { gw, local } = gatewaySplit(preview);
+  if (local === 0) {
+    return { before: 'Ao criar, as ', bold: countText, after: ` (${detail}) vão para a sua conta Asaas agora.` };
+  }
+  if (gw === 0) {
+    return { before: 'As ', bold: countText, after: ' já venceram: ficam só anotadas no aluguel, sem ir para a sua conta Asaas.' };
+  }
+  return {
+    before: 'Ao criar, ',
+    bold: plural(gw, 'cobrança', 'cobranças'),
+    after: ` ${gw === 1 ? 'vai' : 'vão'} para a sua conta Asaas agora. ${cap(localText(local))}.`,
+  };
 }
 
 function cap(text: string): string {
@@ -161,6 +203,11 @@ export function confirmModel(i: ConfirmInput): ConfirmModel {
     automatic: i.automatic,
     countText: plural(count, 'cobrança', 'cobranças'),
     detail: [rentPart, caucaoPart].filter(Boolean).join(' e '),
+    say: confirmSay(
+      i.preview,
+      plural(count, 'cobrança', 'cobranças'),
+      [rentPart, caucaoPart].filter(Boolean).join(' e '),
+    ),
   };
 }
 
@@ -194,12 +241,20 @@ export function createdModel(i: CreatedInput): CreatedModel {
   // `RentalScheduleService.materializeIfMissing`): no "Aluguel criado" ainda não há nenhuma.
   const later = i.automatic ? '' : 'Elas ficam anotadas quando o aluguel começar (Marcar como ativo).';
   const renew = i.minimum ? `Perto de ${dShort(i.endDate)} a gente te avisa para renovar.` : '';
+  const { gw, local } = gatewaySplit(i.preview);
+  let headline = `${plural(n, 'cobrança', 'cobranças')} ao ativar o aluguel`;
+  let past = '';
+  if (i.automatic && gw > 0) {
+    headline = `${plural(gw, 'cobrança', 'cobranças')} na sua conta Asaas`;
+    past = local > 0 ? `${cap(localText(local))}.` : '';
+  } else if (i.automatic) {
+    headline = `${plural(n, 'cobrança anotada', 'cobranças anotadas')} no aluguel`;
+    past = n > 0 ? `${n === 1 ? 'Ela já venceu' : 'Elas já venceram'}, então não ${n === 1 ? 'vai' : 'vão'} para a sua conta Asaas.` : '';
+  }
   return {
     subtitle: `${i.driverName} · ${i.plate} · ${dShort(i.startDate)} a ${dShort(i.endDate)}`,
-    headline: i.automatic
-      ? `${plural(n, 'cobrança', 'cobranças')} na sua conta Asaas`
-      : `${plural(n, 'cobrança', 'cobranças')} ao ativar o aluguel`,
-    caption: [later, when, contract, renew].filter(Boolean).join(' '),
+    headline,
+    caption: [later, past, when, contract, renew].filter(Boolean).join(' '),
     syncFailed: i.sync?.failed ?? 0,
   };
 }

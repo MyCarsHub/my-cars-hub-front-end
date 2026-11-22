@@ -25,6 +25,7 @@ import {
   RenewalUnit,
 } from '../../../types/rental-renewal.types';
 import { applyPtBrMoneyMaskToControl } from '../../../utils/ptbr-money-mask';
+import { formatPtBrMoney } from '../../../utils/ptbr-number';
 import { ptBrMoneyCents } from '../../../utils/validators/ptbr-money.validator';
 import { brDate, brDayMonth, brl } from '../charges-flex/charges-flex';
 import { centsText } from '../rental-create/create-form';
@@ -188,6 +189,7 @@ type PreviewState =
                 [attr.aria-invalid]="rateError() ? 'true' : null"
                 [attr.aria-describedby]="rateError() ? 'rn-rate-err' : 'rn-rate-hint'"
                 (input)="onRate($event)"
+                (blur)="onRateBlur()"
               />
             </div>
             @if (rateError(); as m) {
@@ -503,6 +505,14 @@ export class RenewSheet implements OnInit {
     this.error.set(null);
     this.fitting.set(false);
     applyPtBrMoneyMaskToControl(event, this.rate);
+  }
+
+  /** Ao sair do campo, "550" vira "550,00" (mesmo texto que o valor de hoje mostra). */
+  protected onRateBlur(): void {
+    const cents = ptBrMoneyCents(this.rate.value);
+    if (cents === null) return;
+    const text = formatPtBrMoney(cents);
+    if (text !== this.rate.value) this.rate.setValue(text);
   }
 
   /**

@@ -274,6 +274,13 @@ describe('RentalDetail — renovação (V151)', () => {
       expect(byId(m.fixture, 'renew-see-charges')!.textContent?.trim()).toBe('Ver as 4 cobranças');
       expect(byId(m.fixture, 'renew-say')!.textContent).toContain('vão para a sua conta Asaas agora');
       expect(byId<HTMLButtonElement>(m.fixture, 'renew-submit')!.disabled).toBe(false);
+      // Digitou "550" e saiu do campo: vira "550,00", como o valor de hoje.
+      const rateInput = byId<HTMLInputElement>(m.fixture, 'renew-rate')!;
+      rateInput.value = '550';
+      rateInput.dispatchEvent(new Event('input'));
+      rateInput.dispatchEvent(new Event('blur'));
+      m.fixture.detectChanges();
+      expect(rateInput.value).toBe('550,00');
     });
 
     it('semanal só oferece semanas; mensal só meses; diário as três', async () => {
