@@ -84,6 +84,23 @@ describe('VehicleForm — server field errors', () => {
     vi.useRealTimers();
   });
 
+  it('N4 — hodômetro nasce vazio, ganha ponto de milhar e vai como número', () => {
+    const input = fixture.nativeElement.querySelector('#veiculo-hodometer') as HTMLInputElement;
+    expect(input.value).toBe('');
+    input.value = '030000';
+    input.setSelectionRange(6, 6);
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(input.value).toBe('30.000');
+
+    create.mockReturnValue(NEVER);
+    const form = (fixture.componentInstance as unknown as { form: { patchValue: (v: unknown) => void } }).form;
+    form.patchValue({ plate: 'ABC1D23', brand: 'Fiat', model: 'Mobi', yearManufacture: 2022, yearModel: 2022 });
+    submit();
+    expect(create).toHaveBeenCalled();
+    expect((create.mock.calls[0][0] as { hodometer: number }).hodometer).toBe(30_000);
+  });
+
   it('renders a duplicate-plate 409 under the plate field, not as a banner or toast', () => {
     const error = new HttpErrorResponse({
       status: 409,

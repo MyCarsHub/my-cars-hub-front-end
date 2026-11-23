@@ -46,6 +46,11 @@ export class CardCaucao {
   readonly errors = input<Readonly<Partial<Record<string, string>>>>({});
   readonly today = input('');
   readonly preview = input<PreviewModel | null>(null);
+  /**
+   * F3 (23/11) — "Eu recebo por fora": a caução nunca vira cobrança no aluguel manual (nem na
+   * ativação), então "Parcelar" não é oferecido e o card diz o porquê.
+   */
+  readonly manual = input(false);
 
   readonly check = output<'full' | 'desc' | 'split'>();
   readonly togglePaid = output<void>();

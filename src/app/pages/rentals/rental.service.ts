@@ -464,6 +464,18 @@ export class RentalService {
   }
 
   /**
+   * F5 (23/11) — estorno automático da caução que o Asaas não confirmou ao encerrar.
+   * `AUTOMATIC` tenta de novo no Asaas (409 se falhar de novo); `MANUAL` registra a
+   * devolução por fora. 409 quando não há estorno pendente.
+   */
+  settlePendingCaucaoRefund(
+    rentalId: string,
+    method: 'AUTOMATIC' | 'MANUAL',
+  ): Observable<RentalResponseDto> {
+    return this.http.post<RentalResponseDto>(`${BASE}/${rentalId}/caucao-refund`, { method });
+  }
+
+  /**
    * Desmarca a caução como paga — reverte a CAUCAO charge para PENDING e
    * `rental.caucaoPaid=false`. Apenas para `automaticCharge=false`.
    */

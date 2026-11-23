@@ -78,7 +78,7 @@ import { ptBrMoneyCents } from '../../../utils/validators/ptbr-money.validator';
 import { addDaysIso, splitEvenly } from '../charges-flex/charges-flex';
 import { caucaoDue, minChargeCents, periodCount, periodDue } from '../rental-wizard/wizard-math';
 import { RentalCreateRaw, buildCreateBody, buildPreflightBody } from '../rental-wizard/wizard-payload';
-import { FUEL_OTHER, decimalOf, dShort, intOf, periodWords } from '../rental-wizard/wizard-format';
+import { FUEL_OTHER, brl, decimalOf, dShort, intOf, periodWords } from '../rental-wizard/wizard-format';
 import { CardCaucao } from './cards/card-caucao';
 import { CardCharges, WeekItem } from './cards/card-charges';
 import { CardDriverVehicle } from './cards/card-driver-vehicle';
@@ -97,6 +97,8 @@ import {
   buildCreatePlan,
   createCharges,
   createPeriodAmounts,
+  partsTargetCents,
+  splitPeriodIndices,
   partOffsetMax,
   toggleCheck,
 } from './create-plan';
@@ -260,7 +262,8 @@ export class RentalCreate implements OnInit {
   );
   private readonly caucaoPartsOn = computed(() => {
     const v = this.v();
-    return !v.caucaoPaid && v.caucaoSplit && this.caucao().net > 0;
+    // F3 (23/11) — aluguel manual não parcela a caução (ela nunca vira cobrança; o backend recusa).
+    return !v.caucaoPaid && v.caucaoSplit && v.automaticCharge === true && this.caucao().net > 0;
   });
 
   // ---- cobranças
@@ -319,6 +322,31 @@ export class RentalCreate implements OnInit {
       caucaoPaid: v.caucaoPaid,
       caucaoParts,
     };
+  });
+
+  /** N1 — o valor sobre o qual as partes são digitadas: o do 1º período parcelado, com desconto. */
+  protected readonly partsTarget = computed(() =>
+    this.v().parcOn && this.rateCents() > 0 ? partsTargetCents(this.planInput()) : this.rateCents(),
+  );
+
+  /**
+   * N1 — períodos parcelados de OUTRO valor (o sem desconto): as partes deles, por extenso, para
+   * nada ser refeito em silêncio. "Nas semanas sem desconto (R$ 600,00), as partes ficam …".
+   */
+  protected readonly otherPartsHint = computed<string>(() => {
+    const input = this.planInput();
+    if (!this.v().parcOn || this.rateCents() <= 0) return '';
+    const target = this.partsTarget();
+    const amounts = createPeriodAmounts(input);
+    const other = splitPeriodIndices(input).find((i) => amounts[i] !== target);
+    if (other === undefined) return '';
+    const parts = this.charges()
+      .filter((c) => c.kind === 'RENTAL_PERIOD' && c.index === other)
+      .map((c) => brl(c.amountCents));
+    if (parts.length < 2) return '';
+    const w = this.words();
+    const which = amounts[other] > target ? 'sem desconto' : 'com desconto';
+    return `${w.fem ? 'Nas' : 'Nos'} ${w.lowerMany} ${which} (${brl(amounts[other])}), as partes ficam ${parts.join(' + ')}.`;
   });
 
   protected readonly charges = computed(() =>
@@ -381,7 +409,11 @@ export class RentalCreate implements OnInit {
   private readonly card1Errors = computed(() => ({ ...driverVehicleErrors(this.v()), ...this.openRentalErrors() }));
   private readonly card2Errors = computed(() => periodErrors(this.period()));
   private readonly card3Errors = computed(() =>
-    caucaoErrors({ ...this.v(), parts: this.partsValue() }, { today: this.today, minCents: this.minCents() }),
+    caucaoErrors(
+      // F3 — no manual o "Parcelar" some; uma escolha antiga dele não bloqueia o card.
+      { ...this.v(), caucaoSplit: this.v().caucaoSplit && this.v().automaticCharge === true, parts: this.partsValue() },
+      { today: this.today, minCents: this.minCents() },
+    ),
   );
   private readonly card4Errors = computed(() =>
     chargesErrors(
@@ -394,6 +426,7 @@ export class RentalCreate implements OnInit {
         stale: this.staleSelected(),
         past: this.pastSelected(),
         smallestPart: this.smallestPart(),
+        partsTarget: this.partsTarget(),
       },
     ),
   );
@@ -415,8 +448,13 @@ export class RentalCreate implements OnInit {
   }
 
   // ---- cards 5 a 8 (regras em `cards/terms-rules.ts`)
-  /** Valor de UMA cobrança para a multa e os juros: a menor (com desconto), ou o valor cheio. */
+  /**
+   * Valor de UMA cobrança para a multa e os juros: a menor (com desconto e, N2, com as partes
+   * de um período parcelado), ou o valor cheio.
+   */
   protected readonly chargeCents = computed(() => {
+    const periods = this.charges().filter((c) => c.kind === 'RENTAL_PERIOD' && c.amountCents > 0);
+    if (periods.length) return Math.min(...periods.map((c) => c.amountCents));
     const amounts = createPeriodAmounts(this.planInput());
     return amounts.length ? Math.min(...amounts) : this.rateCents();
   });
@@ -569,7 +607,8 @@ export class RentalCreate implements OnInit {
       untracked(() => n >= 2 && resplit(this.caucaoParts, net));
     });
     effect(() => {
-      const rate = this.rateCents();
+      // N1 — as partes se redividem sobre o valor do período parcelado (com o desconto dele).
+      const rate = this.partsTarget();
       const n = this.periodPartsValue().length;
       if (this.periodPartsEdited()) return;
       untracked(() => n >= 2 && resplit(this.periodParts, rate));
@@ -857,7 +896,7 @@ export class RentalCreate implements OnInit {
 
   /** Duas partes iguais: no vencimento e uns dias depois (por semana, terça e sexta). */
   private seedPeriodParts(): void {
-    const rate = this.rateCents();
+    const rate = this.partsTarget();
     const amounts = rate > 0 ? splitEvenly(rate, 2).map(centsText) : ['', ''];
     this.periodParts.push(newPeriodPart(amounts[0], 0));
     this.periodParts.push(newPeriodPart(amounts[1], SECOND_PART_OFFSET[this.frequency()]));
@@ -866,7 +905,7 @@ export class RentalCreate implements OnInit {
   protected addPeriodPart(): void {
     if (this.periodParts.length >= PERIOD_PARTS_MAX) return;
     const last = this.periodParts.at(this.periodParts.length - 1);
-    const rest = this.rateCents() - this.periodSum();
+    const rest = this.partsTarget() - this.periodSum();
     const offset = Math.min((last?.controls.offset.value ?? 0) + 1, partOffsetMax(this.frequency()));
     this.periodParts.push(newPeriodPart(rest > 0 ? centsText(rest) : '', offset));
   }

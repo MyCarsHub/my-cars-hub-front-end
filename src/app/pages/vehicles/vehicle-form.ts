@@ -97,6 +97,8 @@ import {
 import { OPEN_BLOCK_PARAM } from '../../types/fleet-finance.types';
 import { VehicleBrandPipe } from '../../pipes/vehicle-brand.pipe';
 import { VehicleModelPipe } from '../../pipes/vehicle-model.pipe';
+import { maskKm } from '../rentals/rental-create/cards/terms-rules';
+import { intOf } from '../rentals/rental-wizard/wizard-format';
 
 const PLATE_PATTERN = /^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/;
 const CHASSIS_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
@@ -485,7 +487,9 @@ export class VehicleForm implements OnInit {
         [Validators.required, Validators.min(1900), Validators.max(2100)],
       ],
       chassis: ['', [this.unlessStored(() => this.storedChassis, CHASSIS_PATTERN)]],
-      hodometer: [0, [Validators.required, Validators.min(0)]],
+      // N4 (23/11) — texto com ponto de milhar, como o km do aluguel ("45.000"); sem o "0"
+      // inicial que virava "030000". O payload leva o número (`intOf`, a mesma leitura).
+      hodometer: ['', [Validators.required, Validators.pattern(/^(\d+|\d{1,3}(\.\d{3})+)$/)]],
       licensingExpiration: [''],
       renavam: ['', [this.unlessStored(() => this.storedRenavam, RENAVAM_PATTERN)]],
       color: [''],
@@ -843,6 +847,16 @@ export class VehicleForm implements OnInit {
     this.form.controls.renavam.markAsTouched();
   }
 
+  /** N4 — a máscara do km do aluguel: só dígitos, ponto de milhar, cursor no mesmo dígito. */
+  protected onHodometerInput(event: Event): void {
+    if (this.sold()) return;
+    const el = event.target as HTMLInputElement;
+    const { value, caret } = maskKm(el.value, el.selectionStart ?? el.value.length);
+    this.form.controls.hodometer.setValue(value);
+    el.value = value;
+    el.setSelectionRange(caret, caret);
+  }
+
   private loadVehicle(id: string): void {
     this.loading.set(true);
     this.error.set(null);
@@ -873,7 +887,7 @@ export class VehicleForm implements OnInit {
           yearManufacture: v.yearManufacture,
           yearModel: v.yearModel,
           chassis: v.chassis ?? '',
-          hodometer: v.hodometer,
+          hodometer: v.hodometer == null ? '' : maskKm(String(v.hodometer), 0).value,
           licensingExpiration: v.licensingExpiration ?? '',
           renavam: v.renavam ?? '',
           color: v.color ?? '',
@@ -1199,7 +1213,7 @@ export class VehicleForm implements OnInit {
       model: raw.model.trim(),
       yearManufacture: Number(raw.yearManufacture),
       yearModel: Number(raw.yearModel),
-      hodometer: Number(raw.hodometer),
+      hodometer: intOf(raw.hodometer) ?? 0,
       licensingExpiration: raw.licensingExpiration || null,
       color: raw.color?.trim() || null,
       purchaseDate: raw.purchaseDate || null,

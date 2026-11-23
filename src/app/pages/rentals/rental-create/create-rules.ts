@@ -205,6 +205,11 @@ export interface ChargesRulesContext {
   past: readonly number[];
   /** Menor parte que o plano gera (`null` sem partes). */
   smallestPart: number | null;
+  /**
+   * N1 — o valor que as partes têm de somar: o do 1º período parcelado, com o desconto dele.
+   * Ausente = o valor cheio do período.
+   */
+  partsTarget?: number;
 }
 
 export function chargesErrors(v: ChargesRulesValue, ctx: ChargesRulesContext): Record<string, string> {
@@ -238,8 +243,10 @@ export function chargesErrors(v: ChargesRulesValue, ctx: ChargesRulesContext): R
         e[`perDue${i}`] = 'Precisa vencer no mesmo dia ou depois da parte anterior.';
       }
     });
-    if (rate > 0 && sum !== rate) {
-      e['periodPartsSum'] = `As partes somam ${brl(sum)}. Precisam somar ${brl(rate)}, o valor ${of}.`;
+    const target = ctx.partsTarget ?? rate;
+    if (target > 0 && sum !== target) {
+      const what = target < rate ? `o valor ${of} com desconto` : `o valor ${of}`;
+      e['periodPartsSum'] = `As partes somam ${brl(sum)}. Precisam somar ${brl(target)}, ${what}.`;
     } else if (ctx.smallestPart !== null && ctx.smallestPart < ctx.minCents) {
       e['periodPartsSum'] = `Cada parte precisa ser de pelo menos ${brl(ctx.minCents)}. A menor ficou com ${brl(ctx.smallestPart)}.`;
     }

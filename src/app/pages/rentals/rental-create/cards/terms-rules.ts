@@ -59,7 +59,7 @@ export function termsErrors(v: TermsValue, ctx: TermsContext): Record<string, st
     const f = ptBrMoneyCents(v.lateFineValue);
     if (f === null) e['lateFineValue'] = 'Digite um valor válido, por exemplo 50,00. Ou 0 se não cobra.';
     else if (ctx.chargeCents > 0 && f >= ctx.chargeCents) {
-      e['lateFineValue'] = `A multa precisa ser menor que ${brl(ctx.chargeCents)}, o valor de cada cobrança.`;
+      e['lateFineValue'] = `A multa precisa ser menor que ${brl(ctx.chargeCents)}, o valor da menor cobrança.`;
     }
   } else if (blank(v.lateFineValue)) {
     // A prancha marca a multa como obrigatória: vazio não vira 0 calado.
@@ -140,7 +140,7 @@ export function dueFooter(iso: string): string {
 export function fineHint(type: RentalLateFineType, value: string, chargeCents: number): string {
   if (type === 'FIXED') {
     return chargeCents > 0
-      ? `Menor que ${brl(chargeCents)} (valor de cada cobrança).`
+      ? `Menor que ${brl(chargeCents)} (valor da menor cobrança, parcelas incluídas).`
       : 'Menor que o valor de cada cobrança.';
   }
   const pct = decimalOf(value);

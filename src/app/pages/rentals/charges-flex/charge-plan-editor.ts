@@ -460,7 +460,10 @@ export class ChargePlanEditor {
   protected readonly caucaoSplitOn = signal(false);
   protected readonly parts = signal<CaucaoPart[]>([]);
   private readonly partsVersion = signal(0);
-  protected readonly canSplitCaucao = computed(() => this.caucaoCents() > 0 && !this.caucaoPaid());
+  // F3 (23/11) — só com cobrança automática: no manual a caução nunca vira cobrança.
+  protected readonly canSplitCaucao = computed(
+    () => this.automatic() && this.caucaoCents() > 0 && !this.caucaoPaid(),
+  );
 
   protected toggleCaucaoSplit(): void {
     const on = !this.caucaoSplitOn();

@@ -118,10 +118,22 @@ export function defaultSplitFor(
 }
 
 /**
- * As partes de um período que vale `amountCents`. As partes são digitadas sobre o valor cheio;
- * num período com desconto elas encolhem na mesma proporção (centavos que sobram na última),
- * que é a divisão do servidor quando as partes são iguais.
+ * N1 (23/11) — as partes são digitadas sobre o valor do 1º período parcelado (com desconto, se
+ * ele tem); um período de OUTRO valor (o sem desconto) recebe as partes na mesma proporção
+ * (centavos que sobram na última), que é a divisão do servidor quando as partes são iguais. A
+ * tela mostra esse outro valor por extenso: nada é refeito em silêncio.
  */
+export function partsTotal(parts: readonly PeriodPart[]): number {
+  return parts.reduce((a, p) => a + p.amountCents, 0);
+}
+
+/** O valor sobre o qual as partes são digitadas: o do 1º período parcelado (com o desconto dele). */
+export function partsTargetCents(input: CreatePlanInput): number {
+  const first = splitPeriodIndices(input)[0];
+  if (first === undefined) return input.rateCents;
+  return createPeriodAmounts(input)[first];
+}
+
 export function scaleParts(parts: readonly PeriodPart[], rateCents: number, amountCents: number): number[] {
   if (amountCents === rateCents || rateCents <= 0) return parts.map((p) => p.amountCents);
   const head = parts.slice(0, -1).map((p) => Math.floor((p.amountCents * amountCents) / rateCents));
@@ -133,14 +145,15 @@ function periodInstalments(input: CreatePlanInput, index: number, amountCents: n
   const split = input.split;
   if (!split) return [];
   const due = periodDue(input.firstDue, index, input.frequency);
-  const def = defaultSplitFor(split.parts, input.rateCents, split.scope);
+  const base = partsTotal(split.parts);
+  const def = defaultSplitFor(split.parts, base, split.scope);
   if (def) {
     return splitEvenly(amountCents, def.count).map((amount, i) => ({
       dueDate: addDaysIso(due, i * def.intervalDays),
       amountCents: amount,
     }));
   }
-  const amounts = scaleParts(split.parts, input.rateCents, amountCents);
+  const amounts = scaleParts(split.parts, base, amountCents);
   return split.parts.map((p, i) => ({ dueDate: addDaysIso(due, p.offsetDays), amountCents: amounts[i] }));
 }
 
@@ -161,7 +174,7 @@ export function buildCreatePlan(input: CreatePlanInput): ChargePlanDto | null {
     overrides.push({ target: 'CAUCAO', periodIndex: null, instalments: input.caucaoParts.map((p) => ({ ...p })) });
   }
   const split = input.split && input.split.parts.length >= PERIOD_PARTS_MIN ? input.split : null;
-  const def = split ? defaultSplitFor(split.parts, input.rateCents, split.scope) : null;
+  const def = split ? defaultSplitFor(split.parts, partsTotal(split.parts), split.scope) : null;
   if (split && !def) {
     const amounts = createPeriodAmounts(input);
     for (const i of splitPeriodIndices(input)) {

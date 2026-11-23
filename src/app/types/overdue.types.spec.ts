@@ -65,28 +65,27 @@ describe('overdueGraceExample', () => {
     expect(example.firstChargeAmount).toBe(15_000);
   });
 
-  it('72 horas de tolerância adiam o prazo para 24/07 às 00:00 — e a 1ª multa vira 4 diárias', () => {
+  it('N18 — 72 horas de tolerância adiam o prazo para 24/07 às 00:00, e a 1ª multa é UMA diária', () => {
     const example = overdueGraceExample(15_000, 72);
 
     expect(example.dueAt).toBe('2026-07-24T00:00:00');
-    expect(example.firstChargeDays).toBe(4);
-    // Este é o degrau do achado: R$ 0,00 às 23:59 de 23/07, R$ 600,00 às 00:01
-    // de 24/07 — numa diária de R$ 100,00.
-    expect(example.firstChargeAmount).toBe(60_000);
+    // Contado em 24 h depois do prazo (dono, 23/11): o degrau de 4 diárias acabou.
+    expect(example.firstChargeDays).toBe(1);
+    expect(example.firstChargeAmount).toBe(15_000);
   });
 
   it('tolerância quebrada cai no mesmo dia do prazo', () => {
-    // 21/07 00:00 + 30h = 22/07 06:00; devolver 22/07 06:01 são 2 diárias.
+    // 21/07 00:00 + 30h = 22/07 06:00; devolver 22/07 06:01 é 1 diária (N18).
     const example = overdueGraceExample(15_000, 30);
 
     expect(example.dueAt).toBe('2026-07-22T06:00:00');
-    expect(example.firstChargeDays).toBe(2);
+    expect(example.firstChargeDays).toBe(1);
   });
 
-  it('cada 24 horas a mais de tolerância somam exatamente uma diária à primeira multa', () => {
+  it('N18 — qualquer tolerância: a primeira multa é uma diária', () => {
     const days = [0, 24, 48, 72].map((h) => overdueGraceExample(20_000, h).firstChargeDays);
 
-    expect(days).toEqual([1, 2, 3, 4]);
+    expect(days).toEqual([1, 1, 1, 1]);
   });
 
   it('arredonda o valor como o backend: diária inteira antes de multiplicar', () => {

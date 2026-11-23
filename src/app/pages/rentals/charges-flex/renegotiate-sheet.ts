@@ -19,6 +19,7 @@ import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { applyPtBrMoneyMaskToControl } from '../../../utils/ptbr-money-mask';
 import { ptBrMoneyCents, ptBrMoneyValidator } from '../../../utils/validators/ptbr-money.validator';
+import { formatPtBrMoney } from '../../../utils/ptbr-number';
 import { IdempotencyKeyKeeper } from '../../../utils/adjustments-view';
 import {
   AGREEMENT_ERROR_MESSAGES,
@@ -175,7 +176,11 @@ export class RenegotiateSheet {
     });
   });
 
+  /** N9 — o valor nasce com a soma das escolhidas; depois que a pessoa digita, é dela. */
+  private amountTyped = false;
+
   protected onAmountInput(event: Event): void {
+    this.amountTyped = true;
     applyPtBrMoneyMaskToControl(event, this.amount);
     this.preview.set(null);
   }
@@ -273,6 +278,7 @@ export class RenegotiateSheet {
     if (!this.canContinue()) return;
     this.error.set(null);
     const s = this.step();
+    if (s === 1 && !this.amountTyped) this.amount.setValue(formatPtBrMoney(this.originalTotal()));
     if (s === 2 && !this.firstDue()) this.firstDue.set(this.today());
     if (s === 3) {
       this.step.set(4);
