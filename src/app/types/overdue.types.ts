@@ -166,14 +166,11 @@ const DAY_MS = 86_400_000;
  * A regra do backend (`OverdueFeeCalculator`) tem duas metades que a tela
  * precisa mostrar juntas:
  *
- *  - `dueAt = end_date + 1 dia, 00:00 + graceHours` decide **se** cobra;
- *  - `overdueDays = data da devolução − end_date` decide **quanto** — e a
- *    tolerância NÃO é descontada dessa subtração.
+ *  - `dueAt = end_date + 1 dia, 00:00 + graceHours` decide **se** cobra e **de onde** conta;
+ *  - N18 (dono, 23/11): `overdueDays = ceil((devolução − dueAt) / 24 h)` decide **quanto**.
  *
- * Consequência: a primeira devolução cobrável é a que cai na data de `dueAt`,
- * ou seja `1 + floor(graceHours / 24)` diárias de uma vez. Subir a tolerância
- * de 0 para 72 horas não suaviza nada — adia a cobrança em três dias e faz a
- * primeira delas custar quatro diárias em vez de uma.
+ * Consequência: a primeira devolução cobrável custa UMA diária, com qualquer
+ * tolerância; a tolerância só adia o começo da contagem.
  *
  * A aritmética é feita em UTC de propósito: só interessa a diferença entre
  * instantes fictícios, e UTC não tem horário de verão para encurtar um dia.
@@ -188,10 +185,8 @@ export function overdueGraceExample(
   const dueMs = Date.UTC(year, month - 1, day) + DAY_MS + Math.max(0, graceHours) * HOUR_MS;
   const due = new Date(dueMs);
 
-  // Dias de calendário entre `end_date` e a DATA do prazo — que é exatamente a
-  // primeira data em que uma devolução já está atrasada.
-  const dueDateMs = Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate());
-  const firstChargeDays = Math.round((dueDateMs - Date.UTC(year, month - 1, day)) / DAY_MS);
+  // N18 — contado em períodos de 24 h depois do prazo: a primeira cobrança é sempre 1 diária.
+  const firstChargeDays = 1;
 
   return {
     endDate,

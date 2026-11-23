@@ -379,6 +379,28 @@ describe('RentalDetail — Cobranças flexíveis (FEAT-0573)', () => {
       http.expectOne(`${BASE}/${RENTAL_ID}`).flush({ ...RENTAL, charges: [OPEN_W4] });
     });
 
+    it('N9 — o valor do acordo já vem com a soma das escolhidas; à vista diz "Pagamento"', async () => {
+      const { fixture } = await mount({ flex: true, charges: [OVERDUE_W2, OVERDUE_W3, OPEN_W4] });
+      menuItem(fixture, 'charge-menu-renegotiate')!.click();
+      await settle(fixture);
+      byTestId(fixture, 'renegotiate-option-w3')!.querySelector('input')!.click();
+      await settle(fixture);
+      byTestId<HTMLButtonElement>(fixture, 'renegotiate-next')!.click();
+      await settle(fixture);
+
+      const amount = byTestId<HTMLInputElement>(fixture, 'renegotiate-amount')!;
+      expect(amount.value).toBe('1.500,00');
+      expect(amount.getAttribute('placeholder')).toBeNull();
+
+      const once = Array.from(el(fixture).querySelectorAll('button')).find(
+        (b) => (b.textContent ?? '').trim() === 'À vista',
+      ) as HTMLButtonElement;
+      once.click();
+      await settle(fixture);
+      expect(el(fixture).querySelector('#rn-preview-title')?.textContent?.trim()).toBe('Pagamento');
+      expect(byTestId(fixture, 'renegotiate-instalments')?.textContent).not.toContain('Parcela 1');
+    });
+
     it('D — recusa por cobrança já paga volta ao passo 1 e recarrega o aluguel', async () => {
       const { fixture, http } = await mount({ flex: true, charges: [OVERDUE_W2] });
       menuItem(fixture, 'charge-menu-renegotiate')!.click();
@@ -417,7 +439,11 @@ describe('RentalDetail — Cobranças flexíveis (FEAT-0573)', () => {
 
       menuItem(fixture, 'charge-menu-received-outside')!.click();
       await settle(fixture);
-      expect(byTestId<HTMLInputElement>(fixture, 'received-outside-value')!.value).toContain('750,00');
+      // N7 — o valor fixo é texto, não um campo (o campo somente leitura parecia editável).
+      const value = byTestId(fixture, 'received-outside-value')!;
+      expect(value.tagName).not.toBe('INPUT');
+      expect(value.textContent).toContain('750,00');
+      expect(el(fixture).querySelector('[data-testid="received-outside-sheet"] input#rf-value')).toBeNull();
       expect(byTestId<HTMLButtonElement>(fixture, 'received-outside-submit')!.disabled).toBe(true);
       (el(fixture).querySelector('[data-testid="reason-CASH"] input') as HTMLInputElement).click();
       await settle(fixture);

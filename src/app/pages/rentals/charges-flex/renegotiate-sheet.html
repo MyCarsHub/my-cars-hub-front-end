@@ -88,7 +88,6 @@
               type="text"
               inputmode="decimal"
               autocomplete="off"
-              placeholder="1.600,00"
               data-testid="renegotiate-amount"
               [formControl]="amount"
               (input)="onAmountInput($event)"
@@ -162,12 +161,14 @@
 
           @if (agreedCents() > 0) {
             <section aria-labelledby="rn-preview-title" class="flex flex-col gap-2">
-              <h3 id="rn-preview-title" class="text-sm font-semibold text-fg">Prévia das parcelas</h3>
+              <h3 id="rn-preview-title" class="text-sm font-semibold text-fg">
+                {{ payMode() === 'ONCE' ? 'Pagamento' : 'Prévia das parcelas' }}
+              </h3>
               <ul class="flex flex-col gap-1.5" role="list" data-testid="renegotiate-instalments">
                 @for (p of instalments(); track $index) {
                   <li class="enter-up flex items-baseline justify-between gap-3 rounded-xl bg-surface-sunken px-3 py-2.5" [style.--stagger-i]="$index">
                     <span class="min-w-0">
-                      <span class="block text-base text-fg">Parcela {{ $index + 1 }}</span>
+                      <span class="block text-base text-fg">{{ payMode() === 'ONCE' ? 'À vista' : 'Parcela ' + ($index + 1) }}</span>
                       <span class="block text-sm text-fg-subtle tabular-nums">{{ date(p.dueDate) }}</span>
                     </span>
                     <span class="text-right">

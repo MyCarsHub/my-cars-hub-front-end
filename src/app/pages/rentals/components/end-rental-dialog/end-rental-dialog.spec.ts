@@ -290,6 +290,16 @@ describe('EndRentalDialog — devolução da caução por estado', () => {
     expect(el.textContent).toContain('Paga:');
   });
 
+  it('N19 — "Não devolver" esconde o "Valor a devolver"; devolver mostra', () => {
+    const fixture = render(paidOfflineRental);
+    const el = root(fixture);
+    expect(radio(el, 'NONE')?.checked).toBe(true);
+    expect(el.querySelector('#refund-amount')).toBeNull();
+    pick(el, 'MANUAL');
+    fixture.detectChanges();
+    expect(el.querySelector('#refund-amount')).not.toBeNull();
+  });
+
   it('A — mesmo podendo estornar, nasce em "Não devolver"', () => {
     const el = root(render(gatewayRental));
 
@@ -521,6 +531,15 @@ describe('EndRentalDialog — prévia da multa por atraso', () => {
   function ackBox(root: HTMLElement): HTMLInputElement | null {
     return root.querySelector<HTMLInputElement>('input[type="checkbox"][class*="accent-amber-700"]');
   }
+
+  it('N18 — a prévia diz como as diárias são contadas: 24 h depois do prazo, o começado conta inteiro', () => {
+    const fixture = render();
+    fixture.componentInstance.preview.set(OVERDUE);
+    fixture.detectChanges();
+    expect(el(fixture).querySelector('[data-testid="overdue-count-rule"]')?.textContent).toContain(
+      'Uma diária a cada 24 horas depois do prazo; o período começado conta inteiro.',
+    );
+  });
 
   it('pede a prévia assim que abre, com a data-e-hora local escolhida', () => {
     const fixture = render();

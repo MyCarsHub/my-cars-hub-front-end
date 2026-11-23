@@ -217,3 +217,72 @@ describe('RentalForm — motorista/carro com aluguel em aberto', () => {
     expect(cmp['form'].controls.vehicleId.errors?.[SERVER_ERROR_KEY]).toBeUndefined();
   });
 });
+
+/** N12 (E2E 23/11) — a edição de um aluguel com cronograma emitido. */
+describe('RentalForm — edição com cronograma emitido (N12)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-20T12:00:00-03:00'));
+    drivers = [FREE_DRIVER];
+    vehicles = [FREE_VEHICLE];
+    driverLoads = 0;
+    store = new Map<string, string>();
+    store.set('id', 'user-1');
+    store.set('selectedCompanyId', 'company-1');
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  const rental = (charges: unknown[]) => ({
+    id: 'rental-1',
+    status: 'ACTIVE',
+    vehicleId: 'veh-free',
+    driverId: 'drv-free',
+    startDate: '2026-11-03',
+    endDate: '2026-12-01',
+    periodRate: 60_000,
+    totalAmount: 265_000,
+    caucaoAmount: 100_000,
+    billingFrequency: 'WEEKLY',
+    lateFineType: 'PERCENT',
+    lateFineValue: 0,
+    lateInterestPercentPerMonth: 1,
+    charges,
+  });
+
+  it('trava início, fim, valor e frequência já na abertura, com o texto do servidor, e o total é o real', () => {
+    getById = () => of(rental([{ id: 'w1', kind: 'RENTAL_PERIOD', status: 'PAID', amount: 50_000 }]));
+    const { fixture, cmp } = mount('rental-1');
+    fixture.detectChanges();
+
+    const f = cmp['form'].controls;
+    expect([f.startDate.disabled, f.endDate.disabled, f.periodRateReais.disabled, f.billingFrequency.disabled]).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Este aluguel já tem parcelas emitidas');
+    expect(cmp['totalAmountLabel']()).toContain('2.650,00');
+  });
+
+  it('sem cronograma vivo, os campos seguem editáveis', () => {
+    getById = () => of(rental([{ id: 'w1', kind: 'RENTAL_PERIOD', status: 'CANCELED', amount: 60_000 }]));
+    const { fixture, cmp } = mount('rental-1');
+    fixture.detectChanges();
+    expect(cmp['form'].controls.startDate.disabled).toBe(false);
+    expect(cmp['scheduleEmitted']()).toBe(false);
+  });
+
+  it('textos: "Aluguéis", "Recebi a caução" e "Caução marcada"', () => {
+    getById = () => of(rental([]));
+    const { fixture } = mount('rental-1');
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Rentais');
+    expect(text).toContain('Aluguéis concluídos ou cancelados');
+    expect(text).toContain('Recebi a caução por fora');
+    expect(text).toContain('Caução marcada como recebida');
+  });
+});

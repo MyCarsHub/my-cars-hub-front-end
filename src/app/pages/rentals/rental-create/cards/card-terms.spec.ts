@@ -95,7 +95,7 @@ describe('CardTerms — card 5 · Condições de pagamento', () => {
     await render();
     expect(host().form.controls.lateFineType.value).toBe('FIXED');
     expect(host().form.controls.lateFineValue.value).toBe('');
-    expect(text('[data-testid="fine-hint"]')).toBe('Menor que R$ 600,00 (valor de cada cobrança).');
+    expect(text('[data-testid="fine-hint"]')).toBe('Menor que R$ 600,00 (valor da menor cobrança, parcelas incluídas).');
     expect(radios('fine-type')[1].getAttribute('aria-checked')).toBe('true');
   });
 

@@ -63,6 +63,10 @@ export class CardCharges {
   readonly partOffsets = input<readonly number[]>([]);
   readonly partOptions = input<ReadonlyArray<{ value: number; label: string }>>([]);
   readonly partsSum = input(0);
+  /** N1 — o valor que as partes somam: o do período parcelado, com o desconto dele (0 = cheio). */
+  readonly partsTargetCents = input(0);
+  /** N1 — as partes dos períodos de outro valor, por extenso ('' = não há). */
+  readonly otherPartsHint = input('');
   readonly canAddPart = input(true);
   /** Há escolha a tirar (deixou de existir ou já venceu). */
   readonly canDrop = input(false);
@@ -94,7 +98,12 @@ export class CardCharges {
   protected readonly previewOpen = signal(false);
   protected readonly full = computed(() => !this.descOn() && !this.splitOn());
   protected readonly rateText = computed(() => brl(this.rateCents()));
-  protected readonly sumOk = computed(() => this.rateCents() > 0 && this.partsSum() === this.rateCents());
+  private readonly target = computed(() => this.partsTargetCents() || this.rateCents());
+  protected readonly sumOk = computed(() => this.target() > 0 && this.partsSum() === this.target());
+  /** "o valor da semana" ou, num período com desconto, "o valor da semana com desconto". */
+  protected readonly sumOf = computed(
+    () => `o valor ${this.ofOne()}${this.target() < this.rateCents() ? ' com desconto' : ''}`,
+  );
   protected readonly sumText = computed(() => brl(this.partsSum()));
   /** "semanas" / "dias" / "meses" com o artigo: "as semanas", "os dias". */
   protected readonly theMany = computed(() => `${this.words().fem ? 'as' : 'os'} ${this.words().lowerMany}`);

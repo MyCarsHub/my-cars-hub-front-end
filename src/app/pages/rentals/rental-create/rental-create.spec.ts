@@ -480,6 +480,52 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     expect(cmp()['periodParts'].at(1).controls.offset.value).toBe(5);
   });
 
+  it('N1 — semana com desconto e parcelada: as partes somam o valor com desconto e o resto é dito por extenso', async () => {
+    await mount();
+    patch({ startDate: '2026-11-24', endDate: '2026-12-22', periodRateReais: '600,00' });
+    await click('charges-desc');
+    patch({ discountN: '2', discountValue: '100,00' });
+    await render();
+    await click('charges-split');
+    expect(cmp()['periodParts'].getRawValue().map((p: Any) => p['amount'])).toEqual(['250,00', '250,00']);
+    expect(byId('period-sum')!.textContent).toContain('As partes somam R$ 500,00, o valor da semana com desconto');
+    expect(byId('period-parts-other')!.textContent).toContain(
+      'Nas semanas sem desconto (R$ 600,00), as partes ficam R$ 300,00 + R$ 300,00.',
+    );
+    // O que vai ao servidor é o que foi digitado: partes iguais = a divisão do servidor.
+    expect(cmp()['body']().chargePlan.defaultSplit).toEqual({ count: 2, intervalDays: 3, intervalUnit: 'DAYS' });
+    const week1 = cmp()['charges']().filter((c: Any) => c['kind'] === 'RENTAL_PERIOD' && c['index'] === 0);
+    expect(week1.map((c: Any) => c['amountCents'])).toEqual([25_000, 25_000]);
+
+    // Partes desiguais digitadas: a semana com desconto leva EXATAMENTE o que foi digitado.
+    const part0 = byId<HTMLInputElement>('period-part-0')!;
+    part0.value = '200,00';
+    part0.dispatchEvent(new Event('input'));
+    const part1 = byId<HTMLInputElement>('period-part-1')!;
+    part1.value = '300,00';
+    part1.dispatchEvent(new Event('input'));
+    await render();
+    const typed = cmp()['charges']().filter((c: Any) => c['kind'] === 'RENTAL_PERIOD' && c['index'] === 1);
+    expect(typed.map((c: Any) => c['amountCents'])).toEqual([20_000, 30_000]);
+    const sent = cmp()['body']().chargePlan.overrides.find((o: Any) => o['periodIndex'] === 0);
+    expect(sent.instalments.map((i: Any) => i['amountCents'])).toEqual([20_000, 30_000]);
+  });
+
+  it('N2 — a ajuda da multa fixa compara com a menor cobrança, partes incluídas', async () => {
+    await mount();
+    patch({ startDate: '2026-11-24', endDate: '2026-12-22', periodRateReais: '600,00' });
+    await click('charges-split');
+    const part0 = byId<HTMLInputElement>('period-part-0')!;
+    part0.value = '250,00';
+    part0.dispatchEvent(new Event('input'));
+    const part1 = byId<HTMLInputElement>('period-part-1')!;
+    part1.value = '350,00';
+    part1.dispatchEvent(new Event('input'));
+    patch({ lateFineType: 'FIXED' });
+    await render();
+    expect(byId('fine-hint')!.textContent).toContain('Menor que R$ 250,00 (valor da menor cobrança, parcelas incluídas).');
+  });
+
   it('o corpo do exemplo inteiro e a barra contando os cards 3 e 4', async () => {
     await mount();
     patch({ automaticCharge: true }); // F3: parcelar a caução só com a cobrança pelo Asaas
