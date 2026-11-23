@@ -644,9 +644,12 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     await click('confirm-lines-toggle');
     expect(byId('confirm-lines')!.querySelectorAll('li')).toHaveLength(5);
 
+    const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     await click('confirm-create');
     expect(createSpy).toHaveBeenCalledTimes(1);
     expect(createSpy.mock.calls[0][0]).toEqual(chargePreview.mock.calls[0][0]);
+    // Como antes (dono, 22/11): criou, vai direto para o detalhe do aluguel.
+    expect(nav).toHaveBeenCalledWith(['/alugueis', 'novo']);
     expect(byId('create-done')).not.toBeNull();
     expect(text()).toContain('Aluguel criado');
     expect(text()).toContain('João Pedro Alves · RDC-4A21 · 24/11 a 22/12');
@@ -920,7 +923,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
   it('cards 7 e 8: "Eu recebo por fora" e as observações vão no corpo', async () => {
     await mount();
     await fillAll();
-    await click('pay-outside');
+    await click('pay-automatic');
     const notes = byId<HTMLTextAreaElement>('notes')!;
     notes.value = 'Entrega na oficina.';
     notes.dispatchEvent(new Event('input'));
@@ -957,7 +960,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     expect(cmp()['form'].controls.automaticCharge.value).toBe(true);
     await click('create-submit');
     expect(previews).toHaveLength(1);
-    await click('pay-outside'); // no meio da conferência
+    await click('pay-automatic'); // no meio da conferência
     previews[0].next(SERVER_PREVIEW);
     previews[0].complete();
     await render();

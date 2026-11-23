@@ -20,6 +20,7 @@ import { catchError, map, merge, of, switchMap } from 'rxjs';
 
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { SearchSelectOption } from '../../../components/search-select/search-select';
+import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { CompanyContactGate, isCompanyContactIncomplete } from '../../../services/company-contact-gate.service';
 import {
@@ -195,6 +196,7 @@ export class RentalCreate implements OnInit {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly notifications = inject(NotificationService);
   private readonly session = inject(SessionService);
   private readonly rentalService = inject(RentalService);
   private readonly contactGate = inject(CompanyContactGate);
@@ -1163,15 +1165,10 @@ export class RentalCreate implements OnInit {
         this.dropDraft();
         this.confirmOpen.set(false);
         this.created.set({ id: r.id, sync: r.chargeSync ?? null });
-        // A página virou "Aluguel criado": o foco vai para o título novo.
-        afterNextRender(
-          () => {
-            const h1 = this.host.nativeElement.querySelector<HTMLElement>('h1');
-            h1?.setAttribute('tabindex', '-1');
-            h1?.focus();
-          },
-          { injector: this.injector },
-        );
+        // Como antes (dono, 22/11): o aviso "Aluguel criado." e direto para o detalhe do aluguel,
+        // com o aviso de falha do Asaas junto quando houver.
+        this.notifications.success('Aluguel criado.');
+        this.openRental();
       },
       error: (err: HttpErrorResponse) => {
         this.sending = false;
