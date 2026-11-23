@@ -110,6 +110,7 @@
         [status]="r.status"
         [automaticCharge]="r.automaticCharge"
         [contractSource]="r.contractSource"
+        [wasActivated]="wasActivated()"
         (activateRequested)="activate()"
       />
 
@@ -494,21 +495,9 @@
                     class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
                     [class]="caucaoReceivedOutside() ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' : 'bg-surface-sunken text-fg-muted'"
                   >
-                    {{ caucaoReceivedOutside() ? 'Recebida por fora' : 'Não gerada' }}
+                    {{ caucaoPlaceholderLabel() }}
                   </span>
-                  @if (canMarkCaucaoAsPaidPlaceholder()) {
-                    <button
-                      type="button"
-                      (click)="askMarkCaucaoAsPaid()"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
-                             hover:bg-emerald-600 active:scale-95 transition
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                      aria-label="Marcar caução como paga"
-                    >
-                      Marcar como paga
-                    </button>
-                  }
-                  @if (canUnmarkCaucaoPlaceholder()) {
+                  @if (canMarkCaucaoAsPaidPlaceholder() || canUnmarkCaucaoPlaceholder()) {
                     <ng-container [ngTemplateOutlet]="caucaoPlaceholderMenu" />
                   }
                 </div>
@@ -539,23 +528,12 @@
                     <td class="py-2.5 pr-4">
                       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
                         [class]="caucaoReceivedOutside() ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' : 'bg-surface-sunken text-fg-muted'">
-                        {{ caucaoReceivedOutside() ? 'Recebida por fora' : 'Não gerada' }}
+                        {{ caucaoPlaceholderLabel() }}
                       </span>
                     </td>
                     <td class="py-2.5 pr-4 text-right">
                       <div class="inline-flex items-center gap-2 justify-end">
-                        @if (canMarkCaucaoAsPaidPlaceholder()) {
-                          <button
-                            type="button"
-                            (click)="askMarkCaucaoAsPaid()"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
-                                   hover:bg-emerald-600 transition
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                          >
-                            Marcar como paga
-                          </button>
-                        }
-                        @if (canUnmarkCaucaoPlaceholder()) {
+                        @if (canMarkCaucaoAsPaidPlaceholder() || canUnmarkCaucaoPlaceholder()) {
                           <ng-container [ngTemplateOutlet]="caucaoPlaceholderMenu" />
                         }
                       </div>
@@ -1128,14 +1106,23 @@
   Cada item só existe quando a ação vale para aquela cobrança; sem nenhum item o
   menu não aparece. `name` completa o nome acessível do gatilho e dos itens.
 -->
-<!-- N13 — "Desmarcar" da caução recebida por fora (sem linha de cobrança) mora no menu ⋮. -->
+<!-- N13/N21 — "Marcar" e "Desmarcar" da caução sem linha de cobrança moram no menu ⋮. -->
 <ng-template #caucaoPlaceholderMenu>
   <app-actions-menu label="Ações: Caução" [menuWidth]="256">
-    <button type="button" role="menuitem" (click)="askUnmarkCaucaoAsPaid()"
-      data-testid="caucao-menu-unmark"
-      class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
-      Desmarcar como paga
-    </button>
+    @if (canMarkCaucaoAsPaidPlaceholder()) {
+      <button type="button" role="menuitem" (click)="askMarkCaucaoAsPaid()"
+        data-testid="caucao-menu-mark"
+        class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
+        Marcar como paga
+      </button>
+    }
+    @if (canUnmarkCaucaoPlaceholder()) {
+      <button type="button" role="menuitem" (click)="askUnmarkCaucaoAsPaid()"
+        data-testid="caucao-menu-unmark"
+        class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
+        Desmarcar como paga
+      </button>
+    }
   </app-actions-menu>
 </ng-template>
 

@@ -571,4 +571,44 @@ describe('RentalDetail — correções das revisões de 23/11', () => {
     });
     expect(anyMenuItemWithText(fixture, 'Gerar de novo')).toBe(false);
   });
+  // ------------------------------------------------------- reteste de 23/11 (N7, N20, N21)
+  it('N7 — o mínimo vem de `createdDate` (o nome real no JSON), sem passar pelo fuso do navegador', async () => {
+    const { fixture } = await mount({
+      flex: true,
+      rental: { createdAt: undefined as unknown as string, createdDate: '2026-11-23T23:30:00.123' },
+      charges: [],
+    });
+    expect(cmp(fixture).receivedOutsideMinDate()).toBe('2026-11-23');
+  });
+
+  it('N21 — caução manual não recebida: "Marcar como paga" só no ⋮ e chip "Pendente"', async () => {
+    const { fixture } = await mount({
+      rental: { automaticCharge: false, caucaoAmount: 80_000, caucaoPaid: false },
+      charges: [],
+    });
+    const inline = Array.from(el(fixture).querySelectorAll('button')).filter(
+      (b) => (b.textContent ?? '').trim() === 'Marcar como paga' && b.getAttribute('role') !== 'menuitem',
+    );
+    expect(inline, 'nenhum botão na linha').toHaveLength(0);
+    expect(el(fixture).textContent).toContain('Pendente');
+    expect(el(fixture).textContent).not.toContain('Não gerada');
+    expect(menuItem(fixture, 'caucao-menu-mark')).not.toBeNull();
+    expect(el(fixture).querySelector('[data-testid="caucao-menu-unmark"]')).toBeNull();
+  });
+
+  it('N21 — caução manual recebida por fora: o ⋮ tem só "Desmarcar"', async () => {
+    const { fixture } = await mount({
+      rental: { automaticCharge: false, caucaoAmount: 80_000, caucaoPaid: true },
+      charges: [],
+    });
+    expect(menuItem(fixture, 'caucao-menu-unmark')).not.toBeNull();
+    expect(el(fixture).querySelector('[data-testid="caucao-menu-mark"]')).toBeNull();
+  });
+
+  it('N20 — cancelado depois de ativado passa `wasActivated` ao checklist', async () => {
+    const started = await mount({ rental: { status: 'CANCELED', activatedAt: '2026-11-09T10:00:00' }, charges: [] });
+    expect(cmp(started.fixture).wasActivated()).toBe(true);
+    const never = await mount({ rental: { status: 'CANCELED', activatedAt: null }, charges: [] });
+    expect(cmp(never.fixture).wasActivated()).toBe(false);
+  });
 });
