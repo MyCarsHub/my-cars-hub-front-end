@@ -1133,6 +1133,11 @@ export class RentalDetail implements OnInit {
     // Ajuste (V141) nunca é gerado de novo: o backend responde 409 e o dono não quer o botão.
     if (charge.kind === 'ADJUSTMENT') return false;
     if (charge.status !== 'FAILED' || this.isDriver) return false;
+    // Revisão 23/11 (L1) — aluguel encerrado não gera de novo (o servidor recusa), salvo a parcela
+    // de acordo de aluguel concluído, que segue cobrável.
+    const st = this.rental()?.status;
+    const inCourse = st === 'ACTIVE' || st === 'RESERVED' || (charge.kind === 'AGREEMENT' && st === 'COMPLETED');
+    if (!inCourse) return false;
     // F8 (23/11) — vencida (vencimento antes de hoje em Brasília) não é gerada de novo: ela
     // permanece em atraso, e o backend responde 409. Mesma regra, mesmo relógio.
     return !charge.dueDate || charge.dueDate >= this.today();
@@ -1254,6 +1259,9 @@ export class RentalDetail implements OnInit {
     if (!r || this.isDriver) return false;
     if (r.status !== 'COMPLETED' && r.status !== 'CANCELED') return false;
     if (r.caucaoRefundMethod !== 'AUTOMATIC') return false;
+    // Revisão 23/11 (H1) — o sinal da falha é o método AUTOMATIC SEM data de devolução; uma parte
+    // paga que a locadora reteve (estorno parcial que deu certo) não é estorno pendente.
+    if (r.caucaoRefundedAt) return false;
     return r.charges.some((c) => c.kind === 'CAUCAO' && c.status === 'PAID');
   });
 
@@ -1262,6 +1270,8 @@ export class RentalDetail implements OnInit {
     return (
       this.caucaoRefundPending() &&
       !this.readOnlySession() &&
+      // Revisão 23/11 (L7) — a rota não está liberada na sessão de suporte em modo edição (403).
+      !this.editSession() &&
       charge.kind === 'CAUCAO' &&
       charge.status === 'PAID'
     );
@@ -1278,8 +1288,8 @@ export class RentalDetail implements OnInit {
 
   protected readonly settleRefundDialogMessage = computed(() =>
     this.settleRefundMethod() === 'MANUAL'
-      ? 'Use quando você já devolveu o valor ao motorista por fora (dinheiro, PIX, transferência). A caução fica como devolvida e nada é feito no Asaas.'
-      : 'Pedimos ao Asaas, de novo, o estorno do pagamento da caução ao motorista. Se o Asaas não confirmar, nada muda.',
+      ? 'Confira no Asaas se o estorno não entrou antes de devolver por fora. Nós também conferimos: se o Asaas já devolveu, o registro é recusado.'
+      : 'Antes, conferimos no Asaas se o estorno já entrou. Se não entrou, pedimos o estorno de novo.',
   );
 
   protected askSettleCaucaoRefund(method: 'AUTOMATIC' | 'MANUAL'): void {
@@ -1363,6 +1373,9 @@ export class RentalDetail implements OnInit {
     // cancelado). O item nem aparece; a recusa abaixo cobre uma tela desatualizada.
     if (charge.receivedOutside === true) return false;
     if (!this.isManuallySettleable(charge)) return false;
+    // Revisão 23/11 (M3) — com o aluguel encerrado a caução já teve o seu desfecho (o servidor dá 409).
+    const st = this.rental()?.status;
+    if (charge.kind === 'CAUCAO' && st !== 'ACTIVE' && st !== 'RESERVED') return false;
     return charge.status === 'PAID';
   }
 
@@ -1421,6 +1434,9 @@ export class RentalDetail implements OnInit {
         this.markPaidBusy.set(false);
         this.markPaidTarget.set(null);
         this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível marcar a cobrança como paga.'));
+        // Revisão 23/11 (M2) — "já tinha sido paga pelo link": o servidor baixou com a data real;
+        // relê para a linha sair de FAILED (senão uma 2ª tentativa dá "status inelegível").
+        if (apiErrorCode(err) === 'MARK_PAID_ALREADY_PAID') this.reloadRentalAndAgreements(r.id);
       },
     });
   }

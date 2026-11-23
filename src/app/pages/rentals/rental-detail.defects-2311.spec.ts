@@ -83,6 +83,7 @@ async function mount(opts: {
   flex?: boolean;
   charges: RentalChargeDto[];
   rental?: Partial<RentalResponseDto>;
+  edit?: boolean;
 }): Promise<{ fixture: ComponentFixture<RentalDetail>; http: HttpTestingController }> {
   TestBed.resetTestingModule();
   sessionStorage.clear();
@@ -98,7 +99,12 @@ async function mount(opts: {
       { provide: ActivatedRoute, useValue: route },
       {
         provide: ImpersonationService,
-        useValue: { active: () => false, editMode: () => false, readOnly: () => false, reconcile: vi.fn() },
+        useValue: {
+          active: () => !!opts.edit,
+          editMode: () => !!opts.edit,
+          readOnly: () => false,
+          reconcile: vi.fn(),
+        },
       },
     ],
   });
@@ -453,5 +459,116 @@ describe('RentalDetail — achados do E2E de 23/11', () => {
     expect(cmp(fixture).receivedOutsideSheetOpen()).toBe(true);
     expect(cmp(fixture).receivedOutsideServerError()).toBe('A cobrança está sendo processada agora.');
     expect(cmp(fixture).actionError()).toBeNull();
+  });
+});
+
+/** Revisões de 23/11 (review a frio + segurança) no detalhe do aluguel. */
+describe('RentalDetail — correções das revisões de 23/11', () => {
+  afterEach(() => sessionStorage.clear());
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cmp = (f: ComponentFixture<RentalDetail>): any => f.componentInstance as any;
+
+  const PAID_PART = (id: string, index: number): RentalChargeDto =>
+    charge({
+      id,
+      kind: 'CAUCAO',
+      status: 'PAID',
+      periodIndex: null,
+      amount: 50_000,
+      instalmentIndex: index,
+      instalmentCount: 2,
+      paidAt: '2026-11-01T12:00:00',
+      checkoutUrl: null,
+    });
+
+  it('H1 — estorno parcial que deu certo (com data) não vira "estorno pendente", mesmo com parte paga retida', async () => {
+    const { fixture } = await mount({
+      rental: {
+        status: 'COMPLETED',
+        caucaoAmount: 100_000,
+        caucaoPaid: true,
+        caucaoRefundMethod: 'AUTOMATIC',
+        caucaoRefundedAmount: 50_000,
+        caucaoRefundedAt: '2026-11-23T10:00:00',
+      },
+      charges: [{ ...PAID_PART('p1', 1), status: 'RELEASED' }, PAID_PART('p2', 2)],
+    });
+    expect(byTestId(fixture, 'caucao-refund-pending-banner')).toBeNull();
+    expect(menuItem(fixture, 'charge-menu-refund-manual')).toBeNull();
+  });
+
+  it('M4 — o aviso e a confirmação mandam conferir no Asaas, sem afirmar que nada mudou', async () => {
+    const { fixture } = await mount({
+      rental: {
+        status: 'COMPLETED',
+        caucaoAmount: 50_000,
+        caucaoPaid: true,
+        caucaoRefundMethod: 'AUTOMATIC',
+        caucaoRefundedAmount: 50_000,
+        caucaoRefundedAt: null,
+      },
+      charges: [PAID_PART('p1', 1)],
+    });
+    const banner = byTestId(fixture, 'caucao-refund-pending-banner')?.textContent ?? '';
+    expect(banner).toContain('confira no Asaas');
+    expect(banner).not.toContain('continua com você');
+    cmp(fixture).askSettleCaucaoRefund('MANUAL');
+    expect(cmp(fixture).settleRefundDialogMessage()).toContain('Confira no Asaas');
+  });
+
+  it('L7 — na sessão de suporte em modo edição os itens do estorno não aparecem (a rota é negada)', async () => {
+    const { fixture } = await mount({
+      edit: true,
+      rental: {
+        status: 'COMPLETED',
+        caucaoAmount: 50_000,
+        caucaoPaid: true,
+        caucaoRefundMethod: 'AUTOMATIC',
+        caucaoRefundedAmount: 50_000,
+        caucaoRefundedAt: null,
+      },
+      charges: [PAID_PART('p1', 1)],
+    });
+    expect(menuItem(fixture, 'charge-menu-refund-manual')).toBeNull();
+  });
+
+  it('M2 — "já tinha sido paga pelo link" relê o aluguel', async () => {
+    const failed = charge({ id: 'f', status: 'FAILED', provider: 'ASAAS', externalId: null, checkoutUrl: null });
+    const { fixture, http } = await mount({ charges: [failed] });
+    cmp(fixture).markPaidTarget.set(failed);
+    cmp(fixture).confirmMarkPaid('2026-11-23');
+    http
+      .expectOne((r) => r.method === 'POST' && r.url.endsWith('/charges/f/mark-paid'))
+      .flush(
+        { code: 'MARK_PAID_ALREADY_PAID', message: 'Esta cobrança já tinha sido paga pelo link.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle(fixture);
+    expect(http.match((r) => r.method === 'GET' && r.url === `${BASE}/${RENTAL_ID}`).length).toBe(1);
+  });
+
+  it('M3 — aluguel encerrado não oferece desmarcar a caução paga', async () => {
+    const caucao = charge({
+      id: 'cc',
+      kind: 'CAUCAO',
+      status: 'PAID',
+      periodIndex: null,
+      provider: 'INTERNAL',
+      externalId: null,
+      checkoutUrl: null,
+    });
+    const closed = await mount({ rental: { status: 'COMPLETED', automaticCharge: false, caucaoAmount: 50_000 }, charges: [caucao] });
+    expect(cmp(closed.fixture).canUnmarkAsPaid(caucao)).toBe(false);
+    const open = await mount({ rental: { status: 'ACTIVE', automaticCharge: false, caucaoAmount: 50_000 }, charges: [caucao] });
+    expect(cmp(open.fixture).canUnmarkAsPaid(caucao)).toBe(true);
+  });
+
+  it('L1 — aluguel encerrado não oferece "Gerar de novo"', async () => {
+    const { fixture } = await mount({
+      rental: { status: 'CANCELED' },
+      charges: [charge({ id: 'f', status: 'FAILED', externalId: null, checkoutUrl: null, dueDate: '2099-12-07' })],
+    });
+    expect(anyMenuItemWithText(fixture, 'Gerar de novo')).toBe(false);
   });
 });
