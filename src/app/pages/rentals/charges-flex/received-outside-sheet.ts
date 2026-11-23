@@ -33,19 +33,14 @@ import { brl } from './charges-flex';
   template: `
     <app-bottom-sheet title="Recebida por fora" [subtitle]="subtitle()" (closed)="onClosed()">
       <div class="flex flex-col gap-4" data-testid="received-outside-sheet">
-        <label class="flex flex-col gap-1" for="rf-value">
+        <!-- N7 — valor fixo é TEXTO, não campo (o campo somente leitura parecia editável). -->
+        <div class="flex flex-col gap-1">
           <span class="text-sm font-medium text-fg-muted">Valor</span>
-          <input
-            id="rf-value"
-            type="text"
-            readonly
-            data-testid="received-outside-value"
-            [value]="money(amountCents())"
-            aria-describedby="rf-value-help"
-            class="min-h-12 w-full rounded-xl border border-edge bg-surface-sunken px-3 text-base text-fg-soft tabular-nums"
-          />
-          <span id="rf-value-help" class="text-xs text-fg-subtle">Sempre o valor da cobrança.</span>
-        </label>
+          <p class="text-base font-semibold text-fg tabular-nums" data-testid="received-outside-value">
+            {{ money(amountCents()) }}
+          </p>
+          <span class="text-xs text-fg-subtle">Sempre o valor da cobrança.</span>
+        </div>
 
         <app-date-field
           label="Recebida em"
@@ -58,6 +53,10 @@ import { brl } from './charges-flex';
         @if (dateError(); as message) {
           <p class="-mt-2 text-sm font-medium text-rose-700 dark:text-rose-300" role="alert"
             data-testid="received-outside-date-error">{{ message }}</p>
+        }
+
+        @if (serverError(); as message) {
+          <app-alert-banner variant="error" [message]="message" data-testid="received-outside-server-error" />
         }
 
         <app-reason-picker
@@ -95,7 +94,7 @@ import { brl } from './charges-flex';
 export class ReceivedOutsideSheet implements OnInit {
   readonly subtitle = input<string | null>(null);
   readonly amountCents = input.required<number>();
-  /** Início do aluguel (yyyy-MM-dd): a data não pode ser anterior. */
+  /** Dia em que o aluguel foi criado (yyyy-MM-dd, Brasília): a data não pode ser anterior (N7). */
   readonly minDate = input<string | null>(null);
   readonly today = input.required<string>();
   /** A cobrança tem Pix emitido (aberta e emitida). Com falha, nunca teve: o aviso muda. */
@@ -104,6 +103,8 @@ export class ReceivedOutsideSheet implements OnInit {
   readonly draft = input<ReceivedOutsideRequestDto | null>(null);
   /** Recusa da data pelo servidor (código mapeado), mostrada no próprio campo até a data mudar. */
   readonly serverDateError = input<string | null>(null);
+  /** N7 — outra recusa do servidor, mostrada dentro da folha (que volta com o que foi digitado). */
+  readonly serverError = input<string | null>(null);
 
   readonly submitted = output<ReceivedOutsideRequestDto>();
   readonly closed = output<void>();

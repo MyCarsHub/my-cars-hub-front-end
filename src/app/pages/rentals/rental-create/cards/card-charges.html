@@ -183,8 +183,11 @@
       <p class="rc-okg" data-testid="period-sum">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
-        As partes somam {{ sumText() }}, o valor {{ ofOne() }}
+        As partes somam {{ sumText() }}, {{ sumOf() }}
       </p>
+    }
+    @if (otherPartsHint()) {
+      <p class="rc-hint" data-testid="period-parts-other">{{ otherPartsHint() }}</p>
     }
     @if (canAddPart()) {
       <button type="button" class="rc-lnk" data-testid="period-add" (click)="addPart.emit()">+ Mais uma parte</button>

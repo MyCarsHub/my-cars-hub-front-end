@@ -371,7 +371,8 @@ describe('RentalDetail — erro de operação que NÃO é ativação', () => {
     externalId: 'pay_1',
     checkoutUrl: null,
     paidAt: null,
-    dueDate: '2026-08-10',
+    // F8 (23/11): só a FAILED que ainda não venceu é gerada de novo.
+    dueDate: '2099-08-10',
     periodIndex: 0,
   };
 

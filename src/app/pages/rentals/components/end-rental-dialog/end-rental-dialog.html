@@ -207,6 +207,10 @@
                     <dd>{{ overdueRule() }}</dd>
                   </div>
                 </dl>
+                <!-- N18 — como as diárias são contadas (regra do dono, 23/11). -->
+                <p class="text-xs text-amber-800 dark:text-amber-200" data-testid="overdue-count-rule">
+                  Uma diária a cada 24 horas depois do prazo; o período começado conta inteiro.
+                </p>
 
                 @if (overdueAlreadyCharged()) {
                   <p class="text-xs text-amber-800 dark:text-amber-200">
@@ -383,7 +387,9 @@
               </label>
             </fieldset>
 
-            <div>
+            <!-- N19 — "Não devolver" não tem valor a devolver: o campo some. -->
+            @if (refundMethod() !== 'NONE') {
+            <div data-testid="refund-amount-field">
               <label for="refund-amount" class="block text-sm font-medium text-fg-soft mb-1.5">
                 Valor a devolver
               </label>
@@ -393,13 +399,14 @@
                 inputmode="numeric"
                 [value]="formattedRefund()"
                 (input)="onRefundAmountInput($event)"
-                [disabled]="busy() || refundMethod() === 'NONE'"
+                [disabled]="busy()"
                 class="w-full bg-surface border border-edge-field rounded-xl px-4 py-3 tabular-nums text-fg-body
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                        focus-visible:border-primary-400 transition-colors disabled:opacity-60"
               />
               <p class="mt-1 text-[11px] text-fg-faint">Máximo: {{ formattedRefundMax() }}</p>
             </div>
+            }
           </div>
         }
 

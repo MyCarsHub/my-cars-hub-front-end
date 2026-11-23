@@ -169,6 +169,10 @@
                 <span class="uppercase tracking-wide text-fg-faint font-semibold">Caução</span>
                 @if (r.caucaoRefundMethod === 'NONE') {
                   <span class="text-fg-soft">Retida pelo locador</span>
+                } @else if (caucaoRefundPending()) {
+                  <span class="text-amber-800 dark:text-amber-200" data-testid="caucao-refund-pending-summary">
+                    Estorno não confirmado pelo Asaas
+                  </span>
                 } @else if (r.caucaoRefundedAmount != null && r.caucaoRefundedAmount > 0) {
                   <span class="tabular-nums text-fg-soft">
                     {{ formatCurrency(r.caucaoRefundedAmount) }}
@@ -243,11 +247,19 @@
               </span>
             </div>
             <div class="flex items-baseline justify-between pt-2 border-t border-edge-soft">
-              <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Total</span>
+              <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold" data-testid="values-total-label">
+                {{ caucaoInAgreementCents() > 0 ? 'Aluguel + acordos' : 'Total' }}
+              </span>
               <span class="text-lg font-semibold text-primary-700 dark:text-primary-400 tabular-nums">
                 {{ formatCurrency(r.totalAmount) }}
               </span>
             </div>
+            <!-- N10 — a caução que entrou num acordo é cobrada pelo acordo: não conta duas vezes. -->
+            @if (caucaoInAgreementCents() > 0) {
+              <p class="text-xs text-fg-subtle" data-testid="values-caucao-in-agreement">
+                Inclui {{ formatCurrency(caucaoInAgreementCents()) }} da caução, que passou a ser cobrada no acordo.
+              </p>
+            }
           </div>
         </app-page-card>
       </div>
@@ -366,7 +378,7 @@
                     </p>
                     @if (cc.paidAt) {
                       <p class="text-[11px] text-fg-faint tabular-nums">
-                        Pago em {{ formatDateTime(cc.paidAt) }}
+                        Pago em {{ formatPaidAt(cc.paidAt) }}
                       </p>
                     }
                     <ng-container [ngTemplateOutlet]="flexRowNotes" [ngTemplateOutletContext]="{ $implicit: cc }" />
@@ -381,12 +393,12 @@
                   </span>
                   <ng-container
                     [ngTemplateOutlet]="chargeMenu"
-                    [ngTemplateOutletContext]="{ $implicit: cc, name: 'da caução' }"
+                    [ngTemplateOutletContext]="{ $implicit: cc, name: shortChargeName(cc) }"
                   />
                 </div>
                 <ng-container
                   [ngTemplateOutlet]="reconcileLine"
-                  [ngTemplateOutletContext]="{ $implicit: cc, name: 'da caução' }"
+                  [ngTemplateOutletContext]="{ $implicit: cc, name: shortChargeName(cc) }"
                 />
                 <ng-container
                   [ngTemplateOutlet]="noActionNoteTpl"
@@ -428,7 +440,7 @@
                     <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(cc.amount) }}</td>
                     <td class="py-2.5 pr-4 tabular-nums text-fg-subtle">
                       @if (cc.paidAt) {
-                        {{ formatDateTime(cc.paidAt) }}
+                        {{ formatPaidAt(cc.paidAt) }}
                       } @else {
                         <span class="text-fg-faint">—</span>
                       }
@@ -450,7 +462,7 @@
                     <td class="py-2.5 pr-4 text-right">
                       <ng-container
                         [ngTemplateOutlet]="chargeMenu"
-                        [ngTemplateOutletContext]="{ $implicit: cc, name: 'da caução' }"
+                        [ngTemplateOutletContext]="{ $implicit: cc, name: shortChargeName(cc) }"
                       />
                     </td>
                   </tr>
@@ -497,16 +509,7 @@
                     </button>
                   }
                   @if (canUnmarkCaucaoPlaceholder()) {
-                    <button
-                      type="button"
-                      (click)="askUnmarkCaucaoAsPaid()"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
-                             hover:bg-primary-600 active:scale-95 transition
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                      aria-label="Desmarcar caução como paga"
-                    >
-                      Desmarcar
-                    </button>
+                    <ng-container [ngTemplateOutlet]="caucaoPlaceholderMenu" />
                   }
                 </div>
               </li>
@@ -553,15 +556,7 @@
                           </button>
                         }
                         @if (canUnmarkCaucaoPlaceholder()) {
-                          <button
-                            type="button"
-                            (click)="askUnmarkCaucaoAsPaid()"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                   hover:bg-primary-600 transition
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                          >
-                            Desmarcar
-                          </button>
+                          <ng-container [ngTemplateOutlet]="caucaoPlaceholderMenu" />
                         }
                       </div>
                     </td>
@@ -586,6 +581,17 @@
               Sessão somente leitura: para cancelar ou gerar a cobrança da caução, abra o modo edição
               na página da empresa.
             </p>
+          }
+          @if (caucaoRefundState(); as state) {
+            <p class="text-sm text-fg-soft tabular-nums" data-testid="caucao-refund-state">{{ state }}</p>
+          }
+          @if (caucaoRefundPending()) {
+            <div data-testid="caucao-refund-pending-banner">
+              <app-alert-banner
+                variant="warning"
+                message="O Asaas não confirmou o estorno da caução. Ele pode ter entrado: confira no Asaas. No menu da caução, tente de novo ou registre a devolução por fora."
+              />
+            </div>
           }
           @if (cancelChargeResult(); as res) {
             <div data-testid="cancel-charge-result">
@@ -730,7 +736,7 @@
                       </p>
                       @if (charge.paidAt) {
                         <p class="text-[11px] text-fg-faint tabular-nums">
-                          Pago em {{ formatDateTime(charge.paidAt) }}
+                          Pago em {{ formatPaidAt(charge.paidAt) }}
                         </p>
                       }
                       <ng-container [ngTemplateOutlet]="flexRowNotes" [ngTemplateOutletContext]="{ $implicit: charge }" />
@@ -745,12 +751,12 @@
                     </span>
                     <ng-container
                       [ngTemplateOutlet]="chargeMenu"
-                      [ngTemplateOutletContext]="{ $implicit: charge, name: 'do período ' + rowBadge(charge, i) }"
+                      [ngTemplateOutletContext]="{ $implicit: charge, name: shortChargeName(charge) }"
                     />
                   </div>
                   <ng-container
                     [ngTemplateOutlet]="reconcileLine"
-                    [ngTemplateOutletContext]="{ $implicit: charge, name: 'do período ' + rowBadge(charge, i) }"
+                    [ngTemplateOutletContext]="{ $implicit: charge, name: shortChargeName(charge) }"
                   />
                   <!-- FIX-0755: motivo da falha, em linha própria e curto no celular. -->
                   <ng-container
@@ -809,7 +815,7 @@
                       </td>
                       <td class="py-2.5 pr-4 tabular-nums text-fg-subtle">
                         @if (charge.paidAt) {
-                          {{ formatDateTime(charge.paidAt) }}
+                          {{ formatPaidAt(charge.paidAt) }}
                         } @else {
                           <span class="text-fg-faint">—</span>
                         }
@@ -837,7 +843,7 @@
                       <td class="py-2.5 pr-4 text-right">
                         <ng-container
                           [ngTemplateOutlet]="chargeMenu"
-                          [ngTemplateOutletContext]="{ $implicit: charge, name: 'do período ' + rowBadge(charge, i) }"
+                          [ngTemplateOutletContext]="{ $implicit: charge, name: shortChargeName(charge) }"
                         />
                       </td>
                     </tr>
@@ -1122,9 +1128,21 @@
   Cada item só existe quando a ação vale para aquela cobrança; sem nenhum item o
   menu não aparece. `name` completa o nome acessível do gatilho e dos itens.
 -->
+<!-- N13 — "Desmarcar" da caução recebida por fora (sem linha de cobrança) mora no menu ⋮. -->
+<ng-template #caucaoPlaceholderMenu>
+  <app-actions-menu label="Ações: Caução" [menuWidth]="256">
+    <button type="button" role="menuitem" (click)="askUnmarkCaucaoAsPaid()"
+      data-testid="caucao-menu-unmark"
+      class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
+      Desmarcar como paga
+    </button>
+  </app-actions-menu>
+</ng-template>
+
 <ng-template #chargeMenu let-charge let-name="name">
   @if (hasChargeActions(charge)) {
-    <app-actions-menu [label]="'Ações da cobrança ' + name" [menuWidth]="256">
+    <!-- N5 — o nome da linha como na tabela ("Semana 1, parcela 1 de 2", "Acordo 1…", "Caução"). -->
+    <app-actions-menu [label]="'Ações: ' + name" [menuWidth]="256">
       @if (canPayCharge(charge)) {
         <button type="button" role="menuitem" (click)="payCharge(charge)"
           title="Abre a fatura para pagar"
@@ -1196,6 +1214,19 @@
       }
       <!-- Admin v2 P1 (dono, 29/10/2026): "Cancelar no Asaas e marcar como recebida por fora" saiu
            da locadora — é ação só do admin (Admin › Cobranças). O backend recusa a flag com 403. -->
+      <!-- F5 (23/11) — estorno automático da caução não confirmado pelo Asaas. -->
+      @if (canSettleCaucaoRefund(charge)) {
+        <button type="button" role="menuitem" (click)="askSettleCaucaoRefund('AUTOMATIC')"
+          data-testid="charge-menu-refund-retry"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
+          Tentar estorno de novo
+        </button>
+        <button type="button" role="menuitem" (click)="askSettleCaucaoRefund('MANUAL')"
+          data-testid="charge-menu-refund-manual"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
+          Registrar devolução por fora
+        </button>
+      }
       @if (canCancelCaucaoCharge(charge)) {
         <button type="button" role="menuitem" (click)="askCancelCharge(charge)"
           data-testid="cancel-charge-item"
@@ -1276,7 +1307,8 @@
   [open]="deleteOpen()"
   title="Excluir aluguel"
   [message]="deleteMessage()"
-  confirmLabel="Excluir"
+  [confirmLabel]="deleting() ? 'Excluindo…' : 'Excluir'"
+  [busy]="deleting()"
   variant="danger"
   [optionLabel]="
     hasOverdueUnpaidCharges() ? 'Apagar também as cobranças vencidas e não pagas' : ''
@@ -1325,6 +1357,18 @@
   [busy]="caucaoBusy()"
   (confirmed)="confirmMarkCaucaoAsPaid($event)"
   (cancelled)="cancelMarkCaucaoAsPaid()"
+/>
+
+<app-confirm-dialog
+  [open]="settleRefundMethod() !== null"
+  [title]="settleRefundDialogTitle()"
+  [message]="settleRefundDialogMessage()"
+  [confirmLabel]="settleRefundMethod() === 'MANUAL' ? 'Registrar devolução' : 'Tentar de novo'"
+  cancelLabel="Voltar"
+  variant="warning"
+  [busy]="settleRefundBusy()"
+  (confirmed)="confirmSettleCaucaoRefund()"
+  (cancelled)="cancelSettleCaucaoRefund()"
 />
 
 <app-confirm-dialog
@@ -1396,8 +1440,10 @@
       [amountCents]="target.amount"
       [hasPix]="target.status !== 'FAILED' && !!(target.externalId || target.checkoutUrl)"
       [today]="flexToday()"
+      [minDate]="receivedOutsideMinDate()"
       [draft]="receivedOutsideDraft()"
       [serverDateError]="receivedOutsideDateError()"
+      [serverError]="receivedOutsideServerError()"
       (submitted)="onReceivedOutsideSubmitted($event)"
       (closed)="onReceivedOutsideSheetClosed()"
     />

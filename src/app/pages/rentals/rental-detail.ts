@@ -548,13 +548,22 @@ export class RentalDetail implements OnInit {
   protected readonly caucaoRows = computed<RentalChargeDto[]>(() => {
     const cc = this.caucaoCharge();
     if (!cc) return [];
+    const all = (this.rental()?.charges ?? []).filter((c) => c.kind === 'CAUCAO');
     const count = cc.instalmentCount ?? 1;
-    if (count <= 1) return [cc];
-    const parts = (this.rental()?.charges ?? []).filter(
-      (c) => c.kind === 'CAUCAO' && (c.instalmentCount ?? 1) === count && c.status !== 'CANCELED',
-    );
+    // N11 — a caução cancelada continua na lista, com o chip "Cancelada", como as outras
+    // cobranças canceladas (antes sumia sem rastro).
+    if (count <= 1) {
+      const canceled = all.filter((c) => c !== cc && c.status === 'CANCELED' && (c.instalmentCount ?? 1) <= 1);
+      return [...canceled, cc];
+    }
+    const parts = all.filter((c) => (c.instalmentCount ?? 1) === count);
     const byIndex = new Map<number, RentalChargeDto>();
-    for (const p of parts) byIndex.set(p.instalmentIndex ?? 1, p); // a mais recente vence
+    for (const p of parts) {
+      const idx = p.instalmentIndex ?? 1;
+      // A mais recente vence, mas uma cancelada não esconde a que a substituiu.
+      if (p.status === 'CANCELED' && byIndex.has(idx) && byIndex.get(idx)!.status !== 'CANCELED') continue;
+      byIndex.set(idx, p);
+    }
     return [...byIndex.values()].sort((a, b) => (a.instalmentIndex ?? 1) - (b.instalmentIndex ?? 1));
   });
 
@@ -756,6 +765,8 @@ export class RentalDetail implements OnInit {
         this.cancelOpen.set(false);
         this.notifications.push('success', 'Aluguel cancelado.');
         this.refreshHistoryAfterTransition();
+        // N15 — as cobranças abertas saem DEPOIS do commit: relê para a lista mostrar como ficou.
+        this.reloadRentalAndAgreements(updated.id);
       },
       error: (err: HttpErrorResponse) => {
         this.cancelBusy.set(false);
@@ -803,8 +814,14 @@ export class RentalDetail implements OnInit {
         this.rental.set(updated);
         this.completeBusy.set(false);
         this.completeOpen.set(false);
-        this.notifications.push('success', 'Aluguel concluído.');
+        // N15 — o desfecho real: encerrar antes do fim é "cancelado".
+        this.notifications.push(
+          'success',
+          updated.status === 'CANCELED' ? 'Aluguel encerrado como cancelado.' : 'Aluguel concluído.',
+        );
         this.refreshHistoryAfterTransition();
+        // N15 — as cobranças abertas saem DEPOIS do commit: relê para a lista mostrar como ficou.
+        this.reloadRentalAndAgreements(updated.id);
       },
       error: (err: HttpErrorResponse) => {
         this.completeBusy.set(false);
@@ -865,7 +882,8 @@ export class RentalDetail implements OnInit {
   }
   protected confirmDelete(): void {
     const r = this.rental();
-    if (!r) return;
+    // N3 — com muitas cobranças a exclusão leva segundos: um segundo toque não manda outra.
+    if (!r || this.deleting()) return;
     this.actionError.set(null);
     this.deleting.set(true);
     this.rentalService.remove(r.id, this.deleteRemoveOverdue()).subscribe({
@@ -967,7 +985,8 @@ export class RentalDetail implements OnInit {
       this.canRetryCharge(charge) ||
       this.canMarkPaidFromMenu(charge) ||
       this.canUnmarkAsPaid(charge) ||
-      this.canCancelCaucaoCharge(charge)
+      this.canCancelCaucaoCharge(charge) ||
+      this.canSettleCaucaoRefund(charge)
     );
   }
 
@@ -1113,7 +1132,15 @@ export class RentalDetail implements OnInit {
     // O motorista só consulta: quem gera de novo é a locadora (o backend recusa também).
     // Ajuste (V141) nunca é gerado de novo: o backend responde 409 e o dono não quer o botão.
     if (charge.kind === 'ADJUSTMENT') return false;
-    return charge.status === 'FAILED' && !this.isDriver;
+    if (charge.status !== 'FAILED' || this.isDriver) return false;
+    // Revisão 23/11 (L1) — aluguel encerrado não gera de novo (o servidor recusa), salvo a parcela
+    // de acordo de aluguel concluído, que segue cobrável.
+    const st = this.rental()?.status;
+    const inCourse = st === 'ACTIVE' || st === 'RESERVED' || (charge.kind === 'AGREEMENT' && st === 'COMPLETED');
+    if (!inCourse) return false;
+    // F8 (23/11) — vencida (vencimento antes de hoje em Brasília) não é gerada de novo: ela
+    // permanece em atraso, e o backend responde 409. Mesma regra, mesmo relógio.
+    return !charge.dueDate || charge.dueDate >= this.today();
   }
 
   protected readonly retrying = signal<string | null>(null);
@@ -1150,6 +1177,8 @@ export class RentalDetail implements OnInit {
   protected readonly canUnmarkCaucaoPlaceholder = computed<boolean>(() => {
     const r = this.rental();
     if (!r) return false;
+    // N15 — aluguel encerrado: a caução já teve o seu desfecho (devolvida/retida); nada a desfazer.
+    if (r.status !== 'ACTIVE' && r.status !== 'RESERVED') return false;
     if (r.automaticCharge !== false) return false;
     if (r.caucaoAmount <= 0) return false;
     if (this.caucaoCharge()) return false;
@@ -1221,6 +1250,84 @@ export class RentalDetail implements OnInit {
     });
   }
 
+  // ------- F5 (23/11): estorno automático da caução não confirmado pelo Asaas -------
+  //
+  // Mesma regra do backend (`RentalService.isCaucaoRefundPending`): aluguel encerrado, método
+  // AUTOMATIC e a caução ainda paga. O dinheiro segue com a locadora até o estorno entrar.
+  protected readonly caucaoRefundPending = computed<boolean>(() => {
+    const r = this.rental();
+    if (!r || this.isDriver) return false;
+    if (r.status !== 'COMPLETED' && r.status !== 'CANCELED') return false;
+    if (r.caucaoRefundMethod !== 'AUTOMATIC') return false;
+    // Revisão 23/11 (H1) — o sinal da falha é o método AUTOMATIC SEM data de devolução; uma parte
+    // paga que a locadora reteve (estorno parcial que deu certo) não é estorno pendente.
+    if (r.caucaoRefundedAt) return false;
+    return r.charges.some((c) => c.kind === 'CAUCAO' && c.status === 'PAID');
+  });
+
+  /** Itens "Tentar estorno de novo" / "Registrar devolução por fora" no menu da caução paga. */
+  protected canSettleCaucaoRefund(charge: RentalChargeDto): boolean {
+    return (
+      this.caucaoRefundPending() &&
+      !this.readOnlySession() &&
+      // Revisão 23/11 (L7) — a rota não está liberada na sessão de suporte em modo edição (403).
+      !this.editSession() &&
+      charge.kind === 'CAUCAO' &&
+      charge.status === 'PAID'
+    );
+  }
+
+  protected readonly settleRefundMethod = signal<'AUTOMATIC' | 'MANUAL' | null>(null);
+  protected readonly settleRefundBusy = signal(false);
+
+  protected readonly settleRefundDialogTitle = computed(() =>
+    this.settleRefundMethod() === 'MANUAL'
+      ? 'Registrar devolução da caução por fora?'
+      : 'Tentar o estorno da caução de novo?',
+  );
+
+  protected readonly settleRefundDialogMessage = computed(() =>
+    this.settleRefundMethod() === 'MANUAL'
+      ? 'Confira no Asaas se o estorno não entrou antes de devolver por fora. Nós também conferimos: se o Asaas já devolveu, o registro é recusado.'
+      : 'Antes, conferimos no Asaas se o estorno já entrou. Se não entrou, pedimos o estorno de novo.',
+  );
+
+  protected askSettleCaucaoRefund(method: 'AUTOMATIC' | 'MANUAL'): void {
+    if (!this.caucaoRefundPending() || this.readOnlySession() || this.settleRefundBusy()) return;
+    this.settleRefundMethod.set(method);
+  }
+
+  protected cancelSettleCaucaoRefund(): void {
+    if (this.settleRefundBusy()) return;
+    this.settleRefundMethod.set(null);
+  }
+
+  protected confirmSettleCaucaoRefund(): void {
+    const r = this.rental();
+    const method = this.settleRefundMethod();
+    if (!r || !method || this.settleRefundBusy()) return;
+    this.actionError.set(null);
+    this.settleRefundBusy.set(true);
+    this.rentalService.settlePendingCaucaoRefund(r.id, method).subscribe({
+      next: (updated) => {
+        this.rental.set(updated);
+        this.settleRefundBusy.set(false);
+        this.settleRefundMethod.set(null);
+        this.notifications.push(
+          'success',
+          method === 'MANUAL' ? 'Devolução da caução registrada.' : 'Estorno da caução feito no Asaas.',
+        );
+      },
+      error: (err: HttpErrorResponse) => {
+        this.settleRefundBusy.set(false);
+        this.settleRefundMethod.set(null);
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível resolver o estorno da caução.'),
+        );
+      },
+    });
+  }
+
   // ------- Marcar como paga (manual, apenas quando automaticCharge=false) -------
   protected readonly markPaidTarget = signal<RentalChargeDto | null>(null);
   protected readonly markPaidBusy = signal(false);
@@ -1266,6 +1373,9 @@ export class RentalDetail implements OnInit {
     // cancelado). O item nem aparece; a recusa abaixo cobre uma tela desatualizada.
     if (charge.receivedOutside === true) return false;
     if (!this.isManuallySettleable(charge)) return false;
+    // Revisão 23/11 (M3) — com o aluguel encerrado a caução já teve o seu desfecho (o servidor dá 409).
+    const st = this.rental()?.status;
+    if (charge.kind === 'CAUCAO' && st !== 'ACTIVE' && st !== 'RESERVED') return false;
     return charge.status === 'PAID';
   }
 
@@ -1281,10 +1391,8 @@ export class RentalDetail implements OnInit {
   protected readonly markPaidEntityLabel = computed<string>(() => {
     const c = this.markPaidTarget();
     if (!c) return '';
-    if (c.kind === 'CAUCAO') return 'Caução';
-    if (c.kind === 'AGREEMENT') return this.shortChargeName(c);
-    if (c.periodIndex != null) return `Período ${c.periodIndex + 1}`;
-    return chargeKindLabel(c.kind);
+    // N14 — o mesmo nome da tabela ("Semana 1", "Acordo 1, parcela 1 de 2"), nunca "Período 1".
+    return this.shortChargeName(c);
   });
 
   protected readonly markPaidMinDate = computed<string | undefined>(
@@ -1326,6 +1434,9 @@ export class RentalDetail implements OnInit {
         this.markPaidBusy.set(false);
         this.markPaidTarget.set(null);
         this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível marcar a cobrança como paga.'));
+        // Revisão 23/11 (M2) — "já tinha sido paga pelo link": o servidor baixou com a data real;
+        // relê para a linha sair de FAILED (senão uma 2ª tentativa dá "status inelegível").
+        if (apiErrorCode(err) === 'MARK_PAID_ALREADY_PAID') this.reloadRentalAndAgreements(r.id);
       },
     });
   }
@@ -1346,12 +1457,8 @@ export class RentalDetail implements OnInit {
   protected readonly unmarkPaidMessage = computed<string>(() => {
     const c = this.unmarkPaidTarget();
     if (!c) return '';
-    const period =
-      c.kind === 'CAUCAO'
-        ? 'a cobrança da caução'
-        : c.periodIndex != null
-          ? `a cobrança do período ${c.periodIndex + 1}`
-          : `a cobrança ${chargeKindLabel(c.kind)}`;
+    // N14 — o nome da tabela: "Semana 1", "Caução".
+    const period = `a cobrança ${this.shortChargeName(c)}`;
     // "em aberto" e não "pendente": a cobrança volta pro estado não-pago, mas se
     // já passou do vencimento ela re-renderiza como "Atrasada", não "Pendente".
     return `Desmarcar ${period} como paga? O status voltará para em aberto e a data de pagamento será limpa.`;
@@ -1516,6 +1623,8 @@ export class RentalDetail implements OnInit {
     const r = this.rental();
     const cc = this.caucaoCharge();
     if (!r || !cc || this.isDriver || this.readOnlySession()) return false;
+    // F7 (23/11) — aluguel manual não vai ao Asaas, nem a caução (o backend recusa).
+    if (r.automaticCharge === false) return false;
     if (cc.status !== 'CANCELED') return false;
     if (r.caucaoAmount <= 0 || r.caucaoPaid) return false;
     return r.status === 'RESERVED' || r.status === 'ACTIVE';
@@ -1877,8 +1986,13 @@ export class RentalDetail implements OnInit {
     );
   }
 
-  /** "Renegociar": aberta e de tipo aceito (caução, período, total, parcela de acordo). Manual também. */
+  /**
+   * "Renegociar": aberta e de tipo aceito (caução, período, total, parcela de acordo). Manual também.
+   * F14 (dono, 23/11: "Bloquear") — só aluguel em curso (reservado ou ativo); concluído e cancelado não.
+   */
   protected canRenegotiate(charge: RentalChargeDto): boolean {
+    const status = this.rental()?.status;
+    if (status !== 'ACTIVE' && status !== 'RESERVED') return false;
     return this.flexActionsAllowed() && isRenegotiableCharge(charge);
   }
 
@@ -1938,6 +2052,31 @@ export class RentalDetail implements OnInit {
   /** Cartão "Renegociado": soma do que saiu de cobrança por acordo (caução inclusive). */
   protected readonly renegotiatedCents = computed<number>(() =>
     renegotiatedTotalCents(this.rental()?.charges ?? []),
+  );
+
+  /**
+   * N15 — o desfecho da caução no aluguel encerrado, no card Caução: "Devolvida por fora ·
+   * R$ 800,00 · 23/11", "Devolvida pelo Asaas · …" ou "Retida pelo locador". O estorno automático
+   * não confirmado tem o aviso próprio (F5).
+   */
+  protected readonly caucaoRefundState = computed<string | null>(() => {
+    const r = this.rental();
+    if (!r || (r.status !== 'COMPLETED' && r.status !== 'CANCELED')) return null;
+    if ((r.caucaoAmount ?? 0) <= 0 || this.caucaoRefundPending()) return null;
+    if (r.caucaoRefundMethod === 'NONE') return 'Retida pelo locador';
+    if (r.caucaoRefundMethod !== 'MANUAL' && r.caucaoRefundMethod !== 'AUTOMATIC') return null;
+    const how = r.caucaoRefundMethod === 'MANUAL' ? 'Devolvida por fora' : 'Devolvida pelo Asaas';
+    const parts = [how];
+    if (r.caucaoRefundedAmount != null && r.caucaoRefundedAmount > 0) parts.push(this.formatCurrency(r.caucaoRefundedAmount));
+    if (r.caucaoRefundedAt) parts.push(brDate(r.caucaoRefundedAt.slice(0, 10)).slice(0, 5));
+    return parts.join(' · ');
+  });
+
+  /** N10 — quanto da caução entrou num acordo (as linhas CAUCAO renegociadas). */
+  protected readonly caucaoInAgreementCents = computed<number>(() =>
+    (this.rental()?.charges ?? [])
+      .filter((c) => c.kind === 'CAUCAO' && c.status === 'RENEGOTIATED')
+      .reduce((a, c) => a + (c.amount ?? 0), 0),
   );
 
   protected readonly renegotiatedCaption = computed<string>(() => {
@@ -2061,6 +2200,17 @@ export class RentalDetail implements OnInit {
    */
   protected readonly receivedOutsideDateError = signal<string | null>(null);
 
+  /** N7 — recusa do servidor que não é da data: aparece dentro da folha, que reabre com o rascunho. */
+  protected readonly receivedOutsideServerError = signal<string | null>(null);
+
+  /** N7 — o piso da data é o DIA em que o aluguel foi criado, em Brasília (a regra do servidor). */
+  protected readonly receivedOutsideMinDate = computed<string | null>(() => {
+    const created = this.rental()?.createdAt;
+    if (!created) return null;
+    const at = new Date(created);
+    return Number.isNaN(at.getTime()) ? null : todayInBusinessTz(at);
+  });
+
   protected readonly receivedOutsideSubtitle = computed(() => {
     const c = this.receivedOutsideTarget();
     return c ? `${this.shortChargeName(c)} · ${this.dueSentence(c).toLowerCase()}` : null;
@@ -2081,11 +2231,13 @@ export class RentalDetail implements OnInit {
     if (!this.canReceiveOutside(charge)) return;
     this.receivedOutsideDraft.set(null);
     this.receivedOutsideDateError.set(null);
+    this.receivedOutsideServerError.set(null);
     this.receivedOutsideTarget.set(charge);
     this.receivedOutsideSheetOpen.set(true);
   }
 
   protected onReceivedOutsideSubmitted(draft: ReceivedOutsideRequestDto): void {
+    this.receivedOutsideServerError.set(null);
     this.receivedOutsideDraft.set(draft);
     this.receivedOutsideConfirmOpen.set(true);
   }
@@ -2127,9 +2279,22 @@ export class RentalDetail implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.receivedOutsideBusy.set(false);
         this.receivedOutsideConfirmOpen.set(false);
-        if (apiErrorCode(err) === 'RECEIVED_OUTSIDE_DATE') {
+        const code = apiErrorCode(err);
+        // N7 — a recusa volta para DENTRO da folha, com o que foi digitado (o rascunho fica):
+        // a da data no próprio campo; as outras num aviso na folha. Só "já paga pelo Pix"
+        // fecha e atualiza a lista, porque não há mais o que registrar.
+        if (code === 'RECEIVED_OUTSIDE_DATE' || code === 'RECEIVED_OUTSIDE_BEFORE_CREATED') {
           this.apiErrors.claim(err);
-          this.receivedOutsideDateError.set(RECEIVED_OUTSIDE_ERROR_MESSAGES['RECEIVED_OUTSIDE_DATE']);
+          this.receivedOutsideDateError.set(RECEIVED_OUTSIDE_ERROR_MESSAGES[code]);
+          this.receivedOutsideServerError.set(null);
+          this.receivedOutsideSheetOpen.set(true);
+          return;
+        }
+        if (code !== 'RECEIVED_OUTSIDE_ALREADY_PAID') {
+          this.apiErrors.claim(err);
+          const server = this.apiErrors.messageFor(err, 'Não foi possível registrar o recebimento.');
+          this.receivedOutsideDateError.set(null);
+          this.receivedOutsideServerError.set(flexErrorMessage(err, RECEIVED_OUTSIDE_ERROR_MESSAGES, server));
           this.receivedOutsideSheetOpen.set(true);
           return;
         }
@@ -2149,6 +2314,16 @@ export class RentalDetail implements OnInit {
   protected formatDate(iso: string | null): string {
     if (!iso) return '—';
     return new Date(iso.length === 10 ? iso + 'T00:00:00' : iso).toLocaleDateString('pt-BR');
+  }
+
+  /**
+   * N8 — "Pago em": a baixa por data (manual, recebida por fora e o dia do pagamento do Asaas) é
+   * gravada ao meio-dia, uma hora que ninguém informou. Meio-dia exato mostra só a data.
+   */
+  protected formatPaidAt(iso: string | null): string {
+    if (!iso) return '—';
+    if (/T12:00(:00(\.0+)?)?$/.test(iso)) return this.formatDate(iso.slice(0, 10));
+    return this.formatDateTime(iso);
   }
 
   protected formatDateTime(iso: string | null): string {

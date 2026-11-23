@@ -369,6 +369,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
 
   it('caução: "Valor cheio" exclui as outras; desconto e parcelar vão juntos; tirar as duas volta o valor cheio', async () => {
     await mount();
+    patch({ automaticCharge: true }); // F3: parcelar a caução só com a cobrança pelo Asaas
     patch({ caucaoReais: '1.200,00' });
     await render();
     expect(checked('caucao-full')).toBe('true');
@@ -384,6 +385,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
 
   it('caução: desconto mostra "Ele paga R$ 1.000,00 de caução."; parcelar nasce em 2 partes que somam a caução líquida', async () => {
     await mount();
+    patch({ automaticCharge: true }); // F3: parcelar a caução só com a cobrança pelo Asaas
     patch({ startDate: '2026-11-24', endDate: '2026-12-22', caucaoReais: '1.200,00' });
     await click('caucao-desc');
     patch({ caucaoDiscount: '200,00' });
@@ -407,6 +409,19 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     expect(byId('caucao-sum')!.textContent).toContain('As partes somam R$ 1.000,00');
     await click('caucao-remove-2');
     expect(cmp()['caucaoParts'].length).toBe(2);
+  });
+
+  it('F3 — "Eu recebo por fora": a caução não tem "Parcelar", o card diz o porquê e o plano vai sem CAUCAO', async () => {
+    await mount();
+    patch({ startDate: '2026-11-24', endDate: '2026-12-22', caucaoReais: '1.200,00', automaticCharge: true });
+    await render();
+    await click('caucao-split');
+    expect(checked('caucao-split')).toBe('true');
+    patch({ automaticCharge: false });
+    await render();
+    expect(byId('caucao-split')).toBeNull();
+    expect(byId('caucao-split-manual-note')!.textContent).toContain('Recebendo por fora, a caução não vira');
+    expect(cmp()['body']().chargePlan ?? null).toBeNull();
   });
 
   it('caução: "Recebi por fora" esconde as caixas e a prévia e diz o que fica anotado', async () => {
@@ -465,8 +480,55 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     expect(cmp()['periodParts'].at(1).controls.offset.value).toBe(5);
   });
 
+  it('N1 — semana com desconto e parcelada: as partes somam o valor com desconto e o resto é dito por extenso', async () => {
+    await mount();
+    patch({ startDate: '2026-11-24', endDate: '2026-12-22', periodRateReais: '600,00' });
+    await click('charges-desc');
+    patch({ discountN: '2', discountValue: '100,00' });
+    await render();
+    await click('charges-split');
+    expect(cmp()['periodParts'].getRawValue().map((p: Any) => p['amount'])).toEqual(['250,00', '250,00']);
+    expect(byId('period-sum')!.textContent).toContain('As partes somam R$ 500,00, o valor da semana com desconto');
+    expect(byId('period-parts-other')!.textContent).toContain(
+      'Nas semanas sem desconto (R$ 600,00), as partes ficam R$ 300,00 + R$ 300,00.',
+    );
+    // O que vai ao servidor é o que foi digitado: partes iguais = a divisão do servidor.
+    expect(cmp()['body']().chargePlan.defaultSplit).toEqual({ count: 2, intervalDays: 3, intervalUnit: 'DAYS' });
+    const week1 = cmp()['charges']().filter((c: Any) => c['kind'] === 'RENTAL_PERIOD' && c['index'] === 0);
+    expect(week1.map((c: Any) => c['amountCents'])).toEqual([25_000, 25_000]);
+
+    // Partes desiguais digitadas: a semana com desconto leva EXATAMENTE o que foi digitado.
+    const part0 = byId<HTMLInputElement>('period-part-0')!;
+    part0.value = '200,00';
+    part0.dispatchEvent(new Event('input'));
+    const part1 = byId<HTMLInputElement>('period-part-1')!;
+    part1.value = '300,00';
+    part1.dispatchEvent(new Event('input'));
+    await render();
+    const typed = cmp()['charges']().filter((c: Any) => c['kind'] === 'RENTAL_PERIOD' && c['index'] === 1);
+    expect(typed.map((c: Any) => c['amountCents'])).toEqual([20_000, 30_000]);
+    const sent = cmp()['body']().chargePlan.overrides.find((o: Any) => o['periodIndex'] === 0);
+    expect(sent.instalments.map((i: Any) => i['amountCents'])).toEqual([20_000, 30_000]);
+  });
+
+  it('N2 — a ajuda da multa fixa compara com a menor cobrança, partes incluídas', async () => {
+    await mount();
+    patch({ startDate: '2026-11-24', endDate: '2026-12-22', periodRateReais: '600,00' });
+    await click('charges-split');
+    const part0 = byId<HTMLInputElement>('period-part-0')!;
+    part0.value = '250,00';
+    part0.dispatchEvent(new Event('input'));
+    const part1 = byId<HTMLInputElement>('period-part-1')!;
+    part1.value = '350,00';
+    part1.dispatchEvent(new Event('input'));
+    patch({ lateFineType: 'FIXED' });
+    await render();
+    expect(byId('fine-hint')!.textContent).toContain('Menor que R$ 250,00 (valor da menor cobrança, parcelas incluídas).');
+  });
+
   it('o corpo do exemplo inteiro e a barra contando os cards 3 e 4', async () => {
     await mount();
+    patch({ automaticCharge: true }); // F3: parcelar a caução só com a cobrança pelo Asaas
     patch({
       driverId: 'drv-1',
       vehicleId: 'veh-1',
@@ -491,7 +553,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
       billingFrequency: 'WEEKLY',
       caucaoAmount: 100_000,
       caucaoPaid: false,
-      automaticCharge: false,
+      automaticCharge: true,
       initialKm: null,
       pickupDate: '2026-11-24T09:00',
       firstPaymentDate: '2026-11-24',
@@ -526,7 +588,9 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
   // ================================================================ entrega 4a: partes que se redividem
   it('caução: enquanto ninguém digitou numa parte, elas se redividem com o total; depois da 1ª edição, não', async () => {
     await mount();
+    patch({ automaticCharge: true }); // F3: parcelar a caução só com a cobrança pelo Asaas
     patch({ startDate: '2026-11-24', endDate: '2026-12-22', caucaoReais: '1.200,00' });
+    await render();
     await click('caucao-split');
     patch({ caucaoReais: '1.500,00' });
     await render();

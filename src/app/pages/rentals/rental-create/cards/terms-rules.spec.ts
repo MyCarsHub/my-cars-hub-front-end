@@ -70,7 +70,7 @@ describe('terms-rules · card 5 (Condições de pagamento)', () => {
     expect(fixed('15,00')).toBeUndefined();
     expect(fixed('0,00')).toBeUndefined();
     expect(fixed('')).toBe('Digite um valor válido, por exemplo 50,00. Ou 0 se não cobra.');
-    expect(fixed('600,00')).toBe('A multa precisa ser menor que R$ 600,00, o valor de cada cobrança.');
+    expect(fixed('600,00')).toBe('A multa precisa ser menor que R$ 600,00, o valor da menor cobrança.');
     // Sem valor de cobrança ainda, não há teto a comparar.
     expect(termsErrors(filled({ lateFineType: 'FIXED', lateFineValue: '900,00' }), { chargeCents: 0 })).toEqual({});
   });
@@ -131,7 +131,7 @@ describe('terms-rules · frases do card 5', () => {
   it('multa: o valor em reais (%) ou o teto (R$)', () => {
     expect(fineHint('PERCENT', '2', 60000)).toBe('R$ 12,00 em cada cobrança atrasada.');
     expect(fineHint('PERCENT', '', 60000)).toBe('Percentual sobre o valor de cada cobrança atrasada.');
-    expect(fineHint('FIXED', '15,00', 60000)).toBe('Menor que R$ 600,00 (valor de cada cobrança).');
+    expect(fineHint('FIXED', '15,00', 60000)).toBe('Menor que R$ 600,00 (valor da menor cobrança, parcelas incluídas).');
     expect(fineHint('FIXED', '', 0)).toBe('Menor que o valor de cada cobrança.');
   });
 

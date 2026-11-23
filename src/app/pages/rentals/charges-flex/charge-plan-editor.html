@@ -55,6 +55,12 @@
         }
       }
     </div>
+  } @else if (caucaoCents() > 0 && !caucaoPaid() && !automatic()) {
+    <!-- F3 (23/11) — manual: a caução nunca vira cobrança, então não se parcela. -->
+    <p class="text-xs text-fg-subtle" data-testid="plan-caucao-split-manual-note">
+      Para dividir a caução, escolha a cobrança pelo Asaas. Recebendo por fora, a caução não vira
+      cobrança: marque como paga no aluguel quando ele te pagar.
+    </p>
   }
 
   <!-- Como cobrar o aluguel (jornadas A, B, C) -->

@@ -1,6 +1,6 @@
 <app-default-page-layout
   [title]="isEdit() ? 'Aluguel' : 'Novo aluguel'"
-  [description]="isEdit() ? 'Edite os campos permitidos. Rentais concluídos/cancelados são somente leitura.' : 'Reserve um veículo para um motorista. Você escolhe se registra manualmente ou já dispara cobrança via Asaas.'"
+  [description]="isEdit() ? 'Edite os campos permitidos. Aluguéis concluídos ou cancelados são somente leitura.' : 'Reserve um veículo para um motorista. Você escolhe se registra manualmente ou já dispara cobrança via Asaas.'"
 >
   <!-- FIX-0754: no celular, ajuda e erro de campo a 16px — abaixo disso o iOS da zoom
        e a mensagem fica pequena demais para ler. O seletor alcanca os <p> de ajuda/erro
@@ -185,6 +185,14 @@
     </app-page-card>
 
     <!-- 5-7: valores (frequência ANTES do valor, com label dinâmico) -->
+    <!-- N12 — cronograma emitido: período, valor e frequência travados desde a abertura, com o
+         mesmo texto que o servidor devolveria no salvar. -->
+    @if (scheduleEmitted()) {
+      <div data-testid="schedule-frozen-note">
+        <app-alert-banner variant="info" [message]="scheduleFrozenMessage" />
+      </div>
+    }
+
     <app-page-card title="Valores">
       <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -259,8 +267,8 @@
                      motion-reduce:transition-none"
             >
               <span class="min-w-0 flex-1">
-                <span class="block text-sm font-semibold text-fg">Recebi o Caução por fora</span>
-                <span class="mt-1 block text-xs leading-relaxed text-fg-subtle">Caução marcado como recebido, nenhuma cobrança será feita no Asaas.</span>
+                <span class="block text-sm font-semibold text-fg">Recebi a caução por fora</span>
+                <span class="mt-1 block text-xs leading-relaxed text-fg-subtle">Caução marcada como recebida, nenhuma cobrança será feita no Asaas.</span>
               </span>
 
               <!-- Toggle -->

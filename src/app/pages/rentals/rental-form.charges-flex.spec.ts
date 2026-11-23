@@ -253,6 +253,10 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
   it('C — caução em 2 partes (1.300 + 200) e a Semana 1 em 3 parcelas', async () => {
     mount(['CHARGES_FLEX']);
     await fill();
+    // F3 (23/11): dividir a caução só existe com a cobrança pelo Asaas.
+    (TestBed.inject(AsaasIntegrationService).status as ReturnType<typeof signal<unknown>>).set({ connected: true });
+    cmp().form.patchValue({ automaticCharge: true });
+    await settle();
 
     byId<HTMLInputElement>('plan-caucao-split')!.click();
     await settle(0);
@@ -275,8 +279,8 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
     await settle();
 
     expect(byId('plan-period-list')?.textContent).toContain('Semana 1, em 3 parcelas');
-    cmp().submit();
-    const plan = lastCreateBody().chargePlan!;
+    // Automático: o create abre a confirmação da emissão; o plano é conferido na prévia, o mesmo corpo.
+    const plan = (chargePreview.mock.calls[chargePreview.mock.calls.length - 1][0] as CreateRentalRequest).chargePlan!;
     expect(plan.overrides).toHaveLength(2);
     const caucao = plan.overrides!.find((o) => o.target === 'CAUCAO')!;
     expect(caucao.instalments.map((i) => i.amountCents)).toEqual([130_000, 20_000]);
@@ -289,6 +293,9 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
   it('C — partes da caução que não somam o valor impedem criar', async () => {
     mount(['CHARGES_FLEX']);
     await fill();
+    // F3 (23/11): dividir a caução só existe com a cobrança pelo Asaas.
+    cmp().form.patchValue({ automaticCharge: true });
+    await settle();
     byId<HTMLInputElement>('plan-caucao-split')!.click();
     await settle(0);
     type(byId<HTMLInputElement>('plan-caucao-part-amount-0')!, '1.000,00');
@@ -300,6 +307,19 @@ describe('RentalForm — Cobranças flexíveis (FEAT-0573)', () => {
     fixture.detectChanges();
     expect(createSpy).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain('Confira o desconto, as parcelas ou as partes da caução.');
+  });
+
+  it('F3 — aluguel manual não oferece dividir a caução e diz o porquê; o plano vai sem CAUCAO', async () => {
+    mount(['CHARGES_FLEX']);
+    await fill();
+    cmp().form.patchValue({ automaticCharge: false });
+    await settle();
+
+    expect(byId('plan-caucao-split')).toBeNull();
+    expect(byId('plan-caucao-split-manual-note')?.textContent).toContain('Recebendo por fora, a caução não vira');
+    cmp().submit();
+    const plan = lastCreateBody().chargePlan;
+    expect(plan?.overrides?.some((o) => o.target === 'CAUCAO') ?? false).toBe(false);
   });
 
   it('M2 — mudar o valor do aluguel desfaz o parcelamento salvo (com aviso) e ele não viaja', async () => {

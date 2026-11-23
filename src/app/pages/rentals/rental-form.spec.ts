@@ -157,8 +157,8 @@ describe('RentalForm picker filters', () => {
       cmp.form.patchValue({ caucaoReais: '500,00' });
       fixture.detectChanges();
       const card = root.querySelector(CARD) as HTMLLabelElement;
-      expect(card.textContent).toContain('Recebi o Caução por fora');
-      expect(card.textContent).toContain('Caução marcado como recebido, nenhuma cobrança será feita no Asaas.');
+      expect(card.textContent).toContain('Recebi a caução por fora');
+      expect(card.textContent).toContain('Caução marcada como recebida, nenhuma cobrança será feita no Asaas.');
       expect(card.textContent).not.toContain('Dinheiro ou PIX manual');
       expect(card.textContent).not.toContain('Caução recebida por fora (dinheiro / PIX manual)');
       const input = root.querySelector(SWITCH) as HTMLInputElement;
@@ -189,7 +189,7 @@ describe('RentalForm picker filters', () => {
       // Criação: a descrição segue visível e NÃO há banner.
       expect(root.querySelector(CONF)).toBeNull();
       expect((root.querySelector(CARD) as HTMLElement).textContent).toContain(
-        'Caução marcado como recebido, nenhuma cobrança será feita no Asaas.');
+        'Caução marcada como recebida, nenhuma cobrança será feita no Asaas.');
 
       const labelHtml = (root.querySelector(CARD) as HTMLElement).outerHTML;
       expect(labelHtml).not.toContain('primary-500/10');
@@ -202,7 +202,7 @@ describe('RentalForm picker filters', () => {
       expect(cmp.form.controls.caucaoPaid.value).toBe(false);
       expect(root.querySelector(CONF)).toBeNull();
       expect((root.querySelector(CARD) as HTMLElement).textContent).toContain(
-        'Caução marcado como recebido, nenhuma cobrança será feita no Asaas.');
+        'Caução marcada como recebida, nenhuma cobrança será feita no Asaas.');
     });
 
     it('a nota do Asaas só aparece ao editar e só com o switch ligado, dentro do banner', () => {

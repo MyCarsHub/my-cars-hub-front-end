@@ -605,6 +605,10 @@ describe('RentalDetail — concluir aluguel na sessão de EDIÇÃO', () => {
     expect(req.request.body.caucaoRefund?.method ?? 'NONE').not.toBe('AUTOMATIC');
     req.flush({ ...RENTAL, ...ACTIVE_ON_TIME, status: 'COMPLETED' });
     await settle(fixture);
+    // N15 — depois de concluir a tela relê o aluguel (as cobranças saem depois do commit).
+    for (const reload of http.match((r) => r.method === 'GET' && r.url === `${BASE}/${RENTAL_ID}`)) {
+      reload.flush({ ...RENTAL, ...ACTIVE_ON_TIME, status: 'COMPLETED' });
+    }
     drain(http);
     await settle(fixture);
 

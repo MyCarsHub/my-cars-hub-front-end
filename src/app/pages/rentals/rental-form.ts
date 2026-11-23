@@ -325,9 +325,20 @@ export class RentalForm implements OnInit {
    * `toSignal` gives us OnPush-friendly re-renders whenever inputs change,
    * without the manual `subscribe` + `set` boilerplate.
    */
-  private readonly formValue = toSignal(this.form.valueChanges, {
-    initialValue: this.form.getRawValue(),
-  });
+  // Valor CRU (com os campos travados): um campo desabilitado na edição continua valendo para
+  // as contas da tela (N12 trava período/valor/frequência com o cronograma emitido).
+  private readonly formValue = toSignal(
+    this.form.valueChanges.pipe(map(() => this.form.getRawValue())),
+    { initialValue: this.form.getRawValue() },
+  );
+
+  /** N12 — o aluguel editado já tem cronograma emitido (a mesma regra do servidor). */
+  protected readonly scheduleEmitted = signal(false);
+  /** N12 — com cronograma emitido, o total é a soma real das cobranças (servidor), não a fórmula. */
+  private readonly emittedTotalCents = signal<number | null>(null);
+  protected readonly scheduleFrozenMessage =
+    'Este aluguel já tem parcelas emitidas: período, valor do período e frequência não podem mais ser ' +
+    'alterados. Conclua ou cancele este aluguel e crie um novo com as novas condições.';
 
   /**
    * O validador da 1ª cobrança lê a data final, mas o Angular só reavalia um
@@ -767,6 +778,10 @@ export class RentalForm implements OnInit {
   });
 
   protected readonly totalAmountLabel = computed(() => {
+    const emitted = this.scheduleEmitted() ? this.emittedTotalCents() : null;
+    if (emitted != null) {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(emitted / 100);
+    }
     const raw = this.totalAmountCents();
     if (raw == null) return '--';
     // FEAT-0573 — o desconto do plano baixa o total (0 sem a chave: igual a hoje).
@@ -778,6 +793,9 @@ export class RentalForm implements OnInit {
   });
 
   protected readonly totalPreviewCaption = computed(() => {
+    if (this.scheduleEmitted() && this.emittedTotalCents() != null) {
+      return 'soma das cobranças emitidas, com descontos e acordos';
+    }
     const units = this.billingUnits();
     const freq = this.billingFrequency();
     const unitLabel =
@@ -1033,6 +1051,23 @@ export class RentalForm implements OnInit {
           } else {
             // RESERVED — automaticCharge is not editable (it drives Asaas side-effects)
             this.form.controls.automaticCharge.disable();
+          }
+          // N12 — cronograma emitido (uma parcela de aluguel ou de acordo viva, a regra do
+          // servidor): trava já na abertura o que o PUT recusaria, e o total é o real.
+          if (r.status === 'ACTIVE' || r.status === 'RESERVED') {
+            const live = (r.charges ?? []).some(
+              (c) =>
+                (c.kind === 'RENTAL_PERIOD' || c.kind === 'RENTAL_TOTAL' || c.kind === 'AGREEMENT') &&
+                !['CANCELED', 'REFUNDED', 'RELEASED', 'RENEGOTIATED'].includes(c.status),
+            );
+            this.scheduleEmitted.set(live);
+            this.emittedTotalCents.set(live ? r.totalAmount : null);
+            if (live) {
+              this.form.controls.startDate.disable();
+              this.form.controls.endDate.disable();
+              this.form.controls.periodRateReais.disable();
+              this.form.controls.billingFrequency.disable();
+            }
           }
         },
         error: (err: HttpErrorResponse) =>
