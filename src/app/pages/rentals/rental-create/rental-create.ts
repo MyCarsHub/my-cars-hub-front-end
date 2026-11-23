@@ -41,7 +41,7 @@ import {
 } from '../../../types/rental.types';
 import { PLAN_ERROR_MESSAGES, apiErrorCode, companySafe, planBlockerMessage } from '../charges-flex/flex-errors';
 import { readPreflightError } from '../rental-preflight';
-import { openRentalConflict, openRentalMessage, openRentalReason } from '../open-rental';
+import { openRentalConflicts, openRentalMessage, openRentalReason } from '../open-rental';
 import { RentalService } from '../rental.service';
 import { AsaasIntegrationService } from '../../company-settings/integrations/asaas-integration.service';
 import { ContractTemplateService } from '../../company-settings/contract-template/contract-template-service';
@@ -1217,12 +1217,14 @@ export class RentalCreate implements OnInit {
       return;
     }
     // "Bloquear sempre": o 409 do motorista/carro preso vai ao campo, com a mensagem do servidor.
-    const open = openRentalConflict(err);
-    if (open) {
+    const open = openRentalConflicts(err);
+    if (open.length) {
       this.apiErrors.claim(err);
-      this.applyServerIssues([
-        { field: open.field, code: open.code, message: open.message, acceptedValue: null, severity: 'BLOCKING' },
-      ]);
+      this.applyServerIssues(
+        open.map((o) => ({ field: o.field, code: o.code, message: o.message, acceptedValue: null, severity: 'BLOCKING' as const })),
+      );
+      // A lista volta com o `openRental` novo: a opção recusada aparece apagada, com o motivo.
+      this.loadAll();
       return;
     }
     const code = apiErrorCode(err);

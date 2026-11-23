@@ -773,7 +773,8 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
       await render();
       const busyCar = byId('vehicle-veh-1')!;
       expect(busyCar.getAttribute('aria-disabled')).toBe('true');
-      expect(busyCar.textContent).toContain('Reservado de 10/01 a 07/02');
+      // fora do ano corrente (hoje = 20/11/2026), a data leva o ano
+      expect(busyCar.textContent).toContain('Reservado de 10/01/2027 a 07/02/2027');
     });
 
     it('rascunho cujo motorista agora está preso: o erro aparece no campo na hora e o card não fica pronto', async () => {
@@ -789,7 +790,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
 
       expect(cmp()['form'].controls.driverId.value).toBe('drv-2');
       expect(el().querySelector('app-rc-driver-vehicle')!.textContent).toContain(
-        'Este motorista já tem um aluguel reservado de 10/01 a 07/02. Conclua ou cancele esse aluguel antes de criar outro.',
+        'Este motorista já tem um aluguel reservado de 10/01/2027 a 07/02/2027. Conclua ou cancele esse aluguel antes de criar outro.',
       );
       expect(byId('driver')!.getAttribute('aria-invalid')).toBe('true');
       expect(cmp()['cardStatus']()[0].complete).toBe(false);
@@ -801,16 +802,56 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
         status: 409,
         error: { message, code: 'DRIVER_HAS_OPEN_RENTAL', fieldErrors: { driverId: message } },
       })));
+      // outro operador reservou o motorista: a lista recarregada já traz o aluguel dele
+      let driverLoads = 0;
+      driversList = (params) => {
+        if (!params['availableForRental']) driverLoads++;
+        const busy = driverLoads > 1 ? { openRental: ACTIVE_UNTIL_30_11 } : {};
+        return of({ content: [DRIVERS[0], { ...DRIVERS[1], ...busy }], page: 0, size: 500, total: 2 });
+      };
       await mount();
       await fillAll();
       await click('create-submit');
       await click('confirm-create');
+      await render();
+
+      // depois do 409 a lista volta com o motivo, e a opção recusada fica apagada
+      expect(driverLoads).toBe(2);
+      byId<HTMLButtonElement>('driver')!.click();
+      await render();
+      expect(byId('driver-drv-2')!.getAttribute('aria-disabled')).toBe('true');
+      expect(byId('driver-drv-2')!.textContent).toContain('Em aluguel até 30/11');
+      byId<HTMLButtonElement>('driver')!.click();
+      await render();
 
       expect(byId('create-done')).toBeNull();
       expect(el().querySelector('app-rc-driver-vehicle')!.textContent).toContain(message);
       expect(cmp()['cardStatus']()[0].complete).toBe(false);
       expect(byId('blocked-sheet')!.textContent).toContain(message);
       expect(byId('blocked-sheet')!.textContent).not.toContain('Abrir o cadastro do motorista');
+    });
+
+    it('409 com motorista E carro presos: os dois campos mostram a frase de cada um', async () => {
+      const driverMsg = 'Este motorista já está em um aluguel (ativo até 30/11). Conclua ou cancele esse aluguel antes de criar outro.';
+      const carMsg = 'Este carro já está reservado de 01/12 a 20/12. Conclua ou cancele esse aluguel antes de criar outro.';
+      createSpy.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 409,
+        error: {
+          message: 'os dois',
+          code: 'DRIVER_HAS_OPEN_RENTAL',
+          fieldErrors: { driverId: driverMsg, vehicleId: carMsg },
+        },
+      })));
+      await mount();
+      await fillAll();
+      await click('create-submit');
+      await click('confirm-create');
+
+      const card = el().querySelector('app-rc-driver-vehicle')!.textContent ?? '';
+      expect(card).toContain(driverMsg);
+      expect(card).toContain(carMsg);
+      expect(byId('driver')!.getAttribute('aria-invalid')).toBe('true');
+      expect(byId('vehicle')!.getAttribute('aria-invalid')).toBe('true');
     });
 
     it('preflight com VEHICLE_HAS_OPEN_RENTAL: o erro no campo do carro e nada vai à prévia', async () => {

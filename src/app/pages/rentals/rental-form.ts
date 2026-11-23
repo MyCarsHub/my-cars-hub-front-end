@@ -62,7 +62,7 @@ import {
   summarizeChargeSchedule,
   syncServerMarks,
 } from './rental-preflight';
-import { openRentalConflict, openRentalMessage, openRentalReason } from './open-rental';
+import { openRentalConflicts, openRentalMessage, openRentalReason } from './open-rental';
 import { SERVER_ERROR_KEY } from '../../services/validation-messages';
 import { ChargePreviewSummary, summarizeChargePreview } from '../../utils/rental-charge-preview';
 import { PaintedCard } from '../../components/core/painted-card/painted-card';
@@ -1170,14 +1170,19 @@ export class RentalForm implements OnInit {
 
   /** O 409 DRIVER_/VEHICLE_HAS_OPEN_RENTAL: a mensagem do servidor vai ao campo, sem banner. */
   private claimOpenRentalConflict(err: HttpErrorResponse): boolean {
-    const open = openRentalConflict(err);
-    if (!open) return false;
+    const open = openRentalConflicts(err);
+    if (!open.length) return false;
     this.apiErrors.claim(err);
-    const control = this.form.controls[open.field];
-    control.setErrors({ ...(control.errors ?? {}), [SERVER_ERROR_KEY]: { message: open.message } });
-    control.markAsTouched();
+    for (const o of open) {
+      const control = this.form.controls[o.field];
+      control.setErrors({ ...(control.errors ?? {}), [SERVER_ERROR_KEY]: { message: o.message } });
+      control.markAsTouched();
+    }
     this.error.set(null);
     this.revealFirstProblem();
+    // As listas voltam com o `openRental` novo: a opção recusada fica desabilitada, com o motivo, e o
+    // validador do campo mantém a mensagem depois de qualquer revalidação.
+    this.loadPickers();
     return true;
   }
 

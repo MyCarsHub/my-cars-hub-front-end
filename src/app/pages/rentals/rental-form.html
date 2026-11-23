@@ -95,7 +95,7 @@
             <option value="">Selecione...</option>
             @for (v of vehicles(); track v.id) {
               @let vReason = vehicleBlockReason(v);
-              <option [value]="v.id" [disabled]="!!vReason" [attr.aria-disabled]="vReason ? 'true' : null">
+              <option [value]="v.id" [disabled]="!!vReason">
                 {{ formatPlate(v.plate) }} · {{ v.brand | vehicleLabel: v.model }}{{ vReason ? ' — ' + vReason : '' }}
               </option>
             }
@@ -128,7 +128,7 @@
             <option value="">Selecione...</option>
             @for (d of drivers(); track d.id) {
               @let dReason = driverBlockReason(d);
-              <option [value]="d.id" [disabled]="!!dReason" [attr.aria-disabled]="dReason ? 'true' : null">
+              <option [value]="d.id" [disabled]="!!dReason">
                 {{ d.name | personName }}{{ dReason ? ' — ' + dReason : '' }}
               </option>
             }

@@ -3,7 +3,7 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { EMPTY, Observable, of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RentalForm } from './rental-form';
 import { RentalService } from './rental.service';
@@ -42,6 +42,9 @@ const BUSY_VEHICLE = {
 
 let store: Map<string, string>;
 let getById: () => Observable<unknown>;
+let drivers: unknown[];
+let vehicles: unknown[];
+let driverLoads: number;
 
 function mount(rentalId: string | null = null): { fixture: ReturnType<typeof TestBed.createComponent<RentalForm>>; cmp: Any } {
   TestBed.resetTestingModule();
@@ -59,8 +62,16 @@ function mount(rentalId: string | null = null): { fixture: ReturnType<typeof Tes
           getCompanyRoleFromToken: () => 'OWNER',
         },
       },
-      { provide: VehiclesService, useValue: { list: () => of({ content: [FREE_VEHICLE, BUSY_VEHICLE], page: 0, size: 500, total: 2 }) } },
-      { provide: DriverService, useValue: { list: () => of({ content: [FREE_DRIVER, BUSY_DRIVER], page: 0, size: 500, total: 2 }) } },
+      { provide: VehiclesService, useValue: { list: () => of({ content: vehicles, page: 0, size: 500, total: 2 }) } },
+      {
+        provide: DriverService,
+        useValue: {
+          list: () => {
+            driverLoads++;
+            return of({ content: drivers, page: 0, size: 500, total: 2 });
+          },
+        },
+      },
       { provide: CompanyContactGate, useValue: { ensureComplete: () => of(true) } },
       { provide: RentalService, useValue: { getById: () => getById(), preflight: () => EMPTY, create: vi.fn() } },
       { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
@@ -78,26 +89,34 @@ function option(fixture: ReturnType<typeof TestBed.createComponent<RentalForm>>,
 
 describe('RentalForm — motorista/carro com aluguel em aberto', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-20T12:00:00-03:00'));
+    drivers = [FREE_DRIVER, BUSY_DRIVER];
+    vehicles = [FREE_VEHICLE, BUSY_VEHICLE];
+    driverLoads = 0;
     store = new Map<string, string>();
     store.set('id', 'user-1');
     store.set('selectedCompanyId', 'company-1');
     getById = () => EMPTY;
   });
 
+  afterEach(() => vi.useRealTimers());
+
   it('na lista, quem está preso aparece desabilitado com o motivo; o livre segue normal', () => {
     const { fixture } = mount();
 
     const busyDriver = option(fixture, 'drv-busy');
     expect(busyDriver.disabled).toBe(true);
-    expect(busyDriver.getAttribute('aria-disabled')).toBe('true');
+    // option nativa desabilitada já é anunciada assim: sem aria-disabled redundante
+    expect(busyDriver.hasAttribute('aria-disabled')).toBe(false);
     expect(busyDriver.textContent).toContain('Em aluguel até 30/11');
 
     const busyCar = option(fixture, 'veh-busy');
     expect(busyCar.disabled).toBe(true);
-    expect(busyCar.textContent).toContain('Reservado de 10/01 a 07/02');
+    // fora do ano corrente, a data leva o ano
+    expect(busyCar.textContent).toContain('Reservado de 10/01/2027 a 07/02/2027');
 
     expect(option(fixture, 'drv-free').disabled).toBe(false);
-    expect(option(fixture, 'drv-free').getAttribute('aria-disabled')).toBeNull();
     expect(option(fixture, 'veh-free').disabled).toBe(false);
   });
 
@@ -118,9 +137,12 @@ describe('RentalForm — motorista/carro com aluguel em aberto', () => {
     expect(cmp['form'].invalid).toBe(true);
   });
 
-  it('409 DRIVER_HAS_OPEN_RENTAL ao criar: a mensagem do servidor vai ao campo, sem banner', () => {
-    const { cmp } = mount();
+  it('409 DRIVER_HAS_OPEN_RENTAL ao criar: a mensagem do servidor vai ao campo, sem banner, e a lista volta com o motivo', () => {
+    const { fixture, cmp } = mount();
     cmp['form'].controls.driverId.setValue('drv-free');
+    // outro operador reservou a Ana: a lista recarregada já traz o aluguel dela
+    const loadsBefore = driverLoads;
+    drivers = [{ ...FREE_DRIVER, openRental: { status: 'RESERVED', startDate: '2026-12-01', endDate: '2026-12-20' } }, BUSY_DRIVER];
     const err = new HttpErrorResponse({
       status: 409,
       error: {
@@ -132,8 +154,30 @@ describe('RentalForm — motorista/carro com aluguel em aberto', () => {
 
     cmp['failCreate'](err, 'Não foi possível criar o aluguel.');
 
-    expect(cmp['form'].controls.driverId.errors?.[SERVER_ERROR_KEY]?.message).toContain('reservado de 10/01 a 07/02');
+    expect(cmp['form'].controls.driverId.errors?.[SERVER_ERROR_KEY]?.message).toContain('reservado de');
     expect(cmp['error']()).toBeNull();
+    expect(driverLoads).toBe(loadsBefore + 1);
+    fixture.detectChanges();
+    expect(option(fixture, 'drv-free').disabled).toBe(true);
+    expect(option(fixture, 'drv-free').textContent).toContain('Reservado de 01/12 a 20/12');
+    // a revalidação depois da recarga mantém o erro (agora pelo validador)
+    expect(cmp['form'].controls.driverId.errors?.[SERVER_ERROR_KEY]?.message).toContain('reservado de 01/12 a 20/12');
+  });
+
+  it('409 com motorista E carro presos: cada campo recebe a sua frase', () => {
+    const { cmp } = mount();
+    const err = new HttpErrorResponse({
+      status: 409,
+      error: {
+        message: 'os dois',
+        code: 'DRIVER_HAS_OPEN_RENTAL',
+        fieldErrors: { driverId: 'frase do motorista', vehicleId: 'frase do carro' },
+      },
+    });
+
+    expect(cmp['claimOpenRentalConflict'](err)).toBe(true);
+    expect(cmp['form'].controls.driverId.errors?.[SERVER_ERROR_KEY]?.message).toBe('frase do motorista');
+    expect(cmp['form'].controls.vehicleId.errors?.[SERVER_ERROR_KEY]?.message).toBe('frase do carro');
   });
 
   it('409 VEHICLE_HAS_OPEN_RENTAL na edição também vai ao campo do carro', () => {
