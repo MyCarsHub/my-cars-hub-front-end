@@ -1,3 +1,5 @@
+import type { OpenRental } from './driver.types';
+
 export type VehicleType = 'CAR' | 'MOTORCYCLE';
 export type FinancingStatus = 'ACTIVE' | 'PAID_OFF';
 export type IpvaStatus = 'PAID' | 'PENDING' | 'OVERDUE';
@@ -66,6 +68,8 @@ export interface VehicleListItem {
   photoUrl?: string | null;
   /** De onde a miniatura veio. `null` quando não há foto. */
   photoSource?: VehiclePhotoSource | null;
+  /** "Bloquear sempre" (dono, 21/11): o aluguel RESERVED/ACTIVE que prende o carro; `null` = livre. */
+  openRental?: OpenRental | null;
 }
 
 /** Espelha `VehicleListItemDto.PHOTO_SOURCE_*`. */
