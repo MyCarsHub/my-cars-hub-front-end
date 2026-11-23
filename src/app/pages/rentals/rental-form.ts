@@ -62,6 +62,8 @@ import {
   summarizeChargeSchedule,
   syncServerMarks,
 } from './rental-preflight';
+import { openRentalConflicts, openRentalMessage, openRentalReason } from './open-rental';
+import { SERVER_ERROR_KEY } from '../../services/validation-messages';
 import { ChargePreviewSummary, summarizeChargePreview } from '../../utils/rental-charge-preview';
 import { PaintedCard } from '../../components/core/painted-card/painted-card';
 import { FeatureFlagsService } from '../../services/feature-flags.service';
@@ -225,6 +227,23 @@ export class RentalForm implements OnInit {
 
   protected readonly vehicles = signal<VehicleListItem[]>([]);
   protected readonly drivers = signal<DriverListItem[]>([]);
+
+  /**
+   * Na edição, o motorista e o carro que o aluguel JÁ tem: manter os dois nunca se bloqueia
+   * ("Bloquear sempre" só vale para trocar), mesmo que tenham outro aluguel em aberto antigo.
+   */
+  private readonly originalDriverId = signal<string | null>(null);
+  private readonly originalVehicleId = signal<string | null>(null);
+
+  /** "Bloquear sempre": o motivo de o motorista não poder ser escolhido, ou `null`. */
+  protected driverBlockReason(d: DriverListItem): string | null {
+    return d.id === this.originalDriverId() ? null : openRentalReason(d.openRental);
+  }
+
+  /** "Bloquear sempre": o motivo de o carro não poder ser escolhido, ou `null`. */
+  protected vehicleBlockReason(v: VehicleListItem): string | null {
+    return v.id === this.originalVehicleId() ? null : openRentalReason(v.openRental);
+  }
 
   /**
    * Ligados quando o refresh do picker derruba a escolha que já estava feita
@@ -963,6 +982,8 @@ export class RentalForm implements OnInit {
             lateFineType === 'FIXED'
               ? formatPtBrMoney(r.lateFineValue ?? 0)
               : basisPointsToPercent(r.lateFineValue);
+          this.originalVehicleId.set(r.vehicleId);
+          this.originalDriverId.set(r.driverId);
           this.form.patchValue({
             vehicleId: r.vehicleId,
             driverId: r.driverId,
@@ -1101,6 +1122,7 @@ export class RentalForm implements OnInit {
     const lost = !!selected && control.enabled && !list.some((v) => v.id === selected);
     if (lost) control.setValue('');
     this.vehicleClearedByPeriod.set(lost);
+    this.flagOpenRental('vehicle');
   }
 
   private applyDrivers(list: DriverListItem[]): void {
@@ -1110,6 +1132,58 @@ export class RentalForm implements OnInit {
     const lost = !!selected && control.enabled && !list.some((d) => d.id === selected);
     if (lost) control.setValue('');
     this.driverClearedByPeriod.set(lost);
+    this.flagOpenRental('driver');
+  }
+
+  /**
+   * "Bloquear sempre": a escolha que já está presa por um aluguel em aberto (um rascunho
+   * restaurado, um carro vindo da página dele) ganha o erro no campo, com o texto do servidor, em
+   * vez de seguir quieta até o 409. É um VALIDADOR (não um `setErrors` solto): a montagem do
+   * `formControlName` e qualquer revalidação o refazem em vez de apagá-lo. Aqui só se reavalia
+   * quando a lista chega.
+   */
+  private flagOpenRental(kind: 'driver' | 'vehicle'): void {
+    const control = kind === 'driver' ? this.form.controls.driverId : this.form.controls.vehicleId;
+    if (!control.value || control.disabled) return;
+    control.updateValueAndValidity({ emitEvent: false });
+    if (control.errors?.[SERVER_ERROR_KEY]) control.markAsTouched();
+  }
+
+  /** O validador do "Bloquear sempre" de um dos dois campos (ver `flagOpenRental`). */
+  private openRentalValidator(kind: 'driver' | 'vehicle'): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+      const selected = control.value as string;
+      if (!selected) return null;
+      const open =
+        kind === 'driver'
+          ? this.drivers().find((d) => d.id === selected && this.driverBlockReason(d))?.openRental
+          : this.vehicles().find((v) => v.id === selected && this.vehicleBlockReason(v))?.openRental;
+      return open ? { [SERVER_ERROR_KEY]: { message: openRentalMessage(kind, open) } } : null;
+    };
+  }
+
+  private readonly openRentalValidators = (() => {
+    this.form.controls.driverId.addValidators(this.openRentalValidator('driver'));
+    this.form.controls.vehicleId.addValidators(this.openRentalValidator('vehicle'));
+    return true;
+  })();
+
+  /** O 409 DRIVER_/VEHICLE_HAS_OPEN_RENTAL: a mensagem do servidor vai ao campo, sem banner. */
+  private claimOpenRentalConflict(err: HttpErrorResponse): boolean {
+    const open = openRentalConflicts(err);
+    if (!open.length) return false;
+    this.apiErrors.claim(err);
+    for (const o of open) {
+      const control = this.form.controls[o.field];
+      control.setErrors({ ...(control.errors ?? {}), [SERVER_ERROR_KEY]: { message: o.message } });
+      control.markAsTouched();
+    }
+    this.error.set(null);
+    this.revealFirstProblem();
+    // As listas voltam com o `openRental` novo: a opção recusada fica desabilitada, com o motivo, e o
+    // validador do campo mantém a mensagem depois de qualquer revalidação.
+    this.loadPickers();
+    return true;
   }
 
   /**
@@ -1277,6 +1351,7 @@ export class RentalForm implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.saving.set(false);
         if (this.claimPreflightError(err)) return;
+        if (this.claimOpenRentalConflict(err)) return;
         if (this.claimFeeBelowChargeError(err)) return;
         const { formMessage } = this.apiErrors.handleForm(
           err,
@@ -1608,6 +1683,7 @@ export class RentalForm implements OnInit {
       return;
     }
     if (this.claimPreflightError(err)) return;
+    if (this.claimOpenRentalConflict(err)) return;
     if (this.claimFeeBelowChargeError(err)) return;
     // FEAT-0573 — recusa do plano (400 com o código B2): texto da locadora, sem o provedor.
     const planCode = apiErrorCode(err);

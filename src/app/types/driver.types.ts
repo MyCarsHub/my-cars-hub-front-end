@@ -136,6 +136,18 @@ export interface DriverListItem {
   licenseExpiry: string | null;
   status: DriverStatus;
   registrationStatus?: DriverRegistrationStatus;
+  /**
+   * "Bloquear sempre" (dono, 21/11): o aluguel RESERVED/ACTIVE que prende o motorista; `null` =
+   * livre para um aluguel novo. Na edição (`includeCurrentRentalId`) o próprio aluguel não conta.
+   */
+  openRental?: OpenRental | null;
+}
+
+/** O aluguel em aberto de um motorista ou carro, nas listas dos formulários de aluguel. */
+export interface OpenRental {
+  status: 'RESERVED' | 'ACTIVE';
+  startDate: string;
+  endDate: string | null;
 }
 
 export interface DriverResponse {

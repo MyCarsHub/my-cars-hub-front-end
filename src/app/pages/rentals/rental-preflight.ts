@@ -131,7 +131,10 @@ export function linkFor(item: RentalPreflightItem, driverId: string | null): Pre
   if (INTEGRATION_CODES.has(item.code)) {
     return { kind: 'integrations', label: 'Abrir Configurações > Integrações', commands: ['/configuracoes/integracoes'] };
   }
-  const isDriver = (item.field?.startsWith('driver.') ?? false) || item.code.startsWith('DRIVER_');
+  // O motorista preso em outro aluguel (DRIVER_HAS_OPEN_RENTAL) não se corrige no cadastro dele.
+  const isDriver =
+    ((item.field?.startsWith('driver.') ?? false) || item.code.startsWith('DRIVER_')) &&
+    item.code !== 'DRIVER_HAS_OPEN_RENTAL';
   if (isDriver && item.code !== 'DRIVER_NOT_FOUND' && driverId) {
     return { kind: 'driver', label: 'Abrir o cadastro do motorista', commands: ['/motoristas', driverId, 'editar'] };
   }

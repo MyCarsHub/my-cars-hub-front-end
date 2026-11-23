@@ -42,6 +42,7 @@ import {
 } from '../../../types/rental.types';
 import { PLAN_ERROR_MESSAGES, apiErrorCode, companySafe, planBlockerMessage } from '../charges-flex/flex-errors';
 import { readPreflightError } from '../rental-preflight';
+import { openRentalConflicts, openRentalMessage, openRentalReason } from '../open-rental';
 import { RentalService } from '../rental.service';
 import { AsaasIntegrationService } from '../../company-settings/integrations/asaas-integration.service';
 import { ContractTemplateService } from '../../company-settings/contract-template/contract-template-service';
@@ -377,7 +378,7 @@ export class RentalCreate implements OnInit {
   );
 
   // ------------------------------------------------------------------ validação e etapas
-  private readonly card1Errors = computed(() => driverVehicleErrors(this.v()));
+  private readonly card1Errors = computed(() => ({ ...driverVehicleErrors(this.v()), ...this.openRentalErrors() }));
   private readonly card2Errors = computed(() => periodErrors(this.period()));
   private readonly card3Errors = computed(() =>
     caucaoErrors({ ...this.v(), parts: this.partsValue() }, { today: this.today, minCents: this.minCents() }),
@@ -437,6 +438,8 @@ export class RentalCreate implements OnInit {
     const showAll = this.submitted();
     for (const [k, msg] of Object.entries(all)) if (showAll || t.has(k) || ALWAYS_SHOWN.has(k)) out[k] = msg;
     for (const [k, msg] of Object.entries(this.serverFieldErrors())) if (!out[k]) out[k] = msg;
+    // Aluguel em aberto: aparece sem esperar o campo ser visitado.
+    for (const [k, msg] of Object.entries(this.openRentalErrors())) if (!out[k]) out[k] = msg;
     return out;
   });
 
@@ -499,7 +502,15 @@ export class RentalCreate implements OnInit {
     const free = this.freeDriverIds();
     return this.drivers().map((d) => {
       const name = formatPersonName(d.name);
-      return { id: d.id, title: name, initials: initialsOf(name), busy: !!free && !free.has(d.id) };
+      // "Bloquear sempre": com aluguel em aberto (qualquer data) fica apagado, com o motivo.
+      const reason = openRentalReason(d.openRental);
+      return {
+        id: d.id,
+        title: name,
+        initials: initialsOf(name),
+        busy: !!reason || (!!free && !free.has(d.id)),
+        busyReason: reason,
+      };
     });
   });
 
@@ -507,12 +518,31 @@ export class RentalCreate implements OnInit {
     const free = this.freeVehicleIds();
     return this.vehicles()
       .filter((c) => !c.sold)
-      .map((c) => ({
-        id: c.id,
-        title: formatPlate(c.plate),
-        subtitle: formatVehicleLabel(c.brand, c.model),
-        busy: !!free && !free.has(c.id),
-      }));
+      .map((c) => {
+        const reason = openRentalReason(c.openRental);
+        return {
+          id: c.id,
+          title: formatPlate(c.plate),
+          subtitle: formatVehicleLabel(c.brand, c.model),
+          busy: !!reason || (!!free && !free.has(c.id)),
+          busyReason: reason,
+        };
+      });
+  });
+
+  /**
+   * A escolha que já está presa por um aluguel em aberto (um rascunho restaurado, o carro vindo da
+   * página dele): o erro aparece no campo na hora, com o texto do servidor, em vez de a escolha
+   * seguir quieta até o 409.
+   */
+  private readonly openRentalErrors = computed<Record<string, string>>(() => {
+    const { driverId, vehicleId } = this.v();
+    const out: Record<string, string> = {};
+    const driver = driverId ? this.drivers().find((d) => d.id === driverId) : undefined;
+    if (driver?.openRental) out['driverId'] = openRentalMessage('driver', driver.openRental);
+    const vehicle = vehicleId ? this.vehicles().find((c) => c.id === vehicleId) : undefined;
+    if (vehicle?.openRental) out['vehicleId'] = openRentalMessage('vehicle', vehicle.openRental);
+    return out;
   });
 
   constructor() {
@@ -1181,6 +1211,17 @@ export class RentalCreate implements OnInit {
     if (parsed && parsed.issues.length) {
       this.apiErrors.claim(err);
       this.applyServerIssues(parsed.issues);
+      return;
+    }
+    // "Bloquear sempre": o 409 do motorista/carro preso vai ao campo, com a mensagem do servidor.
+    const open = openRentalConflicts(err);
+    if (open.length) {
+      this.apiErrors.claim(err);
+      this.applyServerIssues(
+        open.map((o) => ({ field: o.field, code: o.code, message: o.message, acceptedValue: null, severity: 'BLOCKING' as const })),
+      );
+      // A lista volta com o `openRental` novo: a opção recusada aparece apagada, com o motivo.
+      this.loadAll();
       return;
     }
     const code = apiErrorCode(err);

@@ -1,6 +1,7 @@
 import { RentalPreflightItem } from '../../../types/rental.types';
 import { companySafe } from '../charges-flex/flex-errors';
 import { messageWithAccepted } from '../rental-preflight';
+import { OPEN_RENTAL_FIELD_BY_CODE } from '../open-rental';
 
 /**
  * As recusas do servidor no Novo aluguel em uma página: a mesma leitura do passo a passo
@@ -141,7 +142,10 @@ export function readServerIssues(
     const text = serverIssueText(item);
     const control = item.field ? CONTROL_BY_SERVER_FIELD[item.field] : undefined;
     if (control && !fields[control]) fields[control] = text;
-    const isDriver = (item.field?.startsWith('driver.') ?? false) || item.code.startsWith('DRIVER_');
+    // O motorista preso em outro aluguel não se corrige no cadastro dele: sem atalho.
+    const isDriver =
+      ((item.field?.startsWith('driver.') ?? false) || item.code.startsWith('DRIVER_')) &&
+      !OPEN_RENTAL_FIELD_BY_CODE[item.code];
     const link = INTEGRATION_CODES.has(item.code)
       ? { label: 'Abrir Configurações > Integrações', commands: ['/configuracoes/integracoes'] }
       : isDriver && item.code !== 'DRIVER_NOT_FOUND' && driverId
