@@ -369,6 +369,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
 
   it('caução: "Valor cheio" exclui as outras; desconto e parcelar vão juntos; tirar as duas volta o valor cheio', async () => {
     await mount();
+    patch({ automaticCharge: true }); // F3: parcelar a caução só com a cobrança pelo Asaas
     patch({ caucaoReais: '1.200,00' });
     await render();
     expect(checked('caucao-full')).toBe('true');
@@ -384,6 +385,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
 
   it('caução: desconto mostra "Ele paga R$ 1.000,00 de caução."; parcelar nasce em 2 partes que somam a caução líquida', async () => {
     await mount();
+    patch({ automaticCharge: true }); // F3: parcelar a caução só com a cobrança pelo Asaas
     patch({ startDate: '2026-11-24', endDate: '2026-12-22', caucaoReais: '1.200,00' });
     await click('caucao-desc');
     patch({ caucaoDiscount: '200,00' });
@@ -407,6 +409,19 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
     expect(byId('caucao-sum')!.textContent).toContain('As partes somam R$ 1.000,00');
     await click('caucao-remove-2');
     expect(cmp()['caucaoParts'].length).toBe(2);
+  });
+
+  it('F3 — "Eu recebo por fora": a caução não tem "Parcelar", o card diz o porquê e o plano vai sem CAUCAO', async () => {
+    await mount();
+    patch({ startDate: '2026-11-24', endDate: '2026-12-22', caucaoReais: '1.200,00', automaticCharge: true });
+    await render();
+    await click('caucao-split');
+    expect(checked('caucao-split')).toBe('true');
+    patch({ automaticCharge: false });
+    await render();
+    expect(byId('caucao-split')).toBeNull();
+    expect(byId('caucao-split-manual-note')!.textContent).toContain('Recebendo por fora, a caução não vira');
+    expect(cmp()['body']().chargePlan ?? null).toBeNull();
   });
 
   it('caução: "Recebi por fora" esconde as caixas e a prévia e diz o que fica anotado', async () => {
@@ -467,6 +482,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
 
   it('o corpo do exemplo inteiro e a barra contando os cards 3 e 4', async () => {
     await mount();
+    patch({ automaticCharge: true }); // F3: parcelar a caução só com a cobrança pelo Asaas
     patch({
       driverId: 'drv-1',
       vehicleId: 'veh-1',
@@ -491,7 +507,7 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
       billingFrequency: 'WEEKLY',
       caucaoAmount: 100_000,
       caucaoPaid: false,
-      automaticCharge: false,
+      automaticCharge: true,
       initialKm: null,
       pickupDate: '2026-11-24T09:00',
       firstPaymentDate: '2026-11-24',
@@ -526,7 +542,9 @@ describe('RentalCreate — Novo aluguel em uma página', () => {
   // ================================================================ entrega 4a: partes que se redividem
   it('caução: enquanto ninguém digitou numa parte, elas se redividem com o total; depois da 1ª edição, não', async () => {
     await mount();
+    patch({ automaticCharge: true }); // F3: parcelar a caução só com a cobrança pelo Asaas
     patch({ startDate: '2026-11-24', endDate: '2026-12-22', caucaoReais: '1.200,00' });
+    await render();
     await click('caucao-split');
     patch({ caucaoReais: '1.500,00' });
     await render();

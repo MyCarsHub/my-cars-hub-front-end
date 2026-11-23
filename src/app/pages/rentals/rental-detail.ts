@@ -967,7 +967,8 @@ export class RentalDetail implements OnInit {
       this.canRetryCharge(charge) ||
       this.canMarkPaidFromMenu(charge) ||
       this.canUnmarkAsPaid(charge) ||
-      this.canCancelCaucaoCharge(charge)
+      this.canCancelCaucaoCharge(charge) ||
+      this.canSettleCaucaoRefund(charge)
     );
   }
 
@@ -1113,7 +1114,10 @@ export class RentalDetail implements OnInit {
     // O motorista só consulta: quem gera de novo é a locadora (o backend recusa também).
     // Ajuste (V141) nunca é gerado de novo: o backend responde 409 e o dono não quer o botão.
     if (charge.kind === 'ADJUSTMENT') return false;
-    return charge.status === 'FAILED' && !this.isDriver;
+    if (charge.status !== 'FAILED' || this.isDriver) return false;
+    // F8 (23/11) — vencida (vencimento antes de hoje em Brasília) não é gerada de novo: ela
+    // permanece em atraso, e o backend responde 409. Mesma regra, mesmo relógio.
+    return !charge.dueDate || charge.dueDate >= this.today();
   }
 
   protected readonly retrying = signal<string | null>(null);
@@ -1217,6 +1221,79 @@ export class RentalDetail implements OnInit {
         this.caucaoBusy.set(false);
         this.unmarkCaucaoOpen.set(false);
         this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível desmarcar o pagamento da caução.'));
+      },
+    });
+  }
+
+  // ------- F5 (23/11): estorno automático da caução não confirmado pelo Asaas -------
+  //
+  // Mesma regra do backend (`RentalService.isCaucaoRefundPending`): aluguel encerrado, método
+  // AUTOMATIC e a caução ainda paga. O dinheiro segue com a locadora até o estorno entrar.
+  protected readonly caucaoRefundPending = computed<boolean>(() => {
+    const r = this.rental();
+    if (!r || this.isDriver) return false;
+    if (r.status !== 'COMPLETED' && r.status !== 'CANCELED') return false;
+    if (r.caucaoRefundMethod !== 'AUTOMATIC') return false;
+    return r.charges.some((c) => c.kind === 'CAUCAO' && c.status === 'PAID');
+  });
+
+  /** Itens "Tentar estorno de novo" / "Registrar devolução por fora" no menu da caução paga. */
+  protected canSettleCaucaoRefund(charge: RentalChargeDto): boolean {
+    return (
+      this.caucaoRefundPending() &&
+      !this.readOnlySession() &&
+      charge.kind === 'CAUCAO' &&
+      charge.status === 'PAID'
+    );
+  }
+
+  protected readonly settleRefundMethod = signal<'AUTOMATIC' | 'MANUAL' | null>(null);
+  protected readonly settleRefundBusy = signal(false);
+
+  protected readonly settleRefundDialogTitle = computed(() =>
+    this.settleRefundMethod() === 'MANUAL'
+      ? 'Registrar devolução da caução por fora?'
+      : 'Tentar o estorno da caução de novo?',
+  );
+
+  protected readonly settleRefundDialogMessage = computed(() =>
+    this.settleRefundMethod() === 'MANUAL'
+      ? 'Use quando você já devolveu o valor ao motorista por fora (dinheiro, PIX, transferência). A caução fica como devolvida e nada é feito no Asaas.'
+      : 'Pedimos ao Asaas, de novo, o estorno do pagamento da caução ao motorista. Se o Asaas não confirmar, nada muda.',
+  );
+
+  protected askSettleCaucaoRefund(method: 'AUTOMATIC' | 'MANUAL'): void {
+    if (!this.caucaoRefundPending() || this.readOnlySession() || this.settleRefundBusy()) return;
+    this.settleRefundMethod.set(method);
+  }
+
+  protected cancelSettleCaucaoRefund(): void {
+    if (this.settleRefundBusy()) return;
+    this.settleRefundMethod.set(null);
+  }
+
+  protected confirmSettleCaucaoRefund(): void {
+    const r = this.rental();
+    const method = this.settleRefundMethod();
+    if (!r || !method || this.settleRefundBusy()) return;
+    this.actionError.set(null);
+    this.settleRefundBusy.set(true);
+    this.rentalService.settlePendingCaucaoRefund(r.id, method).subscribe({
+      next: (updated) => {
+        this.rental.set(updated);
+        this.settleRefundBusy.set(false);
+        this.settleRefundMethod.set(null);
+        this.notifications.push(
+          'success',
+          method === 'MANUAL' ? 'Devolução da caução registrada.' : 'Estorno da caução feito no Asaas.',
+        );
+      },
+      error: (err: HttpErrorResponse) => {
+        this.settleRefundBusy.set(false);
+        this.settleRefundMethod.set(null);
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível resolver o estorno da caução.'),
+        );
       },
     });
   }
@@ -1516,6 +1593,8 @@ export class RentalDetail implements OnInit {
     const r = this.rental();
     const cc = this.caucaoCharge();
     if (!r || !cc || this.isDriver || this.readOnlySession()) return false;
+    // F7 (23/11) — aluguel manual não vai ao Asaas, nem a caução (o backend recusa).
+    if (r.automaticCharge === false) return false;
     if (cc.status !== 'CANCELED') return false;
     if (r.caucaoAmount <= 0 || r.caucaoPaid) return false;
     return r.status === 'RESERVED' || r.status === 'ACTIVE';
@@ -1877,8 +1956,13 @@ export class RentalDetail implements OnInit {
     );
   }
 
-  /** "Renegociar": aberta e de tipo aceito (caução, período, total, parcela de acordo). Manual também. */
+  /**
+   * "Renegociar": aberta e de tipo aceito (caução, período, total, parcela de acordo). Manual também.
+   * F14 (dono, 23/11: "Bloquear") — só aluguel em curso (reservado ou ativo); concluído e cancelado não.
+   */
   protected canRenegotiate(charge: RentalChargeDto): boolean {
+    const status = this.rental()?.status;
+    if (status !== 'ACTIVE' && status !== 'RESERVED') return false;
     return this.flexActionsAllowed() && isRenegotiableCharge(charge);
   }
 

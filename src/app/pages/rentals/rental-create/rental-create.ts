@@ -260,7 +260,8 @@ export class RentalCreate implements OnInit {
   );
   private readonly caucaoPartsOn = computed(() => {
     const v = this.v();
-    return !v.caucaoPaid && v.caucaoSplit && this.caucao().net > 0;
+    // F3 (23/11) — aluguel manual não parcela a caução (ela nunca vira cobrança; o backend recusa).
+    return !v.caucaoPaid && v.caucaoSplit && v.automaticCharge === true && this.caucao().net > 0;
   });
 
   // ---- cobranças
@@ -381,7 +382,11 @@ export class RentalCreate implements OnInit {
   private readonly card1Errors = computed(() => ({ ...driverVehicleErrors(this.v()), ...this.openRentalErrors() }));
   private readonly card2Errors = computed(() => periodErrors(this.period()));
   private readonly card3Errors = computed(() =>
-    caucaoErrors({ ...this.v(), parts: this.partsValue() }, { today: this.today, minCents: this.minCents() }),
+    caucaoErrors(
+      // F3 — no manual o "Parcelar" some; uma escolha antiga dele não bloqueia o card.
+      { ...this.v(), caucaoSplit: this.v().caucaoSplit && this.v().automaticCharge === true, parts: this.partsValue() },
+      { today: this.today, minCents: this.minCents() },
+    ),
   );
   private readonly card4Errors = computed(() =>
     chargesErrors(

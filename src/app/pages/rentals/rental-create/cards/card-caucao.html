@@ -74,6 +74,12 @@
           A cobrança da caução sai com o desconto. No fim do aluguel, você devolve o que ele pagou.
         </p>
       </div>
+      @if (manual()) {
+        <p class="rc-hint" data-testid="caucao-split-manual-note">
+          Para parcelar a caução, escolha a cobrança pelo Asaas. Recebendo por fora, a caução não vira
+          cobrança: marque como paga no aluguel quando ele te pagar.
+        </p>
+      } @else {
       <div class="rc-ckw">
         <div class="rc-ckr">
           <button type="button" class="rc-chk" role="checkbox" [attr.aria-checked]="splitOn()"
@@ -88,6 +94,7 @@
           da caução.
         </p>
       </div>
+      }
     </div>
   </div>
 

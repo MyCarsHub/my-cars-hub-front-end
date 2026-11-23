@@ -169,6 +169,10 @@
                 <span class="uppercase tracking-wide text-fg-faint font-semibold">Caução</span>
                 @if (r.caucaoRefundMethod === 'NONE') {
                   <span class="text-fg-soft">Retida pelo locador</span>
+                } @else if (caucaoRefundPending()) {
+                  <span class="text-amber-800 dark:text-amber-200" data-testid="caucao-refund-pending-summary">
+                    Estorno não confirmado pelo Asaas
+                  </span>
                 } @else if (r.caucaoRefundedAmount != null && r.caucaoRefundedAmount > 0) {
                   <span class="tabular-nums text-fg-soft">
                     {{ formatCurrency(r.caucaoRefundedAmount) }}
@@ -586,6 +590,14 @@
               Sessão somente leitura: para cancelar ou gerar a cobrança da caução, abra o modo edição
               na página da empresa.
             </p>
+          }
+          @if (caucaoRefundPending()) {
+            <div data-testid="caucao-refund-pending-banner">
+              <app-alert-banner
+                variant="warning"
+                message="O Asaas não confirmou o estorno da caução: o valor continua com você. No menu da caução, tente o estorno de novo ou registre a devolução por fora."
+              />
+            </div>
           }
           @if (cancelChargeResult(); as res) {
             <div data-testid="cancel-charge-result">
@@ -1196,6 +1208,19 @@
       }
       <!-- Admin v2 P1 (dono, 29/10/2026): "Cancelar no Asaas e marcar como recebida por fora" saiu
            da locadora — é ação só do admin (Admin › Cobranças). O backend recusa a flag com 403. -->
+      <!-- F5 (23/11) — estorno automático da caução não confirmado pelo Asaas. -->
+      @if (canSettleCaucaoRefund(charge)) {
+        <button type="button" role="menuitem" (click)="askSettleCaucaoRefund('AUTOMATIC')"
+          data-testid="charge-menu-refund-retry"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
+          Tentar estorno de novo
+        </button>
+        <button type="button" role="menuitem" (click)="askSettleCaucaoRefund('MANUAL')"
+          data-testid="charge-menu-refund-manual"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
+          Registrar devolução por fora
+        </button>
+      }
       @if (canCancelCaucaoCharge(charge)) {
         <button type="button" role="menuitem" (click)="askCancelCharge(charge)"
           data-testid="cancel-charge-item"
@@ -1325,6 +1350,18 @@
   [busy]="caucaoBusy()"
   (confirmed)="confirmMarkCaucaoAsPaid($event)"
   (cancelled)="cancelMarkCaucaoAsPaid()"
+/>
+
+<app-confirm-dialog
+  [open]="settleRefundMethod() !== null"
+  [title]="settleRefundDialogTitle()"
+  [message]="settleRefundDialogMessage()"
+  [confirmLabel]="settleRefundMethod() === 'MANUAL' ? 'Registrar devolução' : 'Tentar de novo'"
+  cancelLabel="Voltar"
+  variant="warning"
+  [busy]="settleRefundBusy()"
+  (confirmed)="confirmSettleCaucaoRefund()"
+  (cancelled)="cancelSettleCaucaoRefund()"
 />
 
 <app-confirm-dialog
