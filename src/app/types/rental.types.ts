@@ -308,6 +308,10 @@ export interface RentalResponseDto {
   chargeSync?: RentalChargeSyncDto | null;
   createdAt: string;
   modifiedAt: string;
+  /** O nome que o JSON de fato traz (`RentalResponseDto.createdDate`); `createdAt` não chega. */
+  createdDate?: string | null;
+  /** Gravado na ativação e nunca apagado: segue preenchido depois de concluir ou cancelar. */
+  activatedAt?: string | null;
   // Encerramento (COMPLETED / CANCELED).
   /** True quando o encerramento ocorreu antes do endDate programado. */
   endedEarly?: boolean;

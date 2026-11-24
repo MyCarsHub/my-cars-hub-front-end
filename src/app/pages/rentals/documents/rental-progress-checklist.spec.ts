@@ -41,7 +41,7 @@ describe('RentalProgressChecklist step derivation', () => {
     });
   });
 
-  function makeComponent(status: 'RESERVED' | 'ACTIVE' | 'COMPLETED', autoCharge = false) {
+  function makeComponent(status: 'RESERVED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED', autoCharge = false) {
     const fixture = TestBed.createComponent(RentalProgressChecklist);
     fixture.componentRef.setInput('rentalId', 'rid');
     fixture.componentRef.setInput('status', status);
@@ -245,6 +245,30 @@ describe('RentalProgressChecklist step derivation', () => {
     const steps = (fixture.componentInstance as any).steps();
     expect(steps.find((s: any) => s.key === 'ACTIVATE').state).toBe('done');
     expect(steps.find((s: any) => s.key === 'CHECKOUT').visible).toBe(true);
+  });
+
+  it('N20 — cancelado depois de ativado: "Iniciar locação" segue feito, com o desfecho', () => {
+    const fixture = makeComponent('CANCELED');
+    fixture.componentRef.setInput('wasActivated', true);
+    fixture.detectChanges();
+    const steps = (fixture.componentInstance as any).steps();
+    const activate = steps.find((s: any) => s.key === 'ACTIVATE');
+    expect(activate.state).toBe('done');
+    expect(activate.badge.label).toBe('iniciado');
+    expect(activate.description).toBe('Locação iniciada e encerrada antes do fim.');
+    expect(activate.showActionButton).toBe(false);
+    expect(steps.find((s: any) => s.key === 'CHECKOUT').visible).toBe(true);
+  });
+
+  it('N20 — cancelado sem nunca ativar: segue "não iniciado"', () => {
+    const fixture = makeComponent('CANCELED');
+    fixture.componentRef.setInput('wasActivated', false);
+    fixture.detectChanges();
+    const steps = (fixture.componentInstance as any).steps();
+    const activate = steps.find((s: any) => s.key === 'ACTIVATE');
+    expect(activate.state).not.toBe('done');
+    expect(activate.description).toBe('Locação não foi iniciada.');
+    expect(steps.find((s: any) => s.key === 'CHECKOUT').visible).toBe(false);
   });
 
   it('hides CHECKOUT when status RESERVED', () => {

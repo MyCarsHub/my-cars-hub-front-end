@@ -331,6 +331,8 @@ export class RentalDetail implements OnInit {
 
   protected readonly history = signal<RentalStatusHistoryDto[]>([]);
   protected readonly historyLoading = signal(false);
+  /** N20 — o aluguel já passou por ATIVO (o checklist não volta a "não iniciado" ao cancelar). */
+  protected readonly wasActivated = computed(() => !!this.rental()?.activatedAt);
 
   protected readonly cancelOpen = signal(false);
   protected readonly cancelBusy = signal(false);
@@ -1183,6 +1185,15 @@ export class RentalDetail implements OnInit {
     if (r.caucaoAmount <= 0) return false;
     if (this.caucaoCharge()) return false;
     return r.caucaoPaid;
+  });
+
+  /**
+   * N21 — situação da caução sem linha de cobrança. No manual nada é "gerado":
+   * ela está pendente até o dono marcar. "Não gerada" fica para o automático.
+   */
+  protected readonly caucaoPlaceholderLabel = computed<string>(() => {
+    if (this.caucaoReceivedOutside()) return 'Recebida por fora';
+    return this.rental()?.automaticCharge === false ? 'Pendente' : 'Não gerada';
   });
 
   /** Valor da caução para o dialog (em centavos). */
@@ -2203,10 +2214,19 @@ export class RentalDetail implements OnInit {
   /** N7 — recusa do servidor que não é da data: aparece dentro da folha, que reabre com o rascunho. */
   protected readonly receivedOutsideServerError = signal<string | null>(null);
 
-  /** N7 — o piso da data é o DIA em que o aluguel foi criado, em Brasília (a regra do servidor). */
+  /**
+   * N7 — o piso da data é o DIA em que o aluguel foi criado, em Brasília (a regra do servidor).
+   * O JSON traz `createdDate`; `createdAt` nunca chegava e o campo ficava sem mínimo.
+   */
   protected readonly receivedOutsideMinDate = computed<string | null>(() => {
-    const created = this.rental()?.createdAt;
+    const r = this.rental();
+    const created = r?.createdDate ?? r?.createdAt;
     if (!created) return null;
+    // Sem fuso (`createdDate` é a hora de Brasília): o dia já é o dia de negócio; `new Date`
+    // leria no fuso do navegador e poderia trocar o dia.
+    if (/^\d{4}-\d{2}-\d{2}(T[^Zz+]*)?$/.test(created) && !/T.*-\d{2}:?\d{2}$/.test(created)) {
+      return created.slice(0, 10);
+    }
     const at = new Date(created);
     return Number.isNaN(at.getTime()) ? null : todayInBusinessTz(at);
   });
