@@ -224,6 +224,12 @@ export class RentalProgressChecklist implements OnInit {
   readonly contractSource = input<RentalContractSource | null>(null);
   /** O motorista acompanha o checklist, mas não ativa o aluguel: o backend recusa. */
   readonly canActivateAction = input(true);
+  /**
+   * N20 — o aluguel passou por ATIVO (histórico de status). Um CANCELADO que foi
+   * ativado e encerrado antes do fim teve a locação iniciada; sem isso o passo
+   * voltava a "não iniciado".
+   */
+  readonly wasActivated = input(false);
 
   readonly activateRequested = output<void>();
 
@@ -259,8 +265,9 @@ export class RentalProgressChecklist implements OnInit {
     const checkinPhotoCount = checkinPhotos.length;
     const checkoutPdfDone = docs.some((d) => d.kind === 'CHECKOUT');
     const checkoutPhotoCount = checkoutPhotos.length;
-    const isActive = status === 'ACTIVE' || status === 'COMPLETED';
-    const isCompleted = status === 'COMPLETED';
+    const startedThenCanceled = status === 'CANCELED' && this.wasActivated();
+    const isActive = status === 'ACTIVE' || status === 'COMPLETED' || startedThenCanceled;
+    const isCompleted = status === 'COMPLETED' || startedThenCanceled;
     const canActivateManually = status === 'RESERVED' && this.automaticCharge() === false;
     /**
      * RESERVED + cobrança automática: a ativação chega pelo webhook do Asaas.
@@ -328,7 +335,9 @@ export class RentalProgressChecklist implements OnInit {
             : { label: `${checkoutPhotoCount}/14 fotos`, tone: 'amber' };
 
     const activateState: StepState = isActive ? 'done' : canActivate ? 'pending' : 'blocked';
-    const activateBadge: StepBadge | null = isActive
+    const activateBadge: StepBadge | null = startedThenCanceled
+      ? { label: 'iniciado', tone: 'emerald' }
+      : isActive
       ? { label: 'ativo', tone: 'emerald' }
       : canActivateManually
         ? { label: 'pronto', tone: 'amber' }
@@ -380,7 +389,9 @@ export class RentalProgressChecklist implements OnInit {
       {
         key: 'ACTIVATE',
         title: 'Iniciar locação',
-        description: isActive
+        description: startedThenCanceled
+          ? 'Locação iniciada e encerrada antes do fim.'
+          : isActive
           ? 'Aluguel ativado — cobranças em andamento.'
           : awaitingPayment
             ? this.canActivateAction()

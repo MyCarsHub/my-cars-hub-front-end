@@ -181,8 +181,13 @@
                 }
               </ul>
               @if (fineShares()) {
-                <p class="text-sm text-fg-subtle">
-                  A multa por atraso do aluguel se divide pelas parcelas; os centavos que sobram vão na última. Os juros do aluguel valem em cada uma, se atrasar.
+                <!-- N22 — à vista não tem parcelas: a nota fala do pagamento único. -->
+                <p class="text-sm text-fg-subtle" data-testid="renegotiate-fine-note">
+                  @if (payMode() === 'ONCE') {
+                    A multa por atraso do aluguel vale para este pagamento, e os juros também, se atrasar.
+                  } @else {
+                    A multa por atraso do aluguel se divide pelas parcelas; os centavos que sobram vão na última. Os juros do aluguel valem em cada uma, se atrasar.
+                  }
                 </p>
               }
               @for (p of step2Problems(); track p) {

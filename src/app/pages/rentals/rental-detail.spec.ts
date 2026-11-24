@@ -1006,10 +1006,11 @@ describe('RentalDetail — caução recebida por fora', () => {
     expect(note(fixture)).toBeNull();
   });
 
-  it('caucaoPaid=false sem cobrança (caracterização): "Não gerada" e a dica de marcar como paga', async () => {
+  it('caucaoPaid=false sem cobrança no manual: "Pendente" (N21) e a dica de marcar como paga', async () => {
     const { fixture } = await mount({ ...MANUAL, caucaoPaid: false, charges: [] });
 
-    expect(chips(fixture, 'Não gerada').length).toBe(2);
+    expect(chips(fixture, 'Pendente').length, 'mobile + desktop').toBe(2);
+    expect(chips(fixture, 'Não gerada').length, 'no manual nada é "gerado"').toBe(0);
     expect(chips(fixture, 'Recebida por fora').length).toBe(0);
     expect(fixture.nativeElement.textContent).toContain('Marque como paga quando receber');
     expect(banner(fixture)).toBeNull();
