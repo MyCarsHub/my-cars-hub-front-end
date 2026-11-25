@@ -2222,12 +2222,13 @@ export class RentalDetail implements OnInit {
     const r = this.rental();
     const created = r?.createdDate ?? r?.createdAt;
     if (!created) return null;
-    // Sem fuso (`createdDate` é a hora de Brasília): o dia já é o dia de negócio; `new Date`
-    // leria no fuso do navegador e poderia trocar o dia.
-    if (/^\d{4}-\d{2}-\d{2}(T[^Zz+]*)?$/.test(created) && !/T.*-\d{2}:?\d{2}$/.test(created)) {
-      return created.slice(0, 10);
-    }
-    const at = new Date(created);
+    // Só a data: já é o dia de negócio.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(created)) return created;
+    // Data e hora sem fuso: é a hora do servidor, que roda em UTC (o servidor converte do fuso
+    // dele para Brasília em `isBeforeRentalCreated`). Lida como Brasília, depois das 21h o dia
+    // virava o seguinte e a data de hoje era recusada.
+    const hasZone = /(Z|[+-]\d{2}:?\d{2})$/i.test(created);
+    const at = new Date(hasZone ? created : `${created}Z`);
     return Number.isNaN(at.getTime()) ? null : todayInBusinessTz(at);
   });
 

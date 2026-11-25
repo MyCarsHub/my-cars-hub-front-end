@@ -96,4 +96,24 @@ describe('driver-finance.source adapters', () => {
     );
     expect(ctx).toMatchObject({ periodDays: 7, periodAmount: 65000, nextCharge: { dueDate: '2026-10-13' } });
   });
+
+  it('D2 (E2E 24/11) — o valor do período é o cheio, não o da semana com desconto', () => {
+    const base: RentalChargeDto = {
+      id: 'w1',
+      kind: 'RENTAL_PERIOD',
+      amount: 45000,
+      discountCents: 5000,
+      status: 'PENDING',
+      provider: 'ASAAS',
+      externalId: null,
+      checkoutUrl: null,
+      paidAt: null,
+      dueDate: TODAY,
+      periodIndex: 0,
+    };
+    const next = { ...base, id: 'w2', amount: 50000, discountCents: 0, dueDate: '2026-10-20', periodIndex: 1 };
+    const ctx = toRentalContext('Fiat Uno', 'TES-1T01', [base, next], TODAY);
+    expect(ctx?.periodAmount).toBe(50000);
+    expect(ctx?.nextCharge?.amount).toBe(45000);
+  });
 });

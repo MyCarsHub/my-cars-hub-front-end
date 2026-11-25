@@ -473,6 +473,12 @@ const PAID = new Set(['PAID', 'DISPUTED']);
 // FEAT-0573 — parcela de acordo substitui aluguel renegociado: conta como aluguel.
 const RENT_KINDS = new Set(['RENTAL_PERIOD', 'RENTAL_TOTAL', 'AGREEMENT']);
 
+/** Valor da cobrança antes do desconto (o servidor manda `originalAmountCents` ou `discountCents`). */
+function fullAmount(c: RentalChargeDto): number {
+  if (c.originalAmountCents != null && c.originalAmountCents > 0) return c.originalAmountCents;
+  return c.amount + (c.discountCents ?? 0);
+}
+
 /** Tags the rental context with the rental's id (the dashboard's weekly-rent card needs it). */
 function withRentalId(
   context: DriverRentalContext | null,
@@ -515,7 +521,8 @@ export function toRentalContext(
   return {
     vehicleLabel,
     plate,
-    periodAmount: reference?.amount ?? next?.amount ?? 0,
+    // O valor do período é o cheio: a 1ª semana com desconto não é o preço do aluguel.
+    periodAmount: reference ? fullAmount(reference) : next?.amount ?? 0,
     periodDays,
     startDate,
     nextCharge: next ? { amount: next.amount, dueDate: next.dueDate! } : null,
