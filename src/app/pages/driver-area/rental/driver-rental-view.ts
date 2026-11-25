@@ -209,7 +209,10 @@ export function buildChargeList(
 /** The collapsed card: the first open ones and the latest paid ones. */
 export function collapsedRows(list: ChargeList): readonly ChargeRow[] {
   const open = list.rows.slice(0, list.openCount).slice(0, COLLAPSED_OPEN);
-  const paid = list.rows.slice(list.openCount).slice(0, COLLAPSED_PAID);
+  // Só as pagas: depois delas vêm as renegociadas, que não entram no resumo.
+  const paid = list.rows
+    .slice(list.openCount, list.openCount + list.paidCount)
+    .slice(0, COLLAPSED_PAID);
   return [...open, ...paid];
 }
 

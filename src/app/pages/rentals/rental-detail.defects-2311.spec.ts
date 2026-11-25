@@ -581,6 +581,15 @@ describe('RentalDetail — correções das revisões de 23/11', () => {
     expect(cmp(fixture).receivedOutsideMinDate()).toBe('2026-11-23');
   });
 
+  it('D1 (E2E 24/11) — `createdDate` sem fuso é UTC: criado 22:32 em Brasília ainda é o mesmo dia', async () => {
+    const { fixture } = await mount({
+      flex: true,
+      rental: { createdAt: undefined as unknown as string, createdDate: '2026-11-25T01:32:57.350681' },
+      charges: [],
+    });
+    expect(cmp(fixture).receivedOutsideMinDate()).toBe('2026-11-24');
+  });
+
   it('N21 — caução manual não recebida: "Marcar como paga" só no ⋮ e chip "Pendente"', async () => {
     const { fixture } = await mount({
       rental: { automaticCharge: false, caucaoAmount: 80_000, caucaoPaid: false },
