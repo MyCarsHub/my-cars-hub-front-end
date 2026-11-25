@@ -209,6 +209,20 @@ describe('driver-rental-view', () => {
       const list = buildChargeList(charges, TODAY, 'WEEKLY');
       expect(collapsedRows(list).map((r) => r.charge.id)).toEqual(['late', 'next', 'p1', 'p2', 'p3']);
     });
+
+    it('D3 (E2E 24/11) — recolhido sem pagas não mostra as renegociadas no lugar delas', () => {
+      const list = buildChargeList(
+        [
+          c({ id: 'next', dueDate: '2026-10-13' }),
+          c({ id: 'later', dueDate: '2026-10-20' }),
+          c({ id: 'r1', status: 'RENEGOTIATED', dueDate: '2026-10-27' }),
+          c({ id: 'r2', status: 'RENEGOTIATED', dueDate: '2026-10-30' }),
+        ],
+        TODAY,
+        'WEEKLY',
+      );
+      expect(collapsedRows(list).map((r) => r.charge.id)).toEqual(['next', 'later']);
+    });
   });
 
   describe('buildTerms', () => {
