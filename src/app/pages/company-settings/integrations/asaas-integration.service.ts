@@ -139,6 +139,19 @@ export class AsaasIntegrationService {
   }
 
   /**
+   * Releitura do status para "Testar a conexão": sucesso atualiza, falha não apaga o que já
+   * está na tela (a página não vira estado de erro por causa de um teste).
+   */
+  refreshStatus(): void {
+    const epoch = this._epoch();
+    this.http
+      .get<AsaasIntegrationStatus>(BASE, {
+        context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+      })
+      .subscribe({ next: (res) => this.setStatus(res, epoch), error: () => void 0 });
+  }
+
+  /**
    * Números do caminho do dinheiro, saldo, taxas e recebimentos. Qualquer falha limpa o
    * overview (nunca sobra número velho na tela). 404 = sem integração. 402/403 = a integração
    * não está disponível para quem está vendo — NÃO é o paywall da assinatura. A tela é dona de

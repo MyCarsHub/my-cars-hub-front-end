@@ -123,7 +123,9 @@
 }
 .paint .k { font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
 .paint .amt {
-  font-family: var(--font-mono); font-weight: 700; font-size: clamp(30px, 12cqi, 42px); letter-spacing: -0.04em;
+  font-family: var(--font-mono); font-weight: 700; letter-spacing: -0.04em;
+  /* O valor nunca corta: a fonte encolhe com o número de dígitos (`--amt-n`) para caber no cartão. */
+  font-size: min(42px, 12cqi, calc((100cqi - 8px) / (0.6 * var(--amt-n, 5) + 1.6)));
   line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .paint .amt small { font-size: 0.48em; font-weight: 600; opacity: 0.9; margin-right: 6px; letter-spacing: 0; }
@@ -171,7 +173,7 @@ a.r:active { opacity: 0.7; }
 .tbl .c-car { width: 92px; }
 .tbl .c-what { width: 128px; }
 .tbl .c-when { width: 74px; }
-.tbl .c-amt { width: 136px; }
+.tbl .c-amt { width: 136px; } /* mínimo; cresce com o maior valor (amountColumnPx) */
 .tbl td { overflow: hidden; text-overflow: ellipsis; }
 .tbl td.who .cell-link, .tbl td.who b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tbl td.who .cell-link { display: inline-block; line-height: 44px; vertical-align: middle; }

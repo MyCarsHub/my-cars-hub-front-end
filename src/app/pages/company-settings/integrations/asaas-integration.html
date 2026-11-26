@@ -188,7 +188,7 @@
               @case ('ok') {
                 @if (balance(); as b) {
                   @if (b.kind === 'ok') {
-                    <span class="amt" data-testid="asaas-balance-amount"><small>R$</small>{{ b.int }}<em>{{ b.dec }}</em></span>
+                    <span class="amt" data-testid="asaas-balance-amount" [style.--amt-n]="b.int.length"><small>R$</small>{{ b.int }}<em>{{ b.dec }}</em></span>
                     <span class="s">pronto para sacar na sua conta</span>
                     @if (b.account) { <span class="acct" data-testid="asaas-account">{{ b.account }}</span> }
                     <a class="btn white press block mt-auto" [href]="asaasUrl()" target="_blank" rel="noopener noreferrer">
@@ -274,7 +274,7 @@
                 <table class="tbl">
                   <caption class="sr-only">Últimos recebimentos pelo Asaas</caption>
                   <thead>
-                    <tr><th scope="col" class="c-car">Carro</th><th scope="col" class="who">Motorista</th><th scope="col" class="c-what">Cobrança</th><th scope="col" class="c-when">Pago</th><th scope="col" class="num-h c-amt">Valor</th></tr>
+                    <tr><th scope="col" class="c-car">Carro</th><th scope="col" class="who">Motorista</th><th scope="col" class="c-what">Cobrança</th><th scope="col" class="c-when">Pago</th><th scope="col" class="num-h c-amt" [style.width.px]="amountColumnPx()">Valor</th></tr>
                   </thead>
                   <tbody>
                     @for (r of receipts(); track r.key) {

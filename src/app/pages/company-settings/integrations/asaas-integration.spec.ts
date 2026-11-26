@@ -274,7 +274,8 @@ describe('AsaasIntegration', () => {
       http = TestBed.inject(HttpTestingController);
       fixture.detectChanges();
       // a cadeia real acrescenta `?ngsw-bypass=1`: casa pelo caminho
-      const path = (u: string) => (r: { urlWithParams: string }) => r.urlWithParams.split('?')[0] === u;
+      const path = (u: string) => (r: { urlWithParams: string }) =>
+        r.urlWithParams.split('?')[0] === u;
       http.expectOne(path(BASE)).flush(CONNECTED);
       await settle();
       const req = http.expectOne(path(OVERVIEW));
@@ -489,8 +490,49 @@ describe('AsaasIntegration', () => {
         asaasError: 'UNAVAILABLE',
       });
       expect(toasts().some((t) => t.kind === 'success')).toBe(false);
-      expect(toasts().some((t) => t.kind === 'warning')).toBe(true);
+      expect(toasts().map((t) => t.message)).toEqual([
+        'O Asaas respondeu só em parte. Tente de novo em instantes.',
+      ]);
     });
+
+    it('nada do Asaas (asaas=null): diz que não respondeu, não "só em parte"', async () => {
+      await runTest({ ...FULL, asaas: null, asaasError: 'UNAVAILABLE' });
+      expect(toasts().map((t) => t.message)).toEqual([
+        'O Asaas não respondeu agora. Tente de novo em instantes.',
+      ]);
+    });
+
+    it('servidor fora: a página NÃO vira estado de erro; só um aviso', async () => {
+      await open(OWNER_TOKEN, CONNECTED, FULL);
+      q<HTMLButtonElement>('asaas-menu')!.click();
+      await settle();
+      q<HTMLButtonElement>('asaas-menu-test')!.click();
+      http.expectOne(BASE).flush('x', { status: 500, statusText: 'Server Error' });
+      http.expectOne(OVERVIEW).flush('x', { status: 503, statusText: 'Unavailable' });
+      await settle();
+      await new Promise((resolve) => setTimeout(resolve, 260));
+      await settle();
+      expect(q('asaas-load-error')).toBeNull();
+      expect(q('asaas-flow')).not.toBeNull();
+      expect(text(q('asaas-chip'))).toContain('Ligado');
+      expect(toasts().map((t) => t.message)).toEqual([
+        'Não deu para falar com o servidor agora. Tente de novo em instantes.',
+      ]);
+    });
+  });
+
+  // ------------------------------------------------ valor nunca corta
+  it('valor grande (R$ 1.234.567,89): a coluna Valor cresce para caber; o nome cede', async () => {
+    await open(OWNER_TOKEN, CONNECTED, {
+      ...FULL,
+      recentReceipts: [{ ...FULL.recentReceipts![0], amountCents: 123456789 }],
+    });
+    const th = host().querySelector<HTMLElement>('th.c-amt')!;
+    const needed = Math.ceil('R$ 1.234.567,89'.length * 0.6 * 14.5) + 28;
+    expect(parseFloat(th.style.width)).toBeGreaterThanOrEqual(needed);
+    expect(text(host().querySelector('td.num'))).toContain('R$ 1.234.567,89');
+    // no saldo, a fonte encolhe com os dígitos em vez de cortar
+    expect(q('asaas-balance-amount')!.style.getPropertyValue('--amt-n')).toBe('5');
   });
 
   // ------------------------------------------------ data em UTC (L1)

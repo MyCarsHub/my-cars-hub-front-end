@@ -107,6 +107,38 @@ describe('AsaasTestModeBar', () => {
       activeEnvironment: 'SANDBOX' as const,
     };
 
+    it('admin montado, token troca para o de suporte e a página carrega SANDBOX: a faixa fica escondida', () => {
+      // Sem reset nem navegação de propósito: o código antigo fixava "é admin" na construção
+      // e acenderia a faixa aqui. Só o token atual decide.
+      mount(jwt({ system_role: 'PLATFORM_ADMIN', companyId: COMPANY }));
+      http.expectOne(BASE).flush(ADMIN_PROD);
+      fixture.detectChanges();
+      expect(bar()).toBeNull();
+
+      sessionStorage.setItem(
+        'token',
+        jwt({ system_role: 'USER', impersonation: true, companyId: 'cliente' }),
+      );
+      TestBed.inject(AsaasIntegrationService).load().subscribe();
+      http.expectOne(BASE).flush(SANDBOX);
+      fixture.detectChanges();
+      expect(bar()).toBeNull();
+    });
+
+    it('uma requisição por token: mudanças do status não repetem a leitura', () => {
+      mount(jwt({ system_role: 'PLATFORM_ADMIN', companyId: COMPANY }));
+      http.expectOne(BASE).flush(ADMIN_PROD);
+      fixture.detectChanges();
+      const service = TestBed.inject(AsaasIntegrationService);
+      service.switchEnvironment('SANDBOX').subscribe();
+      http.expectOne(`${BASE}/active-environment`).flush(SANDBOX);
+      fixture.detectChanges();
+      service.switchEnvironment('PRODUCTION').subscribe();
+      http.expectOne(`${BASE}/active-environment`).flush(ADMIN_PROD);
+      fixture.detectChanges();
+      http.expectNone(BASE);
+    });
+
     it('entrar em "ver como empresa": a faixa some e nenhuma requisição sai', () => {
       mount(jwt({ system_role: 'PLATFORM_ADMIN', companyId: COMPANY }));
       http.expectOne(BASE).flush(SANDBOX);

@@ -374,6 +374,14 @@ export class AsaasIntegration implements OnInit {
       rentalId: r.rentalId,
     })),
   );
+  /**
+   * Largura da coluna Valor: o maior valor inteiro, em JetBrains Mono (0,6 em por caractere a
+   * 14,5 px) mais o respiro da célula. O nome cede o espaço; o valor nunca corta.
+   */
+  protected readonly amountColumnPx = computed(() => {
+    const longest = Math.max(0, ...this.receipts().map((r) => r.amount.length));
+    return Math.max(136, Math.ceil(longest * 0.6 * 14.5) + 28);
+  });
   /** O celular mostra só as 3 mais recentes; a tabela do computador mostra todas. */
   protected readonly receiptsMobile = computed(() => this.receipts().slice(0, 3));
 
@@ -535,29 +543,39 @@ export class AsaasIntegration implements OnInit {
     this.sheet.set(null);
   }
 
+  /**
+   * Relê o status (em silêncio) e o overview. Falha aqui NUNCA derruba a página para o estado de
+   * erro: o que já está na tela fica, e o resultado sai num aviso. Três respostas distintas:
+   * nada respondeu, o Asaas respondeu só em parte, ou tudo certo.
+   */
   protected testConnection(): void {
     this.closeSheet();
-    this.service.load().subscribe({
-      next: (s) => {
-        if (!s.connected) return;
-        this.service.loadOverview().subscribe({
-          next: (ov) => {
-            // Resposta parcial (`asaasError` preenchido) é problema, não sucesso.
-            if (ov.asaas && ov.asaasError === null) {
-              this.notifications.push('success', 'O Asaas respondeu. Conexão em dia.');
-            } else if (ov.asaasError === 'UNAUTHORIZED') {
-              this.notifications.push('warning', 'O Asaas recusou a chave guardada.');
-            } else {
-              this.notifications.push(
-                'warning',
-                'O Asaas respondeu só em parte. Tente de novo em instantes.',
-              );
-            }
-          },
-          error: (err: HttpErrorResponse) => this.apiErrors.claim(err),
-        });
+    this.service.refreshStatus();
+    this.service.loadOverview().subscribe({
+      next: (ov) => {
+        if (ov.asaas && ov.asaasError === null) {
+          this.notifications.push('success', 'O Asaas respondeu. Conexão em dia.');
+        } else if (ov.asaasError === 'UNAUTHORIZED') {
+          this.notifications.push('warning', 'O Asaas recusou a chave guardada.');
+        } else if (!ov.asaas) {
+          this.notifications.push(
+            'warning',
+            'O Asaas não respondeu agora. Tente de novo em instantes.',
+          );
+        } else {
+          this.notifications.push(
+            'warning',
+            'O Asaas respondeu só em parte. Tente de novo em instantes.',
+          );
+        }
       },
-      error: (err: HttpErrorResponse) => this.apiErrors.claim(err),
+      error: (err: HttpErrorResponse) => {
+        this.apiErrors.claim(err);
+        this.notifications.push(
+          'warning',
+          'Não deu para falar com o servidor agora. Tente de novo em instantes.',
+        );
+      },
     });
   }
 

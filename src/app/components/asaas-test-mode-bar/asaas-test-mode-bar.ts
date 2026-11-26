@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  untracked,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, map } from 'rxjs/operators';
@@ -83,8 +90,10 @@ export class AsaasTestModeBar {
   });
 
   constructor() {
+    // Uma leitura por sessão/token: o efeito só depende de `eligibleToken`. `untracked` impede
+    // que cada mudança do status (que `loadQuietly` lê) reabra o efeito e repita a requisição.
     effect(() => {
-      if (this.eligibleToken()) this.asaas.loadQuietly();
+      if (this.eligibleToken()) untracked(() => this.asaas.loadQuietly());
     });
   }
 
