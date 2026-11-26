@@ -33,6 +33,7 @@ import { isAdminAreaUrl } from '../../../pages/admin/shell/admin-menu';
 import { ThemeService } from '../../../services/theme.service';
 import { PastDueBannerStore } from '../../past-due-banner/past-due-banner';
 import { formatDayMonthTime, parseServerTime } from '../../../utils/server-time';
+import { AsaasTestModeBar } from '../../asaas-test-mode-bar/asaas-test-mode-bar';
 
 /** The path of a router URL: query string and fragment left out. */
 function urlPath(url: string): string {
@@ -53,7 +54,7 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Sidebar, AdminSidebar, PaywallDialog, NoticesPopup, NotificationBell, TourSpotlight, DriverTopBar, ThemeToggle],
+  imports: [RouterOutlet, Sidebar, AdminSidebar, PaywallDialog, NoticesPopup, NotificationBell, TourSpotlight, DriverTopBar, ThemeToggle, AsaasTestModeBar],
   animations: [
     trigger('contentMargin', [
       // As MESMAS constantes da largura da sidebar: margem e coluna não podem divergir (o
@@ -120,6 +121,8 @@ const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
         class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-none"
         [@contentMargin]="contentState()"
       >
+        <!-- Asaas de testes (só PLATFORM_ADMIN): faixa amarela no topo de todas as telas. -->
+        <app-asaas-test-mode-bar />
         @if (!layout.mobileTopBar()) {
           <header class="relative z-40 shrink-0" data-desktop-bar>
             <div class="max-w-8xl mx-auto flex justify-end px-4 pt-4 sm:px-6 lg:px-10" data-bell-row>

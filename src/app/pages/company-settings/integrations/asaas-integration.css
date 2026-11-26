@@ -1,0 +1,237 @@
+/*
+ * Integração Asaas — desenho aprovado em 26/11 ("caminho do dinheiro").
+ * Cores só por token: o tema do app (`--color-*`) e, para os estados, os `--a-*` abaixo,
+ * com valor claro e escuro aqui (nada de hex no template). No escuro, dois tons: a página
+ * (`canvas`) e o cartão (`surface`); trilho e controle usam `placeholder-fill`, como no resto do app.
+ * Movimento só em transform/opacity, curva iOS; `prefers-reduced-motion` desliga tudo.
+ */
+:host {
+  display: block;
+  --a-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --a-track: var(--color-placeholder-fill);
+  --a-control: var(--color-placeholder-fill);
+  --a-tile: var(--color-surface-sunken);
+  --a-green: var(--color-success-500);
+  --a-green-text: var(--color-success-700);
+  --a-green-bg: var(--color-success-50);
+  --a-red: #B91C1C;
+  --a-red-fill: #E11D48;
+  --a-red-bg: #FFE4E6;
+  --a-amber: #F59E0B;
+  --a-amber-ink: #241500;
+  --a-amber-text: #92400E;
+  --a-amber-bg: #FEF3C7;
+  --a-orange-text: var(--color-primary-700);
+  --a-field: var(--color-surface);
+  --a-field-edge: var(--color-edge-field);
+  --a-wa: #128C4A;
+  /* A miniatura da tela do Asaas e a placa são objetos do mundo: claros nos dois temas. */
+  --a-shot-bg: #F4F6FB;
+  --a-shot-ink: #1F2A44;
+  --a-shot-btn: #1F4AE0;
+  --a-shot-edge: #D6DCEA;
+  --a-shot-box: #8A94AD;
+  --a-shot-warn: #B45309;
+  --a-plate-bg: #FFFFFF;
+  --a-plate-ink: #111111;
+  --a-plate-edge: #1F2937;
+  --a-plate-band: #1E3A8A;
+}
+:host-context(.dark) {
+  --a-green-text: #6EE7B7;
+  --a-green-bg: rgba(16, 185, 129, 0.15);
+  --a-red: #F87171;
+  --a-red-bg: rgba(225, 29, 72, 0.15);
+  --a-amber-text: #FDE68A;
+  --a-amber-bg: rgba(245, 158, 11, 0.15);
+  --a-orange-text: var(--color-primary-300);
+  --a-field: var(--color-canvas);
+}
+
+/* A grade responde à largura do CONTEÚDO (ao lado do menu), não da janela: a 1024 px o menu
+   come um quarto da tela e três colunas não cabem. */
+.asaas { display: flex; flex-direction: column; gap: 14px; container: asaas / inline-size; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- grade: uma coluna no celular, 12 no computador, sem teto de largura ---------- */
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.grid > * { min-width: 0; }
+.stack { display: grid; gap: 14px; align-content: start; }
+/* Meio-termo (tablet, ou computador com pouco espaço): uma coluna, e Taxas e Ambiente lado a lado. */
+@container asaas (min-width: 640px) {
+  .grid, .stack { gap: 18px; }
+  .stack.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
+@container asaas (min-width: 900px) {
+  .grid { grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; }
+  .stack.c4 { grid-template-columns: minmax(0, 1fr); }
+  .c4 { grid-column: span 4; }
+  .c5 { grid-column: span 5; }
+  .c7 { grid-column: span 7; }
+  .c8 { grid-column: span 8; }
+  .c12 { grid-column: 1 / -1; }
+  .stretch { align-self: stretch; }
+}
+
+.skel { border-radius: 22px; background: var(--color-placeholder-fill); animation: a-pulse 1.4s ease-in-out infinite; }
+@keyframes a-pulse { 50% { opacity: 0.55; } }
+
+/* ---------- cartão ---------- */
+.card { background: var(--color-surface); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ch { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.ch h2 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--color-fg); }
+.lead { margin: -8px 0 0; font-size: 14px; color: var(--color-fg-muted); line-height: 1.45; }
+.lead.ro { margin: 0; font-weight: 600; }
+.empty { margin: 0; font-size: 14.5px; color: var(--color-fg-muted); line-height: 1.5; }
+
+.icb { width: 44px; height: 44px; border-radius: 14px; background: var(--color-surface); display: grid; place-items: center; border: 0; color: var(--color-fg); cursor: pointer; }
+.icb svg { width: 20px; height: 20px; }
+.menu-m { margin-left: auto; }
+.menu-d { display: none; }
+@media (min-width: 768px) {
+  .menu-m { display: none; }
+  /* Na linha do título, alinhado ao topo do "Asaas": o slot de ações do layout fica alinhado
+     embaixo, então o botão sobe ao topo e desce a altura do link "← Integrações" (44px). */
+  .menu-d { display: flex; justify-content: flex-end; align-self: flex-start; margin-top: 44px; }
+}
+.icb:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+
+/* ---------- botões ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px;
+  border-radius: 14px; border: 0; font: inherit; font-weight: 700; font-size: 15.5px; white-space: nowrap;
+  cursor: pointer; text-decoration: none;
+}
+.btn svg { width: 18px; height: 18px; }
+.btn:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--color-primary-500); color: var(--color-white); }
+.btn.primary:hover:not(:disabled) { background: var(--color-primary-600); }
+.btn.ghost { background: var(--a-control); color: var(--color-fg); }
+.btn.white { background: var(--color-white); color: var(--color-primary-700); position: relative; z-index: 1; }
+.btn.wa { background: var(--a-wa); color: var(--color-white); }
+.btn.block { width: 100%; }
+/* "Religar": o botão mora na linha da etapa; 44px de alvo. */
+.btn.sm { min-height: 44px; padding: 0 14px; font-size: 14px; border-radius: 12px; }
+.self-start { align-self: flex-start; }
+
+/* ---------- saldo: cartão pintado (app-painted-card) ---------- */
+.paint { position: relative; overflow: hidden; container-type: inline-size; border-radius: 22px; gap: 16px; }
+.paint::after {
+  content: ''; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.18), transparent); pointer-events: none;
+}
+.paint .k { font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
+.paint .amt {
+  font-family: var(--font-mono); font-weight: 700; letter-spacing: -0.04em;
+  /* O valor nunca corta: a fonte encolhe com o número de dígitos (`--amt-n`) para caber no cartão. */
+  font-size: min(42px, 12cqi, calc((100cqi - 8px) / (0.6 * var(--amt-n, 5) + 1.6)));
+  line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.paint .amt small { font-size: 0.48em; font-weight: 600; opacity: 0.9; margin-right: 6px; letter-spacing: 0; }
+.paint .amt em { font-style: normal; font-size: 0.55em; }
+.paint .s { font-size: 14px; color: rgba(255, 255, 255, 0.9); }
+.paint .acct { font-size: 13px; color: rgba(255, 255, 255, 0.85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.paint .failed { font-size: 20px; font-weight: 700; line-height: 1.2; }
+.paint .amt-skel { height: 42px; width: 70%; border-radius: 10px; background: rgba(255, 255, 255, 0.22); animation: a-pulse 1.4s ease-in-out infinite; }
+.mt-auto { margin-top: auto; }
+
+.tile { width: 36px; height: 36px; border-radius: 11px; background: var(--a-tile); display: grid; place-items: center; flex: none; color: var(--color-fg); }
+.tile svg { width: 18px; height: 18px; }
+
+.help { display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 14px; color: var(--color-fg-muted); padding-top: 6px; }
+@media (min-width: 1024px) { .help { flex-direction: row; justify-content: center; } }
+
+/* ---------- avisos (mesma família do alert-banner, sem moldura) ---------- */
+.warn { display: flex; gap: 10px; align-items: flex-start; background: var(--a-amber-bg); color: var(--a-amber-text); border-radius: 16px; padding: 14px; font-size: 14px; line-height: 1.45; }
+.warn svg { width: 18px; height: 18px; margin-top: 2px; flex: none; }
+.warn a { color: inherit; font-weight: 700; text-decoration: underline; display: inline-flex; align-items: center; min-height: 44px; }
+.warn.badbox { background: var(--a-red-bg); color: var(--a-red); }
+
+/* ---------- recebimentos ---------- */
+.rows { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
+.rows .skel { border-radius: 14px; margin: 0 8px; }
+.r { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-radius: 14px; min-height: 60px; color: inherit; text-decoration: none; }
+a.r:focus-visible, .cell-link:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: -2px; }
+a.r:active { opacity: 0.7; }
+.r .t { flex: 1; min-width: 0; }
+.r .t b { display: block; font-size: 15.5px; font-weight: 600; color: var(--color-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r .t small { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--color-fg-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; }
+.r .t small .plate { transform: scale(0.82); transform-origin: left center; margin-right: -13px; }
+.r .v, .tbl .num { font-family: var(--font-mono); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--a-green-text); }
+.r .v { font-size: 15px; }
+.truncate { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* placa Mercosul em miniatura */
+.plate { display: inline-flex; flex-direction: column; flex: none; width: 72px; border-radius: 5px; background: var(--a-plate-bg); color: var(--a-plate-ink); overflow: hidden; box-shadow: inset 0 0 0 1.5px var(--a-plate-edge); }
+.plate i { display: flex; justify-content: space-between; align-items: center; height: 9px; padding: 0 5px; background: var(--a-plate-band); color: var(--color-white); font: 700 5.5px/1 var(--font-body); letter-spacing: 0.14em; font-style: normal; }
+.plate > span { font: 700 13px/1 var(--font-mono); letter-spacing: 0.05em; text-align: center; padding: 4px 0 5px; }
+
+/* Larguras fixas para o que tem tamanho conhecido (placa, rótulo, dia, valor); o nome fica com
+   toda a sobra e só corta quando a tabela realmente não tem espaço. */
+.tbl { display: none; width: 100%; border-collapse: collapse; table-layout: fixed; }
+.tbl .c-car { width: 92px; }
+.tbl .c-what { width: 128px; }
+.tbl .c-when { width: 74px; }
+.tbl .c-amt { width: 136px; } /* mínimo; cresce com o maior valor (amountColumnPx) */
+.tbl td { overflow: hidden; text-overflow: ellipsis; }
+.tbl td.who .cell-link, .tbl td.who b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbl td.who .cell-link { display: inline-block; line-height: 44px; vertical-align: middle; }
+.tbl th { text-align: left; font-size: 12.5px; font-weight: 600; color: var(--color-fg-subtle); padding: 0 10px 10px; white-space: nowrap; }
+.tbl th.num-h { text-align: right; }
+.tbl td { padding: 12px 10px; font-size: 14.5px; white-space: nowrap; vertical-align: middle; color: var(--color-fg); }
+.tbl th:first-child, .tbl td:first-child { padding-left: 8px; }
+.tbl .num { text-align: right; }
+.cell-link { color: inherit; text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; border-radius: 8px; }
+.cell-link:hover { text-decoration: underline; }
+@container asaas (min-width: 640px) {
+  .tbl { display: table; }
+  .rows.mob { display: none; }
+}
+
+/* ---------- taxas ---------- */
+.fees { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
+.fee { display: flex; align-items: center; gap: 12px; padding: 8px; min-height: 52px; }
+.fee b { flex: 1; font-size: 15.5px; font-weight: 600; color: var(--color-fg); }
+.fee > span:last-child { font-size: 15px; font-weight: 600; white-space: nowrap; color: var(--color-fg); }
+.sumline { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--color-fg-muted); padding-top: 2px; }
+.sumline b { font-family: var(--font-mono); color: var(--color-fg); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------- ambiente (admin): chave de ignição ---------- */
+.ign { position: relative; display: grid; grid-template-columns: 1fr 1fr; height: 56px; padding: 5px; border-radius: 999px; background: var(--a-control); }
+.ign .knob {
+  position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc(50% - 5px); border-radius: 999px; background: var(--color-primary-500);
+  transition: transform 0.45s var(--a-ease), background-color 0.3s; box-shadow: 0 6px 18px -6px rgba(246, 59, 4, 0.7);
+}
+.ign[data-env='test'] .knob { transform: translateX(0); background: var(--a-amber); box-shadow: 0 6px 18px -6px rgba(245, 158, 11, 0.7); }
+.ign[data-env='prod'] .knob { transform: translateX(100%); }
+.ign button {
+  position: relative; z-index: 1; border: 0; background: transparent; border-radius: 999px; font: inherit; font-size: 15px; font-weight: 700;
+  color: var(--color-fg-muted); display: flex; align-items: center; justify-content: center; gap: 8px; transition: color 0.3s; cursor: pointer;
+}
+.ign button:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+.ign button:disabled { cursor: progress; }
+.ign button svg { width: 17px; height: 17px; }
+.ign[data-env='prod'] button[data-v='prod'] { color: var(--color-white); }
+.ign[data-env='test'] button[data-v='test'] { color: var(--a-amber-ink); }
+/* As duas notas quebram em duas linhas quando o cartão é estreito (celular de 320 px). */
+.envnote { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 13.5px; color: var(--color-fg-muted); }
+.envnote span { white-space: nowrap; }
+
+/* ---------- folhas ---------- */
+.menu { display: flex; flex-direction: column; margin: 0 -20px; }
+.menu .tile.alert { color: var(--a-red); }
+.sheet-p { margin: 0; font-size: 14.5px; color: var(--color-fg-muted); line-height: 1.5; }
+.sheet-actions { display: grid; gap: 10px; }
+.sheet-actions .btn { width: 100%; }
+@media (min-width: 1024px) {
+  .sheet-actions:not(.one) { grid-template-columns: 1fr 1fr; }
+  .sheet-actions:not(.one) .btn.primary { order: 2; }
+}
+.howto { margin: 0; padding: 0 0 0 20px; display: grid; gap: 12px; color: var(--color-fg); }
+.howto b { display: block; font-size: 15.5px; font-weight: 600; }
+.howto span { display: block; font-size: 14px; color: var(--color-fg-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .skel, .paint .amt-skel, .ign .knob, .ign button { animation: none !important; transition: none !important; }
+}
