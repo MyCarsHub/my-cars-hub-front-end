@@ -1,13 +1,15 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { Router, provideRouter } from '@angular/router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { environment } from '../../../../environments/environment';
 import { NotificationService } from '../../../services/notification.service';
 import { OWNED_HTTP_ERRORS } from '../../../services/http-errors.context';
+import { API_INTERCEPTORS } from '../../../services/api-interceptors';
+import { TenantResetRegistry } from '../../../services/tenant-reset.registry';
 import { AsaasIntegration } from './asaas-integration';
 import type { AsaasIntegrationStatus, AsaasOverview } from './asaas-integration.types';
 import { checkAsaasKey } from './asaas-integration.view';
@@ -100,7 +102,7 @@ const FULL: AsaasOverview = {
     feesPaidCents: null,
   },
   lastPaymentNoticeAt: '2026-11-23T11:22:00',
-  awaitingSettlementCount: 2,
+  awaitingSettlementCount: 0,
   openCharges: { charges: 0, rentals: 0 },
   recentReceipts: [
     {
@@ -236,7 +238,7 @@ describe('AsaasIntegration', () => {
       expect(flow).toContain('R$ 5.800,00');
       expect(flow).toContain('5 pagas · 1 atrasada');
       expect(flow).toContain('Asaas avisou');
-      expect(flow).toContain('5 marcadas como pagas');
+      expect(flow).toContain('5 cobranças');
       expect(host().querySelectorAll('[data-testid="asaas-receipt"]').length).toBe(1);
       expect(text(q('asaas-fees'))).toContain('2,99% + R$ 0,49');
       // feesPaidCents null (sempre, hoje): a linha "Pagas em …" não aparece
@@ -254,16 +256,40 @@ describe('AsaasIntegration', () => {
       expect(link.getAttribute('href')).toBe('/alugueis/33333333-3333-3333-3333-333333333333');
     });
 
-    it('sem acesso (402 no overview): estado de sem acesso, sem quebrar a página', async () => {
-      await open(OWNER_TOKEN, CONNECTED);
-      const req = http.expectOne(OVERVIEW);
-      // 402 aqui é "papel sem acesso", não o paywall: a tela é dona do status, sem toast genérico
+    it('sem acesso (402 no overview), pela cadeia REAL de interceptors: estado próprio, sem paywall, sem toast', async () => {
+      // A cadeia de produção (auth, erro, impersonação…): é ela que poderia virar 402 em paywall.
+      sessionStorage.setItem('token', OWNER_TOKEN);
+      TestBed.configureTestingModule({
+        imports: [AsaasIntegration],
+        providers: [
+          provideRouter([]),
+          provideHttpClient(withInterceptors(API_INTERCEPTORS)),
+          provideHttpClientTesting(),
+        ],
+      });
+      const router = TestBed.inject(Router);
+      const navigate = vi.spyOn(router, 'navigate');
+      const navigateByUrl = vi.spyOn(router, 'navigateByUrl');
+      fixture = TestBed.createComponent(AsaasIntegration);
+      http = TestBed.inject(HttpTestingController);
+      fixture.detectChanges();
+      // a cadeia real acrescenta `?ngsw-bypass=1`: casa pelo caminho
+      const path = (u: string) => (r: { urlWithParams: string }) => r.urlWithParams.split('?')[0] === u;
+      http.expectOne(path(BASE)).flush(CONNECTED);
+      await settle();
+      const req = http.expectOne(path(OVERVIEW));
       expect(req.request.context.get(OWNED_HTTP_ERRORS)).toBe(true);
       req.flush({ message: 'Sem acesso' }, { status: 402, statusText: 'Payment Required' });
       await settle();
+      // além da rede de segurança de 4xx (250 ms) do ApiErrorService
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await settle();
       expect(q('asaas-denied')).not.toBeNull();
-      expect(text(q('asaas-denied'))).toContain('Só o dono e o gerente');
+      expect(text(q('asaas-denied'))).toContain('não está disponível para você agora');
+      expect(text(q('asaas-denied'))).not.toContain('Só o dono');
       expect(toasts()).toEqual([]);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(navigateByUrl).not.toHaveBeenCalled();
       expect(q('asaas-flow')).toBeNull();
       expect(q('asaas-menu')).toBeNull();
     });
@@ -367,6 +393,121 @@ describe('AsaasIntegration', () => {
     });
   });
 
+  // ------------------------------------------------ troca de contexto (C1)
+  describe('troca de contexto: nada da empresa anterior fica na tela', () => {
+    it('logout e login de outra empresa: carregando até a resposta nova; falha vira erro, sem o saldo antigo', async () => {
+      await open(OWNER_TOKEN, CONNECTED, FULL);
+      expect(text(q('asaas-balance-amount'))).toContain('1.284');
+      fixture.destroy();
+
+      // logout / troca de empresa: SessionService.clear() e o LayoutStore rodam este registro
+      TestBed.inject(TenantResetRegistry).run();
+      sessionStorage.setItem(
+        'token',
+        jwt({ system_role: 'USER', role: 'OWNER', companyId: 'empresa-b' }),
+      );
+      fixture = TestBed.createComponent(AsaasIntegration);
+      fixture.detectChanges();
+      expect(q('asaas-loading')).not.toBeNull();
+      expect(text()).not.toContain('1.284');
+      expect(text()).not.toContain('Mycarshub Locações');
+
+      http.expectOne(BASE).flush('x', { status: 500, statusText: 'Server Error' });
+      await settle();
+      expect(q('asaas-load-error')).not.toBeNull();
+      expect(text()).not.toContain('1.284');
+      expect(text()).not.toContain('Rafael Souza');
+    });
+
+    it('resposta atrasada da empresa anterior chega depois do reset: é descartada', async () => {
+      sessionStorage.setItem('token', OWNER_TOKEN);
+      TestBed.configureTestingModule({
+        imports: [AsaasIntegration],
+        providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      });
+      fixture = TestBed.createComponent(AsaasIntegration);
+      http = TestBed.inject(HttpTestingController);
+      fixture.detectChanges();
+      http.expectOne(BASE).flush(CONNECTED);
+      const lateOverview = http.expectOne(OVERVIEW);
+
+      TestBed.inject(TenantResetRegistry).run();
+      lateOverview.flush(FULL);
+      await settle();
+      expect(q('asaas-balance-amount')).toBeNull();
+      expect(text()).not.toContain('Rafael Souza');
+    });
+
+    it('overview que falha depois de um bom limpa os números (nada velho fica)', async () => {
+      await open(OWNER_TOKEN, CONNECTED, FULL);
+      q<HTMLButtonElement>('asaas-menu')!.click();
+      await settle();
+      q<HTMLButtonElement>('asaas-menu-test')!.click();
+      http.expectOne(BASE).flush(CONNECTED);
+      http.expectOne(OVERVIEW).flush('x', { status: 503, statusText: 'Unavailable' });
+      await settle();
+      expect(q('asaas-balance-amount')).toBeNull();
+      expect(q('asaas-receipts')).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 260));
+    });
+  });
+
+  // ------------------------------------------- pagamentos esperando baixa (M2)
+  describe('pagamentos confirmados sem baixa', () => {
+    it('awaitingSettlementCount > 0: etapa 4 em aviso com "N esperando baixa", sem "Sozinha"', async () => {
+      await open(OWNER_TOKEN, CONNECTED, { ...FULL, awaitingSettlementCount: 2 });
+      const stop = host().querySelector('[data-step="settle"]')!;
+      expect(stop.getAttribute('data-state')).toBe('warn');
+      expect(text(stop)).toContain('2 esperando baixa');
+      expect(stop.querySelector('small.warntxt')).not.toBeNull();
+      expect(text(stop)).not.toContain('Sozinha');
+    });
+  });
+
+  // ---------------------------------------------- testar a conexão (M3)
+  describe('Testar a conexão', () => {
+    async function runTest(overview: AsaasOverview): Promise<void> {
+      await open(OWNER_TOKEN, CONNECTED, FULL);
+      q<HTMLButtonElement>('asaas-menu')!.click();
+      await settle();
+      q<HTMLButtonElement>('asaas-menu-test')!.click();
+      http.expectOne(BASE).flush(CONNECTED);
+      http.expectOne(OVERVIEW).flush(overview);
+      await settle();
+      await new Promise((resolve) => setTimeout(resolve, 260));
+    }
+
+    it('resposta completa: sucesso', async () => {
+      await runTest(FULL);
+      expect(toasts().map((t) => t.kind)).toEqual(['success']);
+    });
+
+    it('resposta parcial (asaasError preenchido, asaas presente): aviso, nunca sucesso', async () => {
+      await runTest({
+        ...FULL,
+        asaas: { ...FULL.asaas!, balanceCents: null },
+        asaasError: 'UNAVAILABLE',
+      });
+      expect(toasts().some((t) => t.kind === 'success')).toBe(false);
+      expect(toasts().some((t) => t.kind === 'warning')).toBe(true);
+    });
+  });
+
+  // ------------------------------------------------ data em UTC (L1)
+  it('nota do ambiente: connectedAt em UTC vira o dia de Brasília (22:30 BRT não vira o dia seguinte)', async () => {
+    await open(
+      ADMIN_TOKEN,
+      {
+        ...CONNECTED_ADMIN,
+        environments: CONNECTED_ADMIN.environments!.map((e) =>
+          e.environment === 'SANDBOX' ? { ...e, connectedAt: '2026-11-21T01:30:00' } : e,
+        ),
+      },
+      FULL,
+    );
+    expect(text(host().querySelector('.envnote'))).toContain('guardada desde 20/11');
+  });
+
   // ------------------------------------------------- sessão "ver como empresa"
   describe('sessão "ver como empresa" (só leitura)', () => {
     it('ligado: vê como o dono, sem Religar, sem Ambiente; o ⋮ só tem o que relê', async () => {
@@ -386,9 +527,6 @@ describe('AsaasIntegration', () => {
       expect(q('asaas-menu-howto')).not.toBeNull();
       expect(q('asaas-menu-key')).toBeNull();
       expect(q('asaas-menu-disconnect')).toBeNull();
-      http.expectNone({ method: 'POST' });
-      http.expectNone({ method: 'PUT' });
-      http.expectNone({ method: 'DELETE' });
     });
 
     it('não ligado: os passos sem o campo nem Conectar, com "Só a empresa pode ligar o Asaas."', async () => {

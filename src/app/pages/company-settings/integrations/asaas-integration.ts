@@ -25,6 +25,7 @@ import { ApiErrorService } from '../../../services/api-error.service';
 import { parseApiError } from '../../../services/api-error';
 import { SessionService } from '../../../services/session.service';
 import { environment as appEnv } from '../../../../environments/environment';
+import { formatDayMonth, parseServerTime } from '../../../utils/server-time';
 import { AsaasIntegrationService } from './asaas-integration.service';
 import { AsaasIcon, AsaasIconName } from './asaas-integration.icons';
 import {
@@ -59,7 +60,8 @@ type PageState = 'loading' | 'error' | 'denied' | 'empty' | 'data';
 
 interface FlowStep {
   key: string;
-  state: 'done' | 'bad' | 'idle';
+  state: 'done' | 'bad' | 'idle' | 'warn';
+  subWarn: boolean;
   title: string;
   sub: string | null;
   subBad: boolean;
@@ -132,7 +134,12 @@ export class AsaasIntegration implements OnInit {
   protected readonly loading = this.service.loading;
   protected readonly saving = this.service.saving;
   protected readonly loadError = this.service.error;
-  protected readonly hasLoaded = computed(() => this.status() !== null);
+  /**
+   * A página só confia no status que ELA pediu: um status deixado no serviço por outra tela
+   * (ou outra empresa) não vale como carregado antes da resposta desta visita.
+   */
+  private readonly statusLoaded = signal(false);
+  protected readonly hasLoaded = computed(() => this.statusLoaded() && this.status() !== null);
   protected readonly connected = computed(() => this.status()?.connected === true);
 
   /** 402/403 do status: o papel não abre a integração (o guard da rota já filtra; isto é a rede). */
@@ -232,7 +239,9 @@ export class AsaasIntegration implements OnInit {
         kind: 'failed',
         reason:
           ov.asaasError === 'UNAUTHORIZED'
-            ? 'O Asaas recusou a chave guardada. Troque a chave no menu ⋮.'
+            ? this.readOnly
+              ? 'O Asaas recusou a chave guardada. Só a empresa pode trocar a chave.'
+              : 'O Asaas recusou a chave guardada. Troque a chave no menu ⋮.'
             : 'O Asaas não respondeu. O resto da página segue normal.',
         account,
       };
@@ -241,7 +250,15 @@ export class AsaasIntegration implements OnInit {
     return { kind: 'ok', int: parts.int, dec: parts.dec, account };
   });
 
-  protected readonly flowProgress = computed(() => (this.webhookBroken() ? 2 / 3 : 1));
+  /** Pagamentos confirmados no Asaas ainda sem baixa (só vem com o aviso em dia). */
+  private readonly awaiting = computed(() => {
+    const n = this.overview()?.awaitingSettlementCount ?? null;
+    return n !== null && n > 0 ? n : 0;
+  });
+
+  protected readonly flowProgress = computed(() =>
+    this.webhookBroken() || this.awaiting() > 0 ? 2 / 3 : 1,
+  );
 
   protected readonly flow = computed<FlowStep[]>(() => {
     const ov = this.overview();
@@ -253,6 +270,7 @@ export class AsaasIntegration implements OnInit {
       title: 'Cobrança enviada',
       sub: m ? `${m.sentCount} em ${this.monthName}` : null,
       subBad: false,
+      subWarn: false,
       value: m ? formatCents(m.sentCents) : null,
       valueOk: false,
       relink: false,
@@ -266,6 +284,7 @@ export class AsaasIntegration implements OnInit {
           (m.overdueCount > 0 ? ` · ${plural(m.overdueCount, 'atrasada', 'atrasadas')}` : '')
         : null,
       subBad: false,
+      subWarn: false,
       value: m ? formatCents(m.paidCents) : null,
       valueOk: true,
       relink: false,
@@ -283,6 +302,7 @@ export class AsaasIntegration implements OnInit {
           title: 'Aviso parado',
           sub: notice ? `desde ${shortDate(notice)}` : null,
           subBad: true,
+          subWarn: false,
           value: null,
           valueOk: false,
           relink: true,
@@ -293,12 +313,14 @@ export class AsaasIntegration implements OnInit {
           title: 'Baixa no aluguel',
           sub: 'espera o aviso voltar',
           subBad: false,
+          subWarn: false,
           value: 'Parada',
           valueOk: false,
           relink: false,
         },
       ];
     }
+    const waiting = this.awaiting();
     return [
       sent,
       paid,
@@ -308,20 +330,36 @@ export class AsaasIntegration implements OnInit {
         title: 'Asaas avisou',
         sub: ov ? (notice ? `último ${noticeLabel(notice)}` : 'nenhum aviso ainda') : null,
         subBad: false,
+        subWarn: false,
         value: 'Em dia',
         valueOk: true,
         relink: false,
       },
-      {
-        key: 'settle',
-        state: 'done',
-        title: 'Baixa no aluguel',
-        sub: m ? plural(m.autoSettledCount, 'marcada como paga', 'marcadas como pagas') : null,
-        subBad: false,
-        value: 'Sozinha',
-        valueOk: true,
-        relink: false,
-      },
+      waiting > 0
+        ? {
+            // O Asaas avisou, mas a baixa não aconteceu: não é "Sozinha".
+            key: 'settle',
+            state: 'warn',
+            title: 'Baixa no aluguel',
+            sub: `${waiting} esperando baixa`,
+            subBad: false,
+            subWarn: true,
+            value: null,
+            valueOk: false,
+            relink: false,
+          }
+        : {
+            key: 'settle',
+            state: 'done',
+            title: 'Baixa no aluguel',
+            // Curto de propósito: na esteira horizontal a linha não pode cortar.
+            sub: m ? plural(m.autoSettledCount, 'cobrança', 'cobranças') : null,
+            subBad: false,
+            subWarn: false,
+            value: 'Sozinha',
+            valueOk: true,
+            relink: false,
+          },
     ];
   });
 
@@ -386,17 +424,22 @@ export class AsaasIntegration implements OnInit {
   private readonly sheetRef = viewChild(BottomSheet);
 
   ngOnInit(): void {
+    this.service.forgetOverview();
     this.loadAll();
   }
 
   protected loadAll(): void {
+    this.statusLoaded.set(false);
+    this.statusDenied.set(false);
     // A falha de carga é desta tela (estado de erro com "Tentar de novo"): nada de toast duplicado.
     this.service.load().subscribe({
       next: (s) => {
+        this.statusLoaded.set(true);
         if (s.connected) this.loadOverview();
       },
       error: (err: HttpErrorResponse) => {
         this.apiErrors.claim(err);
+        if (err.status === 404) this.statusLoaded.set(true);
         this.statusDenied.set(err.status === 402 || err.status === 403);
       },
     });
@@ -499,12 +542,17 @@ export class AsaasIntegration implements OnInit {
         if (!s.connected) return;
         this.service.loadOverview().subscribe({
           next: (ov) => {
-            if (ov.asaas) this.notifications.push('success', 'O Asaas respondeu. Conexão em dia.');
-            else
+            // Resposta parcial (`asaasError` preenchido) é problema, não sucesso.
+            if (ov.asaas && ov.asaasError === null) {
+              this.notifications.push('success', 'O Asaas respondeu. Conexão em dia.');
+            } else if (ov.asaasError === 'UNAUTHORIZED') {
+              this.notifications.push('warning', 'O Asaas recusou a chave guardada.');
+            } else {
               this.notifications.push(
                 'warning',
-                'O Asaas não respondeu agora. Tente de novo em instantes.',
+                'O Asaas respondeu só em parte. Tente de novo em instantes.',
               );
+            }
           },
           error: (err: HttpErrorResponse) => this.apiErrors.claim(err),
         });
@@ -621,7 +669,9 @@ export class AsaasIntegration implements OnInit {
   private envNote(env: AsaasEnvironment): string {
     const row = this.status()?.environments?.find((e) => e.environment === env);
     if (!row) return 'sem chave';
-    const since = row.connectedAt ? ` desde ${shortDate(row.connectedAt)}` : '';
+    // `connectedAt` é UTC sem sufixo (regra de `utils/server-time`): converte antes de mostrar o dia.
+    const at = parseServerTime(row.connectedAt);
+    const since = at ? ` desde ${formatDayMonth(at)}` : '';
     return row.active ? `em uso${since}` : `guardada${since}`;
   }
 }

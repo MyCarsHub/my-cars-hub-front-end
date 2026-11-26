@@ -52,7 +52,7 @@
         <section class="card enter-up" data-testid="asaas-denied">
           <div class="warn" role="alert">
             <svg appAsaasIcon="alert"></svg>
-            <span>Só o dono e o gerente da empresa veem a integração com o Asaas. Peça para um deles se precisar de algo aqui.</span>
+            <span>A integração com o Asaas não está disponível para você agora. Se precisar dela, fale com o suporte.</span>
           </div>
         </section>
       }
@@ -201,7 +201,7 @@
           </app-painted-card>
 
           <!-- caminho do dinheiro -->
-          <section class="card c8 enter-up" style="--stagger-i: 1" aria-labelledby="asaas-flow-h" data-testid="asaas-flow">
+          <section class="card c8 stretch flowcard enter-up" style="--stagger-i: 1" aria-labelledby="asaas-flow-h" data-testid="asaas-flow">
             <div class="ch"><h2 id="asaas-flow-h">Caminho do dinheiro</h2></div>
             <div class="flowwrap">
               <div class="flow money" [class.bad]="webhookBroken()" [style.--p]="flowProgress()">
@@ -210,14 +210,14 @@
                 <ol aria-label="Caminho do dinheiro">
                   @for (step of flow(); track step.key; let i = $index) {
                     <li [class.idle]="step.state === 'idle'" [attr.data-step]="step.key" [attr.data-state]="step.state">
-                      <span class="node" [class.done]="step.state === 'done'" [class.bad]="step.state === 'bad'">
+                      <span class="node" [class.done]="step.state === 'done'" [class.bad]="step.state === 'bad'" [class.warn]="step.state === 'warn'">
                         @if (step.state === 'done') { <svg appAsaasIcon="check"></svg> }
                         @else if (step.state === 'bad') { <svg appAsaasIcon="x"></svg> }
                         @else { {{ i + 1 }} }
                       </span>
                       <span class="t">
                         <b>{{ step.title }}</b>
-                        @if (step.sub) { <small [class.badtxt]="step.subBad">{{ step.sub }}</small> }
+                        @if (step.sub) { <small [class.badtxt]="step.subBad" [class.warntxt]="step.subWarn">{{ step.sub }}</small> }
                       </span>
                       <span class="v" [class.ok]="step.valueOk">
                         @if (step.relink && !readOnly) {
@@ -274,7 +274,7 @@
                 <table class="tbl">
                   <caption class="sr-only">Últimos recebimentos pelo Asaas</caption>
                   <thead>
-                    <tr><th scope="col">Carro</th><th scope="col">Motorista</th><th scope="col">Cobrança</th><th scope="col">Pago</th><th scope="col" class="num-h">Valor</th></tr>
+                    <tr><th scope="col" class="c-car">Carro</th><th scope="col" class="who">Motorista</th><th scope="col" class="c-what">Cobrança</th><th scope="col" class="c-when">Pago</th><th scope="col" class="num-h c-amt">Valor</th></tr>
                   </thead>
                   <tbody>
                     @for (r of receipts(); track r.key) {

@@ -1,12 +1,24 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, map } from 'rxjs/operators';
 import { SessionService } from '../../services/session.service';
+import { ImpersonationService } from '../../services/impersonation.service';
 import { AsaasIntegrationService } from '../../pages/company-settings/integrations/asaas-integration.service';
 import { isImpersonationToken } from '../../pages/company-settings/integrations/asaas-integration.viewer';
 
 /**
  * Faixa amarela no topo de todas as telas quando a chave Asaas ATIVA da empresa é a de testes.
- * Só o PLATFORM_ADMIN vê, e só para ele o status é pedido — uma vez, sem toast em caso de falha.
- * Dono, gerente, motorista e a sessão "ver como empresa" não disparam requisição nenhuma.
+ * Só o PLATFORM_ADMIN vê, e só para ele o status é pedido — sem toast em caso de falha. Dono,
+ * gerente, motorista e a sessão "ver como empresa" não disparam requisição nenhuma.
+ *
+ * ## Reativa ao contexto
+ *
+ * A casca não é recriada ao entrar/sair de "ver como empresa" nem ao trocar de empresa: o token
+ * troca no lugar. Por isso quem pode ver a faixa é recalculado a cada troca de contexto
+ * (`AsaasIntegrationService.epoch`, que sobe no `TenantResetRegistry`), a cada mudança da
+ * impersonação e a cada navegação — e a faixa só confia num status lido com o token ATUAL
+ * (`statusToken`), então nunca mostra o ambiente de outra empresa.
  *
  * Lê o mesmo sinal da página do Asaas (`AsaasIntegrationService.status`): a troca de ambiente,
  * a conexão e a desconexão já gravam ali, então a faixa acende e apaga sem recarregar.
@@ -44,12 +56,26 @@ import { isImpersonationToken } from '../../pages/company-settings/integrations/
 export class AsaasTestModeBar {
   private readonly session = inject(SessionService);
   private readonly asaas = inject(AsaasIntegrationService);
+  private readonly impersonating = inject(ImpersonationService).active;
+  private readonly navigations = toSignal(
+    inject(Router).events.pipe(
+      filter((e) => e instanceof NavigationEnd),
+      map((e) => (e as NavigationEnd).urlAfterRedirects),
+    ),
+    { initialValue: null },
+  );
 
-  /** Admin de verdade (não a sessão de suporte) e com empresa no token: sem empresa não há chave. */
-  private readonly eligible = this.computeEligible();
+  /** Token atual de quem pode ver a faixa, ou `null`. Reavaliado a cada troca de contexto. */
+  private readonly eligibleToken = computed(() => {
+    this.asaas.epoch();
+    this.impersonating();
+    this.navigations();
+    return this.readEligibleToken();
+  });
 
   protected readonly visible = computed(() => {
-    if (!this.eligible) return false;
+    const token = this.eligibleToken();
+    if (!token || this.asaas.statusToken() !== token) return false;
     const s = this.asaas.status();
     if (!s?.connected) return false;
     const active = s.activeEnvironment !== undefined ? s.activeEnvironment : s.environment;
@@ -57,22 +83,25 @@ export class AsaasTestModeBar {
   });
 
   constructor() {
-    if (this.eligible) this.asaas.loadQuietly();
+    effect(() => {
+      if (this.eligibleToken()) this.asaas.loadQuietly();
+    });
   }
 
   /**
-   * Fail-closed: a faixa é um extra da casca e nada nela pode derrubá-la. Qualquer falha ao ler a
-   * sessão (token ilegível, sessão sem esses métodos num ambiente reduzido) vale "não é admin".
+   * Admin de verdade (impersonação fora, pelo claim, antes do papel) e com empresa no token.
+   * Fail-closed: a faixa é um extra da casca e nada nela pode derrubá-la.
    */
-  private computeEligible(): boolean {
+  private readEligibleToken(): string | null {
     try {
-      return (
-        !isImpersonationToken(this.session.getToken()) &&
-        this.session.isPlatformAdmin() &&
-        this.session.getCompanyIdFromToken() !== null
-      );
+      if (this.impersonating()) return null;
+      const token = this.session.getToken();
+      if (!token || isImpersonationToken(token)) return null;
+      if (!this.session.isPlatformAdmin() || this.session.getCompanyIdFromToken() === null)
+        return null;
+      return token;
     } catch {
-      return false;
+      return null;
     }
   }
 }

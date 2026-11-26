@@ -48,17 +48,23 @@
   --a-field: var(--color-canvas);
 }
 
-.asaas { display: flex; flex-direction: column; gap: 14px; }
+/* A grade responde à largura do CONTEÚDO (ao lado do menu), não da janela: a 1024 px o menu
+   come um quarto da tela e três colunas não cabem. */
+.asaas { display: flex; flex-direction: column; gap: 14px; container: asaas / inline-size; }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 /* ---------- grade: uma coluna no celular, 12 no computador, sem teto de largura ---------- */
 .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .grid > * { min-width: 0; }
 .stack { display: grid; gap: 14px; align-content: start; }
-@media (min-width: 1024px) {
-  .asaas { gap: 18px; }
-  .grid { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 18px; align-items: start; }
-  .stack { gap: 18px; }
+/* Meio-termo (tablet, ou computador com pouco espaço): uma coluna, e Taxas e Ambiente lado a lado. */
+@container asaas (min-width: 640px) {
+  .grid, .stack { gap: 18px; }
+  .stack.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
+@container asaas (min-width: 900px) {
+  .grid { grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; }
+  .stack.c4 { grid-template-columns: minmax(0, 1fr); }
   .c4 { grid-column: span 4; }
   .c5 { grid-column: span 5; }
   .c7 { grid-column: span 7; }
@@ -84,7 +90,9 @@
 .menu-d { display: none; }
 @media (min-width: 768px) {
   .menu-m { display: none; }
-  .menu-d { display: flex; justify-content: flex-end; }
+  /* Na linha do título, alinhado ao topo do "Asaas": o slot de ações do layout fica alinhado
+     embaixo, então o botão sobe ao topo e desce a altura do link "← Integrações" (44px). */
+  .menu-d { display: flex; justify-content: flex-end; align-self: flex-start; margin-top: 44px; }
 }
 .icb:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
 
@@ -157,19 +165,24 @@ a.r:active { opacity: 0.7; }
 .plate i { display: flex; justify-content: space-between; align-items: center; height: 9px; padding: 0 5px; background: var(--a-plate-band); color: var(--color-white); font: 700 5.5px/1 var(--font-body); letter-spacing: 0.14em; font-style: normal; }
 .plate > span { font: 700 13px/1 var(--font-mono); letter-spacing: 0.05em; text-align: center; padding: 4px 0 5px; }
 
-.tbl { display: none; width: 100%; border-collapse: collapse; }
-/* O nome absorve a sobra e corta com reticências: o valor nunca sai do cartão nem quebra. */
-.tbl td.who { width: 100%; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Larguras fixas para o que tem tamanho conhecido (placa, rótulo, dia, valor); o nome fica com
+   toda a sobra e só corta quando a tabela realmente não tem espaço. */
+.tbl { display: none; width: 100%; border-collapse: collapse; table-layout: fixed; }
+.tbl .c-car { width: 92px; }
+.tbl .c-what { width: 128px; }
+.tbl .c-when { width: 74px; }
+.tbl .c-amt { width: 136px; }
+.tbl td { overflow: hidden; text-overflow: ellipsis; }
 .tbl td.who .cell-link, .tbl td.who b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tbl td.who .cell-link { display: inline-block; line-height: 44px; vertical-align: middle; }
-.tbl th { text-align: left; font-size: 12.5px; font-weight: 600; color: var(--color-fg-subtle); padding: 0 14px 10px; white-space: nowrap; }
+.tbl th { text-align: left; font-size: 12.5px; font-weight: 600; color: var(--color-fg-subtle); padding: 0 10px 10px; white-space: nowrap; }
 .tbl th.num-h { text-align: right; }
-.tbl td { padding: 12px 14px; font-size: 14.5px; white-space: nowrap; vertical-align: middle; color: var(--color-fg); }
+.tbl td { padding: 12px 10px; font-size: 14.5px; white-space: nowrap; vertical-align: middle; color: var(--color-fg); }
 .tbl th:first-child, .tbl td:first-child { padding-left: 8px; }
 .tbl .num { text-align: right; }
 .cell-link { color: inherit; text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; border-radius: 8px; }
 .cell-link:hover { text-decoration: underline; }
-@media (min-width: 1024px) {
+@container asaas (min-width: 640px) {
   .tbl { display: table; }
   .rows.mob { display: none; }
 }
@@ -199,7 +212,8 @@ a.r:active { opacity: 0.7; }
 .ign button svg { width: 17px; height: 17px; }
 .ign[data-env='prod'] button[data-v='prod'] { color: var(--color-white); }
 .ign[data-env='test'] button[data-v='test'] { color: var(--a-amber-ink); }
-.envnote { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; color: var(--color-fg-muted); }
+/* As duas notas quebram em duas linhas quando o cartão é estreito (celular de 320 px). */
+.envnote { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 13.5px; color: var(--color-fg-muted); }
 .envnote span { white-space: nowrap; }
 
 /* ---------- folhas ---------- */

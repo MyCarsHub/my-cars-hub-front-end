@@ -1,11 +1,13 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { environment } from '../../../environments/environment';
 import { AsaasIntegrationService } from '../../pages/company-settings/integrations/asaas-integration.service';
 import type { AsaasIntegrationStatus } from '../../pages/company-settings/integrations/asaas-integration.types';
+import { TenantResetRegistry } from '../../services/tenant-reset.registry';
 import { AsaasTestModeBar } from './asaas-test-mode-bar';
 
 const BASE = `${environment.apiUrl}/companies/current/integrations/asaas`;
@@ -35,7 +37,7 @@ describe('AsaasTestModeBar', () => {
     sessionStorage.setItem('token', token);
     TestBed.configureTestingModule({
       imports: [AsaasTestModeBar],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(AsaasTestModeBar);
@@ -96,5 +98,66 @@ describe('AsaasTestModeBar', () => {
     http.expectOne(BASE).flush('x', { status: 500, statusText: 'Server Error' });
     fixture.detectChanges();
     expect(bar()).toBeNull();
+  });
+
+  describe('troca de contexto com a casca já montada (o token troca no lugar)', () => {
+    const SANDBOX = {
+      ...ADMIN_PROD,
+      environment: 'SANDBOX' as const,
+      activeEnvironment: 'SANDBOX' as const,
+    };
+
+    it('entrar em "ver como empresa": a faixa some e nenhuma requisição sai', () => {
+      mount(jwt({ system_role: 'PLATFORM_ADMIN', companyId: COMPANY }));
+      http.expectOne(BASE).flush(SANDBOX);
+      fixture.detectChanges();
+      expect(bar()).not.toBeNull();
+
+      // ImpersonationService.begin(): reset dos caches e, em seguida, o token de suporte
+      TestBed.inject(TenantResetRegistry).run();
+      sessionStorage.setItem(
+        'token',
+        jwt({ system_role: 'USER', impersonation: true, companyId: 'cliente' }),
+      );
+      fixture.detectChanges();
+      expect(bar()).toBeNull();
+      http.expectNone(BASE);
+    });
+
+    it('a página do cliente carregando SANDBOX durante a sessão de suporte não acende a faixa', () => {
+      mount(jwt({ system_role: 'USER', impersonation: true, companyId: 'cliente' }));
+      http.expectNone(BASE);
+      TestBed.inject(AsaasIntegrationService).load().subscribe();
+      http.expectOne(BASE).flush(SANDBOX);
+      fixture.detectChanges();
+      expect(bar()).toBeNull();
+    });
+
+    it('sair da sessão de suporte: volta a pedir o status do admin e a faixa reflete a empresa dele', () => {
+      mount(jwt({ system_role: 'USER', impersonation: true, companyId: 'cliente' }));
+      http.expectNone(BASE);
+
+      TestBed.inject(TenantResetRegistry).run();
+      sessionStorage.setItem('token', jwt({ system_role: 'PLATFORM_ADMIN', companyId: COMPANY }));
+      fixture.detectChanges();
+      http.expectOne(BASE).flush(SANDBOX);
+      fixture.detectChanges();
+      expect(bar()).not.toBeNull();
+    });
+
+    it('admin troca de empresa: o status da anterior não vale; pede de novo e só mostra o da nova', () => {
+      mount(jwt({ system_role: 'PLATFORM_ADMIN', companyId: COMPANY }));
+      http.expectOne(BASE).flush(SANDBOX);
+      fixture.detectChanges();
+      expect(bar()).not.toBeNull();
+
+      TestBed.inject(TenantResetRegistry).run();
+      sessionStorage.setItem('token', jwt({ system_role: 'PLATFORM_ADMIN', companyId: 'outra' }));
+      fixture.detectChanges();
+      expect(bar()).toBeNull();
+      http.expectOne(BASE).flush(ADMIN_PROD);
+      fixture.detectChanges();
+      expect(bar()).toBeNull();
+    });
   });
 });
