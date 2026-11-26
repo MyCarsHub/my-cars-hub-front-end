@@ -1,496 +1,494 @@
-<app-default-page-layout
-  title="Integração Asaas"
-  description="Conecte sua conta Asaas para gerar cobranças de aluguéis e caução. O MyCarsHub não faz split — todos os pagamentos vão direto para a sua conta Asaas."
->
-  <app-back-link
-    link="/configuracoes/integracoes"
-    label="Voltar para integrações"
-    placement="top"
-  />
-
-  @if (loading() && !hasLoaded()) {
-    <div class="space-y-3">
-      <div class="h-32 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
-      <div class="h-24 rounded-2xl bg-surface-sunken dark:bg-placeholder-fill animate-pulse"></div>
+<app-default-page-layout title="Asaas" [description]="description()">
+  <app-back-link pageBack link="/configuracoes/integracoes" label="Integrações" placement="none" />
+  @if (headChip(); as chip) {
+    <app-status-chip pageBadge [tone]="chip.tone" data-testid="asaas-chip">{{ chip.label }}</app-status-chip>
+  }
+  <!-- O ⋮ fica à direita do título: no celular dentro da linha do título (o layout empilha o
+       slot de ações embaixo da descrição); a partir de md, no slot de ações. Um @if por elemento:
+       bloco com duas raízes não é projetado no slot (cairia no conteúdo). -->
+  @if (pageState() === 'data') {
+    <button pageBadge type="button" class="icb press menu-m" aria-label="Mais ações" aria-haspopup="dialog"
+      data-testid="asaas-menu" (click)="openMenu()">
+      <svg appAsaasIcon="dots"></svg>
+    </button>
+  }
+  @if (pageState() === 'data') {
+    <div pageActions class="menu-d">
+      <button type="button" class="icb press" aria-label="Mais ações" aria-haspopup="dialog"
+        data-testid="asaas-menu" (click)="openMenu()">
+        <svg appAsaasIcon="dots"></svg>
+      </button>
     </div>
   }
 
-  @if (loadError() && !hasLoaded()) {
-    <app-alert-banner variant="error" [message]="loadError() ?? ''" />
-  }
-
-  @if (hasLoaded()) {
-    @if (connected() && status(); as s) {
-      <!-- ============ CONNECTED STATE ============ -->
-      <app-page-card title="Conectado ao Asaas">
-        <div cardIcon class="p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round" class="text-emerald-600 dark:text-emerald-300">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-            <polyline points="22 4 12 14.01 9 11.01"/>
-          </svg>
+  <div class="asaas">
+    @switch (pageState()) {
+      <!-- ============================================================ carregando -->
+      @case ('loading') {
+        <div class="grid" aria-busy="true" data-testid="asaas-loading">
+          <span class="sr-only" role="status">Carregando a integração com o Asaas…</span>
+          <div class="skel c4 h-56"></div>
+          <div class="skel c8 h-56"></div>
+          <div class="skel c8 h-40"></div>
+          <div class="skel c4 h-40"></div>
         </div>
+      }
 
-        <div cardActions>
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
-                       bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-500/30">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
-            Ativo
-          </span>
-        </div>
-
-        <div class="p-4 sm:p-6 space-y-4">
-          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 p-4 flex items-start gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round" class="text-emerald-600 dark:text-emerald-300 shrink-0" aria-hidden="true">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-              <polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-            <div class="min-w-0">
-              <p class="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
-                Conectado ao Asaas ({{ environmentLabel(s.environment) }})
-              </p>
-              <p class="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
-                Cobranças de aluguéis podem ser geradas automaticamente.
-              </p>
-            </div>
+      <!-- ================================================================== erro -->
+      @case ('error') {
+        <section class="card enter-up" data-testid="asaas-load-error">
+          <div class="warn badbox" role="alert">
+            <svg appAsaasIcon="alert"></svg>
+            <span>Não deu para carregar a integração com o Asaas agora. Suas cobranças continuam saindo normalmente.</span>
           </div>
+          <button type="button" class="btn primary press self-start" data-testid="asaas-retry" (click)="loadAll()">
+            Tentar de novo
+          </button>
+        </section>
+      }
 
-          <!-- Webhook recusado pelo Asaas: a conexão funciona e cobranças saem, mas
-               pagamento feito no Asaas nunca chega aqui. Dizer isso, com o motivo
-               e a saída, é o ponto desta faixa. -->
-          @if (webhookBroken()) {
-            <div data-testid="webhook-broken" class="space-y-3">
-              <app-alert-banner variant="error">
-                <strong class="font-semibold">O webhook do Asaas não está registrado.</strong>
-                Sem o webhook, os pagamentos feitos no Asaas não aparecem aqui.
-                @if (s.webhookFailureReason) {
-                  <span class="mt-1 block text-xs" data-testid="webhook-reason">
-                    Motivo informado pelo Asaas: {{ s.webhookFailureReason }}
-                  </span>
-                }
-                @if (webhookRetryFailed()) {
-                  <span class="mt-1 block text-xs" data-testid="webhook-retry-failed">
-                    A nova tentativa não funcionou. O motivo acima é o mais recente.
-                  </span>
-                }
-              </app-alert-banner>
-              @if (webhookError(); as webhookErr) {
-                <app-alert-banner variant="error" [message]="webhookErr" />
-              }
-              <button
-                type="button"
-                data-testid="webhook-reregister"
-                (click)="reregisterWebhook()"
-                [disabled]="webhookBusy()"
-                class="w-full sm:w-auto min-h-[44px] px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600
-                       text-white text-sm font-semibold shadow-sm disabled:opacity-60 transition-colors
-                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
-                       focus-visible:ring-offset-2">
-                {{ webhookBusy() ? 'Registrando…' : 'Registrar webhook novamente' }}
-              </button>
-            </div>
-          }
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Ambiente</p>
-              <p class="mt-1 text-sm font-medium text-fg-body">
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                  [class.bg-amber-100]="s.environment === 'SANDBOX'" [class.dark:bg-amber-500/15]="s.environment === 'SANDBOX'"
-                  [class.text-amber-800]="s.environment === 'SANDBOX'" [class.dark:text-amber-200]="s.environment === 'SANDBOX'"
-                  [class.bg-blue-100]="s.environment === 'PRODUCTION'" [class.dark:bg-blue-500/15]="s.environment === 'PRODUCTION'"
-                  [class.text-blue-800]="s.environment === 'PRODUCTION'" [class.dark:text-blue-200]="s.environment === 'PRODUCTION'">
-                  {{ environmentLabel(s.environment) }}
-                </span>
-              </p>
-            </div>
-            <div>
-              <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Conectado em</p>
-              <p class="mt-1 text-sm text-fg-body tabular-nums">
-                {{ formatDateTime(s.connectedAt) }}
-              </p>
-            </div>
-            <div class="sm:col-span-2">
-              <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Última verificação</p>
-              <p class="mt-1 text-sm text-fg-body tabular-nums">
-                {{ formatDateTime(s.lastVerifiedAt) }}
-              </p>
-            </div>
-            @if (webhookOk()) {
-              <div class="sm:col-span-2">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
-                             bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-500/30">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                  Webhook configurado automaticamente
-                </span>
-              </div>
-            }
+      <!-- ============================================================ sem acesso -->
+      @case ('denied') {
+        <section class="card enter-up" data-testid="asaas-denied">
+          <div class="warn" role="alert">
+            <svg appAsaasIcon="alert"></svg>
+            <span>A integração com o Asaas não está disponível para você agora. Se precisar dela, fale com o suporte.</span>
           </div>
+        </section>
+      }
 
-          <div class="pt-2 border-t border-edge-soft flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-            <button
-              type="button"
-              (click)="askDisconnect()"
-              [disabled]="saving()"
-              class="w-full sm:w-auto px-4 py-3 rounded-xl border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300
-                     hover:bg-rose-50 dark:hover:bg-rose-500/10 text-sm font-semibold disabled:opacity-60">
-              Desconectar Asaas
-            </button>
-          </div>
-        </div>
-      </app-page-card>
-    } @else {
-      <!-- ============ DISCONNECTED — WIZARD ============ -->
-
-      <!-- Step indicator -->
-      <ol class="flex items-center gap-2 mb-4 sm:mb-6 overflow-x-auto pb-1"
-        aria-label="Progresso da configuração">
-        @for (n of [1, 2, 3]; track n) {
-          <li class="flex items-center gap-2 shrink-0">
-            <span class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-              [class.bg-emerald-500]="step() > n"
-              [class.text-white]="step() > n"
-              [class.border-emerald-500]="step() > n"
-              [class.bg-primary-500]="step() === n"
-              [class.text-white]="step() === n"
-              [class.border-primary-500]="step() === n"
-              [class.bg-surface]="step() < n"
-              [class.text-fg-subtle]="step() < n"
-              [class.border-edge]="step() < n">
-              @if (step() > n) {
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                  stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              } @else {
-                <span class="tabular-nums">{{ n }}</span>
-              }
-              <span class="hidden sm:inline">
-                @switch (n) {
-                  @case (1) { Ambiente }
-                  @case (2) { Chave da API }
-                  @case (3) { Conectar }
-                }
-              </span>
-            </span>
-            @if (n < 3) {
-              <span class="w-6 h-px bg-surface-strong shrink-0" aria-hidden="true"></span>
-            }
-          </li>
-        }
-      </ol>
-
-      <form [formGroup]="connectForm" (ngSubmit)="submitConnect()" class="space-y-4 sm:space-y-6">
-        <!-- STEP 1: Environment -->
-        @if (step() === 1) {
-          <app-page-card title="1. Escolha o ambiente">
-            <div cardIcon class="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round" class="text-blue-600 dark:text-blue-300">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              </svg>
+      <!-- ======================================================== não ligado -->
+      @case ('empty') {
+        <div class="grid">
+          <section class="card c7 enter-up" aria-labelledby="asaas-steps-h">
+            <div class="ch">
+              <h2 id="asaas-steps-h">Ligar em 4 passos</h2>
+              <app-status-chip tone="amber">1 minuto</app-status-chip>
             </div>
+            <p class="lead">Faça com o Asaas aberto no navegador.</p>
 
-            <div class="p-4 sm:p-6 space-y-4">
-              <p class="text-sm text-fg-muted">
-                @if (isPlatformAdmin()) {
-                  Use <strong class="text-fg-body">Sandbox</strong> para testes internos ou
-                  Produção para cobranças reais.
-                } @else {
-                  Conecte a conta de <strong class="text-fg-body">Produção</strong> da sua empresa.
-                  Os pagamentos serão recebidos diretamente nela.
-                }
-              </p>
-
-              <div class="grid grid-cols-1 gap-3" [class.md:grid-cols-2]="isPlatformAdmin()">
-                @if (isPlatformAdmin()) {
-                  <button type="button" (click)="selectEnvironment('SANDBOX')"
-                  class="text-left p-4 sm:p-5 rounded-2xl border-2 transition-all min-h-[44px]"
-                  [class.border-primary-500]="selectedEnv() === 'SANDBOX'"
-                  [class.ring-2]="selectedEnv() === 'SANDBOX'"
-                  [class.ring-primary-500]="selectedEnv() === 'SANDBOX'"
-                  [class.bg-primary-50]="selectedEnv() === 'SANDBOX'" [class.dark:bg-primary-500/10]="selectedEnv() === 'SANDBOX'"
-                  [class.border-edge]="selectedEnv() !== 'SANDBOX'"
-                  [class.hover:border-edge-strong]="selectedEnv() !== 'SANDBOX'">
-                  <div class="flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                      <p class="text-sm font-semibold text-fg">Sandbox (teste)</p>
-                      <p class="text-xs text-fg-subtle mt-1 leading-relaxed">
-                        Ambiente de testes. Nenhuma cobrança real é gerada.
-                      </p>
-                    </div>
-                    <span class="w-4 h-4 rounded-full border-2 shrink-0 mt-0.5"
-                      [class.border-primary-500]="selectedEnv() === 'SANDBOX'"
-                      [class.bg-primary-500]="selectedEnv() === 'SANDBOX'"
-                      [class.border-edge-strong]="selectedEnv() !== 'SANDBOX'"
-                      aria-hidden="true"></span>
-                  </div>
-                  <span class="inline-flex items-center gap-1 mt-3 px-2 py-0.5 rounded-full text-[10px] font-semibold
-                               bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200 uppercase tracking-wide">
-                    Exclusivo para administradores
+            <div class="flow steps" [class.lit]="keyCheck().ok" [style.--p]="keyCheck().ok ? 1 : 0">
+              <span class="fill" aria-hidden="true"></span>
+              <ol>
+                <li>
+                  <span class="node" [class.done]="keyCheck().ok">
+                    @if (keyCheck().ok) { <svg appAsaasIcon="check"></svg> } @else { 1 }
                   </span>
-                  </button>
-                }
-
-                <button type="button" (click)="selectEnvironment('PRODUCTION')"
-                  class="text-left p-4 sm:p-5 rounded-2xl border-2 transition-all min-h-[44px]"
-                  [class.border-primary-500]="selectedEnv() === 'PRODUCTION'"
-                  [class.ring-2]="selectedEnv() === 'PRODUCTION'"
-                  [class.ring-primary-500]="selectedEnv() === 'PRODUCTION'"
-                  [class.bg-primary-50]="selectedEnv() === 'PRODUCTION'" [class.dark:bg-primary-500/10]="selectedEnv() === 'PRODUCTION'"
-                  [class.border-edge]="selectedEnv() !== 'PRODUCTION'"
-                  [class.hover:border-edge-strong]="selectedEnv() !== 'PRODUCTION'">
-                  <div class="flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                      <p class="text-sm font-semibold text-fg">Produção</p>
-                      <p class="text-xs text-fg-subtle mt-1 leading-relaxed">
-                        Cobranças reais são geradas para seus motoristas.
-                      </p>
-                    </div>
-                    <span class="w-4 h-4 rounded-full border-2 shrink-0 mt-0.5"
-                      [class.border-primary-500]="selectedEnv() === 'PRODUCTION'"
-                      [class.bg-primary-500]="selectedEnv() === 'PRODUCTION'"
-                      [class.border-edge-strong]="selectedEnv() !== 'PRODUCTION'"
-                      aria-hidden="true"></span>
-                  </div>
-                  <span class="inline-flex items-center gap-1 mt-3 px-2 py-0.5 rounded-full text-[10px] font-semibold
-                               bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200 uppercase tracking-wide">
-                    Cobranças reais
-                  </span>
-                </button>
-              </div>
-
-              <div class="flex justify-end pt-2">
-                <button type="button" (click)="nextStep()"
-                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3
-                         rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
-                         shadow-sm transition-colors min-h-[44px]">
-                  Continuar
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round" aria-hidden="true">
-                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </app-page-card>
-        }
-
-        <!-- STEP 2: Access Token -->
-        @if (step() === 2) {
-          <app-page-card title="2. Pegue sua chave Asaas">
-            <div cardIcon class="p-2 bg-primary-low dark:bg-primary-500/15 rounded-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round" class="text-primary-500 dark:text-primary-400">
-                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
-              </svg>
-            </div>
-
-            <div class="p-4 sm:p-6 space-y-5">
-              <ol class="space-y-3">
-                <li class="flex items-start gap-3">
-                  <span class="flex items-center justify-center w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-500/15 text-primary-700 dark:text-primary-400
-                               text-xs font-semibold shrink-0">1</span>
-                  <div class="min-w-0 text-sm text-fg-soft leading-relaxed">
-                    Acesse sua conta Asaas em
-                    <a [href]="asaasConfigUrl()" target="_blank" rel="noopener noreferrer"
-                      class="inline-flex items-center gap-1 text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 font-medium underline break-all">
-                      {{ asaasConfigUrl() }}
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" aria-hidden="true">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                        <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                      </svg>
+                  <span class="t"><b>Abra a página da chave</b><small>No seu Asaas, em Integrações.</small></span>
+                  <span></span>
+                  <div class="stepbody">
+                    <a class="btn ghost press self-start" [href]="keysUrl" target="_blank" rel="noopener noreferrer">
+                      <svg appAsaasIcon="ext"></svg>Abrir no Asaas
                     </a>
                   </div>
                 </li>
-                <li class="flex items-start gap-3">
-                  <span class="flex items-center justify-center w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-500/15 text-primary-700 dark:text-primary-400
-                               text-xs font-semibold shrink-0">2</span>
-                  <div class="min-w-0 text-sm text-fg-soft leading-relaxed">
-                    Vá em <strong class="text-fg">Integrações → API Asaas</strong>.
+                <li>
+                  <span class="node" [class.done]="keyCheck().ok">
+                    @if (keyCheck().ok) { <svg appAsaasIcon="check"></svg> } @else { 2 }
+                  </span>
+                  <span class="t"><b>Gere a chave «MyCarsHub»</b><small>Sem data para expirar. Não marque a opção de saque.</small></span>
+                  <span></span>
+                  <div class="stepbody">
+                    <div class="shot" aria-hidden="true">
+                      <div class="shot-bar"><span>Chaves de API</span><span class="shot-btn">⊕ Gerar chave de API</span></div>
+                      <div class="shot-cb"><span class="box"></span><span>Permitir operações de saque via API<em>Deixe desmarcado.</em></span></div>
+                    </div>
                   </div>
                 </li>
-                <li class="flex items-start gap-3">
-                  <span class="flex items-center justify-center w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-500/15 text-primary-700 dark:text-primary-400
-                               text-xs font-semibold shrink-0">3</span>
-                  <div class="min-w-0 text-sm text-fg-soft leading-relaxed">
-                    Copie a chave que começa com
-                    <code class="px-1.5 py-0.5 rounded bg-surface-sunken text-fg-body text-xs font-mono">$aact_YTU5YTE0...</code>
-                  </div>
+                <li>
+                  <span class="node" [class.done]="keyCheck().ok">
+                    @if (keyCheck().ok) { <svg appAsaasIcon="check"></svg> } @else { 3 }
+                  </span>
+                  <span class="t"><b>Copie a chave</b><small>Ela só aparece uma vez. Se perder, gere outra.</small></span>
+                  <span></span>
                 </li>
-                <li class="flex items-start gap-3">
-                  <span class="flex items-center justify-center w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-500/15 text-primary-700 dark:text-primary-400
-                               text-xs font-semibold shrink-0">4</span>
-                  <div class="min-w-0 text-sm text-fg-soft leading-relaxed">
-                    Cole abaixo:
+                <li>
+                  <span class="node" [class.done]="keyCheck().ok" [class.wait]="!keyCheck().ok">
+                    @if (keyCheck().ok) { <svg appAsaasIcon="check"></svg> } @else { 4 }
+                  </span>
+                  <span class="t"><b>Cole aqui</b><small>Fica guardada criptografada. Ninguém da equipe vê.</small></span>
+                  <span></span>
+                  <div class="stepbody">
+                    @if (readOnly) {
+                      <p class="lead ro" data-testid="asaas-readonly-connect">Só a empresa pode ligar o Asaas.</p>
+                    } @else {
+                      <ng-container *ngTemplateOutlet="keyField; context: { $implicit: 'asaas-key' }" />
+                    }
                   </div>
                 </li>
               </ol>
+            </div>
+          </section>
 
-              <app-form-field
-                label="Chave da API"
-                controlId="asaas-access-token"
-                [required]="true"
-                [control]="connectForm.controls.accessToken"
-                [messages]="accessTokenMessages">
-                <div class="relative">
-                  <input
-                    appFieldControl
-                    [type]="showAccessToken() ? 'text' : 'password'"
-                    formControlName="accessToken"
-                    autocomplete="off"
-                    spellcheck="false"
-                    placeholder="$aact_YT..."
-                    class="w-full bg-surface-muted border rounded-xl px-4 py-3 pr-11
-                           text-fg-body font-mono text-sm
-                           focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
-                  <button
-                    type="button"
-                    (click)="toggleAccessTokenVisibility()"
-                    class="absolute inset-y-0 right-0 flex items-center px-3 text-fg-faint hover:text-fg-soft"
-                    [attr.aria-label]="showAccessToken() ? 'Ocultar chave' : 'Mostrar chave'">
-                    @if (showAccessToken()) {
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    } @else {
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                      </svg>
+          <div class="c5 stack">
+            <section class="card preview enter-up" style="--stagger-i: 1" aria-labelledby="asaas-preview-h">
+              <div class="ch"><h2 id="asaas-preview-h">O que muda quando ligar</h2></div>
+              <div class="flow" [class.lit]="keyCheck().ok" [style.--p]="keyCheck().ok ? 1 : 0" data-testid="asaas-preview">
+                <span class="fill" aria-hidden="true"></span>
+                @if (keyCheck().ok) { <span class="dot" aria-hidden="true"></span> }
+                <ol aria-label="O que acontece depois de ligar">
+                  @for (p of previewSteps; track p.title; let i = $index) {
+                    <li>
+                      <span class="node" [class.done]="keyCheck().ok">
+                        @if (keyCheck().ok) { <svg appAsaasIcon="check"></svg> } @else { {{ i + 1 }} }
+                      </span>
+                      <span class="t"><b>{{ p.title }}</b><small>{{ p.sub }}</small></span>
+                      <span class="v"></span>
+                    </li>
+                  }
+                </ol>
+              </div>
+            </section>
+            <section class="card enter-up" style="--stagger-i: 2">
+              <a class="linkrow" [href]="signupUrl" target="_blank" rel="noopener noreferrer">
+                <span class="tile"><svg appAsaasIcon="ext"></svg></span>
+                <span class="t"><b>Ainda não tem Asaas?</b><small>Conta grátis. Paga só a taxa por cobrança.</small></span>
+                <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6" /></svg>
+              </a>
+            </section>
+            @if (whatsappUrl) {
+              <div class="help">
+                <span>Travou em algum passo?</span>
+                <a class="btn wa press" [href]="whatsappUrl" target="_blank" rel="noopener noreferrer">
+                  <svg appAsaasIcon="wa"></svg>Fale com a gente
+                </a>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- ================================================================ ligado -->
+      @case ('data') {
+        <!-- A faixa de testes do admin mora na casca (app-asaas-test-mode-bar): vale para todas as telas. -->
+        <div class="grid">
+          <!-- saldo: cartão pintado -->
+          <app-painted-card tone="orange" class="c4 stretch paint" data-testid="asaas-balance">
+            <span class="k">Saldo no Asaas</span>
+            @switch (balance().kind) {
+              @case ('loading') {
+                <span class="amt-skel" aria-hidden="true"></span>
+                <span class="sr-only" role="status">Carregando o saldo…</span>
+              }
+              @case ('failed') {
+                @if (balance(); as b) {
+                  @if (b.kind === 'failed') {
+                    <span class="failed" data-testid="asaas-balance-failed">Não deu para ler o saldo agora</span>
+                    <span class="s">{{ b.reason }}</span>
+                    @if (b.account) {
+                      <span class="acct" data-testid="asaas-account">{{ b.account }}</span>
                     }
+                    <button type="button" class="btn white press mt-auto" data-testid="asaas-balance-retry"
+                      [disabled]="overviewLoading()" (click)="loadOverview()">
+                      Tentar de novo
+                    </button>
+                  }
+                }
+              }
+              @case ('ok') {
+                @if (balance(); as b) {
+                  @if (b.kind === 'ok') {
+                    <span class="amt" data-testid="asaas-balance-amount" [style.--amt-n]="b.int.length"><small>R$</small>{{ b.int }}<em>{{ b.dec }}</em></span>
+                    <span class="s">pronto para sacar na sua conta</span>
+                    @if (b.account) { <span class="acct" data-testid="asaas-account">{{ b.account }}</span> }
+                    <a class="btn white press block mt-auto" [href]="asaasUrl()" target="_blank" rel="noopener noreferrer">
+                      <svg appAsaasIcon="ext"></svg>Abrir o Asaas
+                    </a>
+                  }
+                }
+              }
+            }
+          </app-painted-card>
+
+          <!-- caminho do dinheiro -->
+          <section class="card c8 stretch flowcard enter-up" style="--stagger-i: 1" aria-labelledby="asaas-flow-h" data-testid="asaas-flow">
+            <div class="ch"><h2 id="asaas-flow-h">Caminho do dinheiro</h2></div>
+            <div class="flowwrap">
+              <div class="flow money" [class.bad]="webhookBroken()" [style.--p]="flowProgress()">
+                <span class="fill" aria-hidden="true"></span>
+                @if (!webhookBroken()) { <span class="dot" aria-hidden="true"></span> }
+                <ol aria-label="Caminho do dinheiro">
+                  @for (step of flow(); track step.key; let i = $index) {
+                    <li [class.idle]="step.state === 'idle'" [attr.data-step]="step.key" [attr.data-state]="step.state">
+                      <span class="node" [class.done]="step.state === 'done'" [class.bad]="step.state === 'bad'" [class.warn]="step.state === 'warn'">
+                        @if (step.state === 'done') { <svg appAsaasIcon="check"></svg> }
+                        @else if (step.state === 'bad') { <svg appAsaasIcon="x"></svg> }
+                        @else { {{ i + 1 }} }
+                      </span>
+                      <span class="t">
+                        <b>{{ step.title }}</b>
+                        @if (step.sub) { <small [class.badtxt]="step.subBad" [class.warntxt]="step.subWarn">{{ step.sub }}</small> }
+                      </span>
+                      <span class="v" [class.ok]="step.valueOk">
+                        @if (step.relink && !readOnly) {
+                          <button type="button" class="btn primary sm press" data-testid="asaas-relink"
+                            [disabled]="webhookBusy()" (click)="relink()">
+                            {{ webhookBusy() ? 'Religando…' : 'Religar' }}
+                          </button>
+                        } @else if (step.value) {
+                          {{ step.value }}
+                        }
+                      </span>
+                    </li>
+                  }
+                </ol>
+              </div>
+            </div>
+            @if (webhookBroken()) {
+              <div class="warn badbox" role="alert" data-testid="asaas-webhook-failed">
+                <svg appAsaasIcon="alert"></svg>
+                <span>
+                  O Asaas recusou o endereço de aviso. Pagamentos feitos lá não dão baixa aqui até religar.
+                  @if (status()?.webhookFailureReason; as reason) {
+                    <span data-testid="asaas-webhook-reason">Motivo do Asaas: «{{ reason }}».</span>
+                  }
+                  @if (webhookRetryFailed()) {
+                    <span class="block mt-1" data-testid="asaas-relink-failed">A nova tentativa não funcionou. O motivo acima é o mais recente.</span>
+                  }
+                  @if (webhookError(); as werr) {
+                    <span class="block mt-1" data-testid="asaas-relink-error">{{ werr }}</span>
+                  }
+                </span>
+              </div>
+            }
+          </section>
+
+          <!-- últimos recebimentos -->
+          @if (!overviewError() || overview()) {
+            <section class="card c8 enter-up" style="--stagger-i: 2" aria-labelledby="asaas-rec-h" data-testid="asaas-receipts">
+              <div class="ch"><h2 id="asaas-rec-h">Últimos recebimentos</h2></div>
+              @if (!overview()) {
+                <div class="rows" aria-hidden="true">
+                  <div class="skel h-[60px]"></div><div class="skel h-[60px]"></div><div class="skel h-[60px]"></div>
+                </div>
+              } @else if (receipts().length === 0) {
+                <p class="empty" data-testid="asaas-receipts-empty">
+                  Nenhum recebimento pelo Asaas ainda. Eles aparecem aqui quando o primeiro motorista pagar.
+                </p>
+              } @else {
+                <div class="rows mob">
+                  @for (r of receiptsMobile(); track r.key) {
+                    <ng-container *ngTemplateOutlet="receiptRow; context: { $implicit: r }" />
+                  }
+                </div>
+                <table class="tbl">
+                  <caption class="sr-only">Últimos recebimentos pelo Asaas</caption>
+                  <thead>
+                    <tr><th scope="col" class="c-car">Carro</th><th scope="col" class="who">Motorista</th><th scope="col" class="c-what">Cobrança</th><th scope="col" class="c-when">Pago</th><th scope="col" class="num-h c-amt" [style.width.px]="amountColumnPx()">Valor</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (r of receipts(); track r.key) {
+                      <tr>
+                        <td>@if (r.plate) { <ng-container *ngTemplateOutlet="plate; context: { $implicit: r.plate }" /> }</td>
+                        <td class="who">
+                          @if (r.rentalId !== null) {
+                            <a class="cell-link" [routerLink]="['/alugueis', r.rentalId]"><b>{{ r.driver }}</b></a>
+                          } @else {
+                            <b>{{ r.driver }}</b>
+                          }
+                        </td>
+                        <td>{{ r.label ?? '' }}</td>
+                        <td>{{ r.when }}</td>
+                        <td class="num">{{ r.amount }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            </section>
+          }
+
+          <div class="c4 stack">
+            <!-- taxas: some quando o Asaas não informou nada -->
+            @if (fees().length > 0 || feesPaid()) {
+              <section class="card enter-up" style="--stagger-i: 3" aria-labelledby="asaas-fees-h" data-testid="asaas-fees">
+                <div class="ch"><h2 id="asaas-fees-h">Taxas do Asaas</h2></div>
+                @if (fees().length > 0) {
+                  <div class="fees">
+                    @for (f of fees(); track f.label) {
+                      <div class="fee" [attr.data-fee]="f.icon">
+                        <span class="tile"><svg [appAsaasIcon]="f.icon"></svg></span><b>{{ f.label }}</b><span class="mono">{{ f.value }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+                @if (feesPaid(); as paid) {
+                  <div class="sumline" data-testid="asaas-fees-paid"><span>{{ feesPaidLabel }}</span><b>{{ paid }}</b></div>
+                }
+              </section>
+            }
+
+            <!-- ambiente: só admin -->
+            @if (showEnvironment()) {
+              <section class="card enter-up" style="--stagger-i: 4" aria-labelledby="asaas-env-h" data-testid="asaas-environment">
+                <div class="ch"><h2 id="asaas-env-h">Ambiente</h2><app-status-chip tone="orange">Só admin</app-status-chip></div>
+                <div class="ign" [attr.data-env]="activeEnv() === 'SANDBOX' ? 'test' : 'prod'" role="radiogroup" aria-label="Ambiente do Asaas">
+                  <span class="knob" aria-hidden="true"></span>
+                  <button type="button" role="radio" data-v="test" data-testid="asaas-env-test"
+                    [attr.aria-checked]="activeEnv() === 'SANDBOX'" [disabled]="switching()"
+                    (click)="chooseEnvironment('SANDBOX')">
+                    <svg appAsaasIcon="flask"></svg>Testes
+                  </button>
+                  <button type="button" role="radio" data-v="prod" data-testid="asaas-env-prod"
+                    [attr.aria-checked]="activeEnv() === 'PRODUCTION'" [disabled]="switching()"
+                    (click)="chooseEnvironment('PRODUCTION')">
+                    <svg appAsaasIcon="bolt"></svg>Produção
                   </button>
                 </div>
-              </app-form-field>
+                <div class="envnote"><span>{{ envNotes().test }}</span><span>{{ envNotes().prod }}</span></div>
+                @if (switchBlocked(); as blocked) {
+                  <div class="warn" role="alert" data-testid="asaas-switch-blocked">
+                    <svg appAsaasIcon="alert"></svg>
+                    <span>{{ blocked }} <a routerLink="/alugueis" [queryParams]="{ status: 'ACTIVE' }">Ver os aluguéis</a></span>
+                  </div>
+                }
+                @if (switchError(); as serr) {
+                  <div class="warn badbox" role="alert" data-testid="asaas-switch-error">
+                    <svg appAsaasIcon="alert"></svg><span>{{ serr }}</span>
+                  </div>
+                }
+              </section>
+            }
+          </div>
 
-              @if (formError(); as connectError) {
-                <app-alert-banner variant="error" [message]="connectError" />
-              }
-
-              <div class="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 pt-2">
-                <button type="button" (click)="goToStep(1)"
-                  class="w-full sm:w-auto px-4 py-3 rounded-xl border border-edge text-fg-soft
-                         hover:bg-surface-muted text-sm font-medium min-h-[44px]">
-                  Voltar
-                </button>
-                <button type="button" (click)="nextStep()"
-                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3
-                         rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
-                         shadow-sm transition-colors min-h-[44px]">
-                  Continuar
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round" aria-hidden="true">
-                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                  </svg>
-                </button>
-              </div>
+          @if (whatsappUrl) {
+            <div class="help c12">
+              <span>Dúvida com o Asaas?</span>
+              <a class="btn wa press" [href]="whatsappUrl" target="_blank" rel="noopener noreferrer">
+                <svg appAsaasIcon="wa"></svg>Fale com a gente no WhatsApp
+              </a>
             </div>
-          </app-page-card>
-        }
-
-        <!-- STEP 3: Confirm & connect -->
-        @if (step() === 3) {
-          <app-page-card title="3. Conectar">
-            <div cardIcon class="p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round" class="text-emerald-600 dark:text-emerald-300">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-              </svg>
-            </div>
-
-            <div class="p-4 sm:p-6 space-y-4">
-              <div class="rounded-xl border border-edge bg-surface-muted p-4 space-y-2">
-                <div class="flex items-center justify-between">
-                  <span class="text-xs uppercase tracking-wide text-fg-subtle font-semibold">Ambiente</span>
-                  <span class="text-sm font-medium text-fg-body">
-                    {{ environmentLabel(selectedEnv()) }}
-                  </span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-xs uppercase tracking-wide text-fg-subtle font-semibold">Chave</span>
-                  <span class="text-sm font-mono text-fg-soft">••••••••</span>
-                </div>
-              </div>
-
-              <div class="rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 p-3 flex items-start gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round" class="text-blue-600 dark:text-blue-300 shrink-0 mt-0.5" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                </svg>
-                <p class="text-xs text-blue-900 dark:text-blue-200">
-                  O webhook será registrado automaticamente na sua conta Asaas.
-                  Nada precisa ser configurado manualmente.
-                </p>
-              </div>
-
-              @if (formError(); as connectError) {
-                <app-alert-banner variant="error" [message]="connectError" />
-              }
-
-              @if (saving()) {
-                <div class="rounded-xl bg-primary-50 dark:bg-primary-500/10 border border-primary-100 dark:border-primary-500/20 text-primary-800 dark:text-primary-400 text-sm p-3
-                            flex items-center gap-2">
-                  <span class="inline-block w-4 h-4 rounded-full border-2 border-primary-300 dark:border-primary-500/40 border-t-primary-600
-                               animate-spin" aria-hidden="true"></span>
-                  Validando chave e configurando webhook automaticamente…
-                </div>
-              }
-
-              <div class="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 pt-2">
-                <button type="button" (click)="goToStep(2)" [disabled]="saving()"
-                  class="w-full sm:w-auto px-4 py-3 rounded-xl border border-edge text-fg-soft
-                         hover:bg-surface-muted text-sm font-medium disabled:opacity-60 min-h-[44px]">
-                  Voltar
-                </button>
-                <button type="submit" [disabled]="saving()"
-                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3
-                         rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
-                         shadow-sm disabled:opacity-60 transition-colors min-h-[44px]">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round" aria-hidden="true">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                  </svg>
-                  {{ saving() ? 'Conectando…' : 'Conectar Asaas' }}
-                </button>
-              </div>
-            </div>
-          </app-page-card>
-        }
-      </form>
+          }
+        </div>
+      }
     }
-  }
+  </div>
 </app-default-page-layout>
 
+<!-- ============================================================== modelos -->
+<ng-template #plate let-p>
+  <span class="plate" role="img" [attr.aria-label]="'Placa ' + p">
+    <i aria-hidden="true"><span>BR</span><span>BRASIL</span></i><span aria-hidden="true">{{ p }}</span>
+  </span>
+</ng-template>
+
+<ng-template #receiptRow let-r>
+  @if (r.rentalId !== null) {
+    <a class="r" [routerLink]="['/alugueis', r.rentalId]" data-testid="asaas-receipt">
+      <ng-container *ngTemplateOutlet="receiptBody; context: { $implicit: r }" />
+    </a>
+  } @else {
+    <div class="r" data-testid="asaas-receipt">
+      <ng-container *ngTemplateOutlet="receiptBody; context: { $implicit: r }" />
+    </div>
+  }
+</ng-template>
+
+<ng-template #receiptBody let-r>
+  <span class="t">
+    <b>{{ r.driver }}</b>
+    <small>
+      @if (r.plate) { <ng-container *ngTemplateOutlet="plate; context: { $implicit: r.plate }" /> }
+      <span class="truncate">@if (r.label) { {{ r.label }} · }{{ r.when.toLowerCase() }}</span>
+    </small>
+  </span>
+  <span class="v">{{ r.amount }}</span>
+</ng-template>
+
+<ng-template #keyField let-id>
+  <div class="field">
+    <label class="sr-only" [for]="id">Chave de API do Asaas</label>
+    <input [id]="id" type="text" [formControl]="keyControl" autocomplete="off" autocapitalize="off"
+      spellcheck="false" placeholder="$aact_prod_…" [class.good]="keyCheck().ok"
+      [attr.aria-describedby]="id + '-check'" [attr.aria-invalid]="keyCheck().tone === 'bad'"
+      data-testid="asaas-key" />
+    <span class="check" [id]="id + '-check'" [class.good]="keyCheck().tone === 'good'"
+      [class.bad]="keyCheck().tone === 'bad'" aria-live="polite" data-testid="asaas-key-check">
+      @if (keyCheck().ok) { <svg appAsaasIcon="check"></svg> } @else if (keyCheck().tone === 'bad') { <svg appAsaasIcon="alert"></svg> }
+      {{ keyCheck().text }}
+    </span>
+    @if (connectError(); as cerr) {
+      <app-alert-banner variant="error" [message]="cerr" data-testid="asaas-connect-error" />
+    }
+    <button type="button" class="btn primary block press" data-testid="asaas-connect"
+      [disabled]="!keyCheck().ok || saving()" (click)="submitConnect()">
+      {{ saving() ? 'Conectando…' : sheet() === 'change-key' ? 'Trocar a chave' : 'Conectar' }}
+    </button>
+  </div>
+</ng-template>
+
+<!-- ============================================================== folhas -->
+@switch (sheet()) {
+  @case ('menu') {
+    <app-bottom-sheet title="Mais ações" [hideTitle]="true" (closed)="onSheetClosed()">
+      <div class="menu" data-testid="asaas-menu-sheet">
+        <button appListRow type="button" (click)="testConnection()" data-testid="asaas-menu-test">
+          <span class="tile"><svg appAsaasIcon="pulse"></svg></span><span class="t"><b>Testar a conexão agora</b></span>
+        </button>
+        @if (!readOnly) {
+          <button appListRow type="button" (click)="openChangeKey()" data-testid="asaas-menu-key">
+            <span class="tile"><svg appAsaasIcon="key"></svg></span><span class="t"><b>Trocar a chave</b></span>
+          </button>
+        }
+        <button appListRow type="button" (click)="openHowTo()" data-testid="asaas-menu-howto">
+          <span class="tile"><svg appAsaasIcon="help"></svg></span><span class="t"><b>Como pegar a chave</b></span>
+        </button>
+        @if (!readOnly) {
+          <button appListRow danger type="button" (click)="askDisconnect()" data-testid="asaas-menu-disconnect">
+            <span class="tile alert"><svg appAsaasIcon="plug"></svg></span><span class="t"><b>Desligar o Asaas</b></span>
+          </button>
+        }
+      </div>
+    </app-bottom-sheet>
+  }
+  @case ('confirm-switch') {
+    <app-bottom-sheet [title]="switchTarget() === 'SANDBOX' ? 'Usar a chave de testes?' : 'Voltar para produção?'"
+      [busy]="switching()" (closed)="onSheetClosed()">
+      <p class="sheet-p">
+        @if (switchTarget() === 'SANDBOX') {
+          As cobranças novas vão para o Asaas de testes e não cobram ninguém. A chave de produção fica guardada.
+        } @else {
+          As cobranças novas voltam a cobrar de verdade, na conta Asaas da empresa.
+        }
+      </p>
+      <div sheetFooter class="sheet-actions">
+        <button type="button" class="btn primary press" data-testid="asaas-switch-confirm"
+          [disabled]="switching()" (click)="confirmSwitch()">
+          {{ switching() ? 'Trocando…' : switchTarget() === 'SANDBOX' ? 'Usar testes' : 'Usar produção' }}
+        </button>
+        <button type="button" class="btn ghost press" [disabled]="switching()" (click)="closeSheet()">Voltar</button>
+      </div>
+    </app-bottom-sheet>
+  }
+  @case ('change-key') {
+    <app-bottom-sheet title="Trocar a chave" subtitle="Cole a chave nova. A antiga deixa de ser usada." [busy]="saving()"
+      (closed)="onSheetClosed()">
+      <ng-container *ngTemplateOutlet="keyField; context: { $implicit: 'asaas-key-change' }" />
+    </app-bottom-sheet>
+  }
+  @case ('how-to') {
+    <app-bottom-sheet title="Como pegar a chave" (closed)="onSheetClosed()">
+      <ol class="howto">
+        <li><b>Abra a página da chave</b><span>No seu Asaas, em Integrações.</span></li>
+        <li><b>Gere a chave «MyCarsHub»</b><span>Sem data para expirar. Não marque a opção de saque.</span></li>
+        <li><b>Copie a chave</b><span>Ela só aparece uma vez. Se perder, gere outra.</span></li>
+        <li><b>Cole em Trocar a chave</b><span>Fica guardada criptografada. Ninguém da equipe vê.</span></li>
+      </ol>
+      <div sheetFooter class="sheet-actions one">
+        <a class="btn ghost press" [href]="keysUrl" target="_blank" rel="noopener noreferrer"><svg appAsaasIcon="ext"></svg>Abrir no Asaas</a>
+      </div>
+    </app-bottom-sheet>
+  }
+}
+
 <app-confirm-dialog
-  [open]="showDisconnectDialog()"
-  title="Desconectar Asaas"
-  message="Ao desconectar, novas cobranças não poderão ser geradas até que a integração seja reconectada. Deseja continuar?"
-  confirmLabel="Desconectar"
+  [open]="showDisconnect()"
+  title="Desligar o Asaas?"
+  message="As cobranças novas param de sair pelo Asaas até você ligar de novo. O que já foi cobrado continua lá."
+  confirmLabel="Desligar"
   cancelLabel="Voltar"
   variant="danger"
+  [busy]="saving()"
   (confirmed)="confirmDisconnect()"
   (cancelled)="cancelDisconnect()"
 />

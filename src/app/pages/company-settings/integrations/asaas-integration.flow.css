@@ -1,0 +1,106 @@
+/*
+ * Integração Asaas — a esteira (caminho do dinheiro, passos de ligar, prévia) e o campo da chave.
+ * Separado do `asaas-integration.css` só pelo orçamento de estilo por arquivo; os tokens `--a-*`
+ * moram lá, no `:host`, e chegam aqui por herança.
+ */
+/* ---------- o caminho do dinheiro ---------- */
+.flowwrap { container: flow / inline-size; }
+/* No computador o cartão do caminho estica até a altura do saldo e a esteira fica no meio. */
+.flowcard .flowwrap { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.flow { --p: 1; position: relative; }
+.flow > ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; position: relative; z-index: 1; }
+.flow::before { content: ''; position: absolute; left: 15.5px; top: 17px; bottom: 17px; width: 3px; border-radius: 3px; background: var(--a-track); }
+.flow .fill {
+  position: absolute; left: 15.5px; top: 17px; width: 3px; border-radius: 3px; height: calc((100% - 34px) * var(--p));
+  background: var(--a-green); transform-origin: top; animation: a-grow-y 0.9s var(--a-ease) both;
+}
+.flow.bad .fill { background: linear-gradient(var(--a-green) 60%, var(--a-red-fill)); }
+.flow .dot {
+  position: absolute; left: 12.5px; top: 17px; width: 9px; height: 9px; border-radius: 50%; z-index: 2;
+  background: var(--color-white); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.4); opacity: 0;
+  animation: a-run-y 2.6s var(--a-ease) infinite 0.9s;
+}
+.flow li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; }
+.node {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--color-surface);
+  box-shadow: inset 0 0 0 3px var(--a-track); color: var(--color-fg-faint); font: 700 13px var(--font-mono);
+  transition: background-color 0.35s, box-shadow 0.35s;
+}
+.node svg { width: 16px; height: 16px; }
+.node.done { background: var(--a-green); box-shadow: none; color: var(--color-white); }
+.node.bad { background: var(--a-red-fill); box-shadow: 0 0 0 6px var(--a-red-bg); color: var(--color-white); }
+.node.warn { box-shadow: inset 0 0 0 3px var(--a-amber); color: var(--a-amber-text); }
+.node.wait { box-shadow: inset 0 0 0 3px var(--color-primary-500); color: var(--a-orange-text); }
+.flow .t { min-width: 0; }
+.flow .t b { display: block; font-size: 15px; font-weight: 600; color: var(--color-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flow .t small { display: block; font-size: 13.5px; color: var(--color-fg-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flow .t small.badtxt { color: var(--a-red); }
+.flow .t small.warntxt { color: var(--a-amber-text); font-weight: 600; }
+.flow .v { font-family: var(--font-mono); font-size: 14px; font-weight: 600; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; color: var(--color-fg); }
+.flow .v.ok { color: var(--a-green-text); }
+.flow .v .btn { font-family: var(--font-body); }
+.flow li.idle .t b { color: var(--color-fg-muted); }
+@keyframes a-grow-y { from { transform: scaleY(0); } }
+@keyframes a-run-y {
+  0% { top: 17px; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; }
+  100% { top: calc(17px + (100% - 34px) * var(--p)); opacity: 0; }
+}
+/* horizontal quando a esteira do dinheiro tem espaço (computador) */
+@container flow (min-width: 560px) {
+  .flow.money > ol { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  .flow.money::before { left: 17px; right: calc((100% - 48px) / 4 - 17px); top: 15.5px; bottom: auto; width: auto; height: 3px; }
+  .flow.money .fill {
+    left: 17px; top: 15.5px; height: 3px; width: calc((100% - (100% - 48px) / 4) * var(--p));
+    transform-origin: left; animation-name: a-grow-x;
+  }
+  .flow.money.bad .fill { background: linear-gradient(90deg, var(--a-green) 60%, var(--a-red-fill)); }
+  .flow.money .dot { top: 12.5px; left: 14px; animation-name: a-run-x; }
+  /* align-content: sem isto a etapa mais baixa estica as outras e o texto delas desce. */
+  .flow.money li { grid-template-columns: 1fr; gap: 10px; align-items: start; align-content: start; }
+  .flow.money .v { text-align: left; }
+}
+@keyframes a-grow-x { from { transform: scaleX(0); } }
+@keyframes a-run-x {
+  0% { left: 14px; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; }
+  100% { left: calc(14px + (100% - (100% - 48px) / 4) * var(--p)); opacity: 0; }
+}
+
+/* ---------- ligar: esteira de passos ---------- */
+.steps .t b, .steps .t small { white-space: normal; }
+.steps li { align-items: start; }
+.steps .t { padding-top: 6px; }
+.stepbody { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 10px; }
+.preview .flow li .t b { color: var(--color-fg-muted); }
+.preview .flow.lit li .t b { color: var(--color-fg); }
+
+.field { display: flex; flex-direction: column; gap: 10px; }
+.field input {
+  width: 100%; min-width: 0; height: 52px; border-radius: 14px; border: 1.5px solid var(--a-field-edge);
+  background: var(--a-field); color: var(--color-fg); padding: 0 14px; font: 600 16px var(--font-mono); letter-spacing: 0.02em;
+  transition: border-color 0.2s;
+}
+.field input:focus { border-color: var(--color-primary-500); outline: none; }
+.field input.good { border-color: var(--a-green); }
+.check { display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 500; min-height: 20px; color: var(--color-fg-muted); }
+.check svg { width: 16px; height: 16px; flex: none; }
+.check.good { color: var(--a-green-text); font-weight: 600; }
+.check.bad { color: var(--a-red); font-weight: 600; }
+
+.shot { background: var(--a-shot-bg); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; color: var(--a-shot-ink); font-size: 12.5px; }
+.shot-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 600; }
+.shot-btn { background: var(--a-shot-btn); color: var(--color-white); border-radius: 999px; padding: 5px 10px; font-weight: 600; font-size: 11.5px; white-space: nowrap; outline: 2px solid var(--color-primary-500); outline-offset: 2px; }
+.shot-cb { display: flex; gap: 8px; align-items: flex-start; background: var(--color-white); border: 1px solid var(--a-shot-edge); border-radius: 8px; padding: 8px; }
+.shot-cb .box { flex: none; width: 16px; height: 16px; border: 1.5px solid var(--a-shot-box); border-radius: 4px; margin-top: 1px; }
+.shot-cb em { display: block; font-style: normal; color: var(--a-shot-warn); font-weight: 700; margin-top: 2px; }
+
+.linkrow { display: flex; align-items: center; gap: 12px; min-height: 56px; margin: -8px 0; color: inherit; text-decoration: none; border-radius: 14px; }
+.linkrow:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+.linkrow .t { flex: 1; min-width: 0; }
+.linkrow .t b { display: block; font-size: 15.5px; font-weight: 600; color: var(--color-fg); }
+.linkrow .t small { display: block; font-size: 13.5px; color: var(--color-fg-muted); }
+.chev { width: 8px; height: 14px; color: var(--color-fg-faint); flex: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .flow .fill, .node, .field input { animation: none !important; transition: none !important; }
+  .flow .dot { display: none; }
+}
