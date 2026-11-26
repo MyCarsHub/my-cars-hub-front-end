@@ -10,7 +10,8 @@ import { NotificationService } from '../../../services/notification.service';
 import { OWNED_HTTP_ERRORS } from '../../../services/http-errors.context';
 import { AsaasIntegration } from './asaas-integration';
 import type { AsaasIntegrationStatus, AsaasOverview } from './asaas-integration.types';
-import { checkAsaasKey, deriveAsaasViewer, isImpersonationToken } from './asaas-integration.view';
+import { checkAsaasKey } from './asaas-integration.view';
+import { deriveAsaasViewer, isImpersonationToken } from './asaas-integration.viewer';
 
 const BASE = `${environment.apiUrl}/companies/current/integrations/asaas`;
 const OVERVIEW = `${BASE}/overview`;
@@ -360,9 +361,42 @@ describe('AsaasIntegration', () => {
       expect(deriveAsaasViewer(ADMIN_TOKEN, () => true)).toBe('admin');
       expect(deriveAsaasViewer(OWNER_TOKEN, () => false)).toBe('owner');
 
+      // a sessão de suporte é só leitura: nem chega a ter o campo (ver o bloco abaixo)
       await open(SUPPORT_TOKEN, NOT_CONNECTED);
-      await typeKey(TEST_KEY);
-      expect(text(q('asaas-key-check'))).toContain('Essa é de testes');
+      expect(q('asaas-key')).toBeNull();
+    });
+  });
+
+  // ------------------------------------------------- sessão "ver como empresa"
+  describe('sessão "ver como empresa" (só leitura)', () => {
+    it('ligado: vê como o dono, sem Religar, sem Ambiente; o ⋮ só tem o que relê', async () => {
+      await open(
+        SUPPORT_TOKEN,
+        { ...BROKEN, activeEnvironment: 'SANDBOX', environments: [] },
+        FULL,
+      );
+      expect(q('asaas-flow')).not.toBeNull();
+      expect(q('asaas-webhook-failed')).not.toBeNull();
+      expect(q('asaas-relink')).toBeNull();
+      expect(q('asaas-environment')).toBeNull();
+
+      q<HTMLButtonElement>('asaas-menu')!.click();
+      await settle();
+      expect(q('asaas-menu-test')).not.toBeNull();
+      expect(q('asaas-menu-howto')).not.toBeNull();
+      expect(q('asaas-menu-key')).toBeNull();
+      expect(q('asaas-menu-disconnect')).toBeNull();
+      http.expectNone({ method: 'POST' });
+      http.expectNone({ method: 'PUT' });
+      http.expectNone({ method: 'DELETE' });
+    });
+
+    it('não ligado: os passos sem o campo nem Conectar, com "Só a empresa pode ligar o Asaas."', async () => {
+      await open(SUPPORT_TOKEN, NOT_CONNECTED);
+      expect(text()).toContain('Ligar em 4 passos');
+      expect(q('asaas-key')).toBeNull();
+      expect(q('asaas-connect')).toBeNull();
+      expect(text(q('asaas-readonly-connect'))).toContain('Só a empresa pode ligar o Asaas.');
     });
   });
 
@@ -406,9 +440,9 @@ describe('AsaasIntegration', () => {
       await sheetGone();
     });
 
-    it('sem cobrança aberta: confirma, troca para Testes e acende a faixa amarela', async () => {
+    it('sem cobrança aberta: confirma e troca para Testes (a faixa amarela é da casca)', async () => {
       await open(ADMIN_TOKEN, CONNECTED_ADMIN, FULL);
-      expect(q('asaas-testbar')).toBeNull();
+      expect(host().querySelector('.ign')!.getAttribute('data-env')).toBe('prod');
       q<HTMLButtonElement>('asaas-env-test')!.click();
       await settle();
       q<HTMLButtonElement>('asaas-switch-confirm')!.click();
@@ -417,7 +451,7 @@ describe('AsaasIntegration', () => {
       req.flush({ ...CONNECTED_ADMIN, environment: 'SANDBOX', activeEnvironment: 'SANDBOX' });
       http.expectOne(OVERVIEW).flush(FULL);
       await settle();
-      expect(q('asaas-testbar')).not.toBeNull();
+      expect(host().querySelector('.ign')!.getAttribute('data-env')).toBe('test');
       await sheetGone();
     });
   });
@@ -505,6 +539,32 @@ describe('AsaasIntegration', () => {
       });
       expect(text(q('asaas-balance-amount'))).toContain('1.284');
       expect(q('asaas-balance-failed')).toBeNull();
+      expect(q('asaas-fees')).toBeNull();
+    });
+
+    it('falha parcial (saldo null, nome presente, UNAVAILABLE): saldo com tentar de novo, nome e taxas ficam', async () => {
+      await open(OWNER_TOKEN, CONNECTED, {
+        ...FULL,
+        asaas: { ...FULL.asaas!, balanceCents: null, cpfCnpjMasked: null },
+        asaasError: 'UNAVAILABLE',
+      });
+      expect(text(q('asaas-balance-failed'))).toContain('Não deu para ler o saldo agora');
+      expect(q('asaas-balance-retry')).not.toBeNull();
+      expect(q('asaas-balance-amount')).toBeNull();
+      // cada campo some sozinho: o nome veio, o documento não
+      expect(text(q('asaas-account'))).toContain('Mycarshub Locações');
+      expect(text(q('asaas-account'))).not.toContain('·');
+      expect(text(q('asaas-fees'))).toContain('Pix');
+    });
+
+    it('falha parcial com saldo lido: mostra o saldo mesmo com asaasError=UNAVAILABLE', async () => {
+      await open(OWNER_TOKEN, CONNECTED, {
+        ...FULL,
+        asaas: { ...FULL.asaas!, accountName: null, fees: null },
+        asaasError: 'UNAVAILABLE',
+      });
+      expect(text(q('asaas-balance-amount'))).toContain('1.284');
+      expect(text(q('asaas-account'))).toContain('/0001-23');
       expect(q('asaas-fees')).toBeNull();
     });
 

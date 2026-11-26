@@ -75,8 +75,9 @@ export interface AsaasFees {
 }
 
 /**
- * O que vem do próprio Asaas (com a chave ativa). `null` inteiro quando o Asaas falhou. Se só
- * a leitura das taxas falhar, o bloco vem com o saldo e todos os campos de `fees` `null`.
+ * O que vem do próprio Asaas (com a chave ativa). Numa falha parcial (uma leitura caiu ou passou
+ * do tempo) o bloco guarda o que chegou e `asaasError` vem `UNAVAILABLE`: saldo, nome, documento
+ * e cada taxa podem ser `null` independentemente. `null` inteiro só quando nada chegou.
  */
 export interface AsaasAccountInfo {
   accountName: string | null;

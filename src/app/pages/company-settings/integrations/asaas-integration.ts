@@ -17,7 +17,7 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
 import { StatusChip, StatusChipTone } from '../../../components/core/status-chip/status-chip';
-import { PaintedAction, PaintedCard } from '../../../components/core/painted-card/painted-card';
+import { PaintedCard } from '../../../components/core/painted-card/painted-card';
 import { ListRow } from '../../../components/core/list-group/list-group';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../../services/notification.service';
@@ -34,17 +34,16 @@ import {
   AsaasReceipt,
 } from './asaas-integration.types';
 import {
-  AsaasViewer,
   cardFeeLabel,
   centsParts,
   checkAsaasKey,
   currentMonthName,
   dayLabel,
-  deriveAsaasViewer,
   formatCents,
   noticeLabel,
   shortDate,
 } from './asaas-integration.view';
+import { AsaasViewer, deriveAsaasViewer } from './asaas-integration.viewer';
 
 const ASAAS_HOME_URL: Record<AsaasEnvironment, string> = {
   PRODUCTION: 'https://www.asaas.com',
@@ -52,7 +51,8 @@ const ASAAS_HOME_URL: Record<AsaasEnvironment, string> = {
 };
 /** Onde a chave de API é gerada (Integrações → Chaves de API). */
 const ASAAS_KEYS_URL = 'https://www.asaas.com/customerApiAccessToken/index';
-const ASAAS_SIGNUP_URL = 'https://www.asaas.com/onboarding/createAccount';
+/** Página inicial do Asaas: a criação de conta parte dela. */
+const ASAAS_SIGNUP_URL = 'https://www.asaas.com/';
 
 type Sheet = 'menu' | 'confirm-switch' | 'change-key' | 'how-to';
 type PageState = 'loading' | 'error' | 'denied' | 'empty' | 'data';
@@ -101,7 +101,6 @@ function plural(n: number, one: string, many: string): string {
     BottomSheet,
     StatusChip,
     PaintedCard,
-    PaintedAction,
     ListRow,
     AlertBanner,
     AsaasIcon,
@@ -121,6 +120,12 @@ export class AsaasIntegration implements OnInit {
     this.session.isPlatformAdmin(),
   );
   protected readonly isAdmin = this.viewer === 'admin';
+  /**
+   * Sessão "ver como empresa" (decisão do dono, 26/11): vê a página como o dono, só leitura.
+   * Some tudo o que muda algo (Religar, Conectar, Trocar a chave, Desligar, Ambiente);
+   * "Testar a conexão" fica, porque só relê.
+   */
+  protected readonly readOnly = this.viewer === 'support';
 
   // ----------------------------------------------------------------- status
   protected readonly status = this.service.status;
@@ -175,11 +180,6 @@ export class AsaasIntegration implements OnInit {
     return s.activeEnvironment !== undefined ? s.activeEnvironment : s.environment;
   });
 
-  /** Faixa amarela: só o admin, e só com a chave de testes em uso. */
-  protected readonly testMode = computed(
-    () => this.isAdmin && this.connected() && this.activeEnv() === 'SANDBOX',
-  );
-
   protected readonly asaasUrl = computed(() => ASAAS_HOME_URL[this.activeEnv() ?? 'PRODUCTION']);
   protected readonly keysUrl = ASAAS_KEYS_URL;
   /** "O que muda quando ligar": a mesma esteira, acesa quando a chave confere. */
@@ -201,9 +201,15 @@ export class AsaasIntegration implements OnInit {
   private readonly monthName = currentMonthName();
 
   /** Saldo: dados, carregando, ou o Asaas/servidor não respondeu (o resto da página segue). */
+  /**
+   * Saldo: dados, carregando, ou não lido. O bloco `asaas` guarda o que chegou mesmo quando uma
+   * leitura falhou (`asaasError=UNAVAILABLE`, timeout de uma das chamadas): por isso o estado
+   * "não lido" depende de `balanceCents`, não de `asaas` inteiro. Nome e documento da conta
+   * aparecem cada um quando veio, também com o saldo falhado.
+   */
   protected readonly balance = computed<
     | { kind: 'loading' }
-    | { kind: 'failed'; reason: string }
+    | { kind: 'failed'; reason: string; account: string | null }
     | { kind: 'ok'; int: string; dec: string; account: string | null }
   >(() => {
     const ov = this.overview();
@@ -212,23 +218,27 @@ export class AsaasIntegration implements OnInit {
         return {
           kind: 'failed',
           reason: 'O servidor não respondeu. O resto da página segue normal.',
+          account: null,
         };
       }
       return { kind: 'loading' };
     }
     const a = ov.asaas;
-    if (!a || a.balanceCents === null) {
+    const account =
+      [a?.accountName, a?.cpfCnpjMasked].filter((p): p is string => !!p?.trim()).join(' · ') ||
+      null;
+    if (a?.balanceCents == null) {
       return {
         kind: 'failed',
         reason:
           ov.asaasError === 'UNAUTHORIZED'
             ? 'O Asaas recusou a chave guardada. Troque a chave no menu ⋮.'
             : 'O Asaas não respondeu. O resto da página segue normal.',
+        account,
       };
     }
     const parts = centsParts(a.balanceCents);
-    const account = [a.accountName, a.cpfCnpjMasked].filter((p): p is string => !!p).join(' · ');
-    return { kind: 'ok', int: parts.int, dec: parts.dec, account: account || null };
+    return { kind: 'ok', int: parts.int, dec: parts.dec, account };
   });
 
   protected readonly flowProgress = computed(() => (this.webhookBroken() ? 2 / 3 : 1));
@@ -332,10 +342,11 @@ export class AsaasIntegration implements OnInit {
   protected readonly fees = computed<FeeView[]>(() => {
     const f = this.overview()?.asaas?.fees;
     if (!f) return [];
+    // Cada taxa some sozinha: o Asaas pode informar umas e não outras.
     const rows: FeeView[] = [];
-    if (f.pixFixedCents !== null)
+    if (f.pixFixedCents != null)
       rows.push({ icon: 'pix', label: 'Pix', value: formatCents(f.pixFixedCents) });
-    if (f.boletoFixedCents !== null) {
+    if (f.boletoFixedCents != null) {
       rows.push({ icon: 'barcode', label: 'Boleto', value: formatCents(f.boletoFixedCents) });
     }
     const card = cardFeeLabel(f);
@@ -399,6 +410,7 @@ export class AsaasIntegration implements OnInit {
 
   // ----------------------------------------------------------- aviso parado
   protected relink(): void {
+    if (this.readOnly) return;
     if (this.webhookBusy()) return;
     this.webhookError.set(null);
     this.webhookRetryFailed.set(false);
@@ -427,6 +439,7 @@ export class AsaasIntegration implements OnInit {
 
   // ---------------------------------------------------------------- ligar
   protected submitConnect(): void {
+    if (this.readOnly) return;
     if (this.saving()) return;
     const check = this.keyCheck();
     if (!check.ok || !check.environment) return;
@@ -501,6 +514,7 @@ export class AsaasIntegration implements OnInit {
   }
 
   protected openChangeKey(): void {
+    if (this.readOnly) return;
     this.keyControl.reset('');
     this.connectError.set(null);
     this.sheet.set('change-key');
@@ -511,6 +525,7 @@ export class AsaasIntegration implements OnInit {
   }
 
   protected askDisconnect(): void {
+    if (this.readOnly) return;
     this.closeSheet();
     this.showDisconnect.set(true);
   }
@@ -539,6 +554,7 @@ export class AsaasIntegration implements OnInit {
 
   // -------------------------------------------------------------- ambiente
   protected chooseEnvironment(target: AsaasEnvironment): void {
+    if (this.readOnly) return;
     if (this.switching() || target === this.activeEnv()) return;
     this.switchBlocked.set(null);
     this.switchError.set(null);

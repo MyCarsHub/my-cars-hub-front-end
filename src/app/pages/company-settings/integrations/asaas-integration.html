@@ -3,8 +3,17 @@
   @if (headChip(); as chip) {
     <app-status-chip pageBadge [tone]="chip.tone" data-testid="asaas-chip">{{ chip.label }}</app-status-chip>
   }
+  <!-- O ⋮ fica à direita do título: no celular dentro da linha do título (o layout empilha o
+       slot de ações embaixo da descrição); a partir de md, no slot de ações. Um @if por elemento:
+       bloco com duas raízes não é projetado no slot (cairia no conteúdo). -->
   @if (pageState() === 'data') {
-    <div pageActions class="flex justify-end">
+    <button pageBadge type="button" class="icb press menu-m" aria-label="Mais ações" aria-haspopup="dialog"
+      data-testid="asaas-menu" (click)="openMenu()">
+      <svg appAsaasIcon="dots"></svg>
+    </button>
+  }
+  @if (pageState() === 'data') {
+    <div pageActions class="menu-d">
       <button type="button" class="icb press" aria-label="Mais ações" aria-haspopup="dialog"
         data-testid="asaas-menu" (click)="openMenu()">
         <svg appAsaasIcon="dots"></svg>
@@ -100,7 +109,11 @@
                   <span class="t"><b>Cole aqui</b><small>Fica guardada criptografada. Ninguém da equipe vê.</small></span>
                   <span></span>
                   <div class="stepbody">
-                    <ng-container *ngTemplateOutlet="keyField; context: { $implicit: 'asaas-key' }" />
+                    @if (readOnly) {
+                      <p class="lead ro" data-testid="asaas-readonly-connect">Só a empresa pode ligar o Asaas.</p>
+                    } @else {
+                      <ng-container *ngTemplateOutlet="keyField; context: { $implicit: 'asaas-key' }" />
+                    }
                   </div>
                 </li>
               </ol>
@@ -147,11 +160,7 @@
 
       <!-- ================================================================ ligado -->
       @case ('data') {
-        @if (testMode()) {
-          <div class="testbar" role="status" data-testid="asaas-testbar">
-            <svg appAsaasIcon="flask"></svg>Asaas de testes: as cobranças não são reais
-          </div>
-        }
+        <!-- A faixa de testes do admin mora na casca (app-asaas-test-mode-bar): vale para todas as telas. -->
         <div class="grid">
           <!-- saldo: cartão pintado -->
           <app-painted-card tone="orange" class="c4 stretch paint" data-testid="asaas-balance">
@@ -166,6 +175,9 @@
                   @if (b.kind === 'failed') {
                     <span class="failed" data-testid="asaas-balance-failed">Não deu para ler o saldo agora</span>
                     <span class="s">{{ b.reason }}</span>
+                    @if (b.account) {
+                      <span class="acct" data-testid="asaas-account">{{ b.account }}</span>
+                    }
                     <button type="button" class="btn white press mt-auto" data-testid="asaas-balance-retry"
                       [disabled]="overviewLoading()" (click)="loadOverview()">
                       Tentar de novo
@@ -179,8 +191,8 @@
                     <span class="amt" data-testid="asaas-balance-amount"><small>R$</small>{{ b.int }}<em>{{ b.dec }}</em></span>
                     <span class="s">pronto para sacar na sua conta</span>
                     @if (b.account) { <span class="acct" data-testid="asaas-account">{{ b.account }}</span> }
-                    <a appPaintedAction tone="orange" class="mt-auto open-asaas" [href]="asaasUrl()" target="_blank" rel="noopener noreferrer">
-                      <svg appAsaasIcon="ext" class="w-[18px] h-[18px]"></svg>Abrir o Asaas
+                    <a class="btn white press block mt-auto" [href]="asaasUrl()" target="_blank" rel="noopener noreferrer">
+                      <svg appAsaasIcon="ext"></svg>Abrir o Asaas
                     </a>
                   }
                 }
@@ -208,7 +220,7 @@
                         @if (step.sub) { <small [class.badtxt]="step.subBad">{{ step.sub }}</small> }
                       </span>
                       <span class="v" [class.ok]="step.valueOk">
-                        @if (step.relink) {
+                        @if (step.relink && !readOnly) {
                           <button type="button" class="btn primary sm press" data-testid="asaas-relink"
                             [disabled]="webhookBusy()" (click)="relink()">
                             {{ webhookBusy() ? 'Religando…' : 'Religar' }}
@@ -268,7 +280,7 @@
                     @for (r of receipts(); track r.key) {
                       <tr>
                         <td>@if (r.plate) { <ng-container *ngTemplateOutlet="plate; context: { $implicit: r.plate }" /> }</td>
-                        <td>
+                        <td class="who">
                           @if (r.rentalId !== null) {
                             <a class="cell-link" [routerLink]="['/alugueis', r.rentalId]"><b>{{ r.driver }}</b></a>
                           } @else {
@@ -413,15 +425,19 @@
         <button appListRow type="button" (click)="testConnection()" data-testid="asaas-menu-test">
           <span class="tile"><svg appAsaasIcon="pulse"></svg></span><span class="t"><b>Testar a conexão agora</b></span>
         </button>
-        <button appListRow type="button" (click)="openChangeKey()" data-testid="asaas-menu-key">
-          <span class="tile"><svg appAsaasIcon="key"></svg></span><span class="t"><b>Trocar a chave</b></span>
-        </button>
+        @if (!readOnly) {
+          <button appListRow type="button" (click)="openChangeKey()" data-testid="asaas-menu-key">
+            <span class="tile"><svg appAsaasIcon="key"></svg></span><span class="t"><b>Trocar a chave</b></span>
+          </button>
+        }
         <button appListRow type="button" (click)="openHowTo()" data-testid="asaas-menu-howto">
           <span class="tile"><svg appAsaasIcon="help"></svg></span><span class="t"><b>Como pegar a chave</b></span>
         </button>
-        <button appListRow danger type="button" (click)="askDisconnect()" data-testid="asaas-menu-disconnect">
-          <span class="tile alert"><svg appAsaasIcon="plug"></svg></span><span class="t"><b>Desligar o Asaas</b></span>
-        </button>
+        @if (!readOnly) {
+          <button appListRow danger type="button" (click)="askDisconnect()" data-testid="asaas-menu-disconnect">
+            <span class="tile alert"><svg appAsaasIcon="plug"></svg></span><span class="t"><b>Desligar o Asaas</b></span>
+          </button>
+        }
       </div>
     </app-bottom-sheet>
   }

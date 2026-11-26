@@ -75,10 +75,17 @@
 .ch { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .ch h2 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--color-fg); }
 .lead { margin: -8px 0 0; font-size: 14px; color: var(--color-fg-muted); line-height: 1.45; }
+.lead.ro { margin: 0; font-weight: 600; }
 .empty { margin: 0; font-size: 14.5px; color: var(--color-fg-muted); line-height: 1.5; }
 
 .icb { width: 44px; height: 44px; border-radius: 14px; background: var(--color-surface); display: grid; place-items: center; border: 0; color: var(--color-fg); cursor: pointer; }
 .icb svg { width: 20px; height: 20px; }
+.menu-m { margin-left: auto; }
+.menu-d { display: none; }
+@media (min-width: 768px) {
+  .menu-m { display: none; }
+  .menu-d { display: flex; justify-content: flex-end; }
+}
 .icb:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
 
 /* ---------- botões ---------- */
@@ -117,7 +124,6 @@
 .paint .acct { font-size: 13px; color: rgba(255, 255, 255, 0.85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .paint .failed { font-size: 20px; font-weight: 700; line-height: 1.2; }
 .paint .amt-skel { height: 42px; width: 70%; border-radius: 10px; background: rgba(255, 255, 255, 0.22); animation: a-pulse 1.4s ease-in-out infinite; }
-.paint .open-asaas { align-self: stretch; position: relative; z-index: 1; min-height: 48px; }
 .mt-auto { margin-top: auto; }
 
 .tile { width: 36px; height: 36px; border-radius: 11px; background: var(--a-tile); display: grid; place-items: center; flex: none; color: var(--color-fg); }
@@ -131,11 +137,6 @@
 .warn svg { width: 18px; height: 18px; margin-top: 2px; flex: none; }
 .warn a { color: inherit; font-weight: 700; text-decoration: underline; display: inline-flex; align-items: center; min-height: 44px; }
 .warn.badbox { background: var(--a-red-bg); color: var(--a-red); }
-.testbar {
-  display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--a-amber-bg); color: var(--a-amber-text);
-  font-size: 13px; font-weight: 700; padding: 9px 16px; border-radius: 14px; text-align: center;
-}
-.testbar svg { width: 16px; height: 16px; flex: none; }
 
 /* ---------- recebimentos ---------- */
 .rows { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
@@ -157,6 +158,10 @@ a.r:active { opacity: 0.7; }
 .plate > span { font: 700 13px/1 var(--font-mono); letter-spacing: 0.05em; text-align: center; padding: 4px 0 5px; }
 
 .tbl { display: none; width: 100%; border-collapse: collapse; }
+/* O nome absorve a sobra e corta com reticências: o valor nunca sai do cartão nem quebra. */
+.tbl td.who { width: 100%; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tbl td.who .cell-link, .tbl td.who b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbl td.who .cell-link { display: inline-block; line-height: 44px; vertical-align: middle; }
 .tbl th { text-align: left; font-size: 12.5px; font-weight: 600; color: var(--color-fg-subtle); padding: 0 14px 10px; white-space: nowrap; }
 .tbl th.num-h { text-align: right; }
 .tbl td { padding: 12px 14px; font-size: 14.5px; white-space: nowrap; vertical-align: middle; color: var(--color-fg); }

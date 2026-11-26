@@ -42,7 +42,7 @@
   100% { top: calc(17px + (100% - 34px) * var(--p)); opacity: 0; }
 }
 /* horizontal quando a esteira do dinheiro tem espaço (computador) */
-@container flow (min-width: 620px) {
+@container flow (min-width: 560px) {
   .flow.money > ol { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
   .flow.money::before { left: 17px; right: calc((100% - 48px) / 4 - 17px); top: 15.5px; bottom: auto; width: auto; height: 3px; }
   .flow.money .fill {
@@ -51,7 +51,8 @@
   }
   .flow.money.bad .fill { background: linear-gradient(90deg, var(--a-green) 60%, var(--a-red-fill)); }
   .flow.money .dot { top: 12.5px; left: 14px; animation-name: a-run-x; }
-  .flow.money li { grid-template-columns: 1fr; gap: 10px; align-items: start; }
+  /* align-content: sem isto a etapa mais baixa estica as outras e o texto delas desce. */
+  .flow.money li { grid-template-columns: 1fr; gap: 10px; align-items: start; align-content: start; }
   .flow.money .v { text-align: left; }
 }
 @keyframes a-grow-x { from { transform: scaleX(0); } }

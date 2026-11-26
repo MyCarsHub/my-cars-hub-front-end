@@ -76,6 +76,28 @@ export class AsaasIntegrationService {
   }
 
   /**
+   * Leitura discreta para a faixa de testes da casca (só admin, uma vez por sessão da casca):
+   * não mexe em `loading`/`error` da página, não mostra toast (a tela não é dela) e não pede de
+   * novo se o status já está carregado ou a caminho. Falha = sem faixa.
+   */
+  loadQuietly(): void {
+    if (this._status() !== null || this.quietInFlight) return;
+    this.quietInFlight = true;
+    this.http
+      .get<AsaasIntegrationStatus>(BASE, {
+        context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+      })
+      .pipe(finalize(() => (this.quietInFlight = false)))
+      .subscribe({
+        next: (res) => {
+          if (this._status() === null) this._status.set(res);
+        },
+        error: () => void 0,
+      });
+  }
+  private quietInFlight = false;
+
+  /**
    * Números do caminho do dinheiro, saldo, taxas e recebimentos. 404 = sem integração
    * (corrida com uma desconexão): limpa o overview em vez de acusar erro. 402 = papel sem
    * acesso (só OWNER/MANAGER/ADMIN): vira o estado "sem acesso", não um erro de rede — e
