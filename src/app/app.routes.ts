@@ -861,7 +861,7 @@ export const routes: Routes = [
                                     import(
                                         './pages/company-settings/integrations/integrations-hub'
                                     ).then((m) => m.IntegrationsHub),
-                                data: { pageTitle: 'Integração' },
+                                data: { pageTitle: 'Integrações' },
                             },
                             {
                                 path: 'integracoes/asaas',

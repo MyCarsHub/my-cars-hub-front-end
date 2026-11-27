@@ -1,0 +1,103 @@
+/*
+ * Vitrine de integrações — desenho aprovado em 27/11 (formato loja, linguagem da página do Asaas).
+ * Regras do dono: dois tons no escuro (página e cartão), nada de linha entre informações, chip só
+ * texto em fundo tingido, cartão colorido é pintado (laranja sólido, texto branco), números em mono.
+ * Movimento só em transform, curva iOS; `prefers-reduced-motion` desliga.
+ */
+:host { display: block; --h-ease: cubic-bezier(0.32, 0.72, 0, 1); }
+
+.hub { display: flex; flex-direction: column; gap: 22px; container: hub / inline-size; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Uma coluna no celular; duas e três conforme a largura do CONTEÚDO (ao lado do menu). */
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.grid > li { min-width: 0; display: flex; }
+@container hub (min-width: 720px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } }
+@container hub (min-width: 1200px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* ---------- cartão da vitrine ---------- */
+.app {
+  flex: 1; min-width: 0; background: var(--color-surface); border-radius: 22px; padding: 18px;
+  display: flex; flex-direction: column; gap: 14px; color: var(--color-fg); text-decoration: none;
+  transition: transform 0.2s var(--h-ease);
+}
+a.app:active { transform: scale(0.985); }
+a.app:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+.top { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.tile { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; flex: none; }
+/* O logo do Asaas é desenho do mundo: fundo branco nos dois temas e no cartão pintado. */
+.tile.logo { background: #FFFFFF; }
+.tile.logo img { width: 32px; height: 32px; }
+.who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.who b { font-size: 16.5px; font-weight: 700; color: var(--color-fg-strong, var(--color-fg)); }
+.who small { font-size: 13px; color: var(--color-fg-muted); line-height: 1.35; }
+.desc { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--color-fg-muted); }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--color-fg-muted); }
+.facts b { font-weight: 600; color: var(--color-fg); }
+.act { flex: none; display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.chip { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.chev { width: 8px; height: 14px; color: var(--color-fg-muted); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px;
+  border-radius: 14px; border: 0; font: inherit; font-weight: 700; font-size: 15px; white-space: nowrap;
+  cursor: pointer; text-decoration: none; flex: none;
+  transition: transform 0.15s var(--h-ease), background-color 0.2s var(--h-ease), border-color 0.2s var(--h-ease);
+}
+.btn:active { transform: scale(0.97); }
+.btn:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+.btn.primary { background: var(--color-primary-500); color: var(--color-white); }
+.btn.primary:hover { background: var(--color-primary-600); }
+
+/* ---------- Asaas ligado: cartão pintado ---------- */
+.app.paint { background: var(--color-primary-500); color: var(--color-white); position: relative; overflow: hidden; container-type: inline-size; }
+.app.paint::after {
+  content: ''; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.18), transparent); pointer-events: none;
+}
+.app.paint .who b { color: var(--color-white); }
+.app.paint .who small, .app.paint .facts { color: rgba(255, 255, 255, 0.88); }
+.app.paint .facts b { color: var(--color-white); }
+.app.paint .chip { background: rgba(255, 255, 255, 0.2); color: var(--color-white); }
+.app.paint .chev { color: var(--color-white); }
+.app.paint > * { position: relative; z-index: 1; }
+.money { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.money small { font-size: 13.5px; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
+.amt {
+  font-family: var(--font-mono); font-weight: 700; letter-spacing: -0.04em; line-height: 1; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  /* O valor nunca corta: encolhe com o número de dígitos (`--amt-n`) para caber no cartão. */
+  font-size: min(36px, 11cqi, calc((100cqi - 8px) / (0.6 * var(--amt-n, 5) + 1.6)));
+}
+.amt small { font-size: 0.48em; font-weight: 600; opacity: 0.9; margin-right: 6px; letter-spacing: 0; }
+.amt em { font-style: normal; font-size: 0.55em; }
+.failed { font-size: 18px; font-weight: 700; line-height: 1.2; }
+.amt-skel { height: 36px; width: 60%; border-radius: 10px; background: rgba(255, 255, 255, 0.22); animation: h-pulse 1.4s ease-in-out infinite; }
+.mini { display: flex; gap: 6px; }
+.mini i { flex: 1; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.95); }
+.mini i.off { background: rgba(0, 0, 0, 0.32); }
+.warnline { display: flex; gap: 8px; align-items: flex-start; background: rgba(0, 0, 0, 0.22); border-radius: 12px; padding: 10px 12px; font-size: 13.5px; line-height: 1.4; }
+.warnline svg { width: 16px; height: 16px; margin-top: 1px; flex: none; }
+
+/* ---------- carregando ---------- */
+.skel-card { gap: 12px; }
+.skel { display: block; border-radius: 10px; background: var(--color-placeholder-fill); animation: h-pulse 1.4s ease-in-out infinite; }
+.skel.tile { width: 48px; height: 48px; border-radius: 14px; }
+.skel.line { height: 14px; width: 80%; }
+.skel.line.short { width: 50%; }
+@keyframes h-pulse { 50% { opacity: 0.55; } }
+
+/* ---------- ajuda: a mesma linha centrada do fim da Assinatura ---------- */
+.help-line { margin: 6px 0 4px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; font-size: 14.5px; color: var(--color-fg-muted); text-align: center; }
+.btn.wa {
+  min-height: 44px; padding: 0 16px 0 12px; border-radius: 999px; font-size: 15px;
+  background: var(--color-surface); color: var(--color-fg); border: 1px solid var(--color-edge);
+}
+.btn.wa svg { width: 20px; height: 20px; color: #25D366; }
+.btn.wa:hover { background: var(--color-surface-sunken); border-color: color-mix(in srgb, #25D366 55%, var(--color-edge)); transform: translateY(-1px); }
+.btn.wa:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .app, .btn, .skel, .amt-skel { transition: none; animation: none; }
+  a.app:active, .btn:active, .btn.wa:hover { transform: none; }
+}
