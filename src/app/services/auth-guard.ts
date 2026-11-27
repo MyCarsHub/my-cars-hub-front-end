@@ -19,7 +19,8 @@ export const authGuard: CanActivateFn = () => {
     sessionService.getItem('onboardingCompleted') !== null;
 
   if (alreadyLoaded) {
-    return true;
+    // Sessão de antes desta carga: atualiza os recursos liberados (uma vez por carga).
+    return authService.refreshFeaturesOnce().pipe(map(() => true));
   }
 
   return authService.getMe().pipe(
