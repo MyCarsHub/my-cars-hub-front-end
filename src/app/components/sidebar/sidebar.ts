@@ -70,8 +70,6 @@ export interface NavItem {
    * (rodapé V2 do canvas), e não como linha. Só vale com `pinBottom`.
    */
   account?: boolean;
-  /** Respiro acima do item (só o primeiro visível com a marca o recebe): Assinatura/Configurações. */
-  gapBefore?: boolean;
 }
 
 /** Cartão do topo no lugar do seletor de empresa (a área de administração mostra a PESSOA). */
@@ -307,12 +305,11 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   // Plano e cobrança: só o dono (o gerente é "dono menos billing", FEAT-0228).
-  { route: '/billing', label: 'Assinatura', icon: ICON_BILLING, roles: ['OWNER'], gapBefore: true },
+  { route: '/billing', label: 'Assinatura', icon: ICON_BILLING, roles: ['OWNER'] },
   {
     label: 'Configurações',
     icon: ICON_SETTINGS,
     tourKey: TOUR_ANCHORS.settingsGroup,
-    gapBefore: true,
     children: [
       // FEAT-0228 — esta área é do OWNER e do MANAGER (gerente é dono MENOS billing). Não
       // reintroduza `roles: ['OWNER']` aqui: `sidebar-guard-parity.spec.ts` reprova.
@@ -624,9 +621,6 @@ export class Sidebar {
   protected readonly accountItems = computed(() =>
     this.allowedItems().filter((item) => item.pinBottom && item.account),
   );
-
-  /** Primeiro item com respiro acima (Assinatura para o dono, Configurações para o gerente). */
-  protected readonly firstGapItem = computed(() => this.navItems().find((i) => i.gapBefore) ?? null);
 
   /**
    * Nome de quem está logado, para o bloco do usuário no pé — a mesma fonte do Perfil

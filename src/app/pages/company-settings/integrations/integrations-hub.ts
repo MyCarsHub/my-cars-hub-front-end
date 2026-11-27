@@ -11,62 +11,119 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../../services/api-error.service';
+import { environment as appEnv } from '../../../../environments/environment';
 import { AsaasIntegrationService } from './asaas-integration.service';
+import {
+  centsParts,
+  currentMonthName,
+  formatCents,
+  isWebhookBroken,
+  moneyPathStops,
+  noticeLabel,
+} from './asaas-integration.view';
 
-type IntegrationStatusKey = 'asaas';
+export const ASAAS_ROUTE = '/configuracoes/integracoes/asaas';
 
-interface IntegrationCardConfig {
-  readonly key: IntegrationStatusKey;
-  readonly name: string;
-  readonly description: string;
-  readonly logo: string;
-  readonly logoAlt: string;
-  readonly route: string;
-}
-
-const INTEGRATIONS: readonly IntegrationCardConfig[] = [
-  {
-    key: 'asaas',
-    name: 'Asaas',
-    description: 'Cobranças automáticas para aluguéis e caução (PIX, boleto e cartão).',
-    logo: 'logos/integrations/asaas.svg',
-    logoAlt: 'Logo Asaas',
-    route: '/configuracoes/integracoes/asaas',
-  },
-];
+/** Estado do Asaas na vitrine: decide o cartão (pintado quando ligado) e o chip. */
+type AsaasCardState = 'loading' | 'unknown' | 'off' | 'on' | 'test' | 'broken';
 
 /**
- * Hub de integrações da empresa. Lista cards clicáveis, um por provedor,
- * com badge de status ("Conectado" / "Não configurado"). Preparado para
- * receber novos provedores (Autentique, Stripe, etc.) sem mexer na página.
+ * Vitrine de integrações (desenho aprovado em 27/11): formato "loja", com a linguagem da
+ * página do Asaas. Por ora só o Asaas, por decisão do dono; a grade já recebe outros cartões.
+ * Ligado, o Asaas vira o cartão pintado com o saldo e o caminho do dinheiro em miniatura;
+ * tocar abre a página do Asaas.
  */
 @Component({
   selector: 'app-integrations-hub',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, DefaultPageLayout, AlertBanner],
   templateUrl: './integrations-hub.html',
+  styleUrl: './integrations-hub.css',
 })
 export class IntegrationsHub implements OnInit {
   private readonly asaas = inject(AsaasIntegrationService);
   private readonly apiErrors = inject(ApiErrorService);
 
-  protected readonly integrations = INTEGRATIONS;
+  protected readonly asaasRoute = ASAAS_ROUTE;
+  private readonly monthName = currentMonthName();
+
+  protected readonly whatsappUrl = appEnv.supportWhatsapp
+    ? `https://wa.me/${appEnv.supportWhatsapp}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre as integrações do MyCarsHub.')}`
+    : null;
 
   /**
    * Falha ao CARREGAR o status das integrações. Sem isso o usuário lia
-   * "Não configurado" para uma integração que talvez esteja conectada.
+   * "Não ligado" para uma integração que talvez esteja ligada.
    */
   protected readonly error = signal<string | null>(null);
 
-  protected readonly asaasConnected = computed(
-    () => this.asaas.status()?.connected === true,
+  private readonly status = this.asaas.status;
+  private readonly overview = this.asaas.overview;
+
+  private readonly webhookBroken = computed(() => isWebhookBroken(this.status()));
+
+  protected readonly state = computed<AsaasCardState>(() => {
+    const s = this.status();
+    // Status não lido: nunca "Ligar" (talvez já esteja ligado); o cartão só leva à página.
+    if (s === null) return this.error() ? 'unknown' : 'loading';
+    if (!s.connected) return 'off';
+    if (this.webhookBroken()) return 'broken';
+    return s.environment === 'SANDBOX' ? 'test' : 'on';
+  });
+
+  protected readonly chipLabel = computed(() => {
+    switch (this.state()) {
+      case 'test':
+        return 'Testes';
+      case 'broken':
+        return 'Aviso parado';
+      default:
+        return 'Ligado';
+    }
+  });
+
+  /** Saldo do cartão: só com o número em mãos; sem ele o cartão diz que não leu, nunca inventa. */
+  protected readonly balance = computed<
+    { kind: 'loading' } | { kind: 'none' } | { kind: 'ok'; int: string; dec: string; n: number }
+  >(() => {
+    const ov = this.overview();
+    if (!ov) return this.asaas.overviewLoading() ? { kind: 'loading' } : { kind: 'none' };
+    const cents = ov.asaas?.balanceCents;
+    if (cents == null) return { kind: 'none' };
+    const p = centsParts(cents);
+    return { kind: 'ok', int: p.int, dec: p.dec, n: p.int.length };
+  });
+
+  /** As quatro paradas do caminho do dinheiro — a mesma régua da página do Asaas. */
+  protected readonly stops = computed(() =>
+    moneyPathStops(this.webhookBroken(), this.overview()?.awaitingSettlementCount ?? 0),
   );
+
+  protected readonly stopsLabel = computed(() => {
+    const on = this.stops().filter(Boolean).length;
+    return `Caminho do dinheiro: ${on} de 4 paradas funcionando`;
+  });
+
+  protected readonly paidThisMonth = computed(() => {
+    const m = this.overview()?.month;
+    return m ? { label: `Recebido em ${this.monthName}`, value: formatCents(m.paidCents) } : null;
+  });
+
+  protected readonly lastNotice = computed(() => {
+    const at = this.overview()?.lastPaymentNoticeAt;
+    return at ? `Último aviso ${noticeLabel(at)}` : null;
+  });
 
   ngOnInit(): void {
     this.error.set(null);
+    // Nada de números de uma visita anterior (ex.: voltando da página do Asaas) antes da resposta nova.
+    this.asaas.forgetOverview();
     this.asaas.load().subscribe({
+      next: (s) => {
+        if (s.connected) this.loadOverview();
+      },
       error: (err: HttpErrorResponse) => {
-        // 404 é o estado legítimo "não configurado" — o service já normaliza
+        // 404 é o estado legítimo "não ligado" — o service já normaliza
         // pra { connected: false }. Reivindica mesmo assim pra calar o safety net.
         if (err.status === 404) {
           this.apiErrors.claim(err);
@@ -79,8 +136,8 @@ export class IntegrationsHub implements OnInit {
     });
   }
 
-  protected isConnected(key: IntegrationStatusKey): boolean {
-    if (key === 'asaas') return this.asaasConnected();
-    return false;
+  /** Números do cartão: falha não é erro da tela (o cartão segue, só sem saldo). */
+  private loadOverview(): void {
+    this.asaas.loadOverview().subscribe({ error: () => void 0 });
   }
 }

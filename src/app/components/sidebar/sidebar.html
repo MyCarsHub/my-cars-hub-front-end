@@ -114,7 +114,7 @@
     [class.px-3]="!collapsedDesk()" [style.padding-inline]="collapsedDesk() ? '14px' : null" aria-label="Navegação principal">
     @for (item of navItems(); track trackByKey($index, item)) {
       @if (item.children) {
-        <div [class.mt-4]="item === firstGapItem()" data-nav-group>
+        <div data-nav-group>
           <button type="button" (click)="onParentClick(item)"
             class="nav-link w-full min-h-11 flex items-center gap-3 rounded-xl text-[15px] font-medium text-fg-soft
                    hover:bg-surface-sunken hover:text-fg transition-[background-color,color,transform] active:scale-[0.98]
@@ -154,7 +154,7 @@
           }
         </div>
       } @else {
-        <ng-container *ngTemplateOutlet="rowLink; context: { $implicit: item, gap: item === firstGapItem() }" />
+        <ng-container *ngTemplateOutlet="rowLink; context: { $implicit: item }" />
       }
     }
   </nav>
@@ -164,7 +164,7 @@
     [class.px-3]="!collapsedDesk()" [style.padding-inline]="collapsedDesk() ? '14px' : null">
   <div class="flex flex-col gap-0.5" data-nav-bottom>
     @for (item of bottomNavItems(); track trackByKey($index, item)) {
-      <ng-container *ngTemplateOutlet="rowLink; context: { $implicit: item, gap: false }" />
+      <ng-container *ngTemplateOutlet="rowLink; context: { $implicit: item }" />
     }
 
     @if (accountItems().length > 0) {
@@ -245,14 +245,14 @@
 </ng-template>
 
 <!-- Linha de primeiro nível (lista e pé): ícone, nome e, em Novidades, o número de não lidas. -->
-<ng-template #rowLink let-item let-gap="gap">
+<ng-template #rowLink let-item>
   <a [routerLink]="item.route" [routerLinkActive]="item.activeAlso ? [] : 'active-link'"
     [routerLinkActiveOptions]="item.exactMatch ? { exact: true } : { exact: false }"
     [class.active-link]="!!item.activeAlso && isActive(item)"
     class="nav-link relative min-h-11 flex items-center gap-3 rounded-xl text-[15px] font-medium text-fg-soft
            hover:bg-surface-sunken hover:text-fg transition-[background-color,color,transform] active:scale-[0.98]
            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-    [class.mt-4]="gap" [class.justify-center]="collapsedDesk()" [class.px-3]="!collapsedDesk()"
+    [class.justify-center]="collapsedDesk()" [class.px-3]="!collapsedDesk()"
     [title]="collapsedDesk() ? item.label : ''" (click)="onNavClick()"
     [attr.aria-label]="itemAriaLabel(item)" [attr.data-tour]="item.tourKey ?? null">
     <span class="nav-icon shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>

@@ -24,7 +24,6 @@
   --a-orange-text: var(--color-primary-700);
   --a-field: var(--color-surface);
   --a-field-edge: var(--color-edge-field);
-  --a-wa: #128C4A;
   /* A miniatura da tela do Asaas e a placa são objetos do mundo: claros nos dois temas. */
   --a-shot-bg: #F4F6FB;
   --a-shot-ink: #1F2A44;
@@ -109,7 +108,15 @@
 .btn.primary:hover:not(:disabled) { background: var(--color-primary-600); }
 .btn.ghost { background: var(--a-control); color: var(--color-fg); }
 .btn.white { background: var(--color-white); color: var(--color-primary-700); position: relative; z-index: 1; }
-.btn.wa { background: var(--a-wa); color: var(--color-white); }
+/* WhatsApp: o mesmo botão da linha de ajuda da Assinatura (billing.css .help-line). */
+.btn.wa {
+  min-height: 44px; padding: 0 16px 0 12px; border-radius: 999px; font-size: 15px;
+  background: var(--color-surface); color: var(--color-fg); border: 1px solid var(--color-edge);
+  transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.btn.wa svg { width: 20px; height: 20px; color: #25D366; }
+.btn.wa:hover { background: var(--color-surface-sunken); border-color: color-mix(in srgb, #25D366 55%, var(--color-edge)); transform: translateY(-1px); }
+.btn.wa:active { transform: scale(0.97); }
 .btn.block { width: 100%; }
 /* "Religar": o botão mora na linha da etapa; 44px de alvo. */
 .btn.sm { min-height: 44px; padding: 0 14px; font-size: 14px; border-radius: 12px; }
@@ -139,8 +146,8 @@
 .tile { width: 36px; height: 36px; border-radius: 11px; background: var(--a-tile); display: grid; place-items: center; flex: none; color: var(--color-fg); }
 .tile svg { width: 18px; height: 18px; }
 
-.help { display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 14px; color: var(--color-fg-muted); padding-top: 6px; }
-@media (min-width: 1024px) { .help { flex-direction: row; justify-content: center; } }
+/* Ajuda: a mesma linha centrada do fim da Assinatura, sem título nem cartão. */
+.help-line { margin: 28px 0 4px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; font-size: 14.5px; color: var(--color-fg-muted); text-align: center; }
 
 /* ---------- avisos (mesma família do alert-banner, sem moldura) ---------- */
 .warn { display: flex; gap: 10px; align-items: flex-start; background: var(--a-amber-bg); color: var(--a-amber-text); border-radius: 16px; padding: 14px; font-size: 14px; line-height: 1.45; }
@@ -234,4 +241,5 @@ a.r:active { opacity: 0.7; }
 
 @media (prefers-reduced-motion: reduce) {
   .skel, .paint .amt-skel, .ign .knob, .ign button { animation: none !important; transition: none !important; }
+  .btn.wa, .btn.wa:hover, .btn.wa:active { transition: none; transform: none; }
 }
