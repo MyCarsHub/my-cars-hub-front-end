@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, of, switchMap, tap } from 'rxjs';
+import { Observable, catchError, map, of, switchMap, tap, timeout } from 'rxjs';
 import { MeResponse } from '../types/me-response.type';
 import { UserCompanies } from '../types/user-companies';
 import { environment } from '../../environments/environment';
@@ -11,6 +11,9 @@ import { TenantCachesService } from './tenant-caches.service';
 import { MembershipsService } from './memberships.service';
 import { pickLoginCompany } from './company-role-priority';
 import { markFeaturesChanged } from './features-session';
+
+/** Quanto a primeira navegação espera o `/auth/me` de `refreshFeaturesOnce` antes de seguir. */
+export const FEATURES_REFRESH_TIMEOUT_MS = 3000;
 
 interface TokenResponse {
     token: string;
@@ -39,7 +42,36 @@ export class AuthService {
     private impersonation = inject(ImpersonationService);
     private memberships = inject(MembershipsService);
 
+    /** `features` já foi lido do servidor nesta carga da página (login ou `refreshFeaturesOnce`). */
+    private featuresFresh = false;
+
     constructor(private httpClient: HttpClient) { }
+
+    /**
+     * FEAT-0573 — uma liberação abre um recurso para todos no servidor enquanto a aba segue
+     * logada, e `features` só era gravado no login: quem já estava dentro continuava sem o
+     * recurso até sair e entrar. Uma vez por carga da página, relê SÓ `features` do
+     * `/auth/me`. Não chama `writeSession`, que escolheria a empresa de novo. Na sessão de
+     * suporte não faz nada (as chaves ficam congeladas). Falha ou demora = segue com o que
+     * já está na sessão.
+     */
+    refreshFeaturesOnce(): Observable<void> {
+        if (this.featuresFresh || this.impersonation.active()) return of(undefined);
+        this.featuresFresh = true;
+        return this.httpClient.get<MeResponse>(`${environment.apiUrl}/auth/me`).pipe(
+            tap((user) => {
+                if (this.impersonation.active()) return;
+                this.sessionService.setItem(
+                    'features',
+                    JSON.stringify(Array.isArray(user.features) ? user.features : []),
+                );
+                markFeaturesChanged();
+            }),
+            map(() => undefined),
+            timeout(FEATURES_REFRESH_TIMEOUT_MS),
+            catchError(() => of(undefined)),
+        );
+    }
 
     getMe(): Observable<MeResponse> {
         return this.httpClient
@@ -127,6 +159,7 @@ export class AuthService {
             JSON.stringify(Array.isArray(user.features) ? user.features : []),
         );
         markFeaturesChanged();
+        this.featuresFresh = true;
 
         // Defensive: if /auth/me returns companies=[] but session already has
         // entries (typically written by applyFinishResponse right after
