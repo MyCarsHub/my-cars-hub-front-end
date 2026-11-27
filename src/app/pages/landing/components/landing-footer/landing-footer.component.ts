@@ -13,8 +13,8 @@ export class LandingFooterComponent {
   readonly year = new Date().getFullYear();
 
   /**
-   * Identidade legal da empresa. `null` enquanto os valores reais não forem
-   * fornecidos pelo dono — e nesse caso o bloco simplesmente não sai. Ver
+   * Identidade legal da empresa. Hoje só o CNPJ real; razão social e endereço
+   * saem quando o dono fornecer. `null` esconde o bloco inteiro. Ver
    * `company-identity.ts`: inventar um CNPJ seria publicar documento falso.
    */
   protected readonly identity = inject(COMPANY_IDENTITY);

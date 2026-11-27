@@ -39,9 +39,13 @@
        `company-identity.ts`. Um CNPJ de exemplo no ar seria documento falso. -->
   @if (identity; as company) {
     <address class="max-w-[1200px] mx-auto mt-6 not-italic text-[13px] text-white/50 leading-[1.6]">
-      <span class="block">{{ company.legalName }}</span>
+      @if (company.legalName) {
+        <span class="block">{{ company.legalName }}</span>
+      }
       <span class="block">CNPJ {{ company.cnpj }}</span>
-      <span class="block">{{ company.address }}</span>
+      @if (company.address) {
+        <span class="block">{{ company.address }}</span>
+      }
     </address>
   }
 
