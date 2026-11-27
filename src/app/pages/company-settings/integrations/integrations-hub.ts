@@ -13,7 +13,14 @@ import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { environment as appEnv } from '../../../../environments/environment';
 import { AsaasIntegrationService } from './asaas-integration.service';
-import { centsParts, currentMonthName, formatCents, noticeLabel } from './asaas-integration.view';
+import {
+  centsParts,
+  currentMonthName,
+  formatCents,
+  isWebhookBroken,
+  moneyPathStops,
+  noticeLabel,
+} from './asaas-integration.view';
 
 export const ASAAS_ROUTE = '/configuracoes/integracoes/asaas';
 
@@ -53,12 +60,7 @@ export class IntegrationsHub implements OnInit {
   private readonly status = this.asaas.status;
   private readonly overview = this.asaas.overview;
 
-  private readonly webhookBroken = computed(() => {
-    const s = this.status();
-    if (!s?.connected) return false;
-    if (s.webhookStatus) return s.webhookStatus === 'FAILED';
-    return s.webhookAutoConfigured === false;
-  });
+  private readonly webhookBroken = computed(() => isWebhookBroken(this.status()));
 
   protected readonly state = computed<AsaasCardState>(() => {
     const s = this.status();
@@ -92,15 +94,10 @@ export class IntegrationsHub implements OnInit {
     return { kind: 'ok', int: p.int, dec: p.dec, n: p.int.length };
   });
 
-  /**
-   * As quatro paradas do caminho do dinheiro (enviada, paga, avisou, baixa). Aviso parado
-   * apaga as duas últimas; pagamento esperando baixa apaga só a última — a mesma régua da página.
-   */
-  protected readonly stops = computed<readonly boolean[]>(() => {
-    if (this.webhookBroken()) return [true, true, false, false];
-    const waiting = this.overview()?.awaitingSettlementCount ?? 0;
-    return waiting > 0 ? [true, true, true, false] : [true, true, true, true];
-  });
+  /** As quatro paradas do caminho do dinheiro — a mesma régua da página do Asaas. */
+  protected readonly stops = computed(() =>
+    moneyPathStops(this.webhookBroken(), this.overview()?.awaitingSettlementCount ?? 0),
+  );
 
   protected readonly stopsLabel = computed(() => {
     const on = this.stops().filter(Boolean).length;
@@ -119,6 +116,8 @@ export class IntegrationsHub implements OnInit {
 
   ngOnInit(): void {
     this.error.set(null);
+    // Nada de números de uma visita anterior (ex.: voltando da página do Asaas) antes da resposta nova.
+    this.asaas.forgetOverview();
     this.asaas.load().subscribe({
       next: (s) => {
         if (s.connected) this.loadOverview();

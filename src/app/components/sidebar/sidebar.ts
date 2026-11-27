@@ -622,8 +622,6 @@ export class Sidebar {
     this.allowedItems().filter((item) => item.pinBottom && item.account),
   );
 
-  /** Primeiro item com respiro acima (Assinatura para o dono, Configurações para o gerente). */
-
   /**
    * Nome de quem está logado, para o bloco do usuário no pé — a mesma fonte do Perfil
    * (`sessionStorage.name`, gravado por `/auth/me`). Relido a cada troca de empresa.

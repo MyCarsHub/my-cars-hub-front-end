@@ -43,6 +43,7 @@ import {
   formatCents,
   noticeLabel,
   shortDate,
+  isWebhookBroken,
 } from './asaas-integration.view';
 import { AsaasViewer, deriveAsaasViewer } from './asaas-integration.viewer';
 
@@ -155,12 +156,7 @@ export class AsaasIntegration implements OnInit {
    * Aviso parado: conectado, mas o Asaas recusou o endereço de aviso. `webhookStatus` manda;
    * só sem ele (resposta antiga) vale o booleano, e `undefined` NÃO é falha.
    */
-  protected readonly webhookBroken = computed(() => {
-    const s = this.status();
-    if (!s?.connected) return false;
-    if (s.webhookStatus) return s.webhookStatus === 'FAILED';
-    return s.webhookAutoConfigured === false;
-  });
+  protected readonly webhookBroken = computed(() => isWebhookBroken(this.status()));
   protected readonly webhookBusy = this.service.webhookBusy;
   protected readonly webhookError = signal<string | null>(null);
   protected readonly webhookRetryFailed = signal(false);

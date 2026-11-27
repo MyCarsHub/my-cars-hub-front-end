@@ -61,7 +61,16 @@ describe('IntegrationsHub — vitrine', () => {
     overviewLoading,
     load: vi.fn(),
     loadOverview: vi.fn(),
+    forgetOverview: vi.fn(() => overviewSig.set(null)),
   };
+
+  /** Falha como o service real: o status some (nunca fica o de antes). */
+  function failWith(err: unknown): void {
+    asaas.load.mockImplementation(() => {
+      status.set(null);
+      return throwError(() => err);
+    });
+  }
 
   /** O service real grava o status ao responder; o dublê faz o mesmo. */
   function respondWith(s: AsaasIntegrationStatus): void {
@@ -84,6 +93,7 @@ describe('IntegrationsHub — vitrine', () => {
     overviewLoading.set(false);
     asaas.load.mockReset();
     asaas.loadOverview.mockReset();
+    asaas.forgetOverview.mockClear();
     respondWith(OFF);
     respondOverview(overview());
 
@@ -186,9 +196,45 @@ describe('IntegrationsHub — vitrine', () => {
     expect(q(el, 'hub-asaas-on')?.textContent).toContain('Saldo não lido agora');
   });
 
-  it('tolera erro no load() sem quebrar o template', () => {
-    asaas.load.mockReturnValue(throwError(() => new Error('boom')));
-    expect(() => render()).not.toThrow();
+  it('erro no load(): cartão neutro que só abre a página, nunca "Ligar"', () => {
+    failWith(new HttpErrorResponse({ status: 500 }));
+    const el = render();
+    expect(q(el, 'hub-asaas-unknown')).not.toBeNull();
+    expect(q(el, 'hub-asaas-connect')).toBeNull();
+  });
+
+  it('status ligado em memória e a releitura falha: não sobra o cartão ligado nem "Ligar"', () => {
+    status.set(connected());
+    overviewSig.set(overview());
+    failWith(new HttpErrorResponse({ status: 503 }));
+    const el = render();
+    expect(q(el, 'hub-asaas-on')).toBeNull();
+    expect(q(el, 'hub-asaas-connect')).toBeNull();
+    expect(q(el, 'hub-asaas-unknown')).not.toBeNull();
+  });
+
+  it('voltando da página do Asaas: esquece os números velhos e mostra o esqueleto até a resposta nova', () => {
+    overviewSig.set(overview({ asaas: { accountName: null, cpfCnpjMasked: null, balanceCents: 999900, fees: null } }));
+    respondWith(connected());
+    overviewLoading.set(true);
+    asaas.loadOverview.mockReturnValue(of(overview())); // ainda não gravou: resposta a caminho
+    const el = render();
+    expect(asaas.forgetOverview).toHaveBeenCalledOnce();
+    expect(asaas.forgetOverview.mock.invocationCallOrder[0]).toBeLessThan(
+      asaas.load.mock.invocationCallOrder[0],
+    );
+    expect(q(el, 'hub-asaas-balance')).toBeNull();
+    expect(el.querySelector('.amt-skel')).not.toBeNull();
+    expect(el.textContent).not.toContain('9.999');
+  });
+
+  it('o nome do link vem do conteúdo: o leitor de tela ouve o status e o alerta', () => {
+    respondWith(connected({ webhookStatus: 'FAILED' }));
+    const el = render();
+    const card = q(el, 'hub-asaas-on') as HTMLAnchorElement;
+    expect(card.hasAttribute('aria-label')).toBe(false);
+    expect(card.textContent).toContain('Aviso parado');
+    expect(card.textContent).toContain('O Asaas parou de avisar os pagamentos');
   });
 });
 
@@ -227,6 +273,7 @@ describe('IntegrationsHub — falha ao carregar o status', () => {
             overviewLoading: signal(false),
             load,
             loadOverview: vi.fn(() => of(null)),
+            forgetOverview: vi.fn(),
           },
         },
         {

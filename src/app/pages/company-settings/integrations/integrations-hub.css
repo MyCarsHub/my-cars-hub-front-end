@@ -56,13 +56,13 @@ a.app:focus-visible { outline: 2px solid var(--color-primary-400); outline-offse
   background: radial-gradient(closest-side, rgba(255, 255, 255, 0.18), transparent); pointer-events: none;
 }
 .app.paint .who b { color: var(--color-white); }
-.app.paint .who small, .app.paint .facts { color: rgba(255, 255, 255, 0.88); }
+.app.paint .who small, .app.paint .facts { color: var(--color-white); }
 .app.paint .facts b { color: var(--color-white); }
 .app.paint .chip { background: rgba(255, 255, 255, 0.2); color: var(--color-white); }
 .app.paint .chev { color: var(--color-white); }
 .app.paint > * { position: relative; z-index: 1; }
 .money { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.money small { font-size: 13.5px; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
+.money small { font-size: 13.5px; font-weight: 600; color: var(--color-white); }
 .amt {
   font-family: var(--font-mono); font-weight: 700; letter-spacing: -0.04em; line-height: 1; white-space: nowrap;
   font-variant-numeric: tabular-nums;

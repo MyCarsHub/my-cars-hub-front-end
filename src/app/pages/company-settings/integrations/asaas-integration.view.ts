@@ -4,7 +4,7 @@
  * Sem Angular aqui: tudo é testável com uma chamada.
  */
 import { todayInBusinessTz } from '../../../utils/business-clock';
-import type { AsaasEnvironment, AsaasFees } from './asaas-integration.types';
+import type { AsaasEnvironment, AsaasFees, AsaasIntegrationStatus } from './asaas-integration.types';
 
 /* ---------------------------------------------------------- conferir a chave */
 
@@ -144,4 +144,24 @@ export function noticeLabel(isoDateTime: string, now: Date = new Date()): string
   const day = dayLabel(isoDateTime, now).toLowerCase();
   const time = isoDateTime.length >= 16 ? isoDateTime.slice(11, 16) : '';
   return time ? `${day}, ${time}` : day;
+}
+
+/**
+ * O Asaas parou de avisar os pagamentos (webhook recusado). `webhookStatus` é a fonte da
+ * verdade; resposta antiga sem ele cai em `webhookAutoConfigured`. A página e a vitrine usam
+ * esta mesma régua.
+ */
+export function isWebhookBroken(s: AsaasIntegrationStatus | null): boolean {
+  if (!s?.connected) return false;
+  if (s.webhookStatus) return s.webhookStatus === 'FAILED';
+  return s.webhookAutoConfigured === false;
+}
+
+/**
+ * As quatro paradas do caminho do dinheiro (enviada, paga, avisou, baixa), acesas ou não.
+ * Aviso parado apaga as duas últimas; pagamento esperando baixa apaga só a última.
+ */
+export function moneyPathStops(broken: boolean, awaiting: number): readonly boolean[] {
+  if (broken) return [true, true, false, false];
+  return awaiting > 0 ? [true, true, true, false] : [true, true, true, true];
 }
